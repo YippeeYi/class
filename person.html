@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>个人页面</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="favicon.ico">
+    <link rel="preload" href="fonts/GoogleSansFlex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf" as="font" type="font/ttf" crossorigin>
+    <script src="js/authGate.js"></script>
+    <script src="js/navigation.js"></script>
+    <script src="js/imageCache.js"></script>
+</head>
+
+<body>
+    <div class="page-header">
+        <button class="back-to-guide-btn" aria-label="返回导览页面" title="返回导览页面"
+            data-nav-target="index.html">🏠</button>
+    </div>
+
+    <h1 id="person-id"></h1>
+    <div class="person-info">
+        <div class="info-row">
+            <span class="info-label">别名：</span>
+            <span class="info-value" id="person-alias"></span>
+        </div>
+
+        <div class="info-row">
+            <span class="info-label">简介：</span>
+            <span class="info-value" id="person-bio"></span>
+        </div>
+    </div>
+
+
+    <div class="record-switch">
+        <button class="switch-btn active" data-type="participated">参与的事件</button>
+        <button class="switch-btn" data-type="authored">记录的事件</button>
+    </div>
+
+    <div id="record-filter"></div>
+
+    <div id="record-list"></div>
+
+    <!-- Cache + Store -->
+    <script src="js/cacheLoader.js"></script>
+    <script src="js/recordStore.js"></script>
+    <script src="js/peopleStore.js"></script>
+    <script src="js/glossaryStore.js"></script>
+    <script src="js/bootstrap.js"></script>
+    <script src="js/qcoinSystem.js"></script>
+    <script src="js/achievementSystem.js"></script>
+    <script src="js/mascot.js"></script>
+    <script src="js/backgroundOptions.js"></script>
+    <script src="js/backgroundSwitcher.js"></script>
+
+    <!-- 渲染和页面逻辑 -->
+    <script src="js/recordRenderer.js"></script>
+    <script src="js/person.js"></script>
+
+    <footer class="footer">
+        本站使用匿名访问统计，仅用于了解页面使用情况，不收集任何个人信息。
+    </footer>
+
+    <!-- Cloudflare Web Analytics -->
+    <script defer src='https://static.cloudflareinsights.com/beacon.min.js'
+        data-cf-beacon='{"token": "1111e0403f354ef6a4e0ef29b62e3e2e"}'></script>
+    <!-- End Cloudflare Web Analytics -->
+</body>
+
+</html>
+
+

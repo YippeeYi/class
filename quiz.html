@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>编日史 · 答题赚 Q币</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="favicon.ico">
+    <link rel="preload" href="fonts/GoogleSansFlex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf"
+        as="font" type="font/ttf" crossorigin>
+    <script src="js/authGate.js"></script>
+    <script src="js/navigation.js"></script>
+    <script src="js/imageCache.js"></script>
+</head>
+
+<body class="feature-page quiz-page">
+    <div class="page-header">
+        <button class="back-to-guide-btn" aria-label="返回主页" title="返回主页" data-nav-target="index.html">↩</button>
+    </div>
+
+    <main class="feature-shell quiz-shell">
+        <section class="quiz-card is-loading">
+            <span class="quiz-correct-chip">累计答对 <strong data-qcoin-quiz-correct>0</strong></span>
+            <div id="quiz-filter" class="record-filter quiz-filter"></div>
+            <div class="quiz-card-head">
+                <p id="quiz-question-meta" class="quiz-question-meta"></p>
+                <button id="quiz-next-btn" class="btn-action" type="button">换一题</button>
+            </div>
+            <h2 id="quiz-question-text" class="quiz-question-text">正在生成题目…</h2>
+            <div id="quiz-options" class="quiz-options"></div>
+            <form id="quiz-fill-form" class="quiz-fill-form" hidden>
+                <label class="quiz-fill-label" for="quiz-fill-input">填入完整答案（需完全相同）</label>
+                <div class="quiz-fill-row">
+                    <input id="quiz-fill-input" class="quiz-fill-input" type="text" autocomplete="off"
+                        spellcheck="false" placeholder="请输入挖空内容">
+                    <button class="btn-action quiz-submit" type="submit">提交答案</button>
+                </div>
+            </form>
+            <p id="quiz-feedback" class="quiz-feedback"></p>
+        </section>
+    </main>
+
+    <script src="js/cacheLoader.js"></script>
+    <script src="js/recordStore.js"></script>
+    <script src="js/peopleStore.js"></script>
+    <script src="js/glossaryStore.js"></script>
+    <script src="js/bootstrap.js"></script>
+    <script src="js/qcoinSystem.js"></script>
+    <script src="js/achievementSystem.js"></script>
+    <script src="js/mascot.js"></script>
+    <script src="js/backgroundOptions.js"></script>
+    <script src="js/backgroundSwitcher.js"></script>
+    <script src="js/recordRenderer.js"></script>
+    <script src="js/quizApp.js"></script>
+</body>
+
+</html>

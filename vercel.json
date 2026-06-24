@@ -1,0 +1,6 @@
+﻿{
+  "rewrites": [
+    { "source": "/data/(.*)", "destination": "/404.html" },
+    { "source": "/images/(.*)", "destination": "/404.html" }
+  ]
+}

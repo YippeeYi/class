@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>登录 · 编日史</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="favicon.ico">
+    <link rel="preload" href="fonts/GoogleSansFlex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf" as="font" type="font/ttf" crossorigin>
+    <script src="js/authGate.js"></script>
+    <script src="js/imageCache.js"></script>
+</head>
+
+<body class="auth-page">
+    <div class="auth-card">
+        <h1>登录编日史</h1>
+        <p class="auth-hint">使用管理员分配的初始账号和密码登录，进入后可在主页修改密码。</p>
+        <form class="auth-form">
+            <input type="text" name="login" placeholder="账号" autocomplete="username" required>
+            <input type="password" name="password" placeholder="密码" autocomplete="current-password" required>
+            <button type="submit">登录</button>
+        </form>
+        <p class="auth-error" aria-live="polite"></p>
+    </div>
+
+    <script src="js/authPage.js"></script>
+</body>
+
+</html>
