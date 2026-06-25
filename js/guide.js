@@ -213,18 +213,4 @@
             window.setTimeout(warmCaches, 300);
         }
     });
-
-    const refreshBtn = document.getElementById('refresh-cache-btn');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', async () => {
-            const ok = confirm('将清空所有本地缓存并重新加载数据，是否继续？');
-            if (!ok) {
-                return;
-            }
-            if (typeof window.clearCache === 'function') {
-                await window.clearCache();
-            }
-            location.reload();
-        });
-    }
 })();

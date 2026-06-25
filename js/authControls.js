@@ -1,13 +1,6 @@
-/************************************************************
- * authControls.js
- * 顶部账号面板：资料、改密、退出登录
- ************************************************************/
-
 (() => {
     const accountBtn = document.getElementById('clear-access-btn');
-    if (!accountBtn) {
-        return;
-    }
+    if (!accountBtn) return;
 
     let panel = null;
     let profile = null;
@@ -29,10 +22,10 @@
     const loadProfile = async () => {
         if (profile) return profile;
         if (!window.ClassRecordSupabase?.isConfigured()) {
-            profile = { displayName: '同学', username: '' };
+            profile = { displayName: 'Student', nickname: 'Student', username: '' };
             return profile;
         }
-        profile = await window.ClassRecordSupabase.getProfile().catch(() => null) || { displayName: '同学', username: '' };
+        profile = await window.ClassRecordSupabase.getProfile().catch(() => null) || { displayName: 'Student', nickname: 'Student', username: '' };
         return profile;
     };
 
@@ -45,8 +38,7 @@
     const positionPanel = () => {
         if (!panel) return;
         const rect = accountBtn.getBoundingClientRect();
-        const gap = 8;
-        panel.style.top = `${rect.bottom + gap + window.scrollY}px`;
+        panel.style.top = `${rect.bottom + 8 + window.scrollY}px`;
         panel.style.right = `${Math.max(12, window.innerWidth - rect.right)}px`;
     };
 
@@ -55,32 +47,36 @@
         closePanel();
         panel = document.createElement('section');
         panel.className = 'account-panel';
-        panel.setAttribute('aria-label', '账号设置');
+        panel.setAttribute('aria-label', 'Account settings');
         panel.innerHTML = `
             <header class="account-panel-head">
-                <strong>${escapeHtml(item.displayName || item.username || '同学')}</strong>
+                <strong>${escapeHtml(item.nickname || item.displayName || item.username || 'Student')}</strong>
                 <span>${escapeHtml(item.email || '')}</span>
             </header>
             <form class="account-profile-form">
                 <label>
-                    <span>显示名</span>
-                    <input name="displayName" type="text" maxlength="32" value="${escapeHtml(item.displayName || '')}" autocomplete="nickname">
+                    <span>Nickname</span>
+                    <input name="displayName" type="text" maxlength="32" value="${escapeHtml(item.nickname || item.displayName || '')}" autocomplete="nickname">
                 </label>
-                <button type="submit" class="btn-action">保存资料</button>
+                <label>
+                    <span>Avatar URL</span>
+                    <input name="avatarUrl" type="url" maxlength="500" value="${escapeHtml(item.avatarUrl || '')}" autocomplete="photo">
+                </label>
+                <button type="submit" class="btn-action">Save profile</button>
             </form>
             <form class="account-password-form">
                 <label>
-                    <span>新密码</span>
+                    <span>New password</span>
                     <input name="password" type="password" minlength="6" autocomplete="new-password" required>
                 </label>
                 <label>
-                    <span>确认新密码</span>
+                    <span>Confirm password</span>
                     <input name="passwordConfirm" type="password" minlength="6" autocomplete="new-password" required>
                 </label>
-                <button type="submit" class="btn-action">修改密码</button>
+                <button type="submit" class="btn-action">Change password</button>
             </form>
             <div class="account-panel-actions">
-                <button type="button" class="btn-action account-signout">退出登录</button>
+                <button type="button" class="btn-action account-signout">Sign out</button>
             </div>
             <p class="account-panel-status" aria-live="polite"></p>
         `;
@@ -91,9 +87,7 @@
     };
 
     const setFormBusy = (form, busy) => {
-        form.querySelectorAll('input, button').forEach((el) => {
-            el.disabled = busy;
-        });
+        form.querySelectorAll('input, button').forEach((el) => { el.disabled = busy; });
     };
 
     const bindPanelEvents = () => {
@@ -104,21 +98,26 @@
         profileForm?.addEventListener('submit', async (event) => {
             event.preventDefault();
             if (!window.ClassRecordSupabase?.isConfigured()) {
-                setStatus('Supabase 尚未配置，无法保存资料。', 'error');
+                setStatus('Supabase is not configured.', 'error');
                 return;
             }
             const displayName = profileForm.displayName.value.trim();
+            const avatarUrl = profileForm.avatarUrl?.value.trim() || '';
             setFormBusy(profileForm, true);
             try {
                 profile = await window.ClassRecordSupabase.upsertProfile({
                     username: profile?.username,
-                    displayName
+                    displayName,
+                    nickname: displayName,
+                    avatarUrl
                 });
-                profile.displayName = displayName || profile.username || '同学';
-                setStatus('资料已保存。', 'success');
+                profile.displayName = displayName || profile.username || 'Student';
+                profile.nickname = profile.displayName;
+                profile.avatarUrl = avatarUrl;
+                setStatus('Profile saved.', 'success');
             } catch (error) {
-                console.warn('保存资料失败：', error);
-                setStatus('资料保存失败，请检查 profiles 表权限。', 'error');
+                console.warn('Profile save failed:', error);
+                setStatus('Profile save failed.', 'error');
             } finally {
                 setFormBusy(profileForm, false);
             }
@@ -129,34 +128,31 @@
             const password = passwordForm.password.value;
             const passwordConfirm = passwordForm.passwordConfirm.value;
             if (password.length < 6) {
-                setStatus('新密码至少需要 6 位。', 'error');
+                setStatus('Password needs at least 6 characters.', 'error');
                 return;
             }
             if (password !== passwordConfirm) {
-                setStatus('两次输入的新密码不一致。', 'error');
+                setStatus('Passwords do not match.', 'error');
                 return;
             }
             setFormBusy(passwordForm, true);
             try {
                 await window.changeCurrentPassword(password);
                 passwordForm.reset();
-                setStatus('密码已修改，下次登录请使用新密码。', 'success');
+                setStatus('Password updated.', 'success');
             } catch (error) {
-                console.warn('修改密码失败：', error);
-                setStatus(error?.message || '密码修改失败。', 'error');
+                console.warn('Password update failed:', error);
+                setStatus(error?.message || 'Password update failed.', 'error');
             } finally {
                 setFormBusy(passwordForm, false);
             }
         });
 
         signoutBtn?.addEventListener('click', async () => {
-            const confirmed = window.confirm('确定要退出当前账号吗？');
+            const confirmed = window.confirm('Sign out of this account?');
             if (!confirmed) return;
             signoutBtn.disabled = true;
             await window.clearAccessKey?.();
-            if (typeof window.clearCache === 'function') {
-                await window.clearCache();
-            }
             window.location.replace('auth.html');
         });
     };

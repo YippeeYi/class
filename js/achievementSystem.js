@@ -24,7 +24,6 @@
         background: icon('<rect x="14" y="18" width="68" height="56" rx="12" fill="#bfdbfe"/><circle cx="64" cy="34" r="10" fill="#facc15"/><path d="M18 68l22-24 16 14 10-10 16 20" fill="#22c55e"/>'),
         fullscreen: icon('<path d="M18 38V18h20M58 18h20v20M78 58v20H58M38 78H18V58" fill="none" stroke="#111827" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><rect x="34" y="34" width="28" height="28" rx="4" fill="#a7f3d0"/>'),
         search: icon('<circle cx="42" cy="42" r="22" fill="#dbeafe" stroke="#2563eb" stroke-width="7"/><path d="M58 58l18 18" stroke="#1e3a8a" stroke-width="8" stroke-linecap="round"/><path d="M31 39h22M31 50h14" stroke="#0f766e" stroke-width="5" stroke-linecap="round"/>'),
-        mascot: icon('<rect x="24" y="16" width="44" height="60" rx="10" fill="#fef3c7" stroke="#0f766e" stroke-width="5"/><path d="M60 18v24l-8-6-8 6V18" fill="#f97316"/><path d="M36 43h4M56 43h4" stroke="#0f172a" stroke-width="6" stroke-linecap="round"/><path d="M40 58c5 5 12 5 17 0" fill="none" stroke="#0f766e" stroke-width="5" stroke-linecap="round"/><path d="M20 32l-8-7M76 32l8-7" stroke="#f59e0b" stroke-width="5" stroke-linecap="round"/>')
     };
 
     const ACHIEVEMENTS = [
@@ -61,10 +60,6 @@
         { id: 'search-deep', group: 'interact', title: '检索深挖', description: '累计使用搜索 15 次。', icon: ICONS.search, condition: (state) => state.stats.interactions.searchUses >= 15 },
         { id: 'search-global', group: 'interact', title: '全站搜查', description: '使用全站搜索入口完成一次搜索。', icon: ICONS.search, condition: (state) => state.stats.interactions.searchScopes.includes('global') },
         { id: 'search-mixed', group: 'interact', title: '双线检索', description: '分别使用记录页搜索和全站搜索。', icon: ICONS.search, condition: (state) => ['record', 'global'].every((scope) => state.stats.interactions.searchScopes.includes(scope)) },
-        { id: 'mascot-greeting', group: 'interact', title: '书签打招呼', description: '与档案小书签互动 1 次。', icon: ICONS.mascot, condition: (state) => state.stats.interactions.mascot.taps >= 1 },
-        { id: 'mascot-companion', group: 'interact', title: '随身线索员', description: '累计点击档案小书签 5 次。', icon: ICONS.mascot, condition: (state) => state.stats.interactions.mascot.taps >= 5 },
-        { id: 'mascot-deskmate', group: 'interact', title: '同桌调位', description: '拖动档案小书签到顺手的位置。', icon: ICONS.mascot, condition: (state) => state.stats.interactions.mascot.drags >= 1 },
-        { id: 'mascot-bookmark', group: 'interact', title: '贴边书签', description: '让档案小书签贴边隐藏或从边缘唤回。', icon: ICONS.mascot, condition: (state) => state.stats.interactions.mascot.toggles >= 1 },
         { id: 'sort-flipper', group: 'interact', title: '排序翻面', description: '切换人物或术语排序 3 次。', icon: ICONS.sort, condition: (state) => state.stats.interactions.sortUses >= 3 },
         { id: 'sort-master', group: 'interact', title: '秩序重排', description: '累计切换排序 10 次。', icon: ICONS.sort, condition: (state) => state.stats.interactions.sortUses >= 10 },
         { id: 'sort-conductor', group: 'interact', title: '秩序指挥', description: '累计切换排序 25 次。', icon: ICONS.sort, condition: (state) => state.stats.interactions.sortUses >= 25 },
@@ -130,9 +125,7 @@
                 recordLinkClicks: 0,
                 logoTaps: 0,
                 searchUses: 0,
-                searchScopes: [],
-                mascot: { taps: 0, drags: 0, toggles: 0 }
-            }
+                searchScopes: [],}
         }
     };
 
@@ -165,11 +158,6 @@
         state.stats.interactions.logoTaps = Number(raw.stats?.interactions?.logoTaps) || 0;
         state.stats.interactions.searchUses = Number(raw.stats?.interactions?.searchUses) || 0;
         state.stats.interactions.searchScopes = Array.isArray(raw.stats?.interactions?.searchScopes) ? [...new Set(raw.stats.interactions.searchScopes)] : [];
-        state.stats.interactions.mascot = {
-            taps: Number(raw.stats?.interactions?.mascot?.taps) || 0,
-            drags: Number(raw.stats?.interactions?.mascot?.drags) || 0,
-            toggles: Number(raw.stats?.interactions?.mascot?.toggles) || 0,
-        };
         return state;
     }
 
@@ -195,6 +183,11 @@
 
     function saveState() {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(currentState));
+        window.ClassRecordUserState?.saveAchievementState?.(currentState);
+        window.ClassRecordSupabase?.updateProfileState?.({
+            achievement_progress: currentState.completed || {},
+            achievement_hovered_state: { seenCompleted: currentState.seenCompleted || [] }
+        }).catch(() => {});
     }
 
     function syncQcoinStats(sourceState) {
@@ -249,10 +242,6 @@
             'search-deep': () => ratio(interactions.searchUses, 15),
             'search-global': () => ratio(interactions.searchScopes.includes('global') ? 1 : 0, 1),
             'search-mixed': () => ratio(['record', 'global'].filter((scope) => interactions.searchScopes.includes(scope)).length, 2),
-            'mascot-greeting': () => ratio(interactions.mascot.taps, 1),
-            'mascot-companion': () => ratio(interactions.mascot.taps, 5),
-            'mascot-deskmate': () => ratio(interactions.mascot.drags, 1),
-            'mascot-bookmark': () => ratio(interactions.mascot.toggles, 1),
             'sort-flipper': () => ratio(interactions.sortUses, 3),
             'sort-master': () => ratio(interactions.sortUses, 10),
             'sort-conductor': () => ratio(interactions.sortUses, 25),
@@ -398,6 +387,7 @@
     }
 
     function record(type, value) {
+        if (window.ClassRecordHiddenModeActive) return;
         if (type === 'page') {
             currentState.stats.pages[value] = Number(currentState.stats.pages[value] || 0) + 1;
         } else if (type === 'person') {
@@ -423,11 +413,6 @@
         } else if (type === 'search') {
             currentState.stats.interactions.searchUses += 1;
             currentState.stats.interactions.searchScopes = uniquePush(currentState.stats.interactions.searchScopes, value || 'record');
-        } else if (type === 'mascot') {
-            const mascot = currentState.stats.interactions.mascot;
-            if (value === 'tap') mascot.taps += 1;
-            if (value === 'drag') mascot.drags += 1;
-            if (value === 'collapse' || value === 'expand' || value === 'hide' || value === 'reveal') mascot.toggles += 1;
         }
         saveState();
         evaluate();

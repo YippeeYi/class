@@ -1,14 +1,15 @@
-/************************************************************
+﻿/************************************************************
  * authGate.js
  * Supabase 登录门禁
  ************************************************************/
 
 (() => {
+    document.documentElement.classList.add('auth-pending');
+
     const TARGET_KEY = 'classRecordRedirectTarget';
     const AUTH_PAGE = 'auth.html';
     const CONFIG_SCRIPT = 'js/supabaseConfig.js';
     const CLIENT_SCRIPT = 'js/supabaseClient.js';
-    const DATA_SCRIPT = 'js/secureData.js';
     const USER_STATE_SCRIPT = 'js/userState.js';
 
     let resolveAccess;
@@ -28,6 +29,8 @@
     window.getCurrentUser = () => currentSession?.user || null;
     window.getAuthReadyError = () => authReadyError;
     window.dispatchEvent(new Event('authGateReady'));
+
+    const revealPage = () => document.documentElement.classList.remove('auth-pending');
 
     const resolveAccessPromise = () => {
         if (resolveAccess) {
@@ -71,20 +74,26 @@
         document.head.appendChild(script);
     });
 
-    const clearProjectCache = () => {
+    const clearProjectCache = async () => {
         Object.keys(localStorage).forEach((key) => {
-            if (key.startsWith('classRecord:')) {
+            if (key.startsWith('classRecord') || key.startsWith('sb-')) {
                 localStorage.removeItem(key);
             }
         });
+        Object.keys(sessionStorage).forEach((key) => {
+            if (key.startsWith('classRecord')) {
+                sessionStorage.removeItem(key);
+            }
+        });
+        window.ClassRecordHiddenModeActive = false;
+        if (typeof window.clearCache === 'function') {
+            await window.clearCache();
+        }
         if ('caches' in window) {
-            caches.keys()
-                .then((keys) => Promise.all(
-                    keys
-                        .filter((key) => key.startsWith('classRecord:image-cache:'))
-                        .map((key) => caches.delete(key))
-                ))
-                .catch(() => {});
+            const keys = await caches.keys().catch(() => []);
+            await Promise.all(keys
+                .filter((key) => key.startsWith('classRecord') || key.includes('classrecord'))
+                .map((key) => caches.delete(key)));
         }
     };
 
@@ -125,6 +134,7 @@
 
             if (currentSession) {
                 resolveAccessPromise();
+                revealPage();
                 if (isAuthPage) {
                     redirectAfterLogin();
                 }
@@ -138,6 +148,7 @@
             }
 
             resolveAccessPromise();
+            revealPage();
         } catch (error) {
             console.warn('认证初始化失败：', error);
             if (!isAuthPage) {
@@ -146,6 +157,7 @@
                 return;
             }
             rejectAccessPromise(error);
+            revealPage();
         }
     };
 
@@ -155,6 +167,7 @@
             currentSession = await auth.signIn({ login, password });
             await loadScript(USER_STATE_SCRIPT);
             resolveAccessPromise();
+            revealPage();
             return { ok: true };
         } catch (error) {
             return { ok: false, message: error?.message || '登录失败。' };
@@ -173,8 +186,7 @@
             }
         } finally {
             currentSession = null;
-            sessionStorage.removeItem(TARGET_KEY);
-            clearProjectCache();
+            await clearProjectCache();
         }
     };
 

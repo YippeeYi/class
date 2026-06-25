@@ -1,219 +1,249 @@
-/************************************************************
- * secureData.js
- * 登录后从 Supabase RLS 表与私有 Storage 读取敏感内容
- ************************************************************/
+(function () {
+    const CONFIG_URL = 'supabaseConfig.js';
+    const SUPABASE_SDK_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    const DEFAULT_BUCKET = 'classrecord-private';
 
-(() => {
-    const signedUrlCache = new Map();
-    const inflightSignedUrls = new Map();
+    let configPromise = null;
+    let clientPromise = null;
 
-    const normalizeAssetPath = (path) => String(path || '')
-        .trim()
-        .replace(/^\.\//, '')
-        .replace(/^\//, '');
-
-    const isRemoteUrl = (value) => /^https?:\/\//i.test(String(value || ''));
-
-    const getConfig = () => window.ClassRecordSupabase?.getConfig?.() || window.CLASS_RECORD_SUPABASE || {};
-
-    const isEnabled = () => getConfig().useSecureContent !== false;
-
-    const getClient = async () => window.ClassRecordSupabase.getClient();
-
-    const table = (name) => getConfig().tables?.[name] || name;
-
-    const storageConfig = () => ({
-        privateBucket: 'classrecord-private',
-        signedUrlExpiresIn: 600,
-        ...(getConfig().storage || {})
+    const loadScriptOnce = (src) => new Promise((resolve, reject) => {
+        if ([...document.scripts].some((script) => script.src === src)) {
+            resolve();
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = src;
+        script.defer = true;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error(`Script load failed: ${src}`));
+        document.head.appendChild(script);
     });
 
-    const touchProgress = (count, onProgressStep) => {
-        if (typeof onProgressStep !== 'function') return;
-        for (let i = 0; i < count; i += 1) {
-            onProgressStep();
+    const loadConfig = async () => {
+        if (window.SUPABASE_CONFIG) return window.SUPABASE_CONFIG;
+        if (!configPromise) {
+            configPromise = loadScriptOnce(CONFIG_URL).then(() => window.SUPABASE_CONFIG || {});
         }
+        return configPromise;
     };
 
-    const selectAll = async (tableName, columns, order) => {
-        const client = await getClient();
-        const pageSize = 1000;
-        const rows = [];
-        for (let from = 0; ; from += pageSize) {
-            let query = client.from(tableName).select(columns).range(from, from + pageSize - 1);
-            if (order?.column) {
-                query = query.order(order.column, { ascending: order.ascending !== false });
+    const getConfig = async () => {
+        const config = await loadConfig();
+        return {
+            url: config.url || '',
+            anonKey: config.anonKey || '',
+            bucket: config.bucket || DEFAULT_BUCKET,
+            tables: {
+                records: 'class_records',
+                people: 'class_people',
+                glossary: 'class_glossary',
+                recordPages: 'class_record_pages',
+                quizQuestions: 'class_quiz_questions',
+                ...(config.tables || {})
             }
-            const { data, error } = await query;
-            if (error) throw error;
-            rows.push(...(data || []));
-            if (!data || data.length < pageSize) break;
-        }
-        return rows;
-    };
-
-    const normalizeRecord = (row, index) => {
-        const raw = row.raw && typeof row.raw === 'object' ? row.raw : {};
-        const fileName = row.file_name || raw.fileName || raw.file_name || '';
-        const date = row.record_date || raw.date || String(fileName).slice(0, 10);
-        const record = {
-            ...raw,
-            id: row.record_id || raw.id || `R${String(index + 1).padStart(3, '0')}`,
-            fileName,
-            recordIndex: Number.isInteger(row.record_index) ? row.record_index : index,
-            date,
-            author: row.author || raw.author || '',
-            content: row.content ?? raw.content ?? '',
-            importance: row.importance || raw.importance || 'normal',
-            attachments: Array.isArray(row.attachments) ? row.attachments : (Array.isArray(raw.attachments) ? raw.attachments : [])
         };
-        if (row.record_time || raw.time) {
-            record.time = row.record_time || raw.time;
-        } else {
-            delete record.time;
-        }
-        return record;
     };
 
-    const loadRecords = async ({ onProgressStep } = {}) => {
+    const isEnabled = () => Boolean(window.SUPABASE_CONFIG?.url && window.SUPABASE_CONFIG?.anonKey);
+
+    const getClient = async () => {
+        const config = await getConfig();
+        if (!config.url || !config.anonKey) throw new Error('Supabase is not configured.');
+        if (!clientPromise) {
+            clientPromise = loadScriptOnce(SUPABASE_SDK_URL).then(() => {
+                if (!window.supabase?.createClient) throw new Error('Supabase SDK is unavailable.');
+                return window.supabase.createClient(config.url, config.anonKey, {
+                    auth: { persistSession: true, autoRefreshToken: true }
+                });
+            });
+        }
+        return clientPromise;
+    };
+
+    const selectAll = async (tableName, columns = '*', order, filters = {}) => {
+        const config = await getConfig();
+        const client = await getClient();
+        let query = client.from(tableName).select(columns);
+        Object.entries(filters || {}).forEach(([key, value]) => {
+            query = query.eq(key, value);
+        });
+        if (order) query = query.order(order, { ascending: true });
+        const { data, error } = await query;
+        if (error) throw error;
+        return data || [];
+    };
+
+    const parseRaw = (row) => {
+        if (!row?.raw) return {};
+        if (typeof row.raw === 'string') {
+            try { return JSON.parse(row.raw); } catch (error) { return {}; }
+        }
+        return row.raw && typeof row.raw === 'object' ? row.raw : {};
+    };
+
+    const normalizeRecordPageImagePath = (value, page) => {
+        const raw = String(value || '').trim();
+        if (/^https?:\/\//i.test(raw)) return raw.replace(/\.jpg(\?|#|$)/i, '.jpeg$1');
+        const source = raw || (page ? `record-page-${page}` : '');
+        if (!source) return '';
+        const clean = source.replace(/^\/?/, '').replace(/^images\/record-pages\//i, '').replace(/^record-pages\//i, '');
+        const base = clean.replace(/\.(png|jpe?g|webp|gif)$/i, '');
+        return `images/record-pages/${base}.jpeg`;
+    };
+
+    const normalizeRecord = (row, fallbackIndex = 0) => {
+        const raw = parseRaw(row);
+        const fileName = row.file_name || raw.fileName || raw.id || `record-${fallbackIndex + 1}`;
+        const text = row.content || raw.text || raw.content || '';
+        const attachments = Array.isArray(row.attachments) ? row.attachments : (Array.isArray(raw.attachments) ? raw.attachments : []);
+        const recordIndex = Number(row.record_index ?? raw.recordIndex ?? fallbackIndex + 1);
+        return {
+            ...raw,
+            fileName,
+            id: row.record_id || raw.id || fileName,
+            recordIndex,
+            date: row.record_date || raw.date || '',
+            time: row.record_time || raw.time || '',
+            recorder: row.author || raw.recorder || raw.author || '',
+            author: row.author || raw.author || raw.recorder || '',
+            text,
+            content: text,
+            importance: row.importance || raw.importance || '',
+            attachments,
+            hidden: Boolean(row.hidden ?? raw.hidden),
+            imagePath: normalizeRecordPageImagePath(row.image_path || raw.imagePath || raw.image || raw.pageImage || '', row.page || raw.page),
+            source: 'supabase'
+        };
+    };
+
+    const loadRecords = async ({ onProgressStep, hidden = false } = {}) => {
+        const config = await getConfig();
         const rows = await selectAll(
-            table('records'),
-            'file_name,record_id,record_date,record_time,author,content,importance,attachments,record_index,raw',
-            { column: 'record_index', ascending: true }
+            config.tables.records,
+            '*',
+            'record_index',
+            { hidden: Boolean(hidden) }
         );
-        touchProgress(rows.length, onProgressStep);
-        return rows.map(normalizeRecord);
+        return rows.map((row, index) => {
+            const record = normalizeRecord(row, index);
+            if (typeof onProgressStep === 'function') onProgressStep(record.fileName);
+            return record;
+        });
     };
 
     const loadPeople = async ({ onProgressStep } = {}) => {
-        const rows = await selectAll(
-            table('people'),
-            'id,alias,role,bio,sort_order,raw',
-            { column: 'sort_order', ascending: true }
-        );
-        touchProgress(rows.length, onProgressStep);
-        return rows.map((row) => ({
-            ...(row.raw && typeof row.raw === 'object' ? row.raw : {}),
-            id: row.id,
-            alias: row.alias || '',
-            role: row.role || 'student',
-            bio: row.bio || ''
-        }));
+        const config = await getConfig();
+        const rows = await selectAll(config.tables.people, '*', 'id');
+        return rows.map((row, index) => {
+            const raw = parseRaw(row);
+            const item = {
+                ...raw,
+                id: row.person_id || raw.id || raw.name || `person-${index + 1}`,
+                name: row.name || raw.name || '',
+                aliases: Array.isArray(row.aliases) ? row.aliases : (Array.isArray(raw.aliases) ? raw.aliases : []),
+                bio: row.bio || raw.bio || '',
+                avatarUrl: row.avatar_url || raw.avatarUrl || raw.avatar || '',
+                source: 'supabase'
+            };
+            if (typeof onProgressStep === 'function') onProgressStep(item.id);
+            return item;
+        });
     };
 
     const loadGlossary = async ({ onProgressStep } = {}) => {
-        const rows = await selectAll(
-            table('glossary'),
-            'id,label,definition,sort_order,raw',
-            { column: 'sort_order', ascending: true }
-        );
-        touchProgress(rows.length, onProgressStep);
-        return rows.map((row) => ({
-            ...(row.raw && typeof row.raw === 'object' ? row.raw : {}),
-            id: row.id,
-            label: row.label || row.raw?.label || row.id,
-            definition: row.definition || row.raw?.definition || ''
-        }));
+        const config = await getConfig();
+        const rows = await selectAll(config.tables.glossary, '*', 'id');
+        return rows.map((row, index) => {
+            const raw = parseRaw(row);
+            const item = {
+                ...raw,
+                id: row.term_id || raw.id || raw.term || `term-${index + 1}`,
+                term: row.term || raw.term || '',
+                aliases: Array.isArray(row.aliases) ? row.aliases : (Array.isArray(raw.aliases) ? raw.aliases : []),
+                definition: row.definition || raw.definition || raw.description || '',
+                source: 'supabase'
+            };
+            if (typeof onProgressStep === 'function') onProgressStep(item.id);
+            return item;
+        });
     };
 
-    const loadRecordPages = async () => {
-        const rows = await selectAll(
-            table('recordPages'),
-            'page,start_file,end_file,sort_order,raw',
-            { column: 'sort_order', ascending: true }
-        );
-        return rows.map((row) => ({
-            ...(row.raw && typeof row.raw === 'object' ? row.raw : {}),
-            page: row.page,
-            start: row.start_file || row.raw?.start || '',
-            end: row.end_file || row.raw?.end || ''
-        }));
+    const loadRecordPages = async ({ hidden = false } = {}) => {
+        const config = await getConfig();
+        const rows = await selectAll(config.tables.recordPages, '*', 'sort_order', { hidden: Boolean(hidden) });
+        return rows.map((row, index) => {
+            const raw = parseRaw(row);
+            const page = Number(row.page ?? raw.page ?? index + 1);
+            return {
+                ...raw,
+                page,
+                startFile: row.start_file || raw.startFile || raw.start || '',
+                endFile: row.end_file || raw.endFile || raw.end || '',
+                imagePath: normalizeRecordPageImagePath(row.image_path || raw.imagePath || raw.image || '', page),
+                hidden: Boolean(row.hidden ?? raw.hidden)
+            };
+        });
     };
 
-    const loadQuizQuestions = async (group) => {
-        const client = await getClient();
-        const { data, error } = await client
-            .from(table('quizQuestions'))
-            .select('id,question_group,prompt,answer,image_path,sort_order,raw')
-            .eq('question_group', group)
-            .order('sort_order', { ascending: true });
-        if (error) throw error;
-        return (data || []).map((row) => ({
-            ...(row.raw && typeof row.raw === 'object' ? row.raw : {}),
-            id: row.id,
-            prompt: row.prompt || row.raw?.prompt || '',
-            answer: row.answer || row.raw?.answer || '',
-            image: row.image_path || row.raw?.image || ''
-        }));
+    const loadQuizQuestions = async (contentKey) => {
+        const config = await getConfig();
+        const rows = (await selectAll(config.tables.quizQuestions, '*', 'sort_order')).filter((row) => (row.content_key || row.question_group || parseRaw(row).content || parseRaw(row).group) === contentKey);
+        return rows.map((row, index) => {
+            const raw = parseRaw(row);
+            return {
+                ...raw,
+                id: raw.id || `${contentKey}-${index + 1}`,
+                type: row.question_type || raw.type || 'choice',
+                prompt: row.prompt || raw.prompt || '',
+                choices: Array.isArray(row.choices) ? row.choices : (Array.isArray(raw.choices) ? raw.choices : []),
+                answer: row.answer || raw.answer || '',
+                explanation: row.explanation || raw.explanation || '',
+                image: row.image_path || raw.image || raw.imagePath || ''
+            };
+        });
     };
 
     const signAssetUrl = async (path, { expiresIn } = {}) => {
-        const normalized = normalizeAssetPath(path);
-        if (!normalized || isRemoteUrl(normalized)) return normalized;
-
-        const cached = signedUrlCache.get(normalized);
-        const now = Date.now();
-        if (cached && cached.expiresAt - now > 30 * 1000) {
-            return cached.url;
-        }
-        if (inflightSignedUrls.has(normalized)) {
-            return inflightSignedUrls.get(normalized);
-        }
-
-        const promise = (async () => {
-            const client = await getClient();
-            const storage = storageConfig();
-            const ttl = Number(expiresIn || storage.signedUrlExpiresIn) || 600;
-            const { data, error } = await client.storage
-                .from(storage.privateBucket)
-                .createSignedUrl(normalized, ttl);
-            if (error) throw error;
-            signedUrlCache.set(normalized, {
-                url: data.signedUrl,
-                expiresAt: Date.now() + ttl * 1000
-            });
-            return data.signedUrl;
-        })();
-
-        inflightSignedUrls.set(normalized, promise);
-        try {
-            return await promise;
-        } finally {
-            inflightSignedUrls.delete(normalized);
-        }
+        const safePath = String(path || '').replace(/^\/+/, '');
+        if (!safePath || /^https?:\/\//i.test(safePath)) return safePath;
+        const config = await getConfig();
+        const client = await getClient();
+        const { data, error } = await client.storage.from(config.bucket).createSignedUrl(safePath, expiresIn || 60 * 30);
+        if (error) throw error;
+        return data?.signedUrl || '';
     };
 
     const signAssetUrls = async (paths, options) => {
-        const unique = Array.from(new Set(paths.map(normalizeAssetPath).filter(Boolean)));
+        const unique = [...new Set((paths || []).filter(Boolean))];
         const entries = await Promise.all(unique.map(async (path) => [path, await signAssetUrl(path, options)]));
         return new Map(entries);
     };
 
-    const resolveAssetElements = async (root = document) => {
-        const elements = Array.from(root.querySelectorAll('[data-secure-src], [data-secure-href]'));
-        if (!elements.length || !isEnabled()) return;
-        const paths = elements.flatMap((el) => [el.dataset.secureSrc, el.dataset.secureHref]).filter(Boolean);
+    const bindSecureImages = async (root = document) => {
+        const nodes = [...root.querySelectorAll('img[data-secure-src]')];
+        const paths = nodes.map((node) => node.getAttribute('data-secure-src')).filter(Boolean);
         const signed = await signAssetUrls(paths).catch((error) => {
-            console.warn('私有资源签名失败：', error);
+            console.warn('Secure image signing failed:', error);
             return new Map();
         });
-        elements.forEach((el) => {
-            const src = normalizeAssetPath(el.dataset.secureSrc);
-            const href = normalizeAssetPath(el.dataset.secureHref);
-            if (src && signed.get(src)) el.src = signed.get(src);
-            if (href && signed.get(href)) el.href = signed.get(href);
+        nodes.forEach((node) => {
+            const path = node.getAttribute('data-secure-src');
+            const src = signed.get(path);
+            if (src) node.src = src;
         });
     };
 
     window.ClassRecordData = {
+        bindSecureImages,
+        getClient,
+        getConfig,
         isEnabled,
         loadGlossary,
         loadPeople,
         loadQuizQuestions,
         loadRecordPages,
         loadRecords,
-        normalizeAssetPath,
-        resolveAssetElements,
+        normalizeRecordPageImagePath,
         signAssetUrl,
         signAssetUrls
     };

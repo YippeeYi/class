@@ -48,7 +48,7 @@
 
     const normalizedOptions = options.map(normalizeOption).filter((option) => option.id);
     const normalizedById = new Map(normalizedOptions.map((option) => [option.id, option]));
-    let currentId = storage.get();
+    let currentId = window.QcoinState?.getActiveBackground?.() || storage.get();
     let activeThemeToken = 0;
 
     const isBackgroundOwned = (id) => {
@@ -419,7 +419,10 @@
         root.style.setProperty("--page-bg-repeat", "no-repeat");
         root.dataset.backgroundId = option.id;
         currentId = option.id;
-        if (persist) storage.set(option.id);
+        if (persist) {
+            storage.set(option.id);
+            window.QcoinState?.setActiveBackground?.(option.id);
+        }
         activeThemeToken += 1;
         const token = activeThemeToken;
         root.dataset.backgroundThemeReady = option.image ? "false" : "true";

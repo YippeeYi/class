@@ -640,31 +640,45 @@
   }
 
   async function loadSecretQuestions() {
+    if (window.ClassRecordData?.isEnabled?.()) {
+      try {
+        const rows = await window.ClassRecordData.loadQuizQuestions(SECRET_CONTENT);
+        return Promise.all(rows.map(async (item, index) => {
+          const imagePath = item.image || item.imagePath || '';
+          const image = imagePath ? await window.ClassRecordData.signAssetUrl(imagePath).catch(() => '') : '';
+          return normalizeQuestion({
+            id: item.id || `${SECRET_CONTENT}-${index + 1}`,
+            type: item.type || 'fill',
+            content: SECRET_CONTENT,
+            prompt: item.prompt || 'Hidden question',
+            answer: item.answer || '',
+            explanation: item.explanation || '',
+            image
+          }, index);
+        }));
+      } catch (error) {
+        console.warn('Supabase secret questions load failed:', error);
+      }
+    }
     try {
       const res = await fetch('data/quiz/lamian.json');
       if (!res.ok) return [];
-      const raw = await res.json();
-      const items = Array.isArray(raw) ? raw : (Array.isArray(raw.questions) ? raw.questions : []);
+      const items = await res.json();
       return items.map((item, index) => {
         const number = String(index + 1).padStart(2, '0');
         const image = item.image || `images/quiz/lamian/${number}.png`;
-        const answer = String(item.answer || '').trim();
-        if (!image || !answer) return null;
-        return {
-          id: item.id || `LAMIAN-${number}`,
-          recordKey: item.id || `LAMIAN-${number}`,
-          type: 'fill',
+        return normalizeQuestion({
+          id: item.id || `lamian-${number}`,
+          type: item.type || 'fill',
           content: SECRET_CONTENT,
-          answer,
-          prompt: item.prompt || '请根据图片填写答案。',
-          recordText: '',
-          image,
-          reward: FILL_REWARD,
-          options: []
-        };
-      }).filter(Boolean);
+          prompt: item.prompt || 'Hidden question',
+          answer: item.answer || '',
+          explanation: item.explanation || '',
+          image
+        }, index);
+      });
     } catch (error) {
-      console.warn('无法加载隐藏题库：', error);
+      console.warn('Secret questions load failed:', error);
       return [];
     }
   }

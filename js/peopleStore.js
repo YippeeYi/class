@@ -1,6 +1,6 @@
-/************************************************************
+﻿/************************************************************
  * peopleStore.js
- * 全局人物仓库
+ * 全局人物仓库，运行时只从 Supabase 读取
  ************************************************************/
 
 window.PeopleStore = {
@@ -12,31 +12,17 @@ window.loadAllPeople = async function ({ onProgressStep } = {}) {
     if (PeopleStore.loaded) {
         return PeopleStore.people;
     }
+    if (!window.ClassRecordData?.isEnabled()) {
+        throw new Error("人物数据必须从 Supabase 读取。");
+    }
 
     const list = await loadWithCache({
         key: "people",
         expire: 24 * 60 * 60 * 1000,
-        loader: async () => {
-            if (window.ClassRecordData?.isEnabled()) {
-                return window.ClassRecordData.loadPeople({ onProgressStep });
-            }
-
-            const files = await window.fetchJson("data/people/people_index.json");
-            const people = await Promise.all(
-                files.map(async (f) => {
-                    const person = await window.fetchJson(`data/people/${f}`);
-                    if (typeof onProgressStep === "function") {
-                        onProgressStep();
-                    }
-                    return person;
-                })
-            );
-
-            return people;
-        }
+        loader: () => window.ClassRecordData.loadPeople({ onProgressStep })
     });
 
-    PeopleStore.people = list;
+    PeopleStore.people = list.filter(Boolean);
     PeopleStore.loaded = true;
-    return list;
+    return PeopleStore.people;
 };

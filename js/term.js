@@ -1,76 +1,58 @@
-/************************************************************
- * term.js
- * 班级辞典 · 术语页面（使用 CacheLoader + Store）
- ************************************************************/
-
 const params = new URLSearchParams(location.search);
 const termId = params.get("id");
 
 if (!termId) {
-    alert("未指定术语 ID");
+    alert("Missing term id.");
     throw new Error("termId missing");
 }
 
 const recordContainer = document.getElementById("record-list");
-
-// 页面状态
 let allRecords = [];
 let relatedRecords = [];
-let termFilterCriteria = { year: "", month: "", day: "", important: false, excludeDaily: false };
+let termFilterCriteria = { year: "", month: "", day: "", important: false, excludeDaily: false, favorites: false };
+let favoriteRecordKeys = null;
 
-/* ===============================
-   页面初始化
-   =============================== */
+async function ensureFavoriteRecordKeys() {
+    if (favoriteRecordKeys) return favoriteRecordKeys;
+    const favorites = await window.RecordInteractions?.getFavorites?.().catch(() => []);
+    favoriteRecordKeys = new Set((favorites || []).map((item) => String(item.record_id || item.fileName || item.id || item)));
+    return favoriteRecordKeys;
+}
+
 const cacheReady = window.cacheReadyPromise || Promise.resolve();
 
-cacheReady.then(() => Promise.all([
-    loadAllGlossary(), // 术语
-    loadAllPeople(),   // 相关人物
-    loadAllRecords()   // 记录
-])).then(([glossary, people, records]) => {
-
+cacheReady.then(() => Promise.all([loadAllGlossary(), loadAllPeople(), loadAllRecords()])).then(([glossary, people, records]) => {
     allRecords = records;
-
-    // === 获取术语 ===
-    const term = glossary.find(t => t.id === termId);
+    const term = glossary.find((item) => item.id === termId);
     if (!term) {
-        alert("术语不存在");
+        alert("Term not found.");
         return;
     }
 
-    // === 渲染术语信息 ===
     document.getElementById("term-id").innerHTML = formatContent(term.term);
+    document.getElementById("term-definition").innerHTML = `<strong>${formatContent(term.definition || "-")}</strong>`;
+    document.getElementById("term-since").textContent = term.since || "-";
 
-    document.getElementById("term-definition").innerHTML =
-        `<strong>${formatContent(term.definition || "—")}</strong>`;
+    const relatedNames = (term.relatedPeople || []).map((pid) => {
+        const person = people.find((item) => item.id === pid);
+        return person ? parseContent(`[[${person.id}|${person.id}]]`) : pid;
+    });
+    document.getElementById("term-related").innerHTML = relatedNames.length ? relatedNames.join(", ") : "-";
 
-    document.getElementById("term-since").textContent =
-        term.since || "—";
-
-    // 相关人物
-    const relatedNames = (term.relatedPeople || [])
-        .map(pid => {
-            const p = people.find(x => x.id === pid);
-            if (!p) return pid;
-            return parseContent(`[[${p.id}|${p.id}]]`);
-        });
-
-    document.getElementById("term-related").innerHTML =
-        relatedNames.length ? relatedNames.join("，") : "—";
-
-    // === 关联记录（通过 {{termId|显示文本}}）===
     const pattern = new RegExp(`\\{\\{${termId}\\|.+?\\}\\}`);
-    relatedRecords = allRecords.filter(r =>
-        r.content && pattern.test(r.content)
-    );
+    relatedRecords = allRecords.filter((record) => record.content && pattern.test(record.content));
     sortRecords(relatedRecords);
 
     const filterHost = document.createElement("div");
     filterHost.id = "record-filter";
     recordContainer.before(filterHost);
 
-    const renderFilteredRecords = () => {
-        const filtered = filterRecordsByDate(relatedRecords, termFilterCriteria);
+    const renderFilteredRecords = async () => {
+        let filtered = filterRecordsByDate(relatedRecords, termFilterCriteria);
+        if (termFilterCriteria.favorites) {
+            const keys = await ensureFavoriteRecordKeys();
+            filtered = filtered.filter((record) => keys.has(String(record.fileName || record.id)));
+        }
         sortRecords(filtered);
         renderRecordList(filtered, recordContainer);
     };
@@ -79,7 +61,7 @@ cacheReady.then(() => Promise.all([
         container: filterHost,
         getRecords: () => relatedRecords,
         initial: termFilterCriteria,
-        onFilterChange: criteria => {
+        onFilterChange: (criteria) => {
             termFilterCriteria = criteria;
             renderFilteredRecords();
         }
