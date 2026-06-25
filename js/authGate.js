@@ -1,4 +1,4 @@
-/************************************************************
+﻿/************************************************************
  * authGate.js
  * Supabase 登录门禁
  ************************************************************/
@@ -20,8 +20,7 @@
         rejectAccess = reject;
     });
 
-    const path = window.location.pathname;
-    const isAuthPage = path.endsWith(`/${AUTH_PAGE}`) || path.endsWith(AUTH_PAGE);
+    const isAuthPage = window.location.pathname.endsWith(`/${AUTH_PAGE}`) || window.location.pathname.endsWith(AUTH_PAGE);
 
     window.waitForAccess = () => accessPromise;
     window.getCurrentSession = () => currentSession;
@@ -30,20 +29,17 @@
     window.dispatchEvent(new Event('authGateReady'));
 
     const resolveAccessPromise = () => {
-        if (resolveAccess) {
-            resolveAccess(currentSession);
-            resolveAccess = null;
-            rejectAccess = null;
-        }
+        if (!resolveAccess) return;
+        resolveAccess(currentSession);
+        resolveAccess = null;
+        rejectAccess = null;
     };
 
     const rejectAccessPromise = (error) => {
         authReadyError = error;
-        if (rejectAccess) {
-            rejectAccess(error);
-            resolveAccess = null;
-            rejectAccess = null;
-        }
+        if (rejectAccess) rejectAccess(error);
+        resolveAccess = null;
+        rejectAccess = null;
         window.dispatchEvent(new CustomEvent('authGateError', { detail: error }));
     };
 
@@ -51,39 +47,31 @@
         const url = new URL(src, window.location.href).href;
         const existing = Array.from(document.scripts).find((script) => script.src === url);
         if (existing) {
-            if (existing.dataset.loaded === 'true') {
-                resolve();
-                return;
-            }
+            if (existing.dataset.loaded === 'true') { resolve(); return; }
             existing.addEventListener('load', resolve, { once: true });
             existing.addEventListener('error', reject, { once: true });
             return;
         }
-
         const script = document.createElement('script');
         script.src = src;
         script.async = false;
-        script.onload = () => {
-            script.dataset.loaded = 'true';
-            resolve();
-        };
+        script.onload = () => { script.dataset.loaded = 'true'; resolve(); };
         script.onerror = () => reject(new Error(`${src} 加载失败。`));
         document.head.appendChild(script);
     });
 
     const clearProjectCache = () => {
-        Object.keys(localStorage).forEach((key) => {
-            if (key.startsWith('classRecord:')) {
-                localStorage.removeItem(key);
-            }
-        });
+        try {
+            Object.keys(localStorage).forEach((key) => {
+                if (key.startsWith('classRecord') || key.startsWith('sb-')) localStorage.removeItem(key);
+            });
+            Object.keys(sessionStorage).forEach((key) => {
+                if (key.startsWith('classRecord') || key.startsWith('sb-')) sessionStorage.removeItem(key);
+            });
+        } catch {}
         if ('caches' in window) {
             caches.keys()
-                .then((keys) => Promise.all(
-                    keys
-                        .filter((key) => key.startsWith('classRecord:image-cache:'))
-                        .map((key) => caches.delete(key))
-                ))
+                .then((keys) => Promise.all(keys.filter((key) => key.startsWith('classRecord')).map((key) => caches.delete(key))))
                 .catch(() => {});
         }
     };
@@ -102,12 +90,8 @@
     const ensureAuthClient = async () => {
         await loadScript(CONFIG_SCRIPT);
         await loadScript(CLIENT_SCRIPT);
-        if (!window.ClassRecordSupabase) {
-            throw new Error('Supabase 客户端初始化失败。');
-        }
-        if (!window.ClassRecordSupabase.isConfigured()) {
-            throw new Error('Supabase 尚未配置，请先填写 js/supabaseConfig.js。');
-        }
+        if (!window.ClassRecordSupabase) throw new Error('Supabase 客户端初始化失败。');
+        if (!window.ClassRecordSupabase.isConfigured()) throw new Error('Supabase 尚未配置。');
         return window.ClassRecordSupabase;
     };
 
@@ -115,9 +99,7 @@
         try {
             const auth = await ensureAuthClient();
             currentSession = await auth.getSession();
-            if (currentSession) {
-                await loadScript(USER_STATE_SCRIPT);
-            }
+            if (currentSession) await loadScript(USER_STATE_SCRIPT);
             auth.onAuthStateChange((_event, session) => {
                 currentSession = session || null;
                 window.dispatchEvent(new CustomEvent('classRecordAuthChange', { detail: currentSession }));
@@ -125,9 +107,7 @@
 
             if (currentSession) {
                 resolveAccessPromise();
-                if (isAuthPage) {
-                    redirectAfterLogin();
-                }
+                if (isAuthPage) redirectAfterLogin();
                 return;
             }
 
@@ -136,7 +116,6 @@
                 window.location.replace(AUTH_PAGE);
                 return;
             }
-
             resolveAccessPromise();
         } catch (error) {
             console.warn('认证初始化失败：', error);
@@ -168,12 +147,9 @@
 
     window.clearAccessKey = async () => {
         try {
-            if (window.ClassRecordSupabase?.isConfigured()) {
-                await window.ClassRecordSupabase.signOut();
-            }
+            if (window.ClassRecordSupabase?.isConfigured()) await window.ClassRecordSupabase.signOut();
         } finally {
             currentSession = null;
-            sessionStorage.removeItem(TARGET_KEY);
             clearProjectCache();
         }
     };

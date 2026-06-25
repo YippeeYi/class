@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>编日史 · 导览</title>
+    <title>缂栨棩鍙?路 瀵艰</title>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="favicon.ico">
     <link rel="preload" href="fonts/GoogleSansFlex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf"
@@ -17,65 +17,69 @@
 
 <body class="guide-page">
     <div class="top-right-actions">
-        <button id="refresh-cache-btn" class="top-action-btn btn-action">🧹 清空缓存</button>
-        <button id="clear-access-btn" class="top-action-btn btn-action">账号</button>
+        <button id="clear-access-btn" class="top-action-btn btn-action">璐﹀彿</button>
     </div>
 
     <main class="guide-main">
-        <img class="guide-logo" src="logo-guide.png" alt="编日史 logo" draggable="false">
+        <img class="guide-logo" src="logo-guide.png" alt="缂栨棩鍙?logo" draggable="false">
 
         <div id="guide-progress" class="guide-progress" hidden>
             <div class="guide-progress-track">
                 <div id="guide-progress-fill" class="guide-progress-fill"></div>
             </div>
-            <p id="guide-progress-text" class="guide-progress-text">缓存加载中 0%</p>
+            <p id="guide-progress-text" class="guide-progress-text">缂撳瓨鍔犺浇涓?0%</p>
         </div>
 
         <section id="guide-highlights" class="guide-highlights" hidden>
             <header class="guide-section-head">
                 <div>
                     <p class="guide-eyebrow">Class Archive</p>
-                    <h2>档案导览</h2>
+                    <h2>妗ｆ瀵艰</h2>
                 </div>
             </header>
 
-            <div class="guide-primary-grid" aria-label="核心入口">
+            <div class="guide-primary-grid" aria-label="鏍稿績鍏ュ彛">
                 <article class="guide-entry-card guide-entry-card--record guide-stat-link" data-target="record.html" role="link" tabindex="0"
-                    aria-label="跳转到记录页面">
-                    <span class="guide-entry-icon">📜</span>
-                    <p class="guide-entry-kicker">核心档案</p>
-                    <h3>记录</h3>
+                    aria-label="璺宠浆鍒拌褰曢〉闈?>
+                    <span class="guide-entry-icon">馃摐</span>
+                    <p class="guide-entry-kicker">鏍稿績妗ｆ</p>
+                    <h3>璁板綍</h3>
                     <strong id="guide-record-count" class="guide-entry-value">--</strong>
-                    <span class="guide-entry-meta">条记录</span>
+                    <span class="guide-entry-meta">鏉¤褰?/span>
                 </article>
                 <article class="guide-entry-card guide-entry-card--primary guide-stat-link" data-target="people.html" role="link" tabindex="0"
-                    aria-label="跳转到人物名单页面">
-                    <span class="guide-entry-icon">👥</span>
-                    <p class="guide-entry-kicker">人物索引</p>
-                    <h3>人物</h3>
+                    aria-label="璺宠浆鍒颁汉鐗╁悕鍗曢〉闈?>
+                    <span class="guide-entry-icon">馃懃</span>
+                    <p class="guide-entry-kicker">浜虹墿绱㈠紩</p>
+                    <h3>浜虹墿</h3>
                     <strong id="guide-people-count" class="guide-entry-value">--</strong>
-                    <span class="guide-entry-meta">个人物</span>
+                    <span class="guide-entry-meta">涓汉鐗?/span>
                 </article>
                 <article class="guide-entry-card guide-entry-card--primary guide-stat-link" data-target="glossary.html" role="link" tabindex="0"
-                    aria-label="跳转到术语页面">
-                    <span class="guide-entry-icon">📚</span>
-                    <p class="guide-entry-kicker">术语索引</p>
-                    <h3>术语</h3>
+                    aria-label="璺宠浆鍒版湳璇〉闈?>
+                    <span class="guide-entry-icon">馃摎</span>
+                    <p class="guide-entry-kicker">鏈绱㈠紩</p>
+                    <h3>鏈</h3>
                     <strong id="guide-term-count" class="guide-entry-value">--</strong>
-                    <span class="guide-entry-meta">个术语</span>
+                    <span class="guide-entry-meta">涓湳璇?/span>
                 </article>
             </div>
 
-            <p id="guide-tip" class="guide-tip">💡 小提示：记录、人物和术语是最常用的三个入口。</p>
+            <button id="guide-today-link" class="btn-action guide-today-link" type="button" hidden>看看历史上的今天发生了什么？</button>
+
+            <p id="guide-tip" class="guide-tip">馃挕 灏忔彁绀猴細璁板綍銆佷汉鐗╁拰鏈鏄渶甯哥敤鐨勪笁涓叆鍙ｃ€?/p>
         </section>
 
-        <nav class="guide-secondary-panel" aria-label="次要入口">
+        <nav class="guide-secondary-panel" aria-label="娆¤鍏ュ彛" hidden>
             <div class="guide-secondary-grid">
-                <article class="guide-secondary-card guide-stat-link" data-target="timeline.html" role="link" tabindex="0" aria-label="跳转到数据统计页面"><span>🗓️</span><strong>统计</strong></article>
-                <article class="guide-secondary-card guide-stat-link" data-target="search.html" role="link" tabindex="0" aria-label="跳转到全站搜索页面"><span>🔎</span><strong>搜索</strong></article>
-                <article class="guide-secondary-card guide-stat-link" data-target="quiz.html" role="link" tabindex="0" aria-label="跳转到答题页面"><span>🧠</span><strong>答题</strong></article>
-                <article class="guide-secondary-card guide-stat-link" data-target="achievements.html" role="link" tabindex="0" aria-label="跳转到成就页面"><span>🏆</span><strong>成就</strong></article>
-                <article class="guide-secondary-card guide-stat-link" data-target="shop.html" role="link" tabindex="0" aria-label="跳转到 Q币背景商店页面"><span>🎨</span><strong>背景</strong></article>
+                <article class="guide-secondary-card guide-stat-link" data-target="timeline.html" role="link" tabindex="0" aria-label="璺宠浆鍒版暟鎹粺璁￠〉闈?><span>馃棑锔?/span><strong>缁熻</strong></article>
+                <article class="guide-secondary-card guide-stat-link" data-target="search.html" role="link" tabindex="0" aria-label="璺宠浆鍒板叏绔欐悳绱㈤〉闈?><span>馃攷</span><strong>鎼滅储</strong></article>
+                <article class="guide-secondary-card guide-stat-link" data-target="quiz.html" role="link" tabindex="0" aria-label="璺宠浆鍒扮瓟棰橀〉闈?><span>馃</span><strong>绛旈</strong></article>
+                <article class="guide-secondary-card guide-stat-link" data-target="achievements.html" role="link" tabindex="0" aria-label="璺宠浆鍒版垚灏遍〉闈?><span>馃弳</span><strong>鎴愬氨</strong></article>
+                <article class="guide-secondary-card guide-stat-link" data-target="shop.html" role="link" tabindex="0" aria-label="璺宠浆鍒?Q甯佽儗鏅晢搴楅〉闈?><span>馃帹</span><strong>鑳屾櫙</strong></article>
+                <article class="guide-secondary-card guide-stat-link" data-target="wall.html" role="link" tabindex="0" aria-label="进入班级留言墙"><span>💬</span><strong>留言</strong></article>
+                <article class="guide-secondary-card guide-stat-link" data-target="credits.html" role="link" tabindex="0" aria-label="进入制作组与致谢"><span>🙏</span><strong>致谢</strong></article>
+                <article id="guide-admin-entry" class="guide-secondary-card guide-stat-link" data-target="admin.html" role="link" tabindex="0" aria-label="进入管理员审核" hidden><span>🛠</span><strong>审核</strong></article>
             </div>
         </nav>
     </main>
@@ -88,7 +92,6 @@
     <script src="js/backgroundOptions.js"></script>
     <script src="js/backgroundSwitcher.js"></script>
     <script src="js/achievementSystem.js"></script>
-    <script src="js/mascot.js"></script>
     <script src="js/guide.js"></script>
     <script src="js/authControls.js"></script>
 </body>

@@ -1,12 +1,9 @@
-/************************************************************
+﻿/************************************************************
  * supabaseConfig.js
- * Supabase 项目配置
+ * Supabase 椤圭洰閰嶇疆
  *
- * 注意：
- * - anonKey 是 Supabase 前端公开密钥，不是 service_role 密钥。
- * - accountDomain 用于把“初始账号”转换成邮箱登录；例如账号 zhangsan
- *   会按 zhangsan@classrecord.local 提交给 Supabase Auth。
- ************************************************************/
+ * 娉ㄦ剰锛? * - anonKey 鏄?Supabase 鍓嶇鍏紑瀵嗛挜锛屼笉鏄?service_role 瀵嗛挜銆? * - accountDomain 鐢ㄤ簬鎶娾€滃垵濮嬭处鍙封€濊浆鎹㈡垚閭鐧诲綍锛涗緥濡傝处鍙?zhangsan
+ *   浼氭寜 zhangsan@classrecord.local 鎻愪氦缁?Supabase Auth銆? ************************************************************/
 
 window.CLASS_RECORD_SUPABASE = {
     url: "https://ycpkjuidcgisqkanjzxg.supabase.co",
@@ -16,7 +13,14 @@ window.CLASS_RECORD_SUPABASE = {
         profiles: "profiles",
         reactions: "record_reactions",
         comments: "record_comments",
+        commentLikes: "comment_likes",
+        corrections: "correction_reports",
+        wallMessages: "wall_messages",
+        personClaims: "person_claim_requests",
+        personEdits: "person_edit_requests",
+        admins: "admin_users",
         records: "class_records",
+        hiddenRecords: "class_hidden_records",
         people: "class_people",
         glossary: "class_glossary",
         recordPages: "class_record_pages",
@@ -24,6 +28,7 @@ window.CLASS_RECORD_SUPABASE = {
     },
     storage: {
         privateBucket: "classrecord-private",
+        publicPrefix: "",
         signedUrlExpiresIn: 600
     },
     useSecureContent: true

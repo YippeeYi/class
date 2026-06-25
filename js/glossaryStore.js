@@ -1,7 +1,6 @@
-/************************************************************
+﻿/************************************************************
  * glossaryStore.js
- * 全局术语仓库（带缓存 + Store）
- ************************************************************/
+ * 鍏ㄥ眬鏈浠撳簱锛堝甫缂撳瓨 + Store锛? ************************************************************/
 
 window.GlossaryStore = {
     terms: [],
@@ -17,22 +16,8 @@ window.loadAllGlossary = async function ({ onProgressStep } = {}) {
         key: "glossary",
         expire: 24 * 60 * 60 * 1000,
         loader: async () => {
-            if (window.ClassRecordData?.isEnabled()) {
-                return window.ClassRecordData.loadGlossary({ onProgressStep });
-            }
-
-            const files = await window.fetchJson("data/glossary/glossary_index.json");
-            const terms = await Promise.all(
-                files.map(async (f) => {
-                    const term = await window.fetchJson(`data/glossary/${f}`);
-                    if (typeof onProgressStep === "function") {
-                        onProgressStep();
-                    }
-                    return term;
-                })
-            );
-
-            return terms;
+            if (!window.ClassRecordData?.isEnabled()) throw new Error("Supabase 数据加载器不可用。");
+            return window.ClassRecordData.loadGlossary({ onProgressStep });
         }
     });
 

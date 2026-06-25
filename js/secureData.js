@@ -1,6 +1,6 @@
-/************************************************************
+﻿/************************************************************
  * secureData.js
- * 登录后从 Supabase RLS 表与私有 Storage 读取敏感内容
+ * 鐧诲綍鍚庝粠 Supabase RLS 琛ㄤ笌绉佹湁 Storage 璇诲彇鏁忔劅鍐呭
  ************************************************************/
 
 (() => {
@@ -24,6 +24,7 @@
 
     const storageConfig = () => ({
         privateBucket: 'classrecord-private',
+        publicPrefix: '',
         signedUrlExpiresIn: 600,
         ...(getConfig().storage || {})
     });
@@ -65,7 +66,8 @@
             author: row.author || raw.author || '',
             content: row.content ?? raw.content ?? '',
             importance: row.importance || raw.importance || 'normal',
-            attachments: Array.isArray(row.attachments) ? row.attachments : (Array.isArray(raw.attachments) ? raw.attachments : [])
+            attachments: Array.isArray(row.attachments) ? row.attachments : (Array.isArray(raw.attachments) ? raw.attachments : []),
+            hidden: Boolean(row.hidden ?? raw.hidden)
         };
         if (row.record_time || raw.time) {
             record.time = row.record_time || raw.time;
@@ -75,16 +77,20 @@
         return record;
     };
 
-    const loadRecords = async ({ onProgressStep } = {}) => {
+    const loadRecordRows = async (tableName, { onProgressStep } = {}) => {
         const rows = await selectAll(
-            table('records'),
-            'file_name,record_id,record_date,record_time,author,content,importance,attachments,record_index,raw',
+            tableName,
+            'file_name,record_id,record_date,record_time,author,content,importance,attachments,record_index,raw,hidden',
             { column: 'record_index', ascending: true }
         );
         touchProgress(rows.length, onProgressStep);
         return rows.map(normalizeRecord);
     };
 
+    const loadRecords = async ({ onProgressStep, hidden = false } = {}) => {
+        const rows = await loadRecordRows(table(hidden ? 'hiddenRecords' : 'records'), { onProgressStep });
+        return hidden ? rows : rows.filter((record) => record.hidden !== true);
+    };
     const loadPeople = async ({ onProgressStep } = {}) => {
         const rows = await selectAll(
             table('people'),
@@ -148,7 +154,11 @@
     };
 
     const signAssetUrl = async (path, { expiresIn } = {}) => {
-        const normalized = normalizeAssetPath(path);
+        const storage = storageConfig();
+        const prefixedPath = storage.publicPrefix && !isRemoteUrl(path)
+            ? `${String(storage.publicPrefix).replace(/\/+$/, '')}/${normalizeAssetPath(path)}`
+            : path;
+        const normalized = normalizeAssetPath(prefixedPath);
         if (!normalized || isRemoteUrl(normalized)) return normalized;
 
         const cached = signedUrlCache.get(normalized);
@@ -162,7 +172,6 @@
 
         const promise = (async () => {
             const client = await getClient();
-            const storage = storageConfig();
             const ttl = Number(expiresIn || storage.signedUrlExpiresIn) || 600;
             const { data, error } = await client.storage
                 .from(storage.privateBucket)

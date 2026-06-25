@@ -1,12 +1,8 @@
-/************************************************************
+﻿/************************************************************
  * cacheLoader.js
- * 通用高速加载器
+ * 閫氱敤楂橀€熷姞杞藉櫒
  *
- * 策略：
- * - 页面生命周期内使用内存缓存，避免重复解析大批 JSON。
- * - 同一个 key 的并发请求自动合并。
- * - 持久层交给浏览器 HTTP 缓存，不再把记录数据写入 localStorage。
- ************************************************************/
+ * 绛栫暐锛? * - 椤甸潰鐢熷懡鍛ㄦ湡鍐呬娇鐢ㄥ唴瀛樼紦瀛橈紝閬垮厤閲嶅瑙ｆ瀽澶ф壒 JSON銆? * - 鍚屼竴涓?key 鐨勫苟鍙戣姹傝嚜鍔ㄥ悎骞躲€? * - 鎸佷箙灞備氦缁欐祻瑙堝櫒 HTTP 缂撳瓨锛屼笉鍐嶆妸璁板綍鏁版嵁鍐欏叆 localStorage銆? ************************************************************/
 
 const CACHE_PREFIX = "classRecord";
 const memoryCache = new Map();
@@ -18,7 +14,7 @@ window.loadWithCache = async function ({
     loader
 }) {
     if (!key || typeof loader !== "function") {
-        throw new Error("loadWithCache: key 和 loader 是必须的");
+        throw new Error("loadWithCache: key 鍜?loader 鏄繀椤荤殑");
     }
 
     const now = Date.now();
@@ -49,7 +45,7 @@ window.loadWithCache = async function ({
 window.fetchJson = async function (url, options = {}) {
     const response = await fetch(url, { cache: "force-cache", ...options });
     if (!response.ok) {
-        throw new Error(`${url} 加载失败：${response.status}`);
+        throw new Error(`${url} 鍔犺浇澶辫触锛?{response.status}`);
     }
     return response.json();
 };
@@ -107,8 +103,8 @@ function showLoadingOverlay() {
     overlay.id = "loading-overlay";
     overlay.innerHTML = `
         <div class="loading-overlay-card">
-            <div class="loading-overlay-title">正在加载数据…</div>
-            <div class="loading-overlay-subtitle">首次进入时会使用浏览器缓存加速后续访问</div>
+            <div class="loading-overlay-title">姝ｅ湪鍔犺浇鏁版嵁鈥?/div>
+            <div class="loading-overlay-subtitle">棣栨杩涘叆鏃朵細浣跨敤娴忚鍣ㄧ紦瀛樺姞閫熷悗缁闂?/div>
         </div>
     `;
     document.body.appendChild(overlay);
@@ -133,51 +129,13 @@ window.ensureAllCachesLoaded = async function ({ expire = 24 * 60 * 60 * 1000, s
 
     try {
         if (typeof onProgress === "function") {
-            if (window.ClassRecordData?.isEnabled()) {
-                onProgress(0);
-                await loadAllRecords();
-                onProgress(0.45);
-                await loadAllPeople();
-                onProgress(0.72);
-                await loadAllGlossary();
-                onProgress(1);
-            } else {
-                const getBatchSize = async (indexPath) => {
-                    const files = await window.fetchJson(indexPath);
-                    return Array.isArray(files) ? files.length : 0;
-                };
-
-                const [recordCount, peopleCount, glossaryCount] = await Promise.all([
-                    getBatchSize("data/record/records_index.json"),
-                    getBatchSize("data/people/people_index.json"),
-                    getBatchSize("data/glossary/glossary_index.json")
-                ]);
-
-                const totalSteps = recordCount + peopleCount + glossaryCount;
-                let completedSteps = 0;
-                let lastProgress = 0;
-
-                const emitProgress = () => {
-                    if (totalSteps <= 0) {
-                        onProgress(0);
-                        return;
-                    }
-                    const nextProgress = completedSteps / totalSteps;
-                    lastProgress = Math.max(lastProgress, nextProgress);
-                    onProgress(lastProgress);
-                };
-
-                const onProgressStep = () => {
-                    completedSteps += 1;
-                    emitProgress();
-                };
-
-                onProgress(0);
-                await loadAllRecords({ onProgressStep });
-                await loadAllPeople({ onProgressStep });
-                await loadAllGlossary({ onProgressStep });
-                onProgress(1);
-            }
+            onProgress(0);
+            await loadAllRecords();
+            onProgress(0.45);
+            await loadAllPeople();
+            onProgress(0.72);
+            await loadAllGlossary();
+            onProgress(1);
         } else {
             await Promise.all([
                 loadAllRecords(),
