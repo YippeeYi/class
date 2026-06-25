@@ -1,6 +1,7 @@
 /************************************************************
  * cacheLoader.js
 <<<<<<< HEAD
+<<<<<<< HEAD
  * General in-page cache and stale Service Worker cleanup.
  *
  * Strategy:
@@ -10,10 +11,17 @@
 =======
  * 通用高速加载器
  *
+=======
+ * 通用高速加载器
+ *
+>>>>>>> parent of df4efb0 (add)
  * 策略：
  * - 页面生命周期内使用内存缓存，避免重复解析大批 JSON。
  * - 同一个 key 的并发请求自动合并。
  * - 持久层交给浏览器 HTTP 缓存，不再把记录数据写入 localStorage。
+<<<<<<< HEAD
+>>>>>>> parent of df4efb0 (add)
+=======
 >>>>>>> parent of df4efb0 (add)
  ************************************************************/
 
@@ -28,7 +36,11 @@ window.loadWithCache = async function ({
 }) {
     if (!key || typeof loader !== "function") {
 <<<<<<< HEAD
+<<<<<<< HEAD
         throw new Error("loadWithCache: key \u548c loader \u662f\u5fc5\u987b\u7684");
+=======
+        throw new Error("loadWithCache: key 和 loader 是必须的");
+>>>>>>> parent of df4efb0 (add)
 =======
         throw new Error("loadWithCache: key 和 loader 是必须的");
 >>>>>>> parent of df4efb0 (add)
@@ -63,7 +75,11 @@ window.fetchJson = async function (url, options = {}) {
     const response = await fetch(url, { cache: "force-cache", ...options });
     if (!response.ok) {
 <<<<<<< HEAD
+<<<<<<< HEAD
         throw new Error(`${url} \u52a0\u8f7d\u5931\u8d25\uff1a${response.status}`);
+=======
+        throw new Error(`${url} 加载失败：${response.status}`);
+>>>>>>> parent of df4efb0 (add)
 =======
         throw new Error(`${url} 加载失败：${response.status}`);
 >>>>>>> parent of df4efb0 (add)
@@ -121,8 +137,13 @@ function showLoadingOverlay() {
     overlay.innerHTML = `
         <div class="loading-overlay-card">
 <<<<<<< HEAD
+<<<<<<< HEAD
             <div class="loading-overlay-title">\u6b63\u5728\u52a0\u8f7d\u6570\u636e...</div>
             <div class="loading-overlay-subtitle">\u9996\u6b21\u8fdb\u5165\u65f6\u4f1a\u4f7f\u7528\u6d4f\u89c8\u5668\u7f13\u5b58\u52a0\u901f\u540e\u7eed\u8bbf\u95ee</div>
+=======
+            <div class="loading-overlay-title">正在加载数据…</div>
+            <div class="loading-overlay-subtitle">首次进入时会使用浏览器缓存加速后续访问</div>
+>>>>>>> parent of df4efb0 (add)
 =======
             <div class="loading-overlay-title">正在加载数据…</div>
             <div class="loading-overlay-subtitle">首次进入时会使用浏览器缓存加速后续访问</div>

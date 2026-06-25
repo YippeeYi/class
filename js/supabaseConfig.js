@@ -1,6 +1,7 @@
 /************************************************************
  * supabaseConfig.js
 <<<<<<< HEAD
+<<<<<<< HEAD
  * Supabase project configuration.
  *
  * Notes:
@@ -9,10 +10,17 @@
 =======
  * Supabase 项目配置
  *
+=======
+ * Supabase 项目配置
+ *
+>>>>>>> parent of df4efb0 (add)
  * 注意：
  * - anonKey 是 Supabase 前端公开密钥，不是 service_role 密钥。
  * - accountDomain 用于把“初始账号”转换成邮箱登录；例如账号 zhangsan
  *   会按 zhangsan@classrecord.local 提交给 Supabase Auth。
+<<<<<<< HEAD
+>>>>>>> parent of df4efb0 (add)
+=======
 >>>>>>> parent of df4efb0 (add)
  ************************************************************/
 
