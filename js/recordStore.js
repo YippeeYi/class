@@ -1,6 +1,6 @@
-/************************************************************
+﻿/************************************************************
  * recordStore.js
- * 全局记录仓库
+ * 鍏ㄥ眬璁板綍浠撳簱
  ************************************************************/
 
 window.RecordStore = {
@@ -8,48 +8,17 @@ window.RecordStore = {
     loaded: false
 };
 
-window.loadAllRecords = async function ({ onProgressStep } = {}) {
-    if (RecordStore.loaded) {
+window.loadAllRecords = async function ({ onProgressStep, hidden = false } = {}) {
+    if (!hidden && RecordStore.loaded) {
         return RecordStore.records;
     }
 
     const list = await loadWithCache({
-        key: "records",
+        key: hidden ? "records:hidden" : "records",
         expire: 24 * 60 * 60 * 1000,
         loader: async () => {
-            if (window.ClassRecordData?.isEnabled()) {
-                return window.ClassRecordData.loadRecords({ onProgressStep });
-            }
-
-            const files = await window.fetchJson("data/record/records_index.json");
-            const records = await Promise.all(
-                files.map(async (file, i) => {
-                    try {
-                        const record = await window.fetchJson(`data/record/${file}`);
-                        if (!record.time) {
-                            delete record.time;
-                        }
-                        record.fileName = file;
-                        record.recordIndex = i;
-                        record.date = file.slice(0, 10);
-
-                        if (!record.id) {
-                            record.id = `R${String(i + 1).padStart(3, "0")}`;
-                        }
-
-                        return record;
-                    } catch (error) {
-                        console.warn(`跳过无法加载的记录文件：${file}`, error);
-                        return null;
-                    } finally {
-                        if (typeof onProgressStep === "function") {
-                            onProgressStep();
-                        }
-                    }
-                })
-            );
-
-            return records.filter(Boolean);
+            if (!window.ClassRecordData?.isEnabled()) throw new Error("Supabase 数据加载器不可用。");
+            return window.ClassRecordData.loadRecords({ onProgressStep, hidden });
         }
     });
 
@@ -64,7 +33,9 @@ window.loadAllRecords = async function ({ onProgressStep } = {}) {
         }
     });
 
-    RecordStore.records = normalizedList;
-    RecordStore.loaded = true;
+    if (!hidden) {
+        RecordStore.records = normalizedList;
+        RecordStore.loaded = true;
+    }
     return normalizedList;
 };
