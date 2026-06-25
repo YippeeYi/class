@@ -218,7 +218,6 @@ const importQuiz = async () => {
       content_key: item.content_key || item.contentKey || 'lamian',
       question_type: item.type || item.question_type || 'fill',
       prompt: item.prompt || 'Hidden question',
-      choices: Array.isArray(item.choices) ? item.choices : [],
       answer: String(item.answer || '').trim(),
       explanation: item.explanation || '',
       image_path: item.image_path || item.imagePath || item.image || `images/quiz/lamian/${number}.png`,
