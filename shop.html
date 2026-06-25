@@ -1,26 +1,43 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>编日史 - Q 币背景商店</title>
-    <link rel="stylesheet" href="style.css?v=20260625">
+    <title>缂栨棩鍙?路 Q甯佽儗鏅晢搴?/title>
+    <link rel="stylesheet" href="style.css">
     <link rel="icon" href="favicon.ico">
     <link rel="preload" href="fonts/GoogleSansFlex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf" as="font" type="font/ttf" crossorigin>
-    <script src="js/authGate.js?v=20260625"></script>
-    <script src="js/navigation.js?v=20260625"></script>
-    <script src="js/imageCache.js?v=20260625"></script>
+    <script src="js/authGate.js"></script>
+    <script src="js/navigation.js"></script>
+    <script src="js/imageCache.js"></script>
 </head>
-<body>
-    <div class="page-header"><button class="back-to-guide-btn" aria-label="返回导览" title="返回导览" data-nav-target="index.html">&larr;</button></div>
-    <main class="archive-tool-shell"><header class="archive-tool-head"><div><h1>Q 币背景商店</h1><p id="shop-summary">使用答题获得的 Q 币解锁背景。</p></div></header><div id="shop-root"></div></main>
-    <script src="js/cacheLoader.js?v=20260625"></script>
-    <script src="js/bootstrap.js?v=20260625"></script>
-    <script src="js/qcoinSystem.js?v=20260625"></script>
-    <script src="js/achievementSystem.js?v=20260625"></script>
-    <script src="js/backgroundOptions.js?v=20260625"></script>
-    <script src="js/backgroundSwitcher.js?v=20260625"></script>
-    <script src="js/correction.js?v=20260625"></script>
-    <script src="js/shop.js?v=20260625"></script>
+
+<body class="feature-page shop-page">
+    <div class="page-header">
+        <button class="back-to-guide-btn" aria-label="杩斿洖涓婚〉" title="杩斿洖涓婚〉" data-nav-target="index.html">鈫?/button>
+    </div>
+
+    <main class="archive-tool-shell shop-shell">
+        <header class="archive-tool-head">
+            <div>
+                <h1>Q甯佽儗鏅晢搴?/h1>
+                <p id="shop-summary">绛旈鑾峰緱 Q甯侊紝鍦ㄨ繖閲屽厬鎹㈠叏绔欒儗鏅€?/p>
+            </div>
+        </header>
+
+        <section id="shop-items" class="shop-grid" aria-live="polite"></section>
+    </main>
+
+    <script src="js/cacheLoader.js"></script>
+    <script src="js/qcoinSystem.js"></script>
+    <script src="js/achievementSystem.js"></script>
+    <script src="js/backgroundOptions.js"></script>
+    <script src="js/backgroundSwitcher.js"></script>
+    <script src="js/correction.js"></script>
+    <script src="js/shop.js"></script>
 </body>
+
 </html>
+
+

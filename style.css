@@ -686,11 +686,13 @@ body>#glossary-list {
   color: var(--text-soft);
 }
 
+/* 绌虹姸鎬?*/
 .person-info {
   margin-top: 16px;
 }
 
 
+/* 閸楁洘娼拋鏉跨秿閸楋紕澧?*/
 .record {
   background: var(--bg-card);
   backdrop-filter: blur(10px);
@@ -943,6 +945,7 @@ body>#glossary-list {
   border-bottom-color: var(--link-accent-hover);
 }
 
+/* 閺堫垵顕?*/
 .term-tag {
   display: inline-block;
   color: var(--term-accent);
@@ -992,6 +995,7 @@ body>#glossary-list {
   user-select: none;
 }
 
+/* 姒涙垵绠?*/
 
 .redacted {
   position: relative;
@@ -1186,6 +1190,7 @@ body>#glossary-list {
   flex: 1;
 
   white-space: pre-wrap;
+  /* 閺€顖涘瘮閹广垼顢?*/
 }
 
 
@@ -2432,7 +2437,7 @@ body>#glossary-list {
 }
 
 .record-written-image.is-missing::before {
-  content: "\672a\627e\5230\539f\59cb\4e66\9762\8bb0\5f55\56fe\7247";
+  content: "鏈壘鍒板師濮嬩功闈㈣褰曞浘鐗?;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3019,6 +3024,7 @@ body>#glossary-list {
   }
 }
 
+/* 鏂板妫€绱綋楠岀簿淇?*/
 .record-filter {
   align-items: flex-end;
   gap: 12px;
@@ -3157,6 +3163,7 @@ body>#glossary-list {
   }
 }
 
+/* 绛涢€夊尯鍩熶笌缃戦〉鍚夌ゥ鐗╃簿淇?*/
 body>.record-switch,
 body>.record-view-switch {
   margin-bottom: 6px;
