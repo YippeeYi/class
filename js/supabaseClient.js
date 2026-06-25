@@ -46,7 +46,7 @@
     };
 
     const getConfig = () => {
-        const config = window.CLASS_RECORD_SUPABASE || window.SUPABASE_CONFIG || {};
+        const config = window.CLASS_RECORD_SUPABASE || {};
         return {
             ...config,
             tables: { ...DEFAULT_TABLES, ...(config.tables || {}) },
@@ -193,6 +193,16 @@
         return data;
     };
 
+    const isCurrentUserAdmin = async () => {
+        const supabase = await getClient();
+        const { data, error } = await supabase.rpc("is_admin");
+        if (error) {
+            console.warn("Admin check failed:", error);
+            return false;
+        }
+        return data === true;
+    };
+
     const onAuthStateChange = async (callback) => {
         const supabase = await getClient();
         return supabase.auth.onAuthStateChange(callback);
@@ -206,6 +216,7 @@
         getSession,
         getUser,
         isConfigured,
+        isCurrentUserAdmin,
         normalizeLogin,
         onAuthStateChange,
         signIn,

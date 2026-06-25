@@ -124,7 +124,7 @@ function buildRecordBody(record) {
         ${record.attachments?.length ? `
             <div class="attachments-wrapper" style="display:none">
                 <ul>
-                    ${record.attachments.map(a => `<li><a href="${window.ClassRecordData?.isEnabled() ? "" : a.file}" ${window.ClassRecordData?.isEnabled() ? `data-secure-href="${a.file}"` : ""} target="_blank" rel="noopener">${a.name}</a></li>`).join("")}
+                    ${record.attachments.map(a => `<li><a href="" data-secure-href="${a.file}" target="_blank" rel="noopener">${a.name}</a></li>`).join("")}
                 </ul>
             </div>
         ` : ""}

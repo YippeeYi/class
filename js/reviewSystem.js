@@ -11,16 +11,12 @@
 
     const getProfile = async () => window.ClassRecordSupabase.getProfile();
 
-    const isAdmin = async () => {
-        const profile = await getProfile().catch(() => null);
-        return profile?.role === 'admin';
-    };
+    const isAdmin = async () => window.ClassRecordSupabase.isCurrentUserAdmin?.() || false;
 
     const insertRow = async (tableName, payload) => {
         const client = await getClient();
         const { data, error } = await client.from(tableName).insert(payload).select('*').single();
         if (error) throw error;
-        await applyApprovedRequest({ tableKey, row: data, reviewerId: reviewer.id });
         return data;
     };
 

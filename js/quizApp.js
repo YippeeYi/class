@@ -660,27 +660,7 @@
         console.warn('Supabase secret questions load failed:', error);
       }
     }
-    try {
-      const res = await fetch('data/quiz/lamian.json');
-      if (!res.ok) return [];
-      const items = await res.json();
-      return items.map((item, index) => {
-        const number = String(index + 1).padStart(2, '0');
-        const image = item.image || `images/quiz/lamian/${number}.png`;
-        return normalizeQuestion({
-          id: item.id || `lamian-${number}`,
-          type: item.type || 'fill',
-          content: SECRET_CONTENT,
-          prompt: item.prompt || 'Hidden question',
-          answer: item.answer || '',
-          explanation: item.explanation || '',
-          image
-        }, index);
-      });
-    } catch (error) {
-      console.warn('Secret questions load failed:', error);
-      return [];
-    }
+    return [];
   }
 
   function setFeedback(message, type) {

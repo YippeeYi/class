@@ -21,11 +21,6 @@ window.loadWithCache = async function ({ key, expire = 24 * 60 * 60 * 1000, load
     }
 };
 
-window.fetchJson = async function (url, options = {}) {
-    const response = await fetch(url, { cache: "force-cache", ...options });
-    if (!response.ok) throw new Error(`${url} load failed: ${response.status}`);
-    return response.json();
-};
 
 window.ensureImageCacheLoaded = async function () { return Promise.resolve(); };
 window.needsImageCacheLoad = async function () { return false; };

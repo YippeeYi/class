@@ -138,8 +138,8 @@ function renderWrittenView(records) {
   const pageRecords = page.records || [];
   pageRecords.sort((a, b) => (a.recordIndex ?? 0) - (b.recordIndex ?? 0));
   const imagePath = getPageImagePath(page, pageRecords);
-  const secureAttr = imagePath && window.ClassRecordData?.isEnabled() ? `data-secure-src="${imagePath}"` : "";
-  const srcAttr = imagePath && !window.ClassRecordData?.isEnabled() ? `src="${imagePath}"` : 'src=""';
+  const secureAttr = imagePath ? `data-secure-src="${imagePath}"` : "";
+  const srcAttr = 'src=""';
   const pageOptions = pages.map((item, index) => `
     <button type="button" class="btn-action filter-option${index === currentPageIndex ? ' is-active' : ''}" data-page-index="${index}">
       ${item.page}

@@ -20,9 +20,9 @@
     });
 
     const loadConfig = async () => {
-        if (window.SUPABASE_CONFIG) return window.SUPABASE_CONFIG;
+        if (window.CLASS_RECORD_SUPABASE) return window.CLASS_RECORD_SUPABASE;
         if (!configPromise) {
-            configPromise = loadScriptOnce(CONFIG_URL).then(() => window.SUPABASE_CONFIG || {});
+            configPromise = loadScriptOnce(CONFIG_URL).then(() => window.CLASS_RECORD_SUPABASE || {});
         }
         return configPromise;
     };
@@ -32,7 +32,7 @@
         return {
             url: config.url || '',
             anonKey: config.anonKey || '',
-            bucket: config.bucket || DEFAULT_BUCKET,
+            bucket: config.bucket || config.storage?.privateBucket || DEFAULT_BUCKET,
             tables: {
                 records: 'class_records',
                 people: 'class_people',
@@ -44,7 +44,10 @@
         };
     };
 
-    const isEnabled = () => Boolean(window.SUPABASE_CONFIG?.url && window.SUPABASE_CONFIG?.anonKey);
+    const isEnabled = () => {
+        const config = window.CLASS_RECORD_SUPABASE || {};
+        return Boolean(config.url && config.anonKey);
+    };
 
     const getClient = async () => {
         const config = await getConfig();
@@ -219,22 +222,32 @@
         return new Map(entries);
     };
 
-    const bindSecureImages = async (root = document) => {
-        const nodes = [...root.querySelectorAll('img[data-secure-src]')];
-        const paths = nodes.map((node) => node.getAttribute('data-secure-src')).filter(Boolean);
+    const resolveAssetElements = async (root = document) => {
+        const imageNodes = [...root.querySelectorAll('img[data-secure-src]')];
+        const linkNodes = [...root.querySelectorAll('a[data-secure-href]')];
+        const paths = [
+            ...imageNodes.map((node) => node.getAttribute('data-secure-src')),
+            ...linkNodes.map((node) => node.getAttribute('data-secure-href'))
+        ].filter(Boolean);
         const signed = await signAssetUrls(paths).catch((error) => {
-            console.warn('Secure image signing failed:', error);
+            console.warn('Secure asset signing failed:', error);
             return new Map();
         });
-        nodes.forEach((node) => {
-            const path = node.getAttribute('data-secure-src');
-            const src = signed.get(path);
+        imageNodes.forEach((node) => {
+            const src = signed.get(node.getAttribute('data-secure-src'));
             if (src) node.src = src;
+        });
+        linkNodes.forEach((node) => {
+            const href = signed.get(node.getAttribute('data-secure-href'));
+            if (href) node.href = href;
         });
     };
 
+    const bindSecureImages = resolveAssetElements;
+
     window.ClassRecordData = {
         bindSecureImages,
+        resolveAssetElements,
         getClient,
         getConfig,
         isEnabled,
