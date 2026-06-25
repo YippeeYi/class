@@ -1,10 +1,19 @@
-﻿/************************************************************
+/************************************************************
  * supabaseConfig.js
+<<<<<<< HEAD
  * Supabase project configuration.
  *
  * Notes:
  * - anonKey is the public browser key, not the service_role key.
  * - accountDomain converts short class accounts into Supabase Auth emails.
+=======
+ * Supabase 项目配置
+ *
+ * 注意：
+ * - anonKey 是 Supabase 前端公开密钥，不是 service_role 密钥。
+ * - accountDomain 用于把“初始账号”转换成邮箱登录；例如账号 zhangsan
+ *   会按 zhangsan@classrecord.local 提交给 Supabase Auth。
+>>>>>>> parent of df4efb0 (add)
  ************************************************************/
 
 window.CLASS_RECORD_SUPABASE = {
@@ -15,14 +24,7 @@ window.CLASS_RECORD_SUPABASE = {
         profiles: "profiles",
         reactions: "record_reactions",
         comments: "record_comments",
-        commentLikes: "comment_likes",
-        corrections: "correction_reports",
-        wallMessages: "wall_messages",
-        personClaims: "person_claim_requests",
-        personEdits: "person_edit_requests",
-        admins: "admin_users",
         records: "class_records",
-        hiddenRecords: "class_hidden_records",
         people: "class_people",
         glossary: "class_glossary",
         recordPages: "class_record_pages",
@@ -30,7 +32,6 @@ window.CLASS_RECORD_SUPABASE = {
     },
     storage: {
         privateBucket: "classrecord-private",
-        publicPrefix: "",
         signedUrlExpiresIn: 600
     },
     useSecureContent: true

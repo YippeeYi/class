@@ -1,6 +1,6 @@
-﻿/************************************************************
+/************************************************************
  * peopleStore.js
- * 鍏ㄥ眬浜虹墿浠撳簱
+ * 全局人物仓库
  ************************************************************/
 
 window.PeopleStore = {
@@ -17,8 +17,22 @@ window.loadAllPeople = async function ({ onProgressStep } = {}) {
         key: "people",
         expire: 24 * 60 * 60 * 1000,
         loader: async () => {
-            if (!window.ClassRecordData?.isEnabled()) throw new Error("Supabase 数据加载器不可用。");
-            return window.ClassRecordData.loadPeople({ onProgressStep });
+            if (window.ClassRecordData?.isEnabled()) {
+                return window.ClassRecordData.loadPeople({ onProgressStep });
+            }
+
+            const files = await window.fetchJson("data/people/people_index.json");
+            const people = await Promise.all(
+                files.map(async (f) => {
+                    const person = await window.fetchJson(`data/people/${f}`);
+                    if (typeof onProgressStep === "function") {
+                        onProgressStep();
+                    }
+                    return person;
+                })
+            );
+
+            return people;
         }
     });
 
