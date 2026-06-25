@@ -10,6 +10,7 @@
     const AUTH_PAGE = 'auth.html';
     const CONFIG_SCRIPT = 'js/supabaseConfig.js';
     const CLIENT_SCRIPT = 'js/supabaseClient.js';
+    const DATA_SCRIPT = 'js/secureData.js';
     const USER_STATE_SCRIPT = 'js/userState.js';
 
     let resolveAccess;
@@ -111,6 +112,7 @@
     const ensureAuthClient = async () => {
         await loadScript(CONFIG_SCRIPT);
         await loadScript(CLIENT_SCRIPT);
+        await loadScript(DATA_SCRIPT);
         if (!window.ClassRecordSupabase) {
             throw new Error('Supabase 客户端初始化失败。');
         }
