@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 /*
  * migrate-secure-content.mjs
- * 将本地 data/ 和 images/ 迁移到 Supabase RLS 表 + 私有 Storage。
- * 需要 Node.js 18+，无需安装依赖。
+ * Migrates local data/ JSON into Supabase tables and uploads only:
+ *   - data/
+ *   - images/record-pages/
  *
- * PowerShell 用法：
+ * PowerShell:
  *   $env:SUPABASE_URL="https://xxxx.supabase.co"
- *   $env:SUPABASE_SERVICE_ROLE_KEY="你的 service_role key"
+ *   $env:SUPABASE_SERVICE_ROLE_KEY="your service_role key"
+ *   $env:CLASS_RECORD_BUCKET="classrecord-private"
  *   node scripts/migrate-secure-content.mjs
  *   node scripts/migrate-secure-content.mjs --prune
  */
@@ -21,7 +23,7 @@ const bucket = process.env.CLASS_RECORD_BUCKET || 'classrecord-private';
 const shouldPrune = process.argv.includes('--prune');
 
 if (!url || !serviceRoleKey) {
-  console.error('缺少 SUPABASE_URL 或 SUPABASE_SERVICE_ROLE_KEY。');
+  console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.');
   process.exit(1);
 }
 
@@ -51,6 +53,21 @@ const request = async (endpoint, options = {}) => {
 const readJson = async (relativePath) => JSON.parse(await fs.readFile(path.join(root, relativePath), 'utf8'));
 const exists = async (relativePath) => fs.access(path.join(root, relativePath)).then(() => true).catch(() => false);
 const quoteList = (values) => `(${values.map((value) => `"${String(value).replace(/"/g, '\\"')}"`).join(',')})`;
+const trimExt = (value) => String(value || '').replace(/\.(png|jpe?g|webp|gif)$/i, '');
+
+const normalizeRecordPageImagePath = (value, fallbackPage) => {
+  const raw = String(value || '').trim();
+  if (/^https?:\/\//i.test(raw)) return raw.replace(/\.jpg(\?|#|$)/i, '.jpeg$1');
+  const source = raw || (fallbackPage ? String(fallbackPage) : '');
+  if (!source) return null;
+  const clean = source
+    .replace(/^\/+/, '')
+    .replace(/^images\/record-pages\//i, '')
+    .replace(/^record-pages\//i, '');
+  return `images/record-pages/${trimExt(clean)}.jpeg`;
+};
+
+const firstValue = (...values) => values.find((value) => value !== undefined && value !== null && value !== '');
 
 const upsert = async (table, rows, onConflict) => {
   if (!rows.length) return;
@@ -65,53 +82,73 @@ const upsert = async (table, rows, onConflict) => {
       },
       body: JSON.stringify(batch)
     });
-    console.log(`已写入 ${table}: ${Math.min(i + batch.length, rows.length)} / ${rows.length}`);
+    console.log(`Upserted ${table}: ${Math.min(i + batch.length, rows.length)} / ${rows.length}`);
   }
 };
 
 const pruneTable = async (table, keyColumn, keepValues) => {
   if (!shouldPrune) return;
   if (!keepValues.length) {
-    console.warn(`跳过 ${table} 清理：本地保留列表为空。`);
+    console.warn(`Skipped pruning ${table}: keep list is empty.`);
     return;
   }
   await request(`/rest/v1/${table}?${keyColumn}=not.in.${encodeURIComponent(quoteList(keepValues))}`, {
     method: 'DELETE',
     headers: { Prefer: 'return=minimal' }
   });
-  console.log(`已清理 ${table} 中本地不存在的行。`);
+  console.log(`Pruned stale rows from ${table}.`);
 };
 
 const importRecords = async () => {
+  if (!(await exists('data/record/records_index.json'))) {
+    console.warn('Skipped records: data/record/records_index.json not found.');
+    return;
+  }
   const files = await readJson('data/record/records_index.json');
   const rows = [];
-  for (const [index, fileName] of files.entries()) {
+  let visibleIndex = 0;
+  let hiddenIndex = 0;
+
+  for (const fileName of files) {
     const raw = await readJson(`data/record/${fileName}`);
+    const isHidden = Boolean(raw.hidden);
+    const index = isHidden ? hiddenIndex++ : visibleIndex++;
+    const recordId = raw.id || raw.recordId || `R${String(index + 1).padStart(3, '0')}`;
     rows.push({
       file_name: fileName,
-      record_id: raw.id || `R${String(index + 1).padStart(3, '0')}`,
-      record_date: fileName.slice(0, 10),
+      record_id: recordId,
+      record_date: raw.date || fileName.slice(0, 10),
       record_time: raw.time || null,
-      author: raw.author || '',
-      content: raw.content || '',
+      author: raw.author || raw.recorder || '',
+      content: raw.content || raw.text || '',
       importance: raw.importance || 'normal',
       attachments: Array.isArray(raw.attachments) ? raw.attachments : [],
       record_index: index,
+      hidden: isHidden,
+      image_path: normalizeRecordPageImagePath(firstValue(raw.image_path, raw.imagePath, raw.image, raw.pageImage), raw.page),
       raw
     });
   }
+
   await upsert('class_records', rows, 'file_name');
   await pruneTable('class_records', 'file_name', files);
 };
 
 const importPeople = async () => {
+  if (!(await exists('data/people/people_index.json'))) {
+    console.warn('Skipped people: data/people/people_index.json not found.');
+    return;
+  }
   const files = await readJson('data/people/people_index.json');
   const rows = [];
   for (const [index, fileName] of files.entries()) {
     const raw = await readJson(`data/people/${fileName}`);
+    const aliases = Array.isArray(raw.aliases) ? raw.aliases : (raw.alias ? [raw.alias] : []);
     rows.push({
       id: raw.id || fileName.replace(/\.json$/i, ''),
-      alias: raw.alias || '',
+      display_name: raw.displayName || raw.display_name || raw.name || '',
+      alias: raw.alias || aliases.join(', '),
+      aliases,
       role: raw.role || 'student',
       bio: raw.bio || '',
       sort_order: index,
@@ -123,14 +160,18 @@ const importPeople = async () => {
 };
 
 const importGlossary = async () => {
+  if (!(await exists('data/glossary/glossary_index.json'))) {
+    console.warn('Skipped glossary: data/glossary/glossary_index.json not found.');
+    return;
+  }
   const files = await readJson('data/glossary/glossary_index.json');
   const rows = [];
   for (const [index, fileName] of files.entries()) {
     const raw = await readJson(`data/glossary/${fileName}`);
     rows.push({
       id: raw.id || fileName.replace(/\.json$/i, ''),
-      label: raw.label || raw.name || raw.title || fileName.replace(/\.json$/i, ''),
-      definition: raw.definition || raw.content || '',
+      label: raw.label || raw.name || raw.title || raw.term || fileName.replace(/\.json$/i, ''),
+      definition: raw.definition || raw.content || raw.description || '',
       sort_order: index,
       raw
     });
@@ -141,14 +182,26 @@ const importGlossary = async () => {
 
 const importRecordPages = async () => {
   if (!(await exists('data/record/record_pages.json'))) return;
-  const pages = await readJson('data/record/record_pages.json');
-  const rows = pages.map((raw, index) => ({
-    page: String(raw.page || raw.id || String(index + 1).padStart(2, '0')),
-    start_file: raw.start || raw.startFile || raw.from || null,
-    end_file: raw.end || raw.endFile || raw.to || null,
-    sort_order: index,
-    raw
-  }));
+  const rawPages = await readJson('data/record/record_pages.json');
+  const pages = Array.isArray(rawPages) ? rawPages : (Array.isArray(rawPages.pages) ? rawPages.pages : []);
+  let visibleIndex = 0;
+  let hiddenIndex = 0;
+
+  const rows = pages.map((raw) => {
+    const isHidden = Boolean(raw.hidden);
+    const index = isHidden ? hiddenIndex++ : visibleIndex++;
+    const page = String(raw.page || raw.id || String(index + 1).padStart(2, '0'));
+    return {
+      page,
+      start_file: raw.start || raw.startFile || raw.from || null,
+      end_file: raw.end || raw.endFile || raw.to || null,
+      sort_order: index,
+      hidden: isHidden,
+      image_path: normalizeRecordPageImagePath(firstValue(raw.image_path, raw.imagePath, raw.image, raw.fileName, raw.file), page),
+      raw
+    };
+  });
+
   await upsert('class_record_pages', rows, 'page');
   await pruneTable('class_record_pages', 'page', rows.map((row) => row.page));
 };
@@ -162,9 +215,13 @@ const importQuiz = async () => {
     return {
       id: item.id || `LAMIAN-${number}`,
       question_group: 'lamian',
-      prompt: item.prompt || '请根据图片填写答案。',
+      content_key: item.content_key || item.contentKey || 'lamian',
+      question_type: item.type || item.question_type || 'fill',
+      prompt: item.prompt || 'Hidden question',
+      choices: Array.isArray(item.choices) ? item.choices : [],
       answer: String(item.answer || '').trim(),
-      image_path: item.image || `images/quiz/lamian/${number}.png`,
+      explanation: item.explanation || '',
+      image_path: item.image_path || item.imagePath || item.image || `images/quiz/lamian/${number}.png`,
       sort_order: index,
       raw: item
     };
@@ -217,10 +274,13 @@ const listStorageObjects = async (prefix = '') => {
 const pruneStorage = async (localFiles) => {
   if (!shouldPrune) return;
   const keep = new Set(localFiles);
-  const remoteFiles = [...await listStorageObjects('data'), ...await listStorageObjects('images')];
+  const remoteFiles = [
+    ...await listStorageObjects('data'),
+    ...await listStorageObjects('images/record-pages')
+  ];
   const stale = remoteFiles.filter((file) => !keep.has(file));
   if (!stale.length) {
-    console.log('私有 Storage 无需清理。');
+    console.log('Storage prune skipped: no stale files.');
     return;
   }
   const batchSize = 100;
@@ -231,13 +291,17 @@ const pruneStorage = async (localFiles) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prefixes: batch })
     });
-    console.log(`已删除私有 Storage 旧文件 ${Math.min(i + batch.length, stale.length)} / ${stale.length}`);
+    console.log(`Deleted stale Storage files: ${Math.min(i + batch.length, stale.length)} / ${stale.length}`);
   }
 };
 
 const uploadPrivateFiles = async () => {
-  const files = [...await walkFiles('data'), ...await walkFiles('images')];
+  const files = [
+    ...await walkFiles('data'),
+    ...await walkFiles('images/record-pages')
+  ];
   const uploadable = files.filter((file) => !file.endsWith('.md') && !file.endsWith('README.md'));
+
   for (const [index, file] of uploadable.entries()) {
     const body = await fs.readFile(path.join(root, file));
     await request(`/storage/v1/object/${bucket}/${file}`, {
@@ -249,8 +313,9 @@ const uploadPrivateFiles = async () => {
       },
       body
     });
-    console.log(`已上传私有文件 ${index + 1} / ${uploadable.length}: ${file}`);
+    console.log(`Uploaded private file ${index + 1} / ${uploadable.length}: ${file}`);
   }
+
   await pruneStorage(uploadable);
 };
 
@@ -260,4 +325,5 @@ await importGlossary();
 await importRecordPages();
 await importQuiz();
 await uploadPrivateFiles();
-console.log(shouldPrune ? '迁移完成，并已同步删除远端旧内容。' : '迁移完成。部署时请不要发布 data/ 和 images/ 目录。');
+
+console.log(shouldPrune ? 'Migration complete. Remote stale data/files were pruned.' : 'Migration complete.');

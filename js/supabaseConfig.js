@@ -9,8 +9,8 @@
  ************************************************************/
 
 window.CLASS_RECORD_SUPABASE = {
-    url: "https://ycpkjuidcgisqkanjzxg.supabase.co",
-    anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljcGtqdWlkY2dpc3FrYW5qenhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwNTQxMjcsImV4cCI6MjA5NzYzMDEyN30.0JVeYf9XVyXCgp_fkqcye7LBcXEmJo8gR8-fYundcjQ",
+    url: "https://xyeftofxlxbpqctuuqup.supabase.co",
+    anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5ZWZ0b2Z4bHhicHFjdHV1cXVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzOTM2NTMsImV4cCI6MjA5Nzk2OTY1M30.ympDVX6Hqbscc9BWzWLU8Ur-FUNgD3kGaLsrt9o0Gkg",
     accountDomain: "classrecord.local",
     tables: {
         profiles: "profiles",
