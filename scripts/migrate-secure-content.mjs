@@ -215,11 +215,8 @@ const importQuiz = async () => {
     return {
       id: item.id || `LAMIAN-${number}`,
       question_group: 'lamian',
-      content_key: item.content_key || item.contentKey || 'lamian',
-      question_type: item.type || item.question_type || 'fill',
       prompt: item.prompt || 'Hidden question',
       answer: String(item.answer || '').trim(),
-      explanation: item.explanation || '',
       image_path: item.image_path || item.imagePath || item.image || `images/quiz/lamian/${number}.png`,
       sort_order: index,
       raw: item
