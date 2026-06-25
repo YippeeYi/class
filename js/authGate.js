@@ -6,10 +6,12 @@
 (() => {
     const TARGET_KEY = 'classRecordRedirectTarget';
     const AUTH_PAGE = 'auth.html';
-    const CONFIG_SCRIPT = 'js/supabaseConfig.js';
-    const CLIENT_SCRIPT = 'js/supabaseClient.js';
-    const DATA_SCRIPT = 'js/secureData.js';
-    const USER_STATE_SCRIPT = 'js/userState.js';
+    const ASSET_VERSION = '20260625';
+    const versioned = (src) => `${src}?v=${ASSET_VERSION}`;
+    const CONFIG_SCRIPT = versioned('js/supabaseConfig.js');
+    const CLIENT_SCRIPT = versioned('js/supabaseClient.js');
+    const DATA_SCRIPT = versioned('js/secureData.js');
+    const USER_STATE_SCRIPT = versioned('js/userState.js');
 
     let resolveAccess;
     let rejectAccess;

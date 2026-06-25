@@ -100,7 +100,7 @@ function getWrittenPages(records) {
 function renderWrittenView(records) {
   const pages = getWrittenPages(records);
   if (!pages.length) {
-    container.innerHTML = '<div class="record-written-empty">褰撳墠绛涢€夋潯浠朵笅娌℃湁鍙睍绀虹殑璁板綍銆?/div>';
+    container.innerHTML = '<div class="record-written-empty">\u5f53\u524d\u7b5b\u9009\u6761\u4ef6\u4e0b\u6ca1\u6709\u53ef\u5c55\u793a\u7684\u8bb0\u5f55\u3002</div>';
     return;
   }
   currentPageIndex = Math.min(currentPageIndex, pages.length - 1);
@@ -116,21 +116,21 @@ function renderWrittenView(records) {
   container.innerHTML = `
     <section class="record-written-view">
       <div class="record-written-toolbar">
-        <button class="btn-action record-page-prev" type="button" ${currentPageIndex <= 0 ? 'disabled' : ''}>涓婁竴椤?/button>
-        <span class="record-written-page">${page.page} 路 绗?${currentPageIndex + 1} / ${pages.length} 椤?/span>
-        <button class="btn-action record-page-next" type="button" ${currentPageIndex >= pages.length - 1 ? 'disabled' : ''}>涓嬩竴椤?/button>
+        <button class="btn-action record-page-prev" type="button" ${currentPageIndex <= 0 ? 'disabled' : ''}>\u4e0a\u4e00\u9875</button>
+        <span class="record-written-page">${page.page} \u9875 \u7b2c ${currentPageIndex + 1} / ${pages.length} \u9875</span>
+        <button class="btn-action record-page-next" type="button" ${currentPageIndex >= pages.length - 1 ? 'disabled' : ''}>\u4e0b\u4e00\u9875</button>
         <div class="filter-field record-page-jump">
-          <label>璺宠浆</label>
-          <button type="button" class="btn-select filter-dropdown-trigger record-page-trigger">绗?${page.page} 椤?<span class="dropdown-arrow" aria-hidden="true">鈻?/span></button>
-          <div class="filter-options record-page-options" role="group" aria-label="閫夋嫨涔﹂潰璁板綍椤?>
+          <label>\u8df3\u8f6c</label>
+          <button type="button" class="btn-select filter-dropdown-trigger record-page-trigger">\u7b2c ${page.page} \u9875<span class="dropdown-arrow" aria-hidden="true">\u25be</span></button>
+          <div class="filter-options record-page-options" role="group" aria-label="\u9009\u62e9\u4e66\u9762\u8bb0\u5f55\u9875">
             ${pageOptions}
           </div>
         </div>
       </div>
       <div class="record-written-layout">
         <figure class="record-written-image">
-          <img src="" data-secure-src="${imageBase}.jpeg" alt="${page.page} 鍘熷涔﹂潰璁板綍" loading="eager" decoding="async" fetchpriority="high">
-          <span class="record-written-image-loading">鍔犺浇涓€?/span>
+          <img src="" data-secure-src="${imageBase}.jpeg" alt="${page.page} \u539f\u59cb\u4e66\u9762\u8bb0\u5f55" loading="eager" decoding="async" fetchpriority="high">
+          <span class="record-written-image-loading">\u52a0\u8f7d\u4e2d...</span>
         </figure>
         <div class="record-written-records"></div>
       </div>
@@ -138,10 +138,10 @@ function renderWrittenView(records) {
   `;
   renderRecordList(pageRecords, container.querySelector(".record-written-records"));
   if (window.ClassRecordData?.isEnabled()) {
-    window.ClassRecordData.resolveAssetElements(container).catch((error) => console.warn("书面记录图片加载失败：", error));
+    window.ClassRecordData.resolveAssetElements(container).catch((error) => console.warn("\u4e66\u9762\u8bb0\u5f55\u56fe\u7247\u52a0\u8f7d\u5931\u8d25\uff1a", error));
   } else {
-    const img = container.querySelector(".record-written-image img");
-    if (img && !img.src) img.src = `${imageBase}.jpeg`;
+    container.querySelector(".record-written-image")?.classList.add("is-missing");
+    console.warn("Supabase ????????????????????");
   }
   container.querySelector(".record-page-prev")?.addEventListener("click", () => {
     currentPageIndex = Math.max(currentPageIndex - 1, 0);

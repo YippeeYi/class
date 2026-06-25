@@ -1,9 +1,11 @@
 ﻿/************************************************************
  * supabaseConfig.js
- * Supabase 椤圭洰閰嶇疆
+ * Supabase project configuration.
  *
- * 娉ㄦ剰锛? * - anonKey 鏄?Supabase 鍓嶇鍏紑瀵嗛挜锛屼笉鏄?service_role 瀵嗛挜銆? * - accountDomain 鐢ㄤ簬鎶娾€滃垵濮嬭处鍙封€濊浆鎹㈡垚閭鐧诲綍锛涗緥濡傝处鍙?zhangsan
- *   浼氭寜 zhangsan@classrecord.local 鎻愪氦缁?Supabase Auth銆? ************************************************************/
+ * Notes:
+ * - anonKey is the public browser key, not the service_role key.
+ * - accountDomain converts short class accounts into Supabase Auth emails.
+ ************************************************************/
 
 window.CLASS_RECORD_SUPABASE = {
     url: "https://ycpkjuidcgisqkanjzxg.supabase.co",

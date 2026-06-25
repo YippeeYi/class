@@ -1,9 +1,6 @@
 ﻿/************************************************************
  * recordRenderer.js
- * 鍔熻兘锛? * - 缁熶竴瑙ｆ瀽璁板綍鏂囨湰
- * - 缁熶竴鎺掑簭
- * - 缁熶竴娓叉煋璁板綍鍒楄〃
- * - 涓婚〉闈?& 璇︽儏椤甸潰鍏辩敤
+ * Shared record markup parsing, sorting and card rendering.
  ************************************************************/
 
 function parseContent(text) {
@@ -82,15 +79,16 @@ function buildRecordSocialShell(record) {
     const key = getRecordKey(record);
     return `
         <section class="record-social" data-social-key="${key}">
-            <div class="record-social-actions" aria-label="璁板綍浜掑姩">                <button type="button" class="record-social-btn" data-action="toggle-favorite" aria-label="鏀惰棌" aria-pressed="false"><span class="record-social-emoji" aria-hidden="true">鈽?/span><strong>0</strong></button>
-                <button type="button" class="record-social-btn" data-action="toggle-comments" aria-label="鏌ョ湅璇勮" aria-expanded="false"><span class="record-social-emoji" aria-hidden="true">馃挰</span><strong>0</strong></button>
-                <button type="button" class="record-social-btn" data-action="share-record" aria-label="澶嶅埗璁板綍閾炬帴"><span class="record-social-emoji" aria-hidden="true">馃敆</span></button>
+            <div class="record-social-actions" aria-label="\u8bb0\u5f55\u4e92\u52a8">
+                <button type="button" class="record-social-btn" data-action="toggle-favorite" aria-label="\u6536\u85cf" aria-pressed="false"><span class="record-social-emoji" aria-hidden="true">\u2606</span><strong>0</strong></button>
+                <button type="button" class="record-social-btn" data-action="toggle-comments" aria-label="\u67e5\u770b\u8bc4\u8bba" aria-expanded="false"><span class="record-social-emoji" aria-hidden="true">\u8bc4</span><strong>0</strong></button>
+                <button type="button" class="record-social-btn" data-action="share-record" aria-label="\u590d\u5236\u8bb0\u5f55\u94fe\u63a5"><span class="record-social-emoji" aria-hidden="true">\u94fe</span></button>
             </div>
             <div class="record-comments" hidden>
-                <div class="record-comment-list"><div class="record-comment-empty">璇勮鍔犺浇涓€?/div></div>
+                <div class="record-comment-list"><div class="record-comment-empty">\u8bc4\u8bba\u52a0\u8f7d\u4e2d...</div></div>
                 <form class="record-comment-form">
-                    <textarea name="comment" maxlength="500" rows="2" placeholder="鍐欎笅璇勮鈥? required></textarea>
-                    <button type="submit" class="btn-action">鍙戦€?/button>
+                    <textarea name="comment" maxlength="500" rows="2" placeholder="\u5199\u4e0b\u8bc4\u8bba..." required></textarea>
+                    <button type="submit" class="btn-action">\u53d1\u9001</button>
                 </form>
                 <p class="record-social-status" aria-live="polite"></p>
             </div>
@@ -98,20 +96,18 @@ function buildRecordSocialShell(record) {
     `;
 }
 function buildRecordBody(record) {
-    const timeText = record.time ? `馃搶 ${record.time} |` : "";
+    const timeText = record.time ? `\u65f6\u95f4 ${record.time} |` : "";
 
     return `
         <div class="meta">
             <span>
                 #${record.id} |
-                馃搮 ${record.date} |
+                \u65e5\u671f ${record.date} |
                 ${timeText}
-                鉁?${parseContent(`[[${record.author}|${record.author}]]`)}
+                \u8bb0\u5f55\u4eba ${parseContent(`[[${record.author}|${record.author}]]`)}
             </span>
             <span class="icon-group">
-
-                ${record.attachments?.length ? `<span class="attach-toggle">馃搸</span>` : ""}
-
+                ${record.attachments?.length ? `<span class="attach-toggle">\u9644\u4ef6</span>` : ""}
             </span>
         </div>
 
@@ -128,7 +124,6 @@ function buildRecordBody(record) {
         ${buildRecordSocialShell(record)}
         `;
 }
-
 
 function afterScrollSettles(target, callback, { timeout = 2600, quiet = 220 } = {}) {
     const start = performance.now();
@@ -171,8 +166,8 @@ function renderRecordList(records, container) {
     if (!records.length) {
         container.innerHTML = `
             <div class="record-empty">
-                <strong>娌℃湁鎵惧埌绗﹀悎鏉′欢鐨勮褰曘€?/strong>
-                <span>鍙互鏀惧鏃ユ湡銆佸叧閿瘝鎴栭噸瑕佹€х瓫閫夊悗鍐嶈瘯銆?/span>
+                <strong>\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u8bb0\u5f55\u3002</strong>
+                <span>\u53ef\u4ee5\u653e\u5bbd\u65e5\u671f\u3001\u5173\u952e\u8bcd\u6216\u91cd\u8981\u6027\u7b5b\u9009\u540e\u518d\u8bd5\u3002</span>
             </div>
         `;
         return;
@@ -277,31 +272,31 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
     wrapper.className = "record-filter";
     wrapper.innerHTML = `
         <div class="filter-field">
-            <button type="button" class="btn-select filter-dropdown-trigger" data-target="filter-year-options" aria-label="鎸夊勾绛涢€?>
-                閫夋嫨骞?                <span class="dropdown-arrow" aria-hidden="true">鈻?/span>
+            <button type="button" class="btn-select filter-dropdown-trigger" data-target="filter-year-options" aria-label="\u6309\u5e74\u7b5b\u9009">
+                \u9009\u62e9\u5e74 <span class="dropdown-arrow" aria-hidden="true">\u25be</span>
             </button>
-            <div id="filter-year-options" class="filter-options" role="group" aria-label="鎸夊勾绛涢€?></div>
+            <div id="filter-year-options" class="filter-options" role="group" aria-label="\u6309\u5e74\u7b5b\u9009"></div>
         </div>
         <div class="filter-field">
-            <button type="button" class="btn-select filter-dropdown-trigger" data-target="filter-month-options" aria-label="鎸夋湀绛涢€?>
-                閫夋嫨鏈?                <span class="dropdown-arrow" aria-hidden="true">鈻?/span>
+            <button type="button" class="btn-select filter-dropdown-trigger" data-target="filter-month-options" aria-label="\u6309\u6708\u7b5b\u9009">
+                \u9009\u62e9\u6708 <span class="dropdown-arrow" aria-hidden="true">\u25be</span>
             </button>
-            <div id="filter-month-options" class="filter-options" role="group" aria-label="鎸夋湀绛涢€?></div>
+            <div id="filter-month-options" class="filter-options" role="group" aria-label="\u6309\u6708\u7b5b\u9009"></div>
         </div>
         <div class="filter-field">
-            <button type="button" class="btn-select filter-dropdown-trigger" data-target="filter-day-options" aria-label="鎸夋棩绛涢€?>
-                閫夋嫨鏃?                <span class="dropdown-arrow" aria-hidden="true">鈻?/span>
+            <button type="button" class="btn-select filter-dropdown-trigger" data-target="filter-day-options" aria-label="\u6309\u65e5\u7b5b\u9009">
+                \u9009\u62e9\u65e5 <span class="dropdown-arrow" aria-hidden="true">\u25be</span>
             </button>
-            <div id="filter-day-options" class="filter-options" role="group" aria-label="鎸夋棩绛涢€?></div>
+            <div id="filter-day-options" class="filter-options" role="group" aria-label="\u6309\u65e5\u7b5b\u9009"></div>
         </div>
         <div class="filter-search-field">
-            <input id="record-keyword" class="record-search-input" type="search" placeholder="鎼滅储姝ｆ枃銆佷綔鑰呫€侀檮浠垛€? autocomplete="off" aria-label="鎼滅储璁板綍鍏抽敭璇?>
+            <input id="record-keyword" class="record-search-input" type="search" placeholder="\u641c\u7d22\u6b63\u6587\u3001\u4f5c\u8005\u3001\u9644\u4ef6..." autocomplete="off" aria-label="\u641c\u7d22\u8bb0\u5f55\u5173\u952e\u8bcd">
         </div>
         <div class="filter-actions">
-            <button type="button" class="btn-action filter-important" data-field="important">閲嶈璁板綍</button>
-            <button type="button" class="btn-action filter-exclude-daily" data-field="excludeDaily">闅愯棌鏃ユ湡</button>
-            <button type="button" class="btn-action filter-favorites" data-field="favorites">鎴戠殑鏀惰棌</button>
-            <button type="button" class="btn-action clear">娓呯┖</button>
+            <button type="button" class="btn-action filter-important" data-field="important">\u91cd\u8981\u8bb0\u5f55</button>
+            <button type="button" class="btn-action filter-exclude-daily" data-field="excludeDaily">\u9690\u85cf\u65e5\u5e38</button>
+            <button type="button" class="btn-action filter-favorites" data-field="favorites">\u6211\u7684\u6536\u85cf</button>
+            <button type="button" class="btn-action clear">\u6e05\u7a7a</button>
         </div>
         <div class="record-filter-status" aria-live="polite"></div>
     `;
@@ -368,7 +363,7 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
         const fillOptions = (containerEl, optionValues, selectedValue, fieldKey) => {
             const selected = selectedValue || "";
             containerEl.innerHTML = [
-                `<button type="button" class="btn-action filter-option${selected === "" ? " is-active" : ""}" data-value="" data-field="${fieldKey}">鍏ㄩ儴</button>`,
+                `<button type="button" class="btn-action filter-option${selected === "" ? " is-active" : ""}" data-value="" data-field="${fieldKey}">\u5168\u90e8</button>`,
                 ...optionValues.map((value) =>
                     `<button type="button" class="btn-action filter-option${value === selected ? " is-active" : ""}" data-value="${value}" data-field="${fieldKey}">${value}</button>`)
             ].join("");
@@ -395,7 +390,7 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
         const records = typeof getRecords === "function" ? getRecords() : [];
         const count = filterRecordsByDate(records, currentCriteria).length;
         const activeText = activeCriteriaText(currentCriteria);
-        statusEl.innerHTML = `<span>共 ${count} 条结果</span>${activeText.length ? `<span class="record-filter-tags">${activeText.map((item) => `<em>${item}</em>`).join("")}</span>` : ""}`;
+        statusEl.innerHTML = `<span>\u5171 ${count} \u6761\u7ed3\u679c</span>${activeText.length ? `<span class="record-filter-tags">${activeText.map((item) => `<em>${item}</em>`).join("")}</span>` : ""}`;
     };
 
     const applyCriteria = (criteria) => {
