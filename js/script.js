@@ -106,11 +106,7 @@ function renderWrittenView(records) {
   const pages = getWrittenPages(records);
   if (!pages.length) {
 <<<<<<< HEAD
-<<<<<<< HEAD
     container.innerHTML = '<div class="record-written-empty">\u5f53\u524d\u7b5b\u9009\u6761\u4ef6\u4e0b\u6ca1\u6709\u53ef\u5c55\u793a\u7684\u8bb0\u5f55\u3002</div>';
-=======
-    container.innerHTML = '<div class="record-written-empty">当前筛选条件下没有可展示的记录。</div>';
->>>>>>> parent of df4efb0 (add)
 =======
     container.innerHTML = '<div class="record-written-empty">当前筛选条件下没有可展示的记录。</div>';
 >>>>>>> parent of df4efb0 (add)
@@ -130,7 +126,6 @@ function renderWrittenView(records) {
     <section class="record-written-view">
       <div class="record-written-toolbar">
 <<<<<<< HEAD
-<<<<<<< HEAD
         <button class="btn-action record-page-prev" type="button" ${currentPageIndex <= 0 ? 'disabled' : ''}>\u4e0a\u4e00\u9875</button>
         <span class="record-written-page">${page.page} \u9875 \u7b2c ${currentPageIndex + 1} / ${pages.length} \u9875</span>
         <button class="btn-action record-page-next" type="button" ${currentPageIndex >= pages.length - 1 ? 'disabled' : ''}>\u4e0b\u4e00\u9875</button>
@@ -147,15 +142,6 @@ function renderWrittenView(records) {
           <button type="button" class="btn-select filter-dropdown-trigger record-page-trigger">第 ${page.page} 页 <span class="dropdown-arrow" aria-hidden="true">▾</span></button>
           <div class="filter-options record-page-options" role="group" aria-label="选择书面记录页">
 >>>>>>> parent of df4efb0 (add)
-=======
-        <button class="btn-action record-page-prev" type="button" ${currentPageIndex <= 0 ? 'disabled' : ''}>上一页</button>
-        <span class="record-written-page">${page.page} · 第 ${currentPageIndex + 1} / ${pages.length} 页</span>
-        <button class="btn-action record-page-next" type="button" ${currentPageIndex >= pages.length - 1 ? 'disabled' : ''}>下一页</button>
-        <div class="filter-field record-page-jump">
-          <label>跳转</label>
-          <button type="button" class="btn-select filter-dropdown-trigger record-page-trigger">第 ${page.page} 页 <span class="dropdown-arrow" aria-hidden="true">▾</span></button>
-          <div class="filter-options record-page-options" role="group" aria-label="选择书面记录页">
->>>>>>> parent of df4efb0 (add)
             ${pageOptions}
           </div>
         </div>
@@ -163,13 +149,8 @@ function renderWrittenView(records) {
       <div class="record-written-layout">
         <figure class="record-written-image">
 <<<<<<< HEAD
-<<<<<<< HEAD
           <img src="" data-secure-src="${imageBase}.jpeg" alt="${page.page} \u539f\u59cb\u4e66\u9762\u8bb0\u5f55" loading="eager" decoding="async" fetchpriority="high">
           <span class="record-written-image-loading">\u52a0\u8f7d\u4e2d...</span>
-=======
-          <img src="" data-secure-src="${imageBase}.png" alt="${page.page} 原始书面记录" loading="eager" decoding="async" fetchpriority="high">
-          <span class="record-written-image-loading">加载中…</span>
->>>>>>> parent of df4efb0 (add)
 =======
           <img src="" data-secure-src="${imageBase}.png" alt="${page.page} 原始书面记录" loading="eager" decoding="async" fetchpriority="high">
           <span class="record-written-image-loading">加载中…</span>
@@ -189,9 +170,6 @@ function renderWrittenView(records) {
 =======
     const img = container.querySelector(".record-written-image img");
     if (img && !img.src) img.src = `${imageBase}.png`;
-<<<<<<< HEAD
->>>>>>> parent of df4efb0 (add)
-=======
 >>>>>>> parent of df4efb0 (add)
   }
   container.querySelector(".record-page-prev")?.addEventListener("click", () => {
