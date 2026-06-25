@@ -1,6 +1,6 @@
-﻿/************************************************************
+/************************************************************
  * script.js
- * 涓婚〉闈㈤€昏緫
+ * 主页面逻辑
  ************************************************************/
 
 const container = document.getElementById("record-list");
@@ -25,7 +25,6 @@ function parseInitialRecordCriteria() {
 let currentCriteria = parseInitialRecordCriteria();
 let currentView = "list";
 let currentPageIndex = 0;
-let hiddenMode = false;
 
 function getRecordSerial(record) {
   return (record.fileName || record.id || "").replace(/.json$/i, "").slice(-2);
@@ -61,10 +60,16 @@ function normalizeRecordPage(page, index) {
 
 async function loadRecordPageConfig() {
   try {
-    const pages = await window.ClassRecordData.loadRecordPages();
+    const pages = window.ClassRecordData?.isEnabled()
+      ? await window.ClassRecordData.loadRecordPages()
+      : await (async () => {
+        const res = await fetch("data/record/record_pages.json");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })();
     recordPageConfig = Array.isArray(pages) ? pages.map(normalizeRecordPage).filter((page) => page.page) : [];
   } catch (error) {
-    console.warn("收藏记录加载失败：", error);
+    console.warn("无法加载书面记录页配置：", error);
     recordPageConfig = [];
   }
 }
@@ -100,7 +105,7 @@ function getWrittenPages(records) {
 function renderWrittenView(records) {
   const pages = getWrittenPages(records);
   if (!pages.length) {
-    container.innerHTML = '<div class="record-written-empty">褰撳墠绛涢€夋潯浠朵笅娌℃湁鍙睍绀虹殑璁板綍銆?/div>';
+    container.innerHTML = '<div class="record-written-empty">当前筛选条件下没有可展示的记录。</div>';
     return;
   }
   currentPageIndex = Math.min(currentPageIndex, pages.length - 1);
@@ -116,21 +121,21 @@ function renderWrittenView(records) {
   container.innerHTML = `
     <section class="record-written-view">
       <div class="record-written-toolbar">
-        <button class="btn-action record-page-prev" type="button" ${currentPageIndex <= 0 ? 'disabled' : ''}>涓婁竴椤?/button>
-        <span class="record-written-page">${page.page} 路 绗?${currentPageIndex + 1} / ${pages.length} 椤?/span>
-        <button class="btn-action record-page-next" type="button" ${currentPageIndex >= pages.length - 1 ? 'disabled' : ''}>涓嬩竴椤?/button>
+        <button class="btn-action record-page-prev" type="button" ${currentPageIndex <= 0 ? 'disabled' : ''}>上一页</button>
+        <span class="record-written-page">${page.page} · 第 ${currentPageIndex + 1} / ${pages.length} 页</span>
+        <button class="btn-action record-page-next" type="button" ${currentPageIndex >= pages.length - 1 ? 'disabled' : ''}>下一页</button>
         <div class="filter-field record-page-jump">
-          <label>璺宠浆</label>
-          <button type="button" class="btn-select filter-dropdown-trigger record-page-trigger">绗?${page.page} 椤?<span class="dropdown-arrow" aria-hidden="true">鈻?/span></button>
-          <div class="filter-options record-page-options" role="group" aria-label="閫夋嫨涔﹂潰璁板綍椤?>
+          <label>跳转</label>
+          <button type="button" class="btn-select filter-dropdown-trigger record-page-trigger">第 ${page.page} 页 <span class="dropdown-arrow" aria-hidden="true">▾</span></button>
+          <div class="filter-options record-page-options" role="group" aria-label="选择书面记录页">
             ${pageOptions}
           </div>
         </div>
       </div>
       <div class="record-written-layout">
         <figure class="record-written-image">
-          <img src="" data-secure-src="${imageBase}.jpeg" alt="${page.page} 鍘熷涔﹂潰璁板綍" loading="eager" decoding="async" fetchpriority="high">
-          <span class="record-written-image-loading">鍔犺浇涓€?/span>
+          <img src="" data-secure-src="${imageBase}.png" alt="${page.page} 原始书面记录" loading="eager" decoding="async" fetchpriority="high">
+          <span class="record-written-image-loading">加载中…</span>
         </figure>
         <div class="record-written-records"></div>
       </div>
@@ -141,7 +146,7 @@ function renderWrittenView(records) {
     window.ClassRecordData.resolveAssetElements(container).catch((error) => console.warn("书面记录图片加载失败：", error));
   } else {
     const img = container.querySelector(".record-written-image img");
-    if (img && !img.src) img.src = `${imageBase}.jpeg`;
+    if (img && !img.src) img.src = `${imageBase}.png`;
   }
   container.querySelector(".record-page-prev")?.addEventListener("click", () => {
     currentPageIndex = Math.max(currentPageIndex - 1, 0);
@@ -213,8 +218,8 @@ function renderViewControls() {
   const controls = document.createElement("div");
   controls.className = "record-view-switch switch-group";
   controls.innerHTML = `
-    <button class="switch-btn active" type="button" data-view="list">鎸夋潯鏄剧ず</button>
-    <button class="switch-btn" type="button" data-view="written">涔﹂潰璁板綍</button>
+    <button class="switch-btn active" type="button" data-view="list">按条显示</button>
+    <button class="switch-btn" type="button" data-view="written">书面记录</button>
   `;
   filterContainer?.before(controls);
   controls.addEventListener("click", (event) => {
@@ -227,36 +232,6 @@ function renderViewControls() {
   });
 }
 
-
-function bindHiddenRecordShortcut() {
-  const code = "qibaishihuaxia";
-  let buffer = "";
-  window.addEventListener("keydown", async (event) => {
-    if (event.ctrlKey || event.metaKey || event.altKey) return;
-    if (event.target && /input|textarea|select/i.test(event.target.tagName)) return;
-    const key = String(event.key || "").toLowerCase();
-    if (!/^[a-z]$/.test(key)) return;
-    buffer = `${buffer}${key}`.slice(-code.length);
-    if (buffer !== code || hiddenMode) return;
-    hiddenMode = true;
-    container.innerHTML = '<div class="record-empty"><strong>隐藏记录加载中...</strong></div>';
-    try {
-      allRecords = await loadAllRecords({ hidden: true });
-      sortRecords(allRecords);
-      currentCriteria = { year: "", month: "", day: "", important: false, excludeDaily: false, favorites: false, query: "" };
-      favoriteRecordKeys = null;
-      currentView = "list";
-      currentPageIndex = 0;
-      renderCurrentViewAsync();
-      const status = filterContainer?.querySelector(".record-filter-status");
-      if (status) status.textContent = "已进入隐藏记录模式，刷新页面后恢复普通记录。";
-    } catch (error) {
-      hiddenMode = false;
-      container.innerHTML = '<div class="record-empty"><strong>隐藏记录加载失败。</strong><span>请检查 Supabase 隐藏记录表或 Storage 路径。</span></div>';
-    console.warn("收藏记录加载失败：", error);
-    }
-  });
-}
 window.addEventListener("recordfavoritechange", (event) => {
   if (!favoriteRecordKeys) return;
   const key = event.detail?.recordKey;
@@ -270,7 +245,7 @@ window.addEventListener("recordfavoritechange", (event) => {
 });
 
 /* ===============================
-   鍔犺浇骞舵覆鏌撹褰?
+   加载并渲染记录
    =============================== */
 const cacheReady = window.cacheReadyPromise || Promise.resolve();
 
@@ -294,5 +269,3 @@ cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
     });
   });
 
-
-bindHiddenRecordShortcut();

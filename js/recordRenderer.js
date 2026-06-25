@@ -1,9 +1,10 @@
-﻿/************************************************************
+/************************************************************
  * recordRenderer.js
- * 鍔熻兘锛? * - 缁熶竴瑙ｆ瀽璁板綍鏂囨湰
- * - 缁熶竴鎺掑簭
- * - 缁熶竴娓叉煋璁板綍鍒楄〃
- * - 涓婚〉闈?& 璇︽儏椤甸潰鍏辩敤
+ * 功能：
+ * - 统一解析记录文本
+ * - 统一排序
+ * - 统一渲染记录列表
+ * - 主页面 & 详情页面共用
  ************************************************************/
 
 function parseContent(text) {
@@ -82,15 +83,17 @@ function buildRecordSocialShell(record) {
     const key = getRecordKey(record);
     return `
         <section class="record-social" data-social-key="${key}">
-            <div class="record-social-actions" aria-label="璁板綍浜掑姩">                <button type="button" class="record-social-btn" data-action="toggle-favorite" aria-label="鏀惰棌" aria-pressed="false"><span class="record-social-emoji" aria-hidden="true">鈽?/span><strong>0</strong></button>
-                <button type="button" class="record-social-btn" data-action="toggle-comments" aria-label="鏌ョ湅璇勮" aria-expanded="false"><span class="record-social-emoji" aria-hidden="true">馃挰</span><strong>0</strong></button>
-                <button type="button" class="record-social-btn" data-action="share-record" aria-label="澶嶅埗璁板綍閾炬帴"><span class="record-social-emoji" aria-hidden="true">馃敆</span></button>
+            <div class="record-social-actions" aria-label="记录互动">
+                <button type="button" class="record-social-btn" data-action="toggle-reaction" data-type="like" aria-label="点赞" aria-pressed="false"><span class="record-social-emoji" aria-hidden="true">👍</span><strong>0</strong></button>
+                <button type="button" class="record-social-btn" data-action="toggle-reaction" data-type="favorite" aria-label="收藏" aria-pressed="false"><span class="record-social-emoji" aria-hidden="true">☆</span><strong>0</strong></button>
+                <button type="button" class="record-social-btn" data-action="toggle-comments" aria-label="查看评论" aria-expanded="false"><span class="record-social-emoji" aria-hidden="true">💬</span><strong>0</strong></button>
+                <button type="button" class="record-social-btn" data-action="share-record" aria-label="复制记录链接"><span class="record-social-emoji" aria-hidden="true">🔗</span></button>
             </div>
             <div class="record-comments" hidden>
-                <div class="record-comment-list"><div class="record-comment-empty">璇勮鍔犺浇涓€?/div></div>
+                <div class="record-comment-list"><div class="record-comment-empty">评论加载中…</div></div>
                 <form class="record-comment-form">
-                    <textarea name="comment" maxlength="500" rows="2" placeholder="鍐欎笅璇勮鈥? required></textarea>
-                    <button type="submit" class="btn-action">鍙戦€?/button>
+                    <textarea name="comment" maxlength="500" rows="2" placeholder="写下评论…" required></textarea>
+                    <button type="submit" class="btn-action">发送</button>
                 </form>
                 <p class="record-social-status" aria-live="polite"></p>
             </div>
@@ -98,19 +101,19 @@ function buildRecordSocialShell(record) {
     `;
 }
 function buildRecordBody(record) {
-    const timeText = record.time ? `馃搶 ${record.time} |` : "";
+    const timeText = record.time ? `📌 ${record.time} |` : "";
 
     return `
         <div class="meta">
             <span>
                 #${record.id} |
-                馃搮 ${record.date} |
+                📅 ${record.date} |
                 ${timeText}
-                鉁?${parseContent(`[[${record.author}|${record.author}]]`)}
+                ✍ ${parseContent(`[[${record.author}|${record.author}]]`)}
             </span>
             <span class="icon-group">
 
-                ${record.attachments?.length ? `<span class="attach-toggle">馃搸</span>` : ""}
+                ${record.attachments?.length ? `<span class="attach-toggle">📎</span>` : ""}
 
             </span>
         </div>
@@ -163,7 +166,7 @@ function afterScrollSettles(target, callback, { timeout = 2600, quiet = 220 } = 
 function renderRecordList(records, container) {
     records.forEach((record) => {
         if (!record.id) {
-            console.warn("发现未初始化 id 的记录：", record);
+            console.warn("发现未初始化（未带 id）的记录：", record);
         }
     });
 
@@ -171,8 +174,8 @@ function renderRecordList(records, container) {
     if (!records.length) {
         container.innerHTML = `
             <div class="record-empty">
-                <strong>娌℃湁鎵惧埌绗﹀悎鏉′欢鐨勮褰曘€?/strong>
-                <span>鍙互鏀惧鏃ユ湡銆佸叧閿瘝鎴栭噸瑕佹€х瓫閫夊悗鍐嶈瘯銆?/span>
+                <strong>没有找到符合条件的记录。</strong>
+                <span>可以放宽日期、关键词或重要性筛选后再试。</span>
             </div>
         `;
         return;
@@ -191,12 +194,12 @@ function renderRecordList(records, container) {
     container.appendChild(fragment);
     if (window.ClassRecordData?.isEnabled()) {
         window.ClassRecordData.resolveAssetElements(container).catch((error) => {
-            console.warn("记录资源加载失败：", error);
+            console.warn("私有附件链接加载失败：", error);
         });
     }
     if (window.RecordInteractions?.hydrate) {
         window.RecordInteractions.hydrate(container, records).catch((error) => {
-            console.warn("记录资源加载失败：", error);
+            console.warn("记录互动加载失败：", error);
         });
     }
 
@@ -277,31 +280,34 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
     wrapper.className = "record-filter";
     wrapper.innerHTML = `
         <div class="filter-field">
-            <button type="button" class="btn-select filter-dropdown-trigger" data-target="filter-year-options" aria-label="鎸夊勾绛涢€?>
-                閫夋嫨骞?                <span class="dropdown-arrow" aria-hidden="true">鈻?/span>
+            <button type="button" class="btn-select filter-dropdown-trigger" data-target="filter-year-options" aria-label="按年筛选">
+                选择年
+                <span class="dropdown-arrow" aria-hidden="true">▾</span>
             </button>
-            <div id="filter-year-options" class="filter-options" role="group" aria-label="鎸夊勾绛涢€?></div>
+            <div id="filter-year-options" class="filter-options" role="group" aria-label="按年筛选"></div>
         </div>
         <div class="filter-field">
-            <button type="button" class="btn-select filter-dropdown-trigger" data-target="filter-month-options" aria-label="鎸夋湀绛涢€?>
-                閫夋嫨鏈?                <span class="dropdown-arrow" aria-hidden="true">鈻?/span>
+            <button type="button" class="btn-select filter-dropdown-trigger" data-target="filter-month-options" aria-label="按月筛选">
+                选择月
+                <span class="dropdown-arrow" aria-hidden="true">▾</span>
             </button>
-            <div id="filter-month-options" class="filter-options" role="group" aria-label="鎸夋湀绛涢€?></div>
+            <div id="filter-month-options" class="filter-options" role="group" aria-label="按月筛选"></div>
         </div>
         <div class="filter-field">
-            <button type="button" class="btn-select filter-dropdown-trigger" data-target="filter-day-options" aria-label="鎸夋棩绛涢€?>
-                閫夋嫨鏃?                <span class="dropdown-arrow" aria-hidden="true">鈻?/span>
+            <button type="button" class="btn-select filter-dropdown-trigger" data-target="filter-day-options" aria-label="按日筛选">
+                选择日
+                <span class="dropdown-arrow" aria-hidden="true">▾</span>
             </button>
-            <div id="filter-day-options" class="filter-options" role="group" aria-label="鎸夋棩绛涢€?></div>
+            <div id="filter-day-options" class="filter-options" role="group" aria-label="按日筛选"></div>
         </div>
         <div class="filter-search-field">
-            <input id="record-keyword" class="record-search-input" type="search" placeholder="鎼滅储姝ｆ枃銆佷綔鑰呫€侀檮浠垛€? autocomplete="off" aria-label="鎼滅储璁板綍鍏抽敭璇?>
+            <input id="record-keyword" class="record-search-input" type="search" placeholder="搜索正文、作者、附件…" autocomplete="off" aria-label="搜索记录关键词">
         </div>
         <div class="filter-actions">
-            <button type="button" class="btn-action filter-important" data-field="important">閲嶈璁板綍</button>
-            <button type="button" class="btn-action filter-exclude-daily" data-field="excludeDaily">闅愯棌鏃ユ湡</button>
-            <button type="button" class="btn-action filter-favorites" data-field="favorites">鎴戠殑鏀惰棌</button>
-            <button type="button" class="btn-action clear">娓呯┖</button>
+            <button type="button" class="btn-action filter-important" data-field="important">重要记录</button>
+            <button type="button" class="btn-action filter-exclude-daily" data-field="excludeDaily">隐藏日期</button>
+            <button type="button" class="btn-action filter-favorites" data-field="favorites">我的收藏</button>
+            <button type="button" class="btn-action clear">清空</button>
         </div>
         <div class="record-filter-status" aria-live="polite"></div>
     `;
@@ -342,9 +348,6 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
         if (excludeDailyButton) {
             excludeDailyButton.classList.toggle("is-active", Boolean(criteria.excludeDaily));
         }
-        if (favoritesButton) {
-            favoritesButton.classList.toggle("is-active", Boolean(criteria.favorites));
-        }
         if (searchInput && searchInput.value !== criteria.query) {
             searchInput.value = criteria.query || "";
         }
@@ -368,7 +371,7 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
         const fillOptions = (containerEl, optionValues, selectedValue, fieldKey) => {
             const selected = selectedValue || "";
             containerEl.innerHTML = [
-                `<button type="button" class="btn-action filter-option${selected === "" ? " is-active" : ""}" data-value="" data-field="${fieldKey}">鍏ㄩ儴</button>`,
+                `<button type="button" class="btn-action filter-option${selected === "" ? " is-active" : ""}" data-value="" data-field="${fieldKey}">全部</button>`,
                 ...optionValues.map((value) =>
                     `<button type="button" class="btn-action filter-option${value === selected ? " is-active" : ""}" data-value="${value}" data-field="${fieldKey}">${value}</button>`)
             ].join("");
@@ -390,12 +393,16 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
         if (criteria.query) items.push(`关键词“${criteria.query}”`);
         return items;
     };
+
     const updateFilterStatus = () => {
         if (!statusEl) return;
         const records = typeof getRecords === "function" ? getRecords() : [];
         const count = filterRecordsByDate(records, currentCriteria).length;
         const activeText = activeCriteriaText(currentCriteria);
-        statusEl.innerHTML = `<span>共 ${count} 条结果</span>${activeText.length ? `<span class="record-filter-tags">${activeText.map((item) => `<em>${item}</em>`).join("")}</span>` : ""}`;
+        statusEl.innerHTML = `
+            <span>共 ${count} 条结果</span>
+            ${activeText.length ? `<span class="record-filter-tags">${activeText.map((item) => `<em>${item}</em>`).join("")}</span>` : ""}
+        `;
     };
 
     const applyCriteria = (criteria) => {
@@ -576,7 +583,7 @@ document.addEventListener("mouseover", (event) => {
         activeTooltip.className = "term-tooltip hidden";
         activeTooltip.innerHTML = `
             <div class="term-tooltip-content">${formatContent(term.definition)}</div>
-            <div class="term-tooltip-hint">鐐瑰嚮姝ゅ鏌ョ湅瀹屾暣鏈椤甸潰</div>
+            <div class="term-tooltip-hint">点击此处查看完整术语页面</div>
         `;
         document.body.appendChild(activeTooltip);
 

@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 
 <head>
     <meta charset="UTF-8">
-    <title>鐝骇杈炲吀</title>
+    <title>班级辞典</title>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="favicon.ico">
     <link rel="preload" href="fonts/GoogleSansFlex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf" as="font" type="font/ttf" crossorigin>
@@ -14,25 +14,25 @@
 
 <body>
     <div class="page-header">
-        <button class="back-to-guide-btn" aria-label="杩斿洖瀵艰椤甸潰" title="杩斿洖瀵艰椤甸潰"
-            data-nav-target="index.html">馃彔</button>
+        <button class="back-to-guide-btn" aria-label="返回导览页面" title="返回导览页面"
+            data-nav-target="index.html">🏠</button>
     </div>
 
-    <h1>鐝骇杈炲吀</h1>
+    <h1>班级辞典</h1>
 
     <div class="sort-controls">
         <div class="sort-dropdown" data-field="sort-key">
             <button type="button" class="btn-select dropdown-trigger" data-value="since">
-                <span class="dropdown-label">鎸夎捣婧愭椂闂?/span>
-                <span class="dropdown-arrow" aria-hidden="true">鈻?/span>
+                <span class="dropdown-label">按起源时间</span>
+                <span class="dropdown-arrow" aria-hidden="true">▾</span>
             </button>
-            <div class="select-menu" role="menu" aria-label="鎺掑簭渚濇嵁">
-                <button type="button" class="btn-action sort-option is-active" data-field="sort-key" data-value="since">璧锋簮鏃堕棿</button>
-                <button type="button" class="btn-action sort-option" data-field="sort-key" data-value="id">璇嶆潯鍚嶇О</button>
+            <div class="select-menu" role="menu" aria-label="排序依据">
+                <button type="button" class="btn-action sort-option is-active" data-field="sort-key" data-value="since">起源时间</button>
+                <button type="button" class="btn-action sort-option" data-field="sort-key" data-value="id">词条名称</button>
             </div>
         </div>
 
-        <button type="button" class="btn-action sort-order-toggle" data-value="asc">鍗囧簭</button>
+        <button type="button" class="btn-action sort-order-toggle" data-value="asc">升序</button>
     </div>
 
     <div id="glossary-list"></div>
@@ -44,17 +44,17 @@
     <script src="js/glossaryStore.js"></script>
     <script src="js/bootstrap.js"></script>
     <script src="js/achievementSystem.js"></script>
+    <script src="js/mascot.js"></script>
     <script src="js/qcoinSystem.js"></script>
     <script src="js/backgroundOptions.js"></script>
     <script src="js/backgroundSwitcher.js"></script>
-    <script src="js/correction.js"></script>
 
-    <!-- 娓叉煋鍜岄〉闈㈤€昏緫 -->
+    <!-- 渲染和页面逻辑 -->
     <script src="js/recordRenderer.js"></script>
     <script src="js/glossary.js"></script>
 
     <footer class="footer">
-        鏈珯浣跨敤鍖垮悕璁块棶缁熻锛屼粎鐢ㄤ簬浜嗚В椤甸潰浣跨敤鎯呭喌锛屼笉鏀堕泦浠讳綍涓汉淇℃伅銆?
+        本站使用匿名访问统计，仅用于了解页面使用情况，不收集任何个人信息。
     </footer>
 
     <!-- Cloudflare Web Analytics -->

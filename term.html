@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 
 <head>
     <meta charset="UTF-8">
-    <title>鐝骇杈炲吀 路 鏈</title>
+    <title>班级辞典 · 术语</title>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="favicon.ico">
     <link rel="preload" href="fonts/GoogleSansFlex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf" as="font" type="font/ttf" crossorigin>
@@ -14,30 +14,30 @@
 
 <body>
     <div class="page-header">
-        <button class="back-to-guide-btn" aria-label="杩斿洖瀵艰椤甸潰" title="杩斿洖瀵艰椤甸潰"
-            data-nav-target="index.html">馃彔</button>
+        <button class="back-to-guide-btn" aria-label="返回导览页面" title="返回导览页面"
+            data-nav-target="index.html">🏠</button>
     </div>
 
     <h1 id="term-id"></h1>
 
     <div class="person-info">
         <div class="info-row">
-            <span class="info-label">閲婁箟锛?/span>
+            <span class="info-label">释义：</span>
             <span class="info-value" id="term-definition"></span>
         </div>
 
         <div class="info-row">
-            <span class="info-label">璧锋簮锛?/span>
+            <span class="info-label">起源：</span>
             <span class="info-value" id="term-since"></span>
         </div>
 
         <div class="info-row">
-            <span class="info-label">浜虹墿锛?/span>
+            <span class="info-label">人物：</span>
             <span class="info-value" id="term-related"></span>
         </div>
     </div>
 
-    <h2>鐩稿叧浜嬩欢</h2>
+    <h2>相关事件</h2>
     <div id="record-list"></div>
 
     <!-- Cache + Store -->
@@ -48,17 +48,16 @@
     <script src="js/bootstrap.js"></script>
     <script src="js/qcoinSystem.js"></script>
     <script src="js/achievementSystem.js"></script>
+    <script src="js/mascot.js"></script>
     <script src="js/backgroundOptions.js"></script>
     <script src="js/backgroundSwitcher.js"></script>
-    <script src="js/correction.js"></script>
 
-    <!-- 娓叉煋鍜岄〉闈㈤€昏緫 -->
-    <script src="js/recordInteractions.js"></script>
+    <!-- 渲染和页面逻辑 -->
     <script src="js/recordRenderer.js"></script>
     <script src="js/term.js"></script>
 
     <footer class="footer">
-        鏈珯浣跨敤鍖垮悕璁块棶缁熻锛屼粎鐢ㄤ簬浜嗚В椤甸潰浣跨敤鎯呭喌锛屼笉鏀堕泦浠讳綍涓汉淇℃伅銆?
+        本站使用匿名访问统计，仅用于了解页面使用情况，不收集任何个人信息。
     </footer>
 
     <!-- Cloudflare Web Analytics -->
