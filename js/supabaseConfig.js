@@ -11,13 +11,12 @@ window.CLASS_RECORD_SUPABASE = {
     url: "https://xyeftofxlxbpqctuuqup.supabase.co",
     anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5ZWZ0b2Z4bHhicHFjdHV1cXVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzOTM2NTMsImV4cCI6MjA5Nzk2OTY1M30.ympDVX6Hqbscc9BWzWLU8Ur-FUNgD3kGaLsrt9o0Gkg",
     tables: {
-        reactions: "record_reactions",
         records: "class_records",
         people: "class_people",
         glossary: "class_glossary",
         recordPages: "class_record_pages",
         quizQuestions: "class_quiz_questions",
-        siteKeys: "site_keys"
+        wallMessages: "wall_messages"
     },
     storage: {
         privateBucket: "classrecord-private",

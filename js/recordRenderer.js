@@ -79,20 +79,6 @@ function getRecordKey(record) {
     return String(record?.fileName || record?.id || "").trim();
 }
 
-function buildRecordSocialShell(record) {
-    const key = getRecordKey(record);
-    return `
-        <section class="record-social" data-social-key="${key}">
-            <div class="record-social-actions" aria-label="记录互动">
-                <span class="record-emotion-group" data-emotion-group></span>
-                <button type="button" class="record-social-btn record-emotion-more" data-action="open-emotions" aria-label="添加情绪态度" aria-expanded="false">☺+</button>
-                <button type="button" class="record-social-btn" data-action="share-record" aria-label="复制记录链接"><span class="record-social-emoji" aria-hidden="true">🔗</span></button>
-            </div>
-            <div class="record-emotion-popover" data-emotion-popover hidden></div>
-            <p class="record-social-status" aria-live="polite"></p>
-        </section>
-    `;
-}
 function buildRecordBody(record) {
     const timeText = record.time ? `📌 ${record.time} |` : "";
 
@@ -121,7 +107,6 @@ function buildRecordBody(record) {
                 </ul>
             </div>
         ` : ""}
-        ${buildRecordSocialShell(record)}
         `;
 }
 
@@ -159,7 +144,7 @@ function afterScrollSettles(target, callback, { timeout = 2600, quiet = 220 } = 
 function renderRecordList(records, container) {
     records.forEach((record) => {
         if (!record.id) {
-            console.warn("发现未初始化（未带 id）的记录：", record);
+            console.warn("发现未初始化 id 的记录：", record);
         }
     });
 
@@ -188,11 +173,6 @@ function renderRecordList(records, container) {
     if (window.ClassRecordData?.isEnabled()) {
         window.ClassRecordData.resolveAssetElements(container).catch((error) => {
             console.warn("私有附件链接加载失败：", error);
-        });
-    }
-    if (window.RecordInteractions?.hydrate) {
-        window.RecordInteractions.hydrate(container, records).catch((error) => {
-            console.warn("记录互动加载失败：", error);
         });
     }
 
@@ -294,7 +274,7 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
             <div id="filter-day-options" class="filter-options" role="group" aria-label="按日筛选"></div>
         </div>
         <div class="filter-search-field">
-            <input id="record-keyword" class="record-search-input" type="search" placeholder="搜索正文、作者、附件…" autocomplete="off" aria-label="搜索记录关键词">
+            <input id="record-keyword" class="record-search-input" type="search" placeholder="搜索正文、作者、附件" autocomplete="off" aria-label="搜索记录关键词">
         </div>
         <div class="filter-actions">
             <button type="button" class="btn-action filter-important" data-field="important">重要记录</button>
@@ -332,41 +312,27 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
             month: criteria.month ? `${criteria.month}月` : "选择月",
             day: criteria.day ? `${criteria.day}日` : "选择日"
         };
-        if (importantButton) {
-            importantButton.classList.toggle("is-active", Boolean(criteria.important));
-        }
-        if (excludeDailyButton) {
-            excludeDailyButton.classList.toggle("is-active", Boolean(criteria.excludeDaily));
-        }
-        if (searchInput && searchInput.value !== criteria.query) {
-            searchInput.value = criteria.query || "";
-        }
+        importantButton?.classList.toggle("is-active", Boolean(criteria.important));
+        excludeDailyButton?.classList.toggle("is-active", Boolean(criteria.excludeDaily));
+        if (searchInput && searchInput.value !== criteria.query) searchInput.value = criteria.query || "";
         dropdownTriggers.forEach((trigger) => {
-            const target = trigger.dataset.target;
-            if (!target) return;
-            if (target.includes("year")) {
-                trigger.childNodes[0].textContent = `${labels.year} `;
-            } else if (target.includes("month")) {
-                trigger.childNodes[0].textContent = `${labels.month} `;
-            } else if (target.includes("day")) {
-                trigger.childNodes[0].textContent = `${labels.day} `;
-            }
+            const target = trigger.dataset.target || "";
+            if (target.includes("year")) trigger.childNodes[0].textContent = `${labels.year} `;
+            if (target.includes("month")) trigger.childNodes[0].textContent = `${labels.month} `;
+            if (target.includes("day")) trigger.childNodes[0].textContent = `${labels.day} `;
         });
     };
 
     const renderSelectOptions = () => {
         const records = typeof getRecords === "function" ? getRecords() : [];
         const options = buildOptions(records, currentCriteria);
-
         const fillOptions = (containerEl, optionValues, selectedValue, fieldKey) => {
             const selected = selectedValue || "";
             containerEl.innerHTML = [
                 `<button type="button" class="btn-action filter-option${selected === "" ? " is-active" : ""}" data-value="" data-field="${fieldKey}">全部</button>`,
-                ...optionValues.map((value) =>
-                    `<button type="button" class="btn-action filter-option${value === selected ? " is-active" : ""}" data-value="${value}" data-field="${fieldKey}">${value}</button>`)
+                ...optionValues.map((value) => `<button type="button" class="btn-action filter-option${value === selected ? " is-active" : ""}" data-value="${value}" data-field="${fieldKey}">${value}</button>`)
             ].join("");
         };
-
         fillOptions(yearOptions, options.yearOptions, currentCriteria.year, "year");
         fillOptions(monthOptions, options.monthOptions, currentCriteria.month, "month");
         fillOptions(dayOptions, options.dayOptions, currentCriteria.day, "day");
@@ -400,9 +366,7 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
         updateTriggerLabels(currentCriteria);
         updateFilterStatus();
         const normalizedQuery = normalizeSearchText(currentCriteria.query);
-        if (normalizedQuery && normalizedQuery !== lastRecordedSearchQuery) {
-            lastRecordedSearchQuery = normalizedQuery;
-        }
+        if (normalizedQuery && normalizedQuery !== lastRecordedSearchQuery) lastRecordedSearchQuery = normalizedQuery;
         onFilterChange?.(currentCriteria);
     };
 
@@ -412,35 +376,25 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
         const field = target.dataset.field;
         if (!field) return;
         const fieldElement = target.closest(".filter-field");
-        if (fieldElement) {
-            closeField(fieldElement, false);
-        }
+        if (fieldElement) closeField(fieldElement, false);
         applyCriteria({ ...currentCriteria, [field]: target.dataset.value || "" });
     };
 
     const closeTimers = new WeakMap();
-
     const openField = (field) => {
         const timer = closeTimers.get(field);
-        if (timer) {
-            clearTimeout(timer);
-            closeTimers.delete(field);
-        }
+        if (timer) clearTimeout(timer);
+        closeTimers.delete(field);
         field.classList.add("is-open");
     };
-
     const closeField = (field, withDelay = true) => {
         const timer = closeTimers.get(field);
-        if (timer) {
-            clearTimeout(timer);
-        }
-
+        if (timer) clearTimeout(timer);
         if (!withDelay) {
             field.classList.remove("is-open");
             closeTimers.delete(field);
             return;
         }
-
         closeTimers.set(field, setTimeout(() => {
             field.classList.remove("is-open");
             closeTimers.delete(field);
@@ -454,21 +408,14 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
         trigger?.addEventListener("click", (event) => {
             event.preventDefault();
             const isOpen = field.classList.contains("is-open");
-            filterFields.forEach((otherField) => {
-                if (otherField !== field) closeField(otherField, false);
-            });
-            if (isOpen) {
-                closeField(field, false);
-            } else {
-                openField(field);
-            }
+            filterFields.forEach((otherField) => { if (otherField !== field) closeField(otherField, false); });
+            if (isOpen) closeField(field, false);
+            else openField(field);
         });
     });
 
     document.addEventListener("click", (event) => {
-        if (!wrapper.contains(event.target)) {
-            filterFields.forEach((field) => closeField(field, false));
-        }
+        if (!wrapper.contains(event.target)) filterFields.forEach((field) => closeField(field, false));
     });
 
     yearOptions.addEventListener("click", handleOptionClick);
@@ -483,15 +430,12 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
             applyCriteria({ ...currentCriteria, query: searchInput.value.trim() });
         }, 120);
     });
-    searchInput?.addEventListener("search", () => {
-        applyCriteria({ ...currentCriteria, query: searchInput.value.trim() });
-    });
+    searchInput?.addEventListener("search", () => applyCriteria({ ...currentCriteria, query: searchInput.value.trim() }));
 
     renderSelectOptions();
     updateTriggerLabels(currentCriteria);
     updateFilterStatus();
 }
-
 function bindToggle(recordDiv) {
     const attachmentButton = recordDiv.querySelector(".attach-toggle");
     const attachmentWrap = recordDiv.querySelector(".attachments-wrapper");
@@ -499,7 +443,7 @@ function bindToggle(recordDiv) {
         attachmentButton.onclick = () => {
             const open = attachmentWrap.style.display === "block";
             attachmentWrap.style.display = open ? "none" : "block";
-            attachmentButton.textContent = open ? "📎" : "❌";
+            attachmentButton.textContent = open ? "📎" : "×";
         };
     }
 }

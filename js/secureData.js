@@ -7,7 +7,6 @@
     let clientPromise = null;
     const signedUrlCache = new Map();
     const failedSignCache = new Map();
-    const listCache = new Map();
     const FAILED_SIGN_TTL = 5 * 60 * 1000;
 
     const loadScriptOnce = (src) => new Promise((resolve, reject) => {
@@ -101,14 +100,11 @@
             .replace(/^storage\/v1\/object\/public\/[^/]+\//i, '');
     };
 
-    const normalizeRecordPageImagePath = (value, page) => {
+    const normalizeRecordPageImagePath = (value) => {
         const raw = String(value || '').trim();
         if (/^https?:\/\//i.test(raw)) return raw.replace(/\.jpg(\?|#|$)/i, '.jpeg$1');
-        const source = raw || (page ? `record-page-${page}` : '');
-        if (!source) return '';
-        const clean = source.replace(/^\/?/, '').replace(/^images\/record-pages\//i, '').replace(/^record-pages\//i, '');
-        const base = clean.replace(/\.(png|jpe?g|webp|gif)$/i, '');
-        return `images/record-pages/${base}.jpeg`;
+        if (!raw) return '';
+        return normalizePrivateStoragePath(raw).replace(/\.jpg$/i, '.jpeg');
     };
 
     const normalizeRecord = (row, fallbackIndex = 0) => {
@@ -131,7 +127,7 @@
             importance: row.importance || raw.importance || '',
             attachments,
             hidden: truthyHidden(row.hidden ?? raw.hidden),
-            imagePath: normalizeRecordPageImagePath(row.image_path || raw.imagePath || raw.image || raw.pageImage || '', row.page || raw.page),
+            imagePath: normalizeRecordPageImagePath(row.image_path || raw.imagePath || raw.image || raw.pageImage || ''),
             source: 'supabase'
         };
     };
@@ -201,7 +197,7 @@
                 page,
                 startFile: row.start_file || raw.startFile || raw.start || '',
                 endFile: row.end_file || raw.endFile || raw.end || '',
-                imagePath: normalizeRecordPageImagePath(row.image_path || raw.imagePath || raw.image || '', page),
+                imagePath: normalizeRecordPageImagePath(row.image_path || raw.imagePath || raw.image || ''),
                 hidden: truthyHidden(row.hidden ?? raw.hidden)
             };
         });
@@ -262,44 +258,6 @@
         return new Map(entries);
     };
 
-    const uploadAssetFile = async (path, file, { contentType, upsert = true } = {}) => {
-        const safePath = normalizePrivateStoragePath(path);
-        if (!safePath || !file) throw new Error('Storage upload path and file are required.');
-        const config = await getConfig();
-        const client = await getClient();
-        const { data, error } = await client.storage.from(config.bucket).upload(safePath, file, {
-            cacheControl: '3600',
-            contentType: contentType || file.type || 'application/octet-stream',
-            upsert
-        });
-        if (error) throw error;
-        signedUrlCache.delete(safePath);
-        failedSignCache.delete(safePath);
-        const folder = safePath.split('/').slice(0, -1).join('/');
-        if (folder) listCache.delete(folder);
-        return data?.path || safePath;
-    };
-
-    const listAssetPaths = async (prefix = '') => {
-        const safePrefix = normalizePrivateStoragePath(prefix).replace(/\/+$/, '');
-        if (listCache.has(safePrefix)) return listCache.get(safePrefix);
-        const config = await getConfig();
-        const client = await getClient();
-        const promise = client.storage.from(config.bucket).list(safePrefix, {
-            limit: 1000,
-            sortBy: { column: 'name', order: 'asc' }
-        }).then(({ data, error }) => {
-            if (error) throw error;
-            return (data || [])
-                .filter((item) => item && item.name && !item.name.endsWith('/'))
-                .map((item) => `${safePrefix}/${item.name}`.replace(/^\/+/, ''));
-        }).catch((error) => {
-            listCache.delete(safePrefix);
-            throw error;
-        });
-        listCache.set(safePrefix, promise);
-        return promise;
-    };
     const resolveAssetElements = async (root = document) => {
         const imageNodes = [...root.querySelectorAll('img[data-secure-src]')];
         const linkNodes = [...root.querySelectorAll('a[data-secure-href]')];
@@ -337,8 +295,6 @@
         normalizePrivateStoragePath,
         normalizeRecordPageImagePath,
         signAssetUrl,
-        signAssetUrls,
-        uploadAssetFile,
-        listAssetPaths
+        signAssetUrls
     };
 })();

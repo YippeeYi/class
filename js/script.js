@@ -49,13 +49,11 @@ function getFilteredRecords() {
 
 function normalizeRecordPageImagePath(value, page) {
   const raw = String(value || "").trim();
-  const source = raw || String(page || "").trim();
-  if (!source) return "";
-  if (/^https?:\/\//i.test(source)) return source;
-  const cleaned = source.replace(/^\.\//, "").replace(/^\//, "");
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const cleaned = raw.replace(/^\.\//, "").replace(/^\//, "");
   if (/\.(png|jpe?g|webp|gif)$/i.test(cleaned)) return cleaned.replace(/\.jpg$/i, ".jpeg").replace(/\.png$/i, ".jpeg");
-  const base = cleaned.startsWith("images/record-pages/") ? cleaned : `images/record-pages/${cleaned}`;
-  return `${base}.jpeg`;
+  return `${cleaned}.jpeg`;
 }
 
 function normalizeRecordPage(page, index) {
@@ -76,24 +74,11 @@ function normalizeRecordPage(page, index) {
   };
 }
 
-async function loadHiddenRecordImagePages() {
-  if (!window.ClassRecordData?.listAssetPaths) return [];
-  const paths = await window.ClassRecordData.listAssetPaths("images/record-pages");
-  return paths
-    .map((path) => {
-      const fileName = String(path || "").split(/[\\/]/).pop() || "";
-      const match = fileName.match(/^(H\d{2,3})\.jpeg$/i);
-      return match ? { page: match[1].toUpperCase(), start: "", end: "", imagePath: path } : null;
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.page.localeCompare(b.page, undefined, { numeric: true }));
-}
-
 async function loadRecordPageConfig() {
   try {
     let pages = [];
     if (hiddenMode) {
-      pages = await loadHiddenRecordImagePages();
+      pages = window.ClassRecordData?.isEnabled() ? await window.ClassRecordData.loadRecordPages({ hidden: true }) : [];
     } else if (window.ClassRecordData?.isEnabled()) {
       pages = await window.ClassRecordData.loadRecordPages({ hidden: false });
     }

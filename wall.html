@@ -11,31 +11,20 @@
 </head>
 <body class="feature-page wall-page">
     <div class="page-header">
-        <button class="back-to-guide-btn" aria-label="返回主页" title="返回主页" data-nav-target="index.html">↩</button>
+        <button class="back-to-guide-btn" aria-label="返回主页" title="返回主页" data-nav-target="index.html">←</button>
     </div>
     <main class="archive-tool-shell wall-shell">
         <header class="archive-tool-head">
             <div>
                 <h1>班级留言墙</h1>
-                <p id="wall-summary">通过审核后，留言会展示在这里。</p>
+                <p id="wall-summary">仅展示已审核通过的留言。</p>
             </div>
         </header>
-        <section class="wall-compose">
-            <form id="wall-form">
-                <textarea name="body" maxlength="240" rows="3" placeholder="写一句想留给全班的话" required></textarea>
-                <label class="wall-anonymous"><input type="checkbox" name="anonymous"> 匿名展示</label>
-                <button class="btn-action" type="submit">提交审核</button>
-                <p id="wall-status" aria-live="polite"></p>
-            </form>
-        </section>
         <section id="wall-list" class="wall-list" aria-live="polite"></section>
     </main>
     <script src="js/cacheLoader.js"></script>
     <script src="js/backgroundOptions.js"></script>
     <script src="js/backgroundSwitcher.js"></script>
-    <script src="js/reviewSystem.js"></script>
-    <script src="js/correctionWidget.js"></script>
     <script src="js/wall.js"></script>
 </body>
 </html>
-

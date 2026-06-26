@@ -8,7 +8,6 @@
 
     const TARGET_KEY = "classRecordRedirectTarget";
     const VERIFIED_KEY = "classRecordSiteKeyVerified.v1";
-    const VISITOR_KEY = "classRecordVisitorKey.v1";
     const AUTH_PAGE = "auth.html";
     const CONFIG_SCRIPT = "js/supabaseConfig.js";
     const CLIENT_SCRIPT = "js/supabaseClient.js";
@@ -88,33 +87,10 @@
         }));
     };
 
-    const ensureVisitorKey = () => {
-        try {
-            let value = localStorage.getItem(VISITOR_KEY);
-            if (!value) {
-                value = crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-                localStorage.setItem(VISITOR_KEY, value);
-            }
-            return value;
-        } catch (error) {
-            return "session-visitor";
-        }
-    };
-
-    window.getClassRecordVisitorKey = ensureVisitorKey;
-
     const shouldClearKey = (key) => {
         const lower = String(key || "").toLowerCase();
         return lower.startsWith("classrecord")
-            || lower.startsWith("sb-")
-            || lower.includes("achievement")
-            || lower.includes("qcoin")
-            || lower.includes("coin")
-            || lower.includes("favorite")
-            || lower.includes("comment")
-            || lower.includes("profile")
-            || lower.includes("auth")
-            || lower.includes("supabase");
+            || lower.startsWith("sb-");
     };
 
     const clearProjectCache = async () => {
@@ -175,7 +151,6 @@
             }
             await ensureSupabaseClient();
             if (hasVerifiedAccess()) {
-                ensureVisitorKey();
                 resolveAccessPromise();
                 revealPage();
                 if (isAuthPage) redirectAfterVerification();
@@ -204,7 +179,6 @@
                 return { ok: false, message: "密钥错误，请重新输入。" };
             }
             saveVerifiedAccess();
-            ensureVisitorKey();
             resolveAccessPromise();
             revealPage();
             return { ok: true };

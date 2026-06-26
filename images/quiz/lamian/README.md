@@ -6,4 +6,4 @@ Default naming:
 - 02.png
 - 03.png
 
-Each image should be referenced by the matching entry in data/quiz/lamian.json.
+Each image should be referenced by the matching quiz row in Supabase.

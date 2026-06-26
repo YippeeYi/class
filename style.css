@@ -1,4 +1,4 @@
-html.auth-pending body:not(.auth-page) { visibility: hidden; }
+﻿html.auth-pending body:not(.auth-page) { visibility: hidden; }
 @font-face {
   font-family: "Google Sans Flex";
   src: url("fonts/GoogleSansFlex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf") format("truetype");
@@ -691,13 +691,13 @@ body>#glossary-list {
   color: var(--text-soft);
 }
 
-/* 空状态 */
+/* 绌虹姸鎬?*/
 .person-info {
   margin-top: 16px;
 }
 
 
-/* 鍗曟潯璁板綍鍗＄墖 */
+/* 閸楁洘娼拋鏉跨秿閸楋紕澧?*/
 .record {
   background: var(--bg-card);
   backdrop-filter: blur(10px);
@@ -741,7 +741,7 @@ body>#glossary-list {
 }
 
 .record.importance-important::before {
-  content: "重要";
+  content: "閲嶈";
   position: absolute;
   top: 0;
   right: 0;
@@ -950,7 +950,7 @@ body>#glossary-list {
   border-bottom-color: var(--link-accent-hover);
 }
 
-/* 鏈 */
+/* 閺堫垵顕?*/
 .term-tag {
   display: inline-block;
   color: var(--term-accent);
@@ -1000,7 +1000,7 @@ body>#glossary-list {
   user-select: none;
 }
 
-/* 榛戝箷 */
+/* 姒涙垵绠?*/
 
 .redacted {
   position: relative;
@@ -1195,7 +1195,7 @@ body>#glossary-list {
   flex: 1;
 
   white-space: pre-wrap;
-  /* 鏀寔鎹㈣ */
+  /* 閺€顖涘瘮閹广垼顢?*/
 }
 
 
@@ -2314,7 +2314,7 @@ body>#glossary-list {
 }
 
 .record-written-image.is-missing::before {
-  content: "未找到书面文件";
+  content: "鏈壘鍒颁功闈㈡枃浠?;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2371,394 +2371,6 @@ body>#glossary-list {
 
   .record-written-image {
     position: static;
-  }
-}
-
-.achievement-shell {
-  width: min(980px, calc(100vw - 32px));
-  margin: 72px auto 36px;
-  display: grid;
-  gap: 18px;
-}
-
-.achievement-head {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px 20px;
-  border-radius: 18px;
-  background: rgba(255, 253, 248, 0.68);
-  border: 1px solid rgba(255, 255, 255, 0.58);
-  box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(14px);
-  position: relative;
-  z-index: 80;
-}
-
-.achievement-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
-  position: relative;
-  z-index: 120;
-}
-
-.achievement-sort-controls {
-  margin: 0;
-  position: relative;
-  z-index: 140;
-}
-
-.achievement-sort-controls .select-menu {
-  z-index: 300;
-}
-
-.achievement-head h1,
-.achievement-head p {
-  margin: 0;
-}
-
-.achievement-head h1 {
-  color: var(--text-main);
-  font-size: clamp(28px, 4vw, 44px);
-  line-height: 1;
-}
-
-.achievement-head p {
-  color: var(--theme-accent-strong);
-  font-size: 16px;
-  font-weight: 900;
-}
-
-.achievement-toggle.is-active {
-  color: var(--control-active-text) !important;
-  background-color: var(--accent-dark) !important;
-  background-image: var(--control-active-gradient) !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-}
-
-.achievement-toggle.is-active:hover {
-  color: var(--control-active-text) !important;
-  background-color: var(--accent-dark) !important;
-  background-image: var(--control-active-gradient) !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-}
-
-.achievement-toggle:focus-visible,
-.achievement-toggle.is-active:focus-visible {
-  box-shadow: var(--control-shadow);
-}
-
-.achievement-section {
-  display: grid;
-  gap: 10px;
-}
-
-.achievement-section h2 {
-  margin: 0;
-  color: var(--text-main);
-  font-size: clamp(20px, 2.7vw, 28px);
-}
-
-.achievement-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 12px;
-}
-
-.achievement-list.is-updating .achievement-card,
-.achievement-list.is-updating .achievement-empty {
-  animation: achievement-list-refresh 0.32s ease both;
-}
-
-.achievement-list.is-updating .achievement-card:nth-child(2n) {
-  animation-delay: 0.025s;
-}
-
-.achievement-list.is-updating .achievement-card:nth-child(3n) {
-  animation-delay: 0.045s;
-}
-
-@keyframes achievement-list-refresh {
-  from {
-    opacity: 0;
-    transform: scale(0.985);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.achievement-empty {
-  margin: 0;
-  padding: 16px;
-  border-radius: 8px;
-  color: var(--text-soft);
-  background: color-mix(in srgb, var(--theme-surface) 72%, transparent);
-}
-
-.achievement-card {
-  display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
-  grid-template-areas:
-    "art copy"
-    "art status";
-  gap: 8px 22px;
-  min-height: 126px;
-  padding: 16px;
-  border-radius: 8px;
-  --achievement-tone: var(--theme-accent-strong);
-  --achievement-soft: color-mix(in srgb, var(--achievement-tone) 13%, white);
-  background: color-mix(in srgb, var(--theme-surface) 82%, transparent);
-  border: 1px solid color-mix(in srgb, var(--achievement-tone) 22%, transparent);
-  box-shadow: 0 12px 28px rgba(31, 41, 55, 0.1);
-  position: relative;
-  overflow: visible;
-  transition: border-color 0.42s ease, box-shadow 0.42s ease;
-}
-
-.achievement-card.is-complete {
-  background: linear-gradient(145deg,
-      color-mix(in srgb, var(--achievement-tone) 14%, white),
-      color-mix(in srgb, var(--theme-surface) 82%, white));
-  border-color: color-mix(in srgb, var(--achievement-tone) 42%, transparent);
-}
-
-.achievement-card::before {
-  content: "";
-  position: absolute;
-  inset: 12px auto 12px 0;
-  width: 5px;
-  border-radius: 0 999px 999px 0;
-  background: var(--achievement-tone);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--achievement-tone) 38%, transparent);
-}
-
-.achievement-card::after {
-  content: "";
-  position: absolute;
-  inset: -5px;
-  border: 3px solid rgba(250, 204, 21, 0);
-  border-radius: 12px;
-  box-shadow:
-    0 0 0 0 rgba(250, 204, 21, 0),
-    0 0 0 rgba(250, 204, 21, 0);
-  opacity: 0;
-  transform: scale(0.985);
-  pointer-events: none;
-  transition:
-    opacity 0.98s ease,
-    transform 0.98s ease,
-    border-color 0.98s ease,
-    box-shadow 0.98s ease;
-}
-
-.achievement-card.is-group-explore {
-  --achievement-tone: #2563eb;
-}
-
-.achievement-card.is-group-people {
-  --achievement-tone: #0d9488;
-}
-
-.achievement-card.is-group-term {
-  --achievement-tone: #84cc16;
-}
-
-.achievement-card.is-group-detail {
-  --achievement-tone: #4f46e5;
-}
-
-.achievement-card.is-group-link {
-  --achievement-tone: #0284c7;
-}
-
-.achievement-card.is-group-interact {
-  --achievement-tone: #9333ea;
-}
-
-.achievement-card.is-group-quizAnswered {
-  --achievement-tone: #db2777;
-}
-
-.achievement-card.is-group-quizCorrect {
-  --achievement-tone: #16a34a;
-}
-
-.achievement-card.is-group-quizStreak {
-  --achievement-tone: #dc2626;
-}
-
-.achievement-card.is-group-coin {
-  --achievement-tone: #eab308;
-}
-
-.achievement-card.is-group-background {
-  --achievement-tone: #f97316;
-}
-
-.achievement-card.is-group-meta {
-  --achievement-tone: #64748b;
-}
-
-.achievement-card.is-hidden-achievement {
-  background: rgba(17, 24, 39, 0.74);
-  color: #fff;
-}
-
-.achievement-card.is-hidden-complete {
-  color: #f8fafc;
-  background:
-    linear-gradient(145deg, rgba(11, 18, 38, 0.9), rgba(49, 46, 129, 0.82)),
-    radial-gradient(circle at 20% 18%, rgba(216, 180, 254, 0.28), transparent 30%),
-    radial-gradient(circle at 82% 72%, rgba(45, 212, 191, 0.14), transparent 28%);
-  border-color: rgba(196, 181, 253, 0.56);
-  box-shadow: 0 18px 42px rgba(17, 24, 39, 0.22), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-
-.achievement-card.is-hidden-complete .achievement-art {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(224, 231, 255, 0.7));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.42), 0 0 24px rgba(196, 181, 253, 0.32);
-}
-
-.achievement-card.is-hidden-complete .achievement-copy p {
-  color: rgba(248, 250, 252, 0.74);
-}
-
-.achievement-card.is-hidden-complete .achievement-status {
-  color: #f8fafc;
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.9), rgba(14, 165, 233, 0.78));
-}
-
-.achievement-card.is-new-complete {
-  border-color: #facc15;
-  box-shadow:
-    0 0 0 2px rgba(250, 204, 21, 0.12),
-    0 0 24px rgba(250, 204, 21, 0.2),
-    0 12px 28px rgba(31, 41, 55, 0.1);
-  transition: border-color 0.86s ease, box-shadow 0.86s ease;
-}
-
-.achievement-card.is-new-complete::after {
-  border-color: rgba(250, 204, 21, 0.88);
-  box-shadow:
-    0 0 0 7px rgba(250, 204, 21, 0.18),
-    0 0 28px rgba(250, 204, 21, 0.28);
-  opacity: 1;
-  transform: scale(1);
-}
-
-.achievement-card.is-new-complete.is-new-clearing {
-  border-color: color-mix(in srgb, var(--achievement-tone) 42%, transparent);
-  box-shadow: 0 12px 28px rgba(31, 41, 55, 0.1);
-}
-
-.achievement-card.is-new-complete.is-new-clearing::after {
-  border-color: rgba(250, 204, 21, 0);
-  box-shadow:
-    0 0 0 13px rgba(250, 204, 21, 0),
-    0 0 34px rgba(250, 204, 21, 0);
-  opacity: 0;
-  transform: scale(1.018);
-}
-
-.achievement-card.is-hidden-complete.is-new-clearing {
-  border-color: rgba(196, 181, 253, 0.56);
-  box-shadow: 0 18px 42px rgba(17, 24, 39, 0.22), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-
-.achievement-art {
-  grid-area: art;
-  width: 54px;
-  aspect-ratio: 1;
-  display: grid;
-  place-items: center;
-  padding: 7px;
-  border-radius: 14px;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.86), var(--achievement-soft));
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--achievement-tone) 18%, transparent);
-}
-
-.achievement-copy {
-  grid-area: copy;
-}
-
-.achievement-copy h2 {
-  margin: 0 0 6px;
-  color: inherit;
-  font-size: 18px;
-}
-
-.achievement-copy p {
-  margin: 0;
-  color: var(--text-soft);
-  font-size: 14px;
-  line-height: 1.55;
-}
-
-.achievement-progress {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.achievement-progress-track {
-  height: 8px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--achievement-tone) 12%, rgba(255, 255, 255, 0.58));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.38);
-}
-
-.achievement-progress-fill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--achievement-tone) 80%, white), var(--achievement-tone));
-}
-
-.achievement-progress-text {
-  min-width: 38px;
-  color: var(--achievement-tone);
-  font-size: 12px;
-  font-weight: 900;
-  text-align: right;
-}
-
-.achievement-card.is-hidden-achievement .achievement-copy p {
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.achievement-status {
-  grid-area: status;
-  align-self: end;
-  width: fit-content;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.62);
-  color: var(--text-soft);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.achievement-card.is-complete .achievement-status {
-  color: var(--control-active-text);
-  background-image: var(--control-active-gradient);
-}
-
-@media (max-width: 640px) {
-  .achievement-head {
-    align-items: flex-start;
-    flex-direction: column;
   }
 }
 
@@ -2907,7 +2519,7 @@ body>#glossary-list {
   }
 }
 
-/* 新增检索体验精修 */
+/* 鏂板妫€绱綋楠岀簿淇?*/
 .record-filter {
   align-items: flex-end;
   gap: 12px;
@@ -3046,7 +2658,7 @@ body>#glossary-list {
   }
 }
 
-/* 筛选区域精修 */
+/* 绛涢€夊尯鍩熺簿淇?*/
 body>.record-switch,
 body>.record-view-switch {
   margin-bottom: 6px;
@@ -3092,7 +2704,7 @@ body>.sort-controls {
   font-weight: 600;
 }
 
-/* 答题页筛选框视觉收束 */
+/* 绛旈椤电瓫閫夋瑙嗚鏀舵潫 */
 .quiz-filter.record-filter {
   align-items: center;
   gap: 10px 14px;
@@ -3132,7 +2744,7 @@ body>.sort-controls {
   border-radius: 999px;
 }
 
-/* 访问验证页独立显示 */
+/* 璁块棶楠岃瘉椤电嫭绔嬫樉绀?*/
 body.auth-page {
   min-height: auto;
   background: #fff;
@@ -5640,13 +5252,6 @@ body>.archive-tool-shell {
     justify-content: center;
   }
 
-  .qcoin-mini {
-    position: static;
-    width: fit-content;
-    max-width: 100%;
-    margin: 0 auto 10px;
-  }
-
   body>h1,
   body>h2,
   body>.notice,
@@ -5757,346 +5362,6 @@ body>.archive-tool-shell {
   }
 }
 
-/* Supabase account panel */
-.account-panel {
-  position: absolute;
-  z-index: 2500;
-  width: min(340px, calc(100vw - 24px));
-  padding: 14px;
-  border: var(--panel-border);
-  border-radius: 12px;
-  background: var(--overlay-card-bg);
-  box-shadow: var(--overlay-card-shadow);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
-  display: grid;
-  gap: 12px;
-}
-
-.account-panel-head {
-  display: grid;
-  gap: 3px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--line-soft);
-}
-
-.account-panel-head strong {
-  color: var(--text-strong);
-  font-size: 16px;
-}
-
-.account-panel-head span,
-.account-panel label span,
-.account-panel-status {
-  color: var(--text-subtle);
-  font-size: 12px;
-}
-
-.account-profile-form,
-.account-password-form {
-  display: grid;
-  gap: 9px;
-}
-
-.account-panel label {
-  display: grid;
-  gap: 5px;
-}
-
-.account-panel input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 10px 11px;
-  border: var(--field-border);
-  border-radius: 10px;
-  color: var(--text-main);
-  background: color-mix(in srgb, var(--theme-surface) 88%, white);
-}
-
-.account-panel-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.account-panel-status {
-  min-height: 16px;
-  margin: 0;
-}
-
-.account-panel-status[data-tone="success"] {
-  color: color-mix(in srgb, var(--theme-accent-strong) 80%, #188038);
-}
-
-.account-panel-status[data-tone="error"] {
-  color: var(--danger);
-}
-
-/* Record social interactions */
-.record-social {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line-soft);
-  display: grid;
-  gap: 10px;
-}
-
-.record-social-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.record-social-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 34px;
-  padding: 7px 12px;
-  border: 1px solid var(--control-border);
-  border-radius: 999px;
-  color: var(--control-text);
-  background-color: var(--control-bg);
-  background-image: var(--control-gradient);
-  box-shadow: var(--control-shadow);
-  cursor: pointer;
-  font: inherit;
-  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
-}
-
-.record-social-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--control-shadow-hover);
-}
-
-.record-social-btn:active {
-  transform: translateY(0);
-  box-shadow: var(--control-shadow-pressed);
-}
-
-.record-social-btn.is-active {
-  color: var(--control-active-text);
-  background-image: var(--control-active-gradient);
-  box-shadow: var(--control-active-glow);
-}
-
-.record-social-btn strong {
-  min-width: 1.3em;
-  font-weight: 760;
-  text-align: center;
-}
-
-.record-emotion-group {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.record-emotion-popover {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  width: fit-content;
-  max-width: min(420px, 100%);
-  padding: 10px;
-  border: var(--panel-border);
-  border-color: var(--theme-border-color);
-  border-radius: 12px;
-  background: var(--overlay-card-bg);
-  box-shadow: var(--overlay-card-shadow);
-}
-
-.record-emotion-popover[hidden],
-.record-emotion-more[hidden] {
-  display: none;
-}
-
-.record-social-empty {
-  color: var(--text-soft);
-  font-size: 13px;
-}
-
-.record-comments {
-  display: grid;
-  gap: 10px;
-}
-
-.record-comments[hidden] {
-  display: none;
-}
-
-.record-comment-list {
-  display: grid;
-  gap: 8px;
-}
-
-.record-comment,
-.record-comment-empty {
-  padding: 10px 12px;
-  border: 1px solid var(--line-soft);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--theme-surface) 72%, transparent);
-}
-
-.record-comment-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  color: var(--text-subtle);
-  font-size: 12px;
-}
-
-.record-comment-meta strong {
-  color: var(--text-strong);
-}
-
-.record-comment p {
-  margin: 6px 0 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--text-main);
-}
-
-.record-comment-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 8px;
-}
-
-.record-comment-delete,
-.record-comment-like {
-  margin-top: 6px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--danger);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-}
-
-.record-comment-like {
-  color: var(--text-subtle);
-}
-
-.record-comment-like.is-active {
-  color: var(--theme-accent-strong);
-  font-weight: 800;
-}
-
-.record-comment-form {
-  display: grid;
-  gap: 8px;
-}
-
-.record-comment-form textarea {
-  width: 100%;
-  min-height: 58px;
-  box-sizing: border-box;
-  resize: vertical;
-  padding: 10px 11px;
-  border: var(--field-border);
-  border-radius: 10px;
-  color: var(--text-main);
-  background: color-mix(in srgb, var(--theme-surface) 88%, white);
-  font: inherit;
-}
-
-.record-comment-form button {
-  justify-self: end;
-}
-
-.record-social-status {
-  min-height: 16px;
-  margin: 0;
-  color: var(--text-subtle);
-  font-size: 12px;
-}
-
-.record-social-status[data-tone="error"] {
-  color: var(--danger);
-}
-
-.record-social-btn:focus-visible,
-.record-comment-delete:focus-visible,
-.account-panel input:focus-visible,
-.record-comment-form textarea:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
-@media (max-width: 640px) {
-  .record-social-actions {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .record-social-btn {
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-}
-
-/* Lightweight record interactions */
-.record-social {
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px solid color-mix(in srgb, var(--line-soft) 70%, transparent);
-}
-
-.record-social-actions {
-  align-items: center;
-  gap: 10px;
-}
-
-.record-social-btn {
-  min-height: 28px;
-  padding: 2px 4px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  background-image: none;
-  box-shadow: none;
-  color: var(--text-subtle);
-  line-height: 1;
-  gap: 3px;
-}
-
-.record-social-btn:hover {
-  transform: none;
-  box-shadow: none;
-  color: var(--text-strong);
-  background: color-mix(in srgb, var(--theme-surface-strong) 50%, transparent);
-}
-
-.record-social-btn:active {
-  box-shadow: none;
-}
-
-.record-social-btn.is-active {
-  color: var(--theme-accent-strong);
-  background: transparent;
-  background-image: none;
-  box-shadow: none;
-}
-
-.record-social-btn span {
-  font-size: 16px;
-}
-
-.record-social-btn strong {
-  min-width: auto;
-  font-size: 12px;
-  font-weight: 720;
-  color: currentColor;
-}
-
-.record-social-status[data-tone="success"] {
-  color: color-mix(in srgb, var(--theme-accent-strong) 78%, #188038);
-}
-
 .record-written-image {
   position: relative;
 }
@@ -6113,12 +5378,6 @@ body>.archive-tool-shell {
 
 .record-written-image img[src]:not([src=""])+.record-written-image-loading {
   display: none;
-}
-
-@media (max-width: 640px) {
-  .record-social-actions {
-    display: flex;
-  }
 }
 
 .hidden-record-banner {
@@ -6145,92 +5404,12 @@ body.hidden-record-mode .hidden-record-banner {
   color: #78716c;
 }
 
-.person-review-panel,
-.wall-compose,
-.admin-queue {
-  margin: 18px 0;
-  padding: 16px;
-  border: 1px solid rgba(41, 37, 36, 0.12);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.person-review-panel form,
-.wall-compose form,
-.correction-form {
-  display: grid;
-  gap: 12px;
-}
-
-.person-review-panel label,
-.wall-compose label,
-.correction-form label {
-  display: grid;
-  gap: 6px;
-  font-weight: 700;
-}
-
-.person-review-panel input,
-.person-review-panel textarea,
-.wall-compose textarea,
-.correction-form input,
-.correction-form select,
-.correction-form textarea {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 9px 10px;
-  border: 1px solid rgba(41, 37, 36, 0.22);
-  border-radius: 8px;
-  font: inherit;
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.wall-message,
-.admin-review-card {
+.wall-message {
   margin: 12px 0;
   padding: 14px;
   border: 1px solid rgba(41, 37, 36, 0.12);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.78);
-}
-
-.admin-review-card footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.correction-open-btn {
-  min-width: 44px;
-}
-
-.review-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgba(15, 23, 42, 0.34);
-}
-
-.review-modal {
-  width: min(560px, 100%);
-  max-height: min(720px, 92vh);
-  overflow: auto;
-  padding: 18px;
-  border-radius: 8px;
-  background: #fffdf8;
-  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.24);
-}
-
-.review-modal header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
 }
 
 .person-avatar-card {
@@ -6258,41 +5437,6 @@ body.hidden-record-mode .hidden-record-banner {
   color: var(--theme-accent-strong);
   font-size: 42px;
   font-weight: 850;
-}
-
-.person-review-status {
-  margin: 12px 0 0;
-  color: var(--text-subtle);
-  font-weight: 650;
-}
-
-.account-claim-section {
-  display: grid;
-  gap: 8px;
-  padding: 10px 0;
-  border-top: 1px solid var(--line-soft);
-  border-bottom: 1px solid var(--line-soft);
-}
-
-.account-claim-section form[hidden] {
-  display: none;
-}
-
-.account-claim-section form {
-  display: grid;
-  gap: 8px;
-}
-
-.account-panel textarea,
-.account-panel select {
-  width: 100%;
-  box-sizing: border-box;
-  border: var(--field-border);
-  border-radius: 10px;
-  padding: 9px 10px;
-  background: color-mix(in srgb, var(--theme-surface) 88%, white);
-  color: var(--text-main);
-  font: inherit;
 }
 
 .record-written-layout .record-written-image {
@@ -6372,11 +5516,6 @@ body.hidden-record-mode .hidden-record-banner {
   .person-info.has-person-avatar {
     padding-right: 0;
   }
-}
-
-.account-panel small {
-  color: var(--text-subtle);
-  font-size: 12px;
 }
 
 .credits-shell {

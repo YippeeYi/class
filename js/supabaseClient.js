@@ -1,17 +1,12 @@
 (function () {
     const SDK_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
     const DEFAULT_TABLES = {
-        reactions: "record_reactions",
         records: "class_records",
         people: "class_people",
         glossary: "class_glossary",
         recordPages: "class_record_pages",
         quizQuestions: "class_quiz_questions",
-        siteKeys: "site_keys",
-        correctionRequests: "correction_requests",
-        wallMessages: "wall_messages",
-        personClaimRequests: "person_claim_requests",
-        personEditRequests: "person_edit_requests"
+        wallMessages: "wall_messages"
     };
 
     let sdkPromise = null;
