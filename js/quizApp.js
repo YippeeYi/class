@@ -13,8 +13,8 @@
   const nextButton = document.getElementById('quiz-next-btn');
   const filterWrap = document.getElementById('quiz-filter');
   const quizCard = document.querySelector('.quiz-card');
-  const typeLabels = { choice: '选择题', fill: '填空题', judge: '判断题' };
-  const contentLabels = { person: '人名', term: '术语', author: '记录人', date: '记录时间' };
+  const typeLabels = { choice: '\u9009\u62e9\u9898', fill: '\u586b\u7a7a\u9898', judge: '\u5224\u65ad\u9898' };
+  const contentLabels = { person: '\u4eba\u540d', term: '\u672f\u8bed', author: '\u8bb0\u5f55\u4eba', date: '\u8bb0\u5f55\u65f6\u95f4' };
   const secretContentLabels = { [SECRET_CONTENT]: '???' };
   const contentByType = {
     choice: ['person', 'term', 'author', 'date'],
@@ -65,6 +65,18 @@
     return stripOptionMarkup(text).toLowerCase();
   }
 
+  function splitAnswerChars(text) {
+    const value = String(text || '').normalize('NFC');
+    if (window.Intl?.Segmenter) {
+      return [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(value)].map((item) => item.segment);
+    }
+    return Array.from(value);
+  }
+
+  function normalizeSecretText(text) {
+    return String(text || '').normalize('NFC').trim();
+  }
+
   function blankHtml(answer, revealed = false) {
     const width = Math.max(2, Array.from(String(answer || '')).length);
     return `<span class="quiz-answer-blank${revealed ? ' is-revealed' : ''}" style="--blank-chars:${width}"><span>${escapeHtml(answer)}</span></span>`;
@@ -79,9 +91,9 @@
 
   function renderSecretAnswerBoxes() {
     if (!currentQuestion || currentQuestion.content !== SECRET_CONTENT) return '';
-    const answerChars = Array.from(String(currentQuestion.answer || ''));
+    const answerChars = splitAnswerChars(normalizeSecretText(currentQuestion.answer));
     const boxes = answerChars.map((_, index) => `<span class="quiz-secret-answer-box">${escapeHtml(secretProgress[index] || '')}</span>`).join('');
-    return `<span class="quiz-secret-answer-boxes" aria-label="答案字数 ${answerChars.length}">${boxes}</span>`;
+    return `<span class="quiz-secret-answer-boxes" aria-label="\u7b54\u6848\u5b57\u6570 ${answerChars.length}">${boxes}</span>`;
   }
 
   function renderJudgeCorrection(text, wrongText, correctText, revealed = false) {
@@ -146,10 +158,17 @@
       questionText.innerHTML = `
         <span class="quiz-question-prompt quiz-question-prompt--secret">${escapeHtml(currentQuestion.prompt)}</span>
         <span class="quiz-secret-visual">
-          ${currentQuestion.image ? `<img src="${escapeHtml(currentQuestion.image)}" alt="题目图片" loading="eager" decoding="async">` : '<span class="quiz-image-missing">题目图片资源缺失</span>'}
-          ${currentQuestion.type === 'fill' ? renderSecretAnswerBoxes() : ''}
+          ${currentQuestion.image ? `<img src="${escapeHtml(currentQuestion.image)}" alt="\u9898\u76ee\u56fe\u7247" loading="eager" decoding="async">` : '<span class="quiz-image-missing">\u9898\u76ee\u56fe\u7247\u8d44\u6e90\u7f3a\u5931</span>'}
+          ${renderSecretAnswerBoxes()}
         </span>
       `;
+      const image = questionText.querySelector('.quiz-secret-visual img');
+      image?.addEventListener('error', () => {
+        const fallback = document.createElement('span');
+        fallback.className = 'quiz-image-missing';
+        fallback.textContent = '\u9898\u76ee\u56fe\u7247\u52a0\u8f7d\u5931\u8d25';
+        image.replaceWith(fallback);
+      }, { once: true });
       return;
     }
 
@@ -225,8 +244,8 @@
 
   function normalizeQuestion(item, index = 0) {
     const raw = item && typeof item === 'object' ? item : {};
-    const type = ['choice', 'fill', 'judge'].includes(raw.type) ? raw.type : 'fill';
     const content = raw.content || raw.category || raw.group || SECRET_CONTENT;
+    const type = content === SECRET_CONTENT ? 'fill' : (['choice', 'fill', 'judge'].includes(raw.type) ? raw.type : 'fill');
     const answer = String(raw.answer ?? raw.correctAnswer ?? '').trim();
     const options = uniqueOptions(raw.options || raw.choices || raw.answers || []);
     const imagePath = raw.image || raw.imagePath || raw.image_url || '';
@@ -238,7 +257,7 @@
       content,
       category: raw.category || content,
       difficulty: raw.difficulty || raw.level || '',
-      prompt: String(raw.prompt || raw.question || raw.title || '请完成这道题。').trim(),
+      prompt: String(raw.prompt || raw.question || raw.title || '\u8bf7\u5b8c\u6210\u8fd9\u9053\u9898\u3002').trim(),
       answer,
       explanation: String(raw.explanation || raw.analysis || '').trim(),
       image: imagePath,
@@ -672,21 +691,23 @@
     if (window.ClassRecordData?.isEnabled?.()) {
       try {
         const rows = await window.ClassRecordData.loadQuizQuestions(SECRET_CONTENT);
-        const existingImagePaths = new Set(
-          (await window.ClassRecordData.listAssetPaths?.(`images/quiz/${SECRET_CONTENT}`).catch(() => [])) || []
-        );
+        const normalizeSecretImagePath = (value) => {
+          const path = window.ClassRecordData.normalizePrivateStoragePath?.(value) || String(value || '').trim();
+          if (!path || /^https?:\/\//i.test(path)) return path;
+          if (path.startsWith(`images/quiz/${SECRET_CONTENT}/`)) return path;
+          if (path.startsWith(`quiz/${SECRET_CONTENT}/`)) return `images/${path}`;
+          if (!path.includes('/')) return `images/quiz/${SECRET_CONTENT}/${path}`;
+          return path;
+        };
         const settled = await Promise.allSettled(rows.map(async (item, index) => {
-          const imagePath = item.image || item.imagePath || '';
-          const normalizedImagePath = window.ClassRecordData.normalizePrivateStoragePath?.(imagePath) || imagePath;
-          const shouldSignImage = normalizedImagePath && (
-            /^https?:\/\//i.test(normalizedImagePath)
-            || !normalizedImagePath.startsWith(`images/quiz/${SECRET_CONTENT}/`)
-            || existingImagePaths.has(normalizedImagePath)
-          );
-          const image = shouldSignImage ? await window.ClassRecordData.signAssetUrl(normalizedImagePath, { quiet: true }).catch(() => '') : '';
+          const imagePath = normalizeSecretImagePath(item.image || item.imagePath || '');
+          const image = imagePath ? await window.ClassRecordData.signAssetUrl(imagePath, { quiet: true }).catch((error) => {
+            console.warn('Secret quiz image signing failed:', imagePath, error);
+            return '';
+          }) : '';
           return normalizeQuestion({
             id: item.id || `${SECRET_CONTENT}-${index + 1}`,
-            type: item.type || 'choice',
+            type: 'fill',
             content: SECRET_CONTENT,
             prompt: item.prompt || 'Hidden question',
             answer: item.answer || '',
@@ -834,8 +855,8 @@
     setQuizLoading(false);
     updateQuestionBank();
     if (!questionBank.length) {
-      questionText.textContent = '当前筛选条件下没有足够的条目可生成题目。';
-      questionMeta.textContent = '请调整题型或题目内容筛选。';
+      questionText.textContent = '\u5f53\u524d\u7b5b\u9009\u6761\u4ef6\u4e0b\u6ca1\u6709\u8db3\u591f\u7684\u6761\u76ee\u53ef\u751f\u6210\u9898\u76ee\u3002';
+      questionMeta.textContent = '\u8bf7\u8c03\u6574\u9898\u578b\u6216\u9898\u76ee\u5185\u5bb9\u7b5b\u9009\u3002';
       optionsWrap.innerHTML = '';
       optionsWrap.hidden = true;
       if (fillForm) fillForm.hidden = true;
@@ -845,16 +866,16 @@
 
     currentQuestion = pickNextQuestion();
     answeredCurrent = false;
-    secretProgress = currentQuestion.content === SECRET_CONTENT && currentQuestion.type === 'fill' ? Array.from(String(currentQuestion.answer || '')).map(() => '') : [];
+    secretProgress = currentQuestion.content === SECRET_CONTENT ? splitAnswerChars(normalizeSecretText(currentQuestion.answer)).map(() => '') : [];
     feedback.textContent = '';
     feedback.className = 'quiz-feedback';
     quizCard?.classList.remove('is-answer-success', 'is-answer-error');
     nextButton.disabled = false;
     renderQuestionBody(false);
     const visibleContentLabels = secretUnlocked ? { ...contentLabels, ...secretContentLabels } : contentLabels;
-    questionMeta.textContent = `条目 ${currentQuestion.id} · ${typeLabels[currentQuestion.type]} · ${visibleContentLabels[currentQuestion.content]} · 答对奖励 ${currentQuestion.reward} Q币`;
+    questionMeta.textContent = `\u6761\u76ee ${currentQuestion.id} \u00b7 ${typeLabels[currentQuestion.type]} \u00b7 ${visibleContentLabels[currentQuestion.content]} \u00b7 \u7b54\u5bf9\u5956\u52b1 ${currentQuestion.reward} Q\u5e01`;
 
-    const isFill = currentQuestion.type === 'fill';
+    const isFill = currentQuestion.type === 'fill' || currentQuestion.content === SECRET_CONTENT;
     optionsWrap.hidden = isFill;
     if (fillForm) fillForm.hidden = !isFill;
 
@@ -870,7 +891,7 @@
 
     optionsWrap.innerHTML = currentQuestion.options.map((option, index) => `
             <button class="quiz-option" type="button" data-option="${escapeHtml(option)}">
-                <span class="quiz-option-label">${currentQuestion.type === 'judge' ? (index === 0 ? '✓' : '×') : String.fromCharCode(65 + index)}</span>
+                <span class="quiz-option-label">${currentQuestion.type === 'judge' ? (index === 0 ? '\u2713' : '\u00d7') : String.fromCharCode(65 + index)}</span>
                 <span>${formatContent(String(option || ''))}</span>
             </button>
         `).join('');
@@ -878,11 +899,11 @@
 
   function handleSecretAnswer(option) {
     if (!currentQuestion || currentQuestion.content !== SECRET_CONTENT || answeredCurrent) return;
-    const answerChars = Array.from(String(currentQuestion.answer || ''));
-    const inputChars = Array.from(String(option || '').trim());
+    const answerChars = splitAnswerChars(normalizeSecretText(currentQuestion.answer));
+    const inputChars = splitAnswerChars(normalizeSecretText(option));
 
     if (inputChars.length !== answerChars.length) {
-      setFeedback(`字数不对，需要 ${answerChars.length} 个字，请重新回答。`, 'error');
+      setFeedback(`\u5b57\u6570\u9519\u8bef\uff1a\u9700\u8981 ${answerChars.length} \u4e2a\u5b57\u7b26\uff0c\u8bf7\u91cd\u65b0\u56de\u7b54\u3002`, 'error');
       if (fillInput) {
         fillInput.value = '';
         fillInput.focus();
@@ -899,9 +920,9 @@
     });
 
     renderQuestionBody(false);
-    const complete = secretProgress.every((char, index) => char === answerChars[index]);
+    const complete = inputChars.every((char, index) => char === answerChars[index]);
     if (!complete) {
-      setFeedback(changed ? '字数正确，部分字已填入方框，请继续回答。' : '字数正确，但本次没有新的正确字，请重新回答。', 'error');
+      setFeedback(changed ? '\u5b57\u6570\u6b63\u786e\uff0c\u90e8\u5206\u5b57\u5df2\u586b\u5165\u65b9\u6846\uff0c\u8bf7\u7ee7\u7eed\u56de\u7b54\u3002' : '\u5b57\u6570\u6b63\u786e\uff0c\u4f46\u672c\u6b21\u6ca1\u6709\u65b0\u7684\u6b63\u786e\u5b57\uff0c\u8bf7\u91cd\u65b0\u56de\u7b54\u3002', 'error');
       if (fillInput) {
         fillInput.value = '';
         fillInput.focus();
@@ -967,7 +988,7 @@
     const group = button.dataset.group;
     const value = button.dataset.value;
     if (group === 'contents' && value === SECRET_CONTENT) {
-      activeFilters.types = new Set(getAvailableTypesForContent(SECRET_CONTENT).length ? getAvailableTypesForContent(SECRET_CONTENT) : ['choice']);
+      activeFilters.types = new Set(getAvailableTypesForContent(SECRET_CONTENT).length ? getAvailableTypesForContent(SECRET_CONTENT) : ['fill']);
       activeFilters.contents = new Set([SECRET_CONTENT]);
       renderQuestion();
       return;

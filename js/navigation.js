@@ -7,6 +7,7 @@
     const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const TRANSITION_MS = REDUCED_MOTION ? 0 : 95;
     const FULLSCREEN_STORAGE_KEY = 'classRecord:keepFullscreen';
+    const GUIDE_BUTTON_LABEL = '返回导览页面';
     let isNavigating = false;
 
     const syncFullscreenPreference = () => {
@@ -29,9 +30,23 @@
         document.body.classList.add('page-ready');
     };
 
+    const normalizeGuideReturnButtons = () => {
+        if (document.body.classList.contains('guide-page')) return;
+        document.querySelectorAll('.page-header .back-to-guide-btn').forEach((button) => {
+            button.setAttribute('aria-label', GUIDE_BUTTON_LABEL);
+            button.setAttribute('title', GUIDE_BUTTON_LABEL);
+            button.setAttribute('data-nav-target', 'index.html');
+            button.textContent = GUIDE_BUTTON_LABEL;
+        });
+    };
+
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', markEntering, { once: true });
+        document.addEventListener('DOMContentLoaded', () => {
+            normalizeGuideReturnButtons();
+            markEntering();
+        }, { once: true });
     } else {
+        normalizeGuideReturnButtons();
         markEntering();
     }
 

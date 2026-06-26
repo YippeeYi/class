@@ -128,6 +128,8 @@
 
     const normalizeArray = (value) => Array.isArray(value) ? value : [];
     const normalizeObject = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    const PROFILE_FORM_SELECT = "id,user_id,email,username,nickname,display_name,avatar_url,updated_at";
+    const PROFILE_BASIC_SELECT = "id,username,display_name,updated_at";
 
     const getProfile = async () => {
         const supabase = await getClient();
@@ -165,7 +167,7 @@
         const user = await getUser();
         if (!user) throw new Error("Sign in first.");
         const name = String(nickname || displayName || username || user.email?.split("@")[0] || "").trim();
-        const payload = {
+        const fullPayload = {
             id: user.id,
             user_id: user.id,
             email: user.email,
@@ -175,9 +177,54 @@
             avatar_url: String(avatarUrl || "").trim(),
             updated_at: new Date().toISOString()
         };
-        const { error } = await supabase.from(getConfig().tables.profiles).upsert(payload, { onConflict: "id" });
-        if (error) throw error;
-        return { ...payload, nickname: payload.nickname, displayName: payload.display_name, avatarUrl: payload.avatar_url };
+        const basicPayload = {
+            id: fullPayload.id,
+            username: fullPayload.username,
+            display_name: fullPayload.display_name,
+            updated_at: fullPayload.updated_at
+        };
+        const table = getConfig().tables.profiles;
+        const updateFull = await supabase
+            .from(table)
+            .update(fullPayload)
+            .eq("id", user.id)
+            .select(PROFILE_FORM_SELECT)
+            .maybeSingle();
+        if (!updateFull.error && updateFull.data) {
+            return { ...fullPayload, ...updateFull.data, nickname: updateFull.data.nickname || fullPayload.nickname, displayName: updateFull.data.display_name || fullPayload.display_name, avatarUrl: updateFull.data.avatar_url || fullPayload.avatar_url };
+        }
+        if (updateFull.error) console.warn("Profile full update failed, retrying with basic columns:", updateFull.error);
+
+        const updateBasic = await supabase
+            .from(table)
+            .update(basicPayload)
+            .eq("id", user.id)
+            .select(PROFILE_BASIC_SELECT)
+            .maybeSingle();
+        if (!updateBasic.error && updateBasic.data) {
+            return { ...fullPayload, ...updateBasic.data, nickname: fullPayload.nickname, displayName: updateBasic.data.display_name || fullPayload.display_name, avatarUrl: fullPayload.avatar_url };
+        }
+        if (updateBasic.error) console.warn("Profile basic update failed, inserting profile row:", updateBasic.error);
+
+        const insertFull = await supabase
+            .from(table)
+            .insert(fullPayload)
+            .select(PROFILE_FORM_SELECT)
+            .maybeSingle();
+        if (!insertFull.error) {
+            const data = insertFull.data || fullPayload;
+            return { ...fullPayload, ...data, nickname: data.nickname || fullPayload.nickname, displayName: data.display_name || fullPayload.display_name, avatarUrl: data.avatar_url || fullPayload.avatar_url };
+        }
+        console.warn("Profile full insert failed, retrying with basic columns:", insertFull.error);
+
+        const insertBasic = await supabase
+            .from(table)
+            .insert(basicPayload)
+            .select(PROFILE_BASIC_SELECT)
+            .maybeSingle();
+        if (insertBasic.error) throw insertBasic.error;
+        const data = insertBasic.data || basicPayload;
+        return { ...fullPayload, ...data, nickname: fullPayload.nickname, displayName: data.display_name || fullPayload.display_name, avatarUrl: fullPayload.avatar_url };
     };
 
     const updateProfileState = async (patch = {}) => {
@@ -185,13 +232,23 @@
         const user = await getUser();
         if (!user) return null;
         const allowed = ["coins", "owned_backgrounds", "active_background", "quiz_count", "favorite_record_ids", "achievement_progress", "achievement_hovered_state"];
-        const payload = { id: user.id, user_id: user.id, email: user.email, updated_at: new Date().toISOString() };
+        const payload = { updated_at: new Date().toISOString() };
         allowed.forEach((key) => {
             if (Object.prototype.hasOwnProperty.call(patch, key)) payload[key] = patch[key];
         });
-        const { data, error } = await supabase.from(getConfig().tables.profiles).upsert(payload, { onConflict: "id" }).select().maybeSingle();
-        if (error) throw error;
-        return data;
+        const keys = Object.keys(payload).filter((key) => key !== "updated_at");
+        if (!keys.length) return null;
+        const { data, error } = await supabase
+            .from(getConfig().tables.profiles)
+            .update(payload)
+            .eq("id", user.id)
+            .select(["id", ...keys].join(","))
+            .maybeSingle();
+        if (error) {
+            console.warn("Profile state update failed:", error);
+            return null;
+        }
+        return data || null;
     };
 
     const isCurrentUserAdmin = async () => {

@@ -161,6 +161,63 @@
         return state;
     }
 
+    function maxNumber(a, b) {
+        return Math.max(Number(a) || 0, Number(b) || 0);
+    }
+
+    function unionList(a, b) {
+        return [...new Set([...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])].filter(Boolean))];
+    }
+
+    function mergeAchievementStates(localRaw, remoteRaw) {
+        const local = mergeState(localRaw);
+        const remote = mergeState(remoteRaw);
+        const state = mergeState(remote);
+        state.completed = { ...remote.completed };
+        Object.entries(local.completed || {}).forEach(([id, completedAt]) => {
+            if (!ACHIEVEMENT_IDS.has(id)) return;
+            const remoteCompletedAt = Number(state.completed[id]) || 0;
+            const localCompletedAt = Number(completedAt) || Date.now();
+            state.completed[id] = remoteCompletedAt ? Math.min(remoteCompletedAt, localCompletedAt) : localCompletedAt;
+        });
+        const completedIds = Object.keys(state.completed);
+        state.seenCompleted = unionList(unionList(remote.seenCompleted, local.seenCompleted), completedIds);
+        state.notifiedCompleted = unionList(unionList(remote.notifiedCompleted, local.notifiedCompleted), completedIds);
+        state.stats.pages = { ...remote.stats.pages };
+        Object.entries(local.stats.pages || {}).forEach(([page, count]) => {
+            state.stats.pages[page] = maxNumber(state.stats.pages[page], count);
+        });
+        state.stats.peopleViewed = unionList(remote.stats.peopleViewed, local.stats.peopleViewed);
+        state.stats.termsViewed = unionList(remote.stats.termsViewed, local.stats.termsViewed);
+        state.stats.backgrounds = unionList(remote.stats.backgrounds, local.stats.backgrounds);
+        state.stats.secrets = unionList(remote.stats.secrets, local.stats.secrets);
+        state.stats.fullscreenEntries = maxNumber(remote.stats.fullscreenEntries, local.stats.fullscreenEntries);
+        state.stats.quiz = {
+            answered: maxNumber(remote.stats.quiz.answered, local.stats.quiz.answered),
+            correct: maxNumber(remote.stats.quiz.correct, local.stats.quiz.correct),
+            currentStreak: maxNumber(remote.stats.quiz.currentStreak, local.stats.quiz.currentStreak),
+            bestStreak: maxNumber(remote.stats.quiz.bestStreak, local.stats.quiz.bestStreak)
+        };
+        state.stats.balance = maxNumber(remote.stats.balance, local.stats.balance);
+        state.stats.interactions = {
+            guideTargets: unionList(remote.stats.interactions.guideTargets, local.stats.interactions.guideTargets),
+            filterUses: maxNumber(remote.stats.interactions.filterUses, local.stats.interactions.filterUses),
+            sortUses: maxNumber(remote.stats.interactions.sortUses, local.stats.interactions.sortUses),
+            recordLinkClicks: maxNumber(remote.stats.interactions.recordLinkClicks, local.stats.interactions.recordLinkClicks),
+            logoTaps: maxNumber(remote.stats.interactions.logoTaps, local.stats.interactions.logoTaps),
+            searchUses: maxNumber(remote.stats.interactions.searchUses, local.stats.interactions.searchUses),
+            searchScopes: unionList(remote.stats.interactions.searchScopes, local.stats.interactions.searchScopes)
+        };
+        return state;
+    }
+
+    function settleExistingCompleted(state) {
+        const ids = Object.keys(state.completed || {});
+        state.seenCompleted = unionList(state.seenCompleted, ids);
+        state.notifiedCompleted = unionList(state.notifiedCompleted, ids);
+        return state;
+    }
+
     function getCurrentUserId() {
         return window.getCurrentUser?.()?.id || '';
     }
@@ -195,6 +252,7 @@
     let currentState = readState();
     let remoteStateReady = false;
     let syncingRemoteState = null;
+    let evaluatingAchievementState = false;
     const pendingRecords = [];
     const listeners = new Set();
 
@@ -384,26 +442,32 @@
     }
 
     function evaluate({ notify = true } = {}) {
+        if (evaluatingAchievementState) return [];
+        evaluatingAchievementState = true;
         syncQcoinStats();
         const unlocked = [];
-        ACHIEVEMENTS.forEach((achievement) => {
-            if (currentState.completed[achievement.id]) return;
-            if (!achievement.condition(currentState)) return;
-            currentState.completed[achievement.id] = Date.now();
-            unlocked.push(achievement);
-        });
-        const notifyTargets = notify
-            ? unlocked.filter((achievement) => !currentState.notifiedCompleted.includes(achievement.id))
-            : [];
-        if (notifyTargets.length) {
-            currentState.notifiedCompleted = [...new Set([...currentState.notifiedCompleted, ...notifyTargets.map((achievement) => achievement.id)])];
-        }
-        saveState();
-        if (unlocked.length) {
-            const snapshot = getAchievementView();
-            listeners.forEach((listener) => listener(snapshot, unlocked));
-            window.dispatchEvent(new CustomEvent('achievementchange', { detail: { achievements: snapshot, unlocked } }));
-            notifyTargets.forEach((achievement) => notifyAchievement(achievement, { notifyId: enqueueAchievementNotice(achievement) }));
+        try {
+            ACHIEVEMENTS.forEach((achievement) => {
+                if (currentState.completed[achievement.id]) return;
+                if (!achievement.condition(currentState)) return;
+                currentState.completed[achievement.id] = Date.now();
+                unlocked.push(achievement);
+            });
+            const notifyTargets = notify
+                ? unlocked.filter((achievement) => !currentState.notifiedCompleted.includes(achievement.id))
+                : [];
+            if (notifyTargets.length) {
+                currentState.notifiedCompleted = [...new Set([...currentState.notifiedCompleted, ...notifyTargets.map((achievement) => achievement.id)])];
+            }
+            if (unlocked.length || notifyTargets.length) saveState();
+            if (unlocked.length) {
+                const snapshot = getAchievementView();
+                listeners.forEach((listener) => listener(snapshot, unlocked));
+                window.dispatchEvent(new CustomEvent('achievementchange', { detail: { achievements: snapshot, unlocked } }));
+                notifyTargets.forEach((achievement) => notifyAchievement(achievement, { notifyId: enqueueAchievementNotice(achievement) }));
+            }
+        } finally {
+            evaluatingAchievementState = false;
         }
         return unlocked;
     }
@@ -539,9 +603,9 @@
             .then(() => window.ClassRecordUserState?.getAchievementState?.())
             .then((remoteState) => {
                 if (remoteState && Object.keys(remoteState).length) {
-                    currentState = mergeState(remoteState);
+                    currentState = mergeAchievementStates(readState(), remoteState);
                 } else {
-                    currentState = readState();
+                    currentState = settleExistingCompleted(readState());
                     window.ClassRecordUserState?.saveAchievementState?.(currentState);
                 }
                 syncQcoinStats();
