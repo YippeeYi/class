@@ -134,13 +134,16 @@
 
     const loadRecords = async ({ onProgressStep, hidden = false } = {}) => {
         const config = await getConfig();
-        const rows = await selectAll(
-            config.tables.records,
-            '*',
-            'record_index',
-            { hidden: Boolean(hidden) }
-        );
-        return rows.map((row, index) => {
+        const client = await getClient();
+        let query = client.from(config.tables.records).select('*').order('record_index', { ascending: true });
+        if (hidden) {
+            query = query.or('hidden.eq.true,raw->>hidden.eq.true');
+        } else {
+            query = query.eq('hidden', false).not('raw->>hidden', 'eq', 'true');
+        }
+        const { data: rows, error } = await query;
+        if (error) throw error;
+        return (rows || []).map((row, index) => {
             const record = normalizeRecord(row, index);
             if (typeof onProgressStep === 'function') onProgressStep(record.fileName);
             return record;

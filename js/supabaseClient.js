@@ -5,8 +5,7 @@
         people: "class_people",
         glossary: "class_glossary",
         recordPages: "class_record_pages",
-        quizQuestions: "class_quiz_questions",
-        wallMessages: "wall_messages"
+        quizQuestions: "class_quiz_questions"
     };
 
     let sdkPromise = null;

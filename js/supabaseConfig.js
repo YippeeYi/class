@@ -15,8 +15,7 @@ window.CLASS_RECORD_SUPABASE = {
         people: "class_people",
         glossary: "class_glossary",
         recordPages: "class_record_pages",
-        quizQuestions: "class_quiz_questions",
-        wallMessages: "wall_messages"
+        quizQuestions: "class_quiz_questions"
     },
     storage: {
         privateBucket: "classrecord-private",

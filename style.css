@@ -1457,6 +1457,7 @@ body>#glossary-list {
 }
 
 .guide-highlights {
+  position: relative;
   margin-top: 0;
   width: min(980px, 92vw);
   text-align: left;
@@ -4860,9 +4861,16 @@ body>.archive-tool-shell {
 }
 
 .guide-today-history {
-  width: 100%;
-  margin-top: 8px;
+  width: 148px;
+  min-height: 116px;
+  aspect-ratio: 1.12 / 1;
+  margin: 10px auto 0;
+  padding: 12px 14px;
   justify-content: center;
+  text-align: center;
+  line-height: 1.35;
+  white-space: normal;
+  z-index: 4;
 }
 
 .guide-secondary-grid {
@@ -4890,6 +4898,38 @@ body>.archive-tool-shell {
 
 .guide-secondary-card strong {
   font-size: 10px;
+}
+
+@media (min-width: 1120px) {
+  .guide-today-history {
+    position: absolute;
+    top: 50%;
+    margin-top: 0;
+    transform: translateY(calc(-50% + var(--today-offset-y, 0px)));
+  }
+
+  .guide-today-history--left {
+    right: calc(100% + 18px);
+  }
+
+  .guide-today-history--right {
+    left: calc(100% + 18px);
+  }
+}
+
+@media (max-width: 1119px) {
+  .guide-today-history {
+    width: min(168px, 72vw);
+    min-height: 108px;
+  }
+}
+
+@media (max-width: 520px) {
+  .guide-today-history {
+    width: min(150px, 68vw);
+    min-height: 96px;
+    padding: 10px 12px;
+  }
 }
 
 @media (max-width: 720px) {
@@ -5402,14 +5442,6 @@ body.hidden-record-mode .hidden-record-banner {
   border: 1px dashed rgba(120, 113, 108, 0.4);
   border-radius: 8px;
   color: #78716c;
-}
-
-.wall-message {
-  margin: 12px 0;
-  padding: 14px;
-  border: 1px solid rgba(41, 37, 36, 0.12);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.78);
 }
 
 .person-avatar-card {

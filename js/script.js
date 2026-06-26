@@ -6,6 +6,8 @@
 const container = document.getElementById("record-list");
 const filterContainer = document.getElementById("record-filter");
 const HIDDEN_RECORD_SEQUENCE = "qibaishihuaxia";
+const HIDDEN_RECORD_PAGE_MIN = 1;
+const HIDDEN_RECORD_PAGE_MAX = 83;
 
 let allRecords = [];
 let recordPageConfig = [];
@@ -78,7 +80,7 @@ async function loadRecordPageConfig() {
   try {
     let pages = [];
     if (hiddenMode) {
-      pages = window.ClassRecordData?.isEnabled() ? await window.ClassRecordData.loadRecordPages({ hidden: true }) : [];
+      pages = await loadHiddenRecordImagePages();
     } else if (window.ClassRecordData?.isEnabled()) {
       pages = await window.ClassRecordData.loadRecordPages({ hidden: false });
     }
@@ -106,15 +108,67 @@ function normalizeHiddenPageKey(value) {
   return "";
 }
 
-function getPageRecords(page, filteredRecords, recordIndexMap) {
-  if (hiddenMode) {
-    const pageId = normalizeHiddenPageKey(page.page);
-    const byImage = filteredRecords.filter((record) => {
-      const fields = [record.page, record.pageNumber, record.image, record.imagePath, record.pageImage, record.image_path, record.pageId, record.page_id];
-      return fields.some((value) => normalizeHiddenPageKey(value) === pageId);
-    });
-    if (byImage.length) return byImage;
+function padHiddenPageNumber(value) {
+  return String(value).padStart(2, "0");
+}
+
+function deriveHiddenImagePath(originalPath, pageKey) {
+  const hiddenFileName = `H${pageKey}.jpeg`;
+  const rawPath = String(originalPath || "").trim();
+  if (!rawPath) return "";
+  if (/^https?:\/\//i.test(rawPath)) {
+    try {
+      const url = new URL(rawPath);
+      url.pathname = url.pathname.replace(/[^/]*$/, hiddenFileName);
+      return url.toString();
+    } catch (error) {
+      return "";
+    }
   }
+  return rawPath.replace(/[^/\\]*$/, hiddenFileName);
+}
+
+async function loadHiddenRecordImagePages() {
+  if (!window.ClassRecordData?.isEnabled()) return [];
+  const normalPages = await window.ClassRecordData.loadRecordPages({ hidden: false });
+  const pageMap = new Map();
+  normalPages.map(normalizeRecordPage).forEach((page) => {
+    const keys = [
+      normalizeHiddenPageKey(page.page),
+      normalizeHiddenPageKey(page.imagePath)
+    ].filter(Boolean);
+    keys.forEach((key) => {
+      if (!pageMap.has(key)) pageMap.set(key, page);
+    });
+  });
+
+  const checks = [];
+  for (let index = HIDDEN_RECORD_PAGE_MIN; index <= HIDDEN_RECORD_PAGE_MAX; index += 1) {
+    const key = padHiddenPageNumber(index);
+    const normalPage = pageMap.get(key);
+    if (!normalPage?.imagePath) continue;
+    const hiddenImagePath = deriveHiddenImagePath(normalPage.imagePath, key);
+    if (!hiddenImagePath) continue;
+    checks.push((async () => {
+      const signedUrl = await window.ClassRecordData.signAssetUrl(hiddenImagePath, { quiet: true }).catch(() => "");
+      if (!signedUrl) return null;
+      return {
+        ...normalPage,
+        page: `H${key}`,
+        originalPage: normalPage.page,
+        imagePath: hiddenImagePath
+      };
+    })());
+  }
+
+  const results = await Promise.allSettled(checks);
+  return results
+    .filter((result) => result.status === "fulfilled" && result.value)
+    .map((result) => result.value)
+    .sort((a, b) => normalizeHiddenPageKey(a.page).localeCompare(normalizeHiddenPageKey(b.page), undefined, { numeric: true }));
+}
+
+function getPageRecords(page, filteredRecords, recordIndexMap) {
   const startIndex = recordIndexMap.get(normalizeFileName(page.start));
   const endIndex = recordIndexMap.get(normalizeFileName(page.end));
   if (!Number.isInteger(startIndex) || !Number.isInteger(endIndex)) {
@@ -127,9 +181,9 @@ function getPageRecords(page, filteredRecords, recordIndexMap) {
 
 function getWrittenPages(records) {
   const recordIndexMap = getRecordIndexMap();
-  return recordPageConfig
-    .map((page) => ({ ...page, records: getPageRecords(page, records, recordIndexMap) }))
-    .filter((page) => page.records.length || (!page.start && !page.end));
+  const pages = recordPageConfig.map((page) => ({ ...page, records: getPageRecords(page, records, recordIndexMap) }));
+  if (hiddenMode) return pages;
+  return pages.filter((page) => page.records.length || (!page.start && !page.end));
 }
 function getPageImagePath(page, pageRecords) {
   if (hiddenMode) return page.imagePath || "";
@@ -149,7 +203,7 @@ function renderWrittenView(records) {
   const token = ++writtenImageRenderToken;
   const pages = getWrittenPages(records);
   if (!pages.length) {
-    container.innerHTML = `<div class="record-written-empty">${hiddenMode ? "隐藏记录模式下没有可展示的书面记录页。" : "当前筛选条件下没有可展示的记录。"}</div>`;
+    container.innerHTML = `<div class="record-written-empty">${hiddenMode ? "隐藏记录模式下没有检测到 H01-H83 的书面记录图片。" : "当前筛选条件下没有可展示的记录。"}</div>`;
     return;
   }
   currentPageIndex = Math.max(0, Math.min(currentPageIndex, pages.length - 1));
@@ -181,7 +235,7 @@ function renderWrittenView(records) {
       </div>
       <div class="record-written-layout">
         <figure class="record-written-image${imagePath ? ' is-loading' : ' is-missing'}${hiddenMode ? ' is-hidden-image' : ''}" data-render-token="${token}" data-image-state="${imagePath ? 'loading' : 'missing'}">
-          ${imagePath ? `<img ${srcAttr} ${secureAttr} alt="${page.page} 原始书面记录" loading="eager" decoding="async" fetchpriority="high">` : ""}
+          ${imagePath ? `<img ${srcAttr} ${secureAttr} alt="${hiddenMode ? `${page.page} 隐藏书面记录` : `${page.page} 原始书面记录`}" loading="eager" decoding="async" fetchpriority="high">` : ""}
           <span class="record-written-image-loading">${imagePath ? "加载中…" : "未找到书面文件"}</span>
         </figure>
         <div class="record-written-records"></div>
@@ -189,7 +243,12 @@ function renderWrittenView(records) {
     </section>
   `;
 
-  renderRecordList(pageRecords, container.querySelector(".record-written-records"));
+  const recordHost = container.querySelector(".record-written-records");
+  if (hiddenMode && !pageRecords.length && recordHost) {
+    recordHost.innerHTML = '<div class="record-empty"><strong>这张隐藏书面页没有匹配记录。</strong><span>已检测到图片，但对应普通页范围内没有 hidden 为 true 的记录。</span></div>';
+  } else {
+    renderRecordList(pageRecords, recordHost);
+  }
   const writtenFigure = container.querySelector(".record-written-image");
   const writtenImage = container.querySelector(".record-written-image img");
   writtenImage?.addEventListener("load", (event) => {
