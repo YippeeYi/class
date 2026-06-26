@@ -12,7 +12,7 @@
 
 insert into public.site_access_keys (key_hash, label)
 values (
-    encode(digest('qibaishihuaxia', 'sha256'), 'hex'),
+    encode(digest('REPLACE_WITH_YOUR_SITE_KEY', 'sha256'), 'hex'),
     'main key'
 )
 on conflict (key_hash) do update

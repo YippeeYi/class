@@ -20,6 +20,14 @@ notify pgrst, 'reload schema';
 
 然后等待几十秒，刷新密钥页再试。
 
+如果仍然 404，执行 `docs/supabase-rpc-diagnostics.sql`。重点看：
+
+- 第 1 段是否返回 `public.verify_site_key(input_key text)`。
+- 第 2 段 `anon_can_execute` 是否为 `true`。
+- 第 4 段直接调用正确密钥是否返回 `true`。
+
+如果第 1 段没有返回任何行，说明 `docs/supabase-setup.sql` 没有成功执行到创建 RPC 的部分，需要重新执行主脚本。
+
 ## 新增密钥
 
 在 `docs/supabase-key-operations.sql` 中执行第 2 段 `Add a new key before switching users to it`，把占位符替换成新密钥。
