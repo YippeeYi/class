@@ -71,6 +71,10 @@
 
     const getErrorMessage = (error, fallback) => {
         const message = String(error?.message || "").toLowerCase();
+        const code = String(error?.code || "").toLowerCase();
+        if (code === "pgrst202" || message.includes("could not find the function") || message.includes("schema cache")) {
+            return "密钥验证 RPC 不存在或尚未刷新，请在 Supabase SQL Editor 执行 verify_site_key 配置 SQL 后重试。";
+        }
         if (message.includes("network") || message.includes("fetch")) return "Network request failed.";
         return fallback || error?.message || "Operation failed.";
     };
