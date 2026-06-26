@@ -38,8 +38,8 @@ revoke all on function public.verify_site_key(text) from public;
 grant execute on function public.verify_site_key(text) to anon, authenticated;
 
 -- Example: insert the shared site key hash. Replace CHANGE_ME_SITE_KEY first.
--- insert into public.site_keys (key_hash)
--- values (crypt('CHANGE_ME_SITE_KEY', gen_salt('bf', 12)));
+insert into public.site_keys (key_hash)
+values (crypt('qibaishihuaxia', gen_salt('bf', 12)));
 
 -- Records, people, glossary, record pages and quiz questions are read after
 -- local key verification. These policies allow the anon client to read data.
