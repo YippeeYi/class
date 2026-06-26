@@ -11,7 +11,8 @@
 -- It does not insert a real site key. After this file succeeds, run
 -- docs/supabase-key-operations.sql to add your key.
 
-create extension if not exists pgcrypto;
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 -- ---------------------------------------------------------------------------
 -- Unified site key
@@ -33,7 +34,7 @@ create or replace function public.verify_site_key(input_key text)
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
     if input_key is null or length(trim(input_key)) = 0 then
@@ -44,7 +45,7 @@ begin
         select 1
         from public.site_access_keys
         where active = true
-          and key_hash = encode(digest(trim(input_key), 'sha256'), 'hex')
+          and key_hash = encode(extensions.digest(convert_to(trim(input_key), 'UTF8'), 'sha256'), 'hex')
     );
 end;
 $$;

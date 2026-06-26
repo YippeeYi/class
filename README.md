@@ -67,11 +67,14 @@ create table if not exists public.site_access_keys (
 alter table public.site_access_keys enable row level security;
 revoke all on public.site_access_keys from anon, authenticated;
 
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
+
 create or replace function public.verify_site_key(input_key text)
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
     if input_key is null or length(trim(input_key)) = 0 then
@@ -82,7 +85,7 @@ begin
         select 1
         from public.site_access_keys
         where active = true
-          and key_hash = encode(digest(trim(input_key), 'sha256'), 'hex')
+          and key_hash = encode(extensions.digest(convert_to(trim(input_key), 'UTF8'), 'sha256'), 'hex')
     );
 end;
 $$;
@@ -95,7 +98,7 @@ grant execute on function public.verify_site_key(text) to anon, authenticated;
 
 ```sql
 insert into public.site_access_keys (key_hash, label)
-values (encode(digest('CHANGE_ME_SITE_KEY', 'sha256'), 'hex'), 'main key');
+values (encode(extensions.digest(convert_to('CHANGE_ME_SITE_KEY', 'UTF8'), 'sha256'), 'hex'), 'main key');
 ```
 
 更换密钥：先插入新密钥，再停用旧密钥。

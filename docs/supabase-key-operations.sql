@@ -12,7 +12,7 @@
 
 insert into public.site_access_keys (key_hash, label)
 values (
-    encode(digest('REPLACE_WITH_YOUR_SITE_KEY', 'sha256'), 'hex'),
+    encode(extensions.digest(convert_to('REPLACE_WITH_YOUR_SITE_KEY', 'UTF8'), 'sha256'), 'hex'),
     'main key'
 )
 on conflict (key_hash) do update
@@ -27,7 +27,7 @@ notify pgrst, 'reload schema';
 
 -- insert into public.site_access_keys (key_hash, label)
 -- values (
---     encode(digest('REPLACE_WITH_NEW_SITE_KEY', 'sha256'), 'hex'),
+--     encode(extensions.digest(convert_to('REPLACE_WITH_NEW_SITE_KEY', 'UTF8'), 'sha256'), 'hex'),
 --     'new key'
 -- )
 -- on conflict (key_hash) do update
@@ -58,7 +58,7 @@ notify pgrst, 'reload schema';
 --
 -- insert into public.site_access_keys (key_hash, label)
 -- values (
---     encode(digest('REPLACE_WITH_RESET_SITE_KEY', 'sha256'), 'hex'),
+--     encode(extensions.digest(convert_to('REPLACE_WITH_RESET_SITE_KEY', 'UTF8'), 'sha256'), 'hex'),
 --     'reset key'
 -- )
 -- on conflict (key_hash) do update

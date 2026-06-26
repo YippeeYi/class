@@ -1,4 +1,4 @@
--- Diagnostics for /rest/v1/rpc/verify_site_key 404.
+-- Diagnostics for /rest/v1/rpc/verify_site_key 404 and digest() errors.
 -- Run this in Supabase SQL Editor if the browser still reports:
 -- POST /rest/v1/rpc/verify_site_key 404 (Not Found)
 
@@ -44,3 +44,7 @@ select public.verify_site_key('REPLACE_WITH_YOUR_SITE_KEY') as key_is_valid;
 
 -- 5. Force PostgREST to reload its schema cache.
 notify pgrst, 'reload schema';
+
+-- If step 4 fails with:
+-- ERROR: function digest(text, unknown) does not exist
+-- run docs/supabase-fix-verify-site-key.sql.
