@@ -1,10 +1,17 @@
 /************************************************************
  * recordInteractions.js
- * Supabase 记录互动：轻量点赞、收藏、转发、评论
+ * Supabase 记录互动：情绪态度、收藏、分享、评论、评论点赞
  ************************************************************/
 
 (() => {
     const MAX_COMMENT_LENGTH = 500;
+    const EMOTIONS = [
+        { type: 'like', icon: '👍', label: '点赞' },
+        { type: 'happy', icon: '😄', label: '开心' },
+        { type: 'surprised', icon: '😮', label: '惊讶' },
+        { type: 'sad', icon: '😢', label: '悲伤' },
+        { type: 'angry', icon: '😡', label: '愤怒' }
+    ];
     const pendingActions = new Set();
     const summaryCache = new Map();
     const commentsCache = new Map();
@@ -16,16 +23,17 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
-
     const escapeAttr = (value) => escapeHtml(value).replace(/`/g, '&#96;');
     const normalizeKey = (value) => String(value || '').trim();
     const getTables = () => window.ClassRecordSupabase?.getConfig().tables || {};
-    const REACTION_META = {
-        like: { activeIcon: '👍🏻', inactiveIcon: '👍', on: '已点赞', off: '已取消点赞' },
-        favorite: { activeIcon: '⭐', inactiveIcon: '☆', on: '已收藏', off: '已取消收藏' }
-    };
-    const emptySummary = (recordKey) => ({ recordKey, likeCount: 0, favoriteCount: 0, commentCount: 0, myLiked: false, myFavorited: false });
-
+    const emptySummary = (recordKey) => ({
+        recordKey,
+        favoriteCount: 0,
+        commentCount: 0,
+        myFavorited: false,
+        emotionCounts: Object.fromEntries(EMOTIONS.map((item) => [item.type, 0])),
+        myEmotions: new Set()
+    });
     const getRecordElements = (container) => Array.from(container?.querySelectorAll('.record[data-record-key]') || []);
 
     const getProfile = async () => {
@@ -45,22 +53,21 @@
         const chunkSize = 120;
         const output = [];
         for (let i = 0; i < items.length; i += chunkSize) {
-            const chunk = items.slice(i, i + chunkSize);
-            const rows = await query(chunk);
+            const rows = await query(items.slice(i, i + chunkSize));
             output.push(...rows);
         }
         return output;
     };
 
-    const loadSummariesWithRpc = async (client, keys) => {
-        const { data, error } = await client.rpc('get_record_interaction_summaries', { record_keys: keys });
-        if (error) throw error;
-        return data || [];
-    };
-
-    const loadSummariesFallback = async (client, keys, userId) => {
+    const loadSummaries = async (recordKeys) => {
+        const keys = Array.from(new Set(recordKeys.map(normalizeKey).filter(Boolean)));
+        if (!keys.length || !window.ClassRecordSupabase?.isConfigured()) return new Map();
+        const client = await window.ClassRecordSupabase.getClient();
+        const session = await window.ClassRecordSupabase.getSession();
+        const userId = session?.user?.id;
         const tables = getTables();
         const summaries = new Map(keys.map((key) => [key, emptySummary(key)]));
+        const validTypes = new Set([...EMOTIONS.map((item) => item.type), 'favorite']);
 
         const reactions = await queryChunks(keys, async (chunk) => {
             const { data, error } = await client
@@ -72,16 +79,17 @@
         });
 
         reactions.forEach((row) => {
+            const type = String(row.type || '');
+            if (!validTypes.has(type)) return;
             const item = summaries.get(row.record_key);
             if (!item) return;
-            if (row.type === 'like') {
-                item.likeCount += 1;
-                item.myLiked = item.myLiked || row.user_id === userId;
-            }
-            if (row.type === 'favorite') {
+            if (type === 'favorite') {
                 item.favoriteCount += 1;
                 item.myFavorited = item.myFavorited || row.user_id === userId;
+                return;
             }
+            item.emotionCounts[type] = (item.emotionCounts[type] || 0) + 1;
+            if (row.user_id === userId) item.myEmotions.add(type);
         });
 
         const comments = await queryChunks(keys, async (chunk) => {
@@ -92,60 +100,49 @@
             if (error) throw error;
             return data || [];
         });
-
         comments.forEach((row) => {
             const item = summaries.get(row.record_key);
             if (item) item.commentCount += 1;
         });
 
-        return Array.from(summaries.values());
-    };
-
-    const loadSummaries = async (recordKeys) => {
-        const keys = Array.from(new Set(recordKeys.map(normalizeKey).filter(Boolean)));
-        if (!keys.length || !window.ClassRecordSupabase?.isConfigured()) return new Map();
-
-        const client = await window.ClassRecordSupabase.getClient();
-        const session = await window.ClassRecordSupabase.getSession();
-        const userId = session?.user?.id;
-        let rows;
-        try {
-            rows = await loadSummariesWithRpc(client, keys);
-        } catch (error) {
-            rows = await loadSummariesFallback(client, keys, userId);
-        }
-
-        const summaries = new Map(keys.map((key) => [key, emptySummary(key)]));
-        rows.forEach((row) => {
-            const recordKey = row.record_key || row.recordKey;
-            if (!summaries.has(recordKey)) return;
-            summaries.set(recordKey, {
-                recordKey,
-                likeCount: Number(row.like_count ?? row.likeCount ?? 0),
-                favoriteCount: Number(row.favorite_count ?? row.favoriteCount ?? 0),
-                commentCount: Number(row.comment_count ?? row.commentCount ?? 0),
-                myLiked: Boolean(row.my_liked ?? row.myLiked),
-                myFavorited: Boolean(row.my_favorited ?? row.myFavorited)
-            });
-        });
         summaries.forEach((value, key) => summaryCache.set(key, value));
         return summaries;
     };
 
+    const renderEmotionButton = (emotion, summary, source) => {
+        const count = Number(summary.emotionCounts[emotion.type]) || 0;
+        const active = summary.myEmotions.has(emotion.type);
+        return `
+            <button type="button" class="record-social-btn record-emotion-btn${active ? ' is-active' : ''}" data-action="toggle-reaction" data-type="${escapeAttr(emotion.type)}" aria-label="${escapeAttr(emotion.label)}" aria-pressed="${active}">
+                <span class="record-social-emoji" aria-hidden="true">${emotion.icon}</span><strong>${source === 'popover' ? emotion.label : count}</strong>
+            </button>
+        `;
+    };
+
     const renderSummary = (recordEl, summary) => {
-        const likeBtn = recordEl.querySelector('[data-action="toggle-reaction"][data-type="like"]');
         const favoriteBtn = recordEl.querySelector('[data-action="toggle-reaction"][data-type="favorite"]');
         const commentBtn = recordEl.querySelector('[data-action="toggle-comments"]');
-        if (likeBtn) {
-            likeBtn.classList.toggle('is-active', summary.myLiked);
-            likeBtn.setAttribute('aria-pressed', String(summary.myLiked));
-            likeBtn.querySelector('.record-social-emoji').textContent = summary.myLiked ? REACTION_META.like.activeIcon : REACTION_META.like.inactiveIcon;
-            likeBtn.querySelector('strong').textContent = String(summary.likeCount);
+        const group = recordEl.querySelector('[data-emotion-group]');
+        const popover = recordEl.querySelector('[data-emotion-popover]');
+        const moreBtn = recordEl.querySelector('[data-action="open-emotions"]');
+        const visible = EMOTIONS.filter((emotion) => (summary.emotionCounts[emotion.type] || 0) > 0 || summary.myEmotions.has(emotion.type));
+        const hidden = EMOTIONS.filter((emotion) => !visible.some((item) => item.type === emotion.type));
+        if (group) {
+            group.innerHTML = visible.map((emotion) => renderEmotionButton(emotion, summary, 'inline')).join('');
+        }
+        if (popover) {
+            popover.innerHTML = hidden.length
+                ? hidden.map((emotion) => renderEmotionButton(emotion, summary, 'popover')).join('')
+                : '<span class="record-comment-empty">所有情绪都已显示。</span>';
+        }
+        if (moreBtn) {
+            moreBtn.hidden = hidden.length === 0;
+            moreBtn.setAttribute('aria-expanded', String(popover && !popover.hidden));
         }
         if (favoriteBtn) {
             favoriteBtn.classList.toggle('is-active', summary.myFavorited);
             favoriteBtn.setAttribute('aria-pressed', String(summary.myFavorited));
-            favoriteBtn.querySelector('.record-social-emoji').textContent = summary.myFavorited ? REACTION_META.favorite.activeIcon : REACTION_META.favorite.inactiveIcon;
+            favoriteBtn.querySelector('.record-social-emoji').textContent = summary.myFavorited ? '⭐' : '☆';
             favoriteBtn.querySelector('strong').textContent = String(summary.favoriteCount);
         }
         if (commentBtn) {
@@ -167,23 +164,43 @@
         }
     };
 
-    const renderError = (recordEl, message) => {
-        const status = recordEl.querySelector('.record-social-status');
-        if (status) {
-            status.textContent = message || '互动操作失败。';
-            status.dataset.tone = 'error';
+    const renderError = (recordEl, message) => showStatus(recordEl, message || '互动操作失败，请稍后再试。', 'error');
+
+    const loadCommentLikes = async (comments, userId) => {
+        const table = getTables().commentLikes || 'record_comment_likes';
+        const ids = comments.map((comment) => comment.id).filter(Boolean);
+        const stats = new Map(ids.map((id) => [id, { count: 0, mine: false }]));
+        if (!ids.length) return stats;
+        try {
+            const client = await window.ClassRecordSupabase.getClient();
+            const { data, error } = await client.from(table).select('comment_id,user_id').in('comment_id', ids);
+            if (error) throw error;
+            (data || []).forEach((row) => {
+                const item = stats.get(row.comment_id);
+                if (!item) return;
+                item.count += 1;
+                item.mine = item.mine || row.user_id === userId;
+            });
+        } catch (error) {
+            console.warn('评论点赞加载失败：', error);
         }
+        return stats;
     };
 
-    const renderComments = (comments, userId) => {
+    const renderComments = async (comments, userId) => {
         if (!comments.length) return '<div class="record-comment-empty">暂无评论。</div>';
+        const likeStats = await loadCommentLikes(comments, userId);
         return comments.map((comment) => {
             const canDelete = comment.user_id === userId;
+            const stat = likeStats.get(comment.id) || { count: 0, mine: false };
             return `
                 <article class="record-comment" data-comment-id="${escapeAttr(comment.id)}">
                     <div class="record-comment-meta"><strong>${escapeHtml(comment.author_name || '同学')}</strong><span>${escapeHtml(formatTime(comment.created_at))}</span></div>
                     <p>${escapeHtml(comment.body)}</p>
-                    ${canDelete ? '<button type="button" class="record-comment-delete" data-action="delete-comment">删除</button>' : ''}
+                    <div class="record-comment-actions">
+                        <button type="button" class="record-comment-like${stat.mine ? ' is-active' : ''}" data-action="toggle-comment-like" aria-pressed="${stat.mine}">👍 <strong>${stat.count}</strong></button>
+                        ${canDelete ? '<button type="button" class="record-comment-delete" data-action="delete-comment">删除</button>' : ''}
+                    </div>
                 </article>
             `;
         }).join('');
@@ -209,7 +226,7 @@
         listEl.innerHTML = '<div class="record-comment-empty">评论加载中…</div>';
         const session = await window.ClassRecordSupabase.getSession();
         const comments = await loadComments(recordKey, { force });
-        listEl.innerHTML = renderComments(comments, session?.user?.id);
+        listEl.innerHTML = await renderComments(comments, session?.user?.id);
         const summary = summaryCache.get(recordKey) || emptySummary(recordKey);
         summary.commentCount = comments.length;
         summaryCache.set(recordKey, summary);
@@ -227,21 +244,26 @@
         const actionKey = `${key}:${type}`;
         if (pendingActions.has(actionKey)) return;
         pendingActions.add(actionKey);
-
         const client = await window.ClassRecordSupabase.getClient();
         const session = await window.ClassRecordSupabase.getSession();
         const userId = session?.user?.id;
-        const summary = summaryCache.get(key) || emptySummary(key);
-        const active = type === 'like' ? summary.myLiked : summary.myFavorited;
+        if (!userId) throw new Error('请先登录。');
         const tables = getTables();
-
-        const optimistic = { ...summary };
-        if (type === 'like') {
-            optimistic.myLiked = !active;
-            optimistic.likeCount += active ? -1 : 1;
-        } else {
+        const summary = summaryCache.get(key) || emptySummary(key);
+        const isFavorite = type === 'favorite';
+        const active = isFavorite ? summary.myFavorited : summary.myEmotions.has(type);
+        const optimistic = {
+            ...summary,
+            emotionCounts: { ...summary.emotionCounts },
+            myEmotions: new Set(summary.myEmotions)
+        };
+        if (isFavorite) {
             optimistic.myFavorited = !active;
-            optimistic.favoriteCount += active ? -1 : 1;
+            optimistic.favoriteCount = Math.max(0, optimistic.favoriteCount + (active ? -1 : 1));
+        } else {
+            if (active) optimistic.myEmotions.delete(type);
+            else optimistic.myEmotions.add(type);
+            optimistic.emotionCounts[type] = Math.max(0, (optimistic.emotionCounts[type] || 0) + (active ? -1 : 1));
         }
         summaryCache.set(key, optimistic);
         renderSummary(recordEl, optimistic);
@@ -254,10 +276,10 @@
                 const { error } = await client.from(tables.reactions).upsert({ record_key: key, type, user_id: userId }, { onConflict: 'record_key,user_id,type' });
                 if (error) throw error;
             }
-            showStatus(recordEl, active ? REACTION_META[type].off : REACTION_META[type].on, active ? 'info' : 'success');
-            if (type === 'favorite') {
+            if (isFavorite) {
                 window.dispatchEvent(new CustomEvent('recordfavoritechange', { detail: { recordKey: key, favorited: !active } }));
             }
+            showStatus(recordEl, active ? '已取消。' : '已记录。', active ? 'info' : 'success');
             await refreshRecordSummary(recordEl);
         } catch (error) {
             summaryCache.set(key, summary);
@@ -272,17 +294,19 @@
         const anchor = recordEl.id ? `#${recordEl.id}` : '';
         const url = `${location.origin}${location.pathname}${location.search}${anchor}`;
         if (navigator.share) {
-            await navigator.share({ title: '编日史记录', url }).catch(async (error) => {
-                if (error?.name !== 'AbortError') throw error;
-            });
-            return;
+            try {
+                await navigator.share({ title: '编日史记录', url });
+                showStatus(recordEl, '分享已打开。', 'success');
+                return;
+            } catch (error) {
+                if (error?.name === 'AbortError') return;
+            }
         }
-        await navigator.clipboard.writeText(url);
-        const status = recordEl.querySelector('.record-social-status');
-        if (status) {
-            status.textContent = '链接已复制。';
-            status.dataset.tone = 'success';
-            window.setTimeout(() => { status.textContent = ''; status.dataset.tone = ''; }, 1200);
+        try {
+            await navigator.clipboard.writeText(url);
+            showStatus(recordEl, '链接已复制。', 'success');
+        } catch (error) {
+            showStatus(recordEl, `复制失败，请手动复制：${url}`, 'error');
         }
     };
 
@@ -297,15 +321,16 @@
         }
         textarea.setCustomValidity('');
         form.querySelectorAll('textarea, button').forEach((el) => { el.disabled = true; });
-
         try {
             const client = await window.ClassRecordSupabase.getClient();
             const session = await window.ClassRecordSupabase.getSession();
+            const userId = session?.user?.id;
+            if (!userId) throw new Error('请先登录。');
             const profile = await getProfile();
             const recordKey = normalizeKey(recordEl.dataset.recordKey);
             const { error } = await client.from(getTables().comments).insert({
                 record_key: recordKey,
-                user_id: session?.user?.id,
+                user_id: userId,
                 body,
                 author_name: profile.displayName || profile.username || '同学'
             });
@@ -320,8 +345,7 @@
 
     const deleteComment = async (recordEl, commentId) => {
         if (!commentId) return;
-        const confirmed = window.confirm('确定删除这条评论吗？');
-        if (!confirmed) return;
+        if (!window.confirm('确定删除这条评论吗？')) return;
         const client = await window.ClassRecordSupabase.getClient();
         const { error } = await client.from(getTables().comments).delete().eq('id', commentId);
         if (error) throw error;
@@ -329,19 +353,44 @@
         await renderCommentList(recordEl, { force: true });
     };
 
+    const toggleCommentLike = async (recordEl, commentId) => {
+        if (!commentId) return;
+        const client = await window.ClassRecordSupabase.getClient();
+        const session = await window.ClassRecordSupabase.getSession();
+        const userId = session?.user?.id;
+        if (!userId) throw new Error('请先登录。');
+        const table = getTables().commentLikes || 'record_comment_likes';
+        const button = recordEl.querySelector(`.record-comment[data-comment-id="${CSS.escape(commentId)}"] [data-action="toggle-comment-like"]`);
+        const active = button?.classList.contains('is-active');
+        if (active) {
+            const { error } = await client.from(table).delete().eq('comment_id', commentId).eq('user_id', userId);
+            if (error) throw error;
+        } else {
+            const { error } = await client.from(table).upsert({ comment_id: commentId, user_id: userId }, { onConflict: 'comment_id,user_id' });
+            if (error) throw error;
+        }
+        await renderCommentList(recordEl, { force: true });
+    };
+
     const bindContainer = (container) => {
         if (!container || container.dataset.recordInteractionsBound === 'true') return;
         container.dataset.recordInteractionsBound = 'true';
-
         container.addEventListener('click', async (event) => {
             const button = event.target.closest('[data-action]');
             if (!button) return;
             const recordEl = button.closest('.record[data-record-key]');
             if (!recordEl) return;
-
             try {
                 if (button.dataset.action === 'toggle-reaction') {
                     await toggleReaction(recordEl, button.dataset.type);
+                    recordEl.querySelector('[data-emotion-popover]')?.setAttribute('hidden', '');
+                    return;
+                }
+                if (button.dataset.action === 'open-emotions') {
+                    const popover = recordEl.querySelector('[data-emotion-popover]');
+                    if (!popover) return;
+                    popover.hidden = !popover.hidden;
+                    button.setAttribute('aria-expanded', String(!popover.hidden));
                     return;
                 }
                 if (button.dataset.action === 'toggle-comments') {
@@ -358,6 +407,10 @@
                 }
                 if (button.dataset.action === 'delete-comment') {
                     await deleteComment(recordEl, button.closest('.record-comment')?.dataset.commentId);
+                    return;
+                }
+                if (button.dataset.action === 'toggle-comment-like') {
+                    await toggleCommentLike(recordEl, button.closest('.record-comment')?.dataset.commentId);
                 }
             } catch (error) {
                 console.warn('记录互动操作失败：', error);
@@ -384,8 +437,11 @@
         const recordEls = getRecordElements(container);
         if (!recordEls.length) return;
         bindContainer(container);
-        if (!window.ClassRecordSupabase?.isConfigured()) return;
         const keys = records?.map((record) => record.fileName || record.id) || recordEls.map((el) => el.dataset.recordKey);
+        if (!window.ClassRecordSupabase?.isConfigured()) {
+            recordEls.forEach((el) => renderSummary(el, emptySummary(el.dataset.recordKey)));
+            return;
+        }
         try {
             await getProfile();
             const summaries = await loadSummaries(keys);
@@ -410,5 +466,5 @@
         return new Set((data || []).map((row) => row.record_key));
     };
 
-    window.RecordInteractions = { hydrate, refreshRecord: refreshRecordSummary, getFavoriteKeys };
+    window.RecordInteractions = { hydrate, refreshRecord: refreshRecordSummary, getFavoriteKeys, emotions: EMOTIONS };
 })();

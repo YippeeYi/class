@@ -107,11 +107,13 @@
 
     const renderGuideHighlights = async () => {
         const wrap = document.getElementById('guide-highlights');
+        const secondary = document.querySelector('.guide-secondary-panel');
         if (!wrap) {
             return;
         }
 
         wrap.hidden = false;
+        if (secondary) secondary.hidden = true;
         const tipEl = document.getElementById('guide-tip');
         if (tipEl) {
             startTipRotation(tipEl);
@@ -138,6 +140,25 @@
         setText('guide-record-count', valueOrEmpty(recordsResult).length);
         setText('guide-people-count', valueOrEmpty(peopleResult).length);
         setText('guide-term-count', valueOrEmpty(glossaryResult).length);
+
+        const records = valueOrEmpty(recordsResult).filter((record) => !(record.hidden === true || String(record.hidden || '').toLowerCase() === 'true'));
+        const now = new Date();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const todayMatches = records.filter((record) => {
+            const parts = String(record.date || '').split('-');
+            return parts[1] === month && parts[2] === day;
+        });
+        const todayButton = document.getElementById('guide-today-history');
+        if (todayButton) {
+            todayButton.hidden = todayMatches.length === 0;
+            todayButton.onclick = () => {
+                const target = `record.html?month=${encodeURIComponent(month)}&day=${encodeURIComponent(day)}`;
+                if (typeof window.navigateTo === 'function') window.navigateTo(target);
+                else location.href = target;
+            };
+        }
+        if (secondary) secondary.hidden = false;
     };
 
     const showNav = () => {

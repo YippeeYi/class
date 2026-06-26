@@ -146,7 +146,7 @@
       questionText.innerHTML = `
         <span class="quiz-question-prompt quiz-question-prompt--secret">${escapeHtml(currentQuestion.prompt)}</span>
         <span class="quiz-secret-visual">
-          <img src="${escapeHtml(currentQuestion.image)}" alt="题目图片" loading="eager" decoding="async">
+          ${currentQuestion.image ? `<img src="${escapeHtml(currentQuestion.image)}" alt="题目图片" loading="eager" decoding="async">` : '<span class="quiz-image-missing">题目图片资源缺失</span>'}
           ${renderSecretAnswerBoxes()}
         </span>
       `;
@@ -221,6 +221,35 @@
       result.push(value);
     });
     return result;
+  }
+
+  function normalizeQuestion(item, index = 0) {
+    const raw = item && typeof item === 'object' ? item : {};
+    const type = ['choice', 'fill', 'judge'].includes(raw.type) ? raw.type : 'fill';
+    const content = raw.content || raw.category || raw.group || SECRET_CONTENT;
+    const answer = String(raw.answer ?? raw.correctAnswer ?? '').trim();
+    const options = uniqueOptions(raw.options || raw.choices || raw.answers || []);
+    const imagePath = raw.image || raw.imagePath || raw.image_url || '';
+    const reward = Number(raw.reward) || (type === 'choice' ? CHOICE_REWARD : type === 'judge' ? JUDGE_REWARD : FILL_REWARD);
+    return {
+      ...raw,
+      id: String(raw.id || `${content || 'question'}-${index + 1}`),
+      type,
+      content,
+      category: raw.category || content,
+      difficulty: raw.difficulty || raw.level || '',
+      prompt: String(raw.prompt || raw.question || raw.title || '请完成这道题。').trim(),
+      answer,
+      explanation: String(raw.explanation || raw.analysis || '').trim(),
+      image: imagePath,
+      imagePath,
+      recordText: String(raw.recordText || raw.record_text || raw.text || '').trim(),
+      sideLabel: raw.sideLabel || raw.side_label || '',
+      sideText: raw.sideText || raw.side_text || '',
+      options,
+      choices: options,
+      reward
+    };
   }
 
   function uniqueOptionsWithAnswer(answer, options) {
@@ -643,9 +672,12 @@
     if (window.ClassRecordData?.isEnabled?.()) {
       try {
         const rows = await window.ClassRecordData.loadQuizQuestions(SECRET_CONTENT);
-        return Promise.all(rows.map(async (item, index) => {
+        const settled = await Promise.allSettled(rows.map(async (item, index) => {
           const imagePath = item.image || item.imagePath || '';
-          const image = imagePath ? await window.ClassRecordData.signAssetUrl(imagePath).catch(() => '') : '';
+          const image = imagePath ? await window.ClassRecordData.signAssetUrl(imagePath).catch((error) => {
+            console.warn('题目图片签名失败：', imagePath, error);
+            return '';
+          }) : '';
           return normalizeQuestion({
             id: item.id || `${SECRET_CONTENT}-${index + 1}`,
             type: item.type || 'fill',
@@ -656,6 +688,10 @@
             image
           }, index);
         }));
+        return settled
+          .filter((result) => result.status === 'fulfilled')
+          .map((result) => result.value)
+          .filter((question) => question.answer);
       } catch (error) {
         console.warn('Supabase secret questions load failed:', error);
       }

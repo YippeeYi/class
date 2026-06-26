@@ -66,7 +66,7 @@
         });
     };
 
-    const submitPersonEdit = async ({ personId, displayName, alias, bio }) => {
+    const submitPersonEdit = async ({ personId, displayName, alias, bio, avatarUrl }) => {
         const user = await requireUser();
         const profile = await getProfile().catch(() => null);
         if (!personId) throw new Error('缺少人物 ID。');
@@ -78,6 +78,7 @@
             requested_display_name: String(displayName || '').trim(),
             requested_alias: String(alias || '').trim(),
             requested_bio: String(bio || '').trim(),
+            requested_avatar_url: String(avatarUrl || '').trim(),
             status: 'pending'
         });
     };

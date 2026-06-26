@@ -82,6 +82,10 @@ html.auth-pending body:not(.auth-page) { visibility: hidden; }
   --guide-panel-bg: color-mix(in srgb, var(--theme-surface) 82%, transparent);
   --guide-card-bg: linear-gradient(160deg, color-mix(in srgb, var(--theme-surface) 94%, white), color-mix(in srgb, var(--theme-surface-strong) 92%, #f3e8db));
   --progress-track-bg: color-mix(in srgb, var(--theme-surface-strong) 60%, rgba(148, 163, 184, 0.35));
+  --theme-color: var(--theme-accent);
+  --theme-color-soft: color-mix(in srgb, var(--theme-accent) 18%, transparent);
+  --theme-border-color: color-mix(in srgb, var(--theme-accent-strong) 32%, rgba(13, 13, 14, 0.16));
+  --theme-text-on-bg: var(--text-main);
 }
 
 h1,
@@ -2420,7 +2424,7 @@ body>#glossary-list {
   border-radius: 18px;
   background: var(--bg-card);
   box-shadow: var(--shadow-soft);
-  aspect-ratio: 1986 / 2978;
+  aspect-ratio: 2856 / 4282;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -2429,7 +2433,8 @@ body>#glossary-list {
 .record-written-image img {
   display: block;
   width: 100%;
-  aspect-ratio: 1986 / 2978;
+  height: 100%;
+  aspect-ratio: 2856 / 4282;
   object-fit: contain;
   flex: 1 1 auto;
   min-height: 0;
@@ -2438,11 +2443,12 @@ body>#glossary-list {
 }
 
 .record-written-image.is-missing::before {
-  content: "未找到原始书面记录图片";
+  content: "未找到书面文件";
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 260px;
+  width: 100%;
+  aspect-ratio: 2856 / 4282;
   border-radius: 12px;
   border: 2px dashed var(--attachment-border);
   color: var(--text-subtle);
@@ -2450,7 +2456,29 @@ body>#glossary-list {
   font-weight: 800;
 }
 
-.record-written-image.is-missing picture {
+.record-written-image.is-missing img,
+.record-written-image.is-hidden-missing {
+  display: none;
+}
+
+.record-written-image.is-loaded .record-written-image-loading {
+  display: none;
+}
+
+.record-written-image-loading {
+  position: absolute;
+  inset: 8px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--text-subtle);
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.record-written-image.is-loaded .record-written-image-loading,
+.record-written-image.is-missing .record-written-image-loading,
+.record-written-image.is-hidden-missing .record-written-image-loading {
   display: none;
 }
 
@@ -2480,9 +2508,9 @@ body>#glossary-list {
 .qcoin-mini {
   position: fixed;
   z-index: 20;
-  left: 50%;
+  left: 12px;
   top: 16px;
-  transform: translateX(-50%);
+  transform: none;
   padding: 6px 11px;
   border-radius: 999px;
   color: var(--control-active-text);
@@ -5320,8 +5348,7 @@ body>.archive-tool-shell {
   min-height: 60px;
   grid-template-columns: auto 1fr auto;
   grid-template-areas:
-    "icon kicker value"
-    "icon title meta";
+    "icon title value";
   align-content: center;
   align-items: center;
   padding: 5px 8px;
@@ -5346,6 +5373,7 @@ body>.archive-tool-shell {
 .guide-entry-card--primary h3 {
   grid-area: title;
   font-size: clamp(14px, 1.5vw, 16px);
+  align-self: center;
 }
 
 .guide-entry-card--record .guide-entry-value,
@@ -5354,6 +5382,7 @@ body>.archive-tool-shell {
   margin: 0;
   font-size: clamp(16px, 2vw, 20px);
   text-align: right;
+  align-self: center;
 }
 
 .guide-entry-card--record .guide-entry-meta,
@@ -5366,6 +5395,17 @@ body>.archive-tool-shell {
 .guide-secondary-panel {
   width: min(720px, 94vw);
   margin-top: 2px;
+}
+
+.guide-secondary-panel[hidden],
+.guide-today-history[hidden] {
+  display: none;
+}
+
+.guide-today-history {
+  width: 100%;
+  margin-top: 8px;
+  justify-content: center;
 }
 
 .guide-secondary-grid {
@@ -6005,6 +6045,31 @@ body>.archive-tool-shell {
   text-align: center;
 }
 
+.record-emotion-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.record-emotion-popover {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: fit-content;
+  max-width: min(420px, 100%);
+  padding: 10px;
+  border: var(--panel-border);
+  border-color: var(--theme-border-color);
+  border-radius: 12px;
+  background: var(--overlay-card-bg);
+  box-shadow: var(--overlay-card-shadow);
+}
+
+.record-emotion-popover[hidden],
+.record-emotion-more[hidden] {
+  display: none;
+}
+
 .record-comments {
   display: grid;
   gap: 10px;
@@ -6047,7 +6112,15 @@ body>.archive-tool-shell {
   color: var(--text-main);
 }
 
-.record-comment-delete {
+.record-comment-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.record-comment-delete,
+.record-comment-like {
   margin-top: 6px;
   padding: 0;
   border: 0;
@@ -6056,6 +6129,15 @@ body>.archive-tool-shell {
   cursor: pointer;
   font: inherit;
   font-size: 12px;
+}
+
+.record-comment-like {
+  color: var(--text-subtle);
+}
+
+.record-comment-like.is-active {
+  color: var(--theme-accent-strong);
+  font-weight: 800;
 }
 
 .record-comment-form {
@@ -6303,4 +6385,124 @@ body.hidden-record-mode .hidden-record-banner {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.person-avatar-card {
+  width: 132px;
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  margin: 0 0 14px;
+  border: var(--panel-border);
+  border-color: var(--theme-border-color);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--theme-surface) 78%, white);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+.person-avatar-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.person-avatar-card span {
+  color: var(--theme-accent-strong);
+  font-size: 42px;
+  font-weight: 850;
+}
+
+.person-review-status {
+  margin: 12px 0 0;
+  color: var(--text-subtle);
+  font-weight: 650;
+}
+
+.account-claim-section {
+  display: grid;
+  gap: 8px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.account-claim-section form[hidden] {
+  display: none;
+}
+
+.account-claim-section form {
+  display: grid;
+  gap: 8px;
+}
+
+.account-panel textarea,
+.account-panel select {
+  width: 100%;
+  box-sizing: border-box;
+  border: var(--field-border);
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: color-mix(in srgb, var(--theme-surface) 88%, white);
+  color: var(--text-main);
+  font: inherit;
+}
+
+.account-panel small {
+  color: var(--text-subtle);
+  font-size: 12px;
+}
+
+.credits-shell {
+  width: min(960px, calc(100vw - 32px));
+  margin: 78px auto 36px;
+  display: grid;
+  gap: 18px;
+}
+
+.credits-head,
+.credits-card {
+  padding: 18px 20px;
+  border: var(--panel-border);
+  border-color: var(--theme-border-color);
+  border-radius: 18px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-soft);
+}
+
+.credits-head h1 {
+  margin: 4px 0 0;
+}
+
+.credits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.credits-card h2 {
+  margin: 0 0 10px;
+}
+
+.credits-card ul,
+.credits-card p {
+  margin: 0;
+  color: var(--text-main);
+}
+
+.credits-card ul {
+  padding-left: 1.2em;
+}
+
+.credits-card--thanks {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .person-avatar-card {
+    width: 108px;
+  }
 }

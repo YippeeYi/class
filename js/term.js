@@ -14,8 +14,7 @@ let favoriteRecordKeys = null;
 
 async function ensureFavoriteRecordKeys() {
     if (favoriteRecordKeys) return favoriteRecordKeys;
-    const favorites = await window.RecordInteractions?.getFavorites?.().catch(() => []);
-    favoriteRecordKeys = new Set((favorites || []).map((item) => String(item.record_id || item.fileName || item.id || item)));
+    favoriteRecordKeys = await window.RecordInteractions?.getFavoriteKeys?.().catch(() => new Set()) || new Set();
     return favoriteRecordKeys;
 }
 

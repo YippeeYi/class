@@ -84,11 +84,13 @@ function buildRecordSocialShell(record) {
     return `
         <section class="record-social" data-social-key="${key}">
             <div class="record-social-actions" aria-label="记录互动">
-                <button type="button" class="record-social-btn" data-action="toggle-reaction" data-type="like" aria-label="点赞" aria-pressed="false"><span class="record-social-emoji" aria-hidden="true">👍</span><strong>0</strong></button>
+                <span class="record-emotion-group" data-emotion-group></span>
+                <button type="button" class="record-social-btn record-emotion-more" data-action="open-emotions" aria-label="添加情绪态度" aria-expanded="false">☺+</button>
                 <button type="button" class="record-social-btn" data-action="toggle-reaction" data-type="favorite" aria-label="收藏" aria-pressed="false"><span class="record-social-emoji" aria-hidden="true">☆</span><strong>0</strong></button>
                 <button type="button" class="record-social-btn" data-action="toggle-comments" aria-label="查看评论" aria-expanded="false"><span class="record-social-emoji" aria-hidden="true">💬</span><strong>0</strong></button>
                 <button type="button" class="record-social-btn" data-action="share-record" aria-label="复制记录链接"><span class="record-social-emoji" aria-hidden="true">🔗</span></button>
             </div>
+            <div class="record-emotion-popover" data-emotion-popover hidden></div>
             <div class="record-comments" hidden>
                 <div class="record-comment-list"><div class="record-comment-empty">评论加载中…</div></div>
                 <form class="record-comment-form">
@@ -347,6 +349,9 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
         }
         if (excludeDailyButton) {
             excludeDailyButton.classList.toggle("is-active", Boolean(criteria.excludeDaily));
+        }
+        if (favoritesButton) {
+            favoritesButton.classList.toggle("is-active", Boolean(criteria.favorites));
         }
         if (searchInput && searchInput.value !== criteria.query) {
             searchInput.value = criteria.query || "";

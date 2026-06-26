@@ -4,6 +4,7 @@
         profiles: "profiles",
         reactions: "record_reactions",
         comments: "record_comments",
+        commentLikes: "record_comment_likes",
         records: "class_records",
         people: "class_people",
         glossary: "class_glossary",

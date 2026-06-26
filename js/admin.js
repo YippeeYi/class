@@ -25,7 +25,7 @@
         if (table === 'correction_requests') return `${row.target_type || ''} / ${row.target_id || ''}\n${row.description || ''}`;
         if (table === 'wall_messages') return `${row.display_name || row.author_name || ''}\n${row.body || ''}`;
         if (table === 'person_claim_requests') return `${row.person_id || ''}\n${row.note || ''}`;
-        if (table === 'person_edit_requests') return `${row.person_id || ''}\n显示名：${row.requested_display_name || ''}\n别名：${row.requested_alias || ''}\n简介：${row.requested_bio || ''}`;
+        if (table === 'person_edit_requests') return `${row.person_id || ''}\n显示名：${row.requested_display_name || ''}\n别名：${row.requested_alias || ''}\n简介：${row.requested_bio || ''}\n头像：${row.requested_avatar_url || ''}`;
         return JSON.stringify(row, null, 2);
     };
 

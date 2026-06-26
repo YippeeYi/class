@@ -475,7 +475,7 @@
         button.className = "btn-action fullscreen-toggle";
         const updateLabel = () => {
             const isFullscreen = Boolean(document.fullscreenElement);
-            button.textContent = isFullscreen ? "↙" : "⤢";
+            button.textContent = isFullscreen ? "🔳" : "⛶";
             button.setAttribute("aria-label", isFullscreen ? "退出全屏" : "进入全屏");
             button.setAttribute("title", isFullscreen ? "退出全屏" : "进入全屏");
         };

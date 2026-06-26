@@ -84,6 +84,19 @@
         return row.raw && typeof row.raw === 'object' ? row.raw : {};
     };
 
+    const truthyHidden = (value) => value === true || String(value || '').trim().toLowerCase() === 'true';
+
+    const normalizePrivateStoragePath = (path) => {
+        const config = window.CLASS_RECORD_SUPABASE || {};
+        const bucket = config.bucket || config.storage?.privateBucket || DEFAULT_BUCKET;
+        const raw = String(path || '').trim().replace(/^\/+/, '');
+        if (!raw || /^https?:\/\//i.test(raw)) return raw;
+        return raw
+            .replace(new RegExp(`^${bucket.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/`, 'i'), '')
+            .replace(/^storage\/v1\/object\/sign\/[^/]+\//i, '')
+            .replace(/^storage\/v1\/object\/public\/[^/]+\//i, '');
+    };
+
     const normalizeRecordPageImagePath = (value, page) => {
         const raw = String(value || '').trim();
         if (/^https?:\/\//i.test(raw)) return raw.replace(/\.jpg(\?|#|$)/i, '.jpeg$1');
@@ -113,7 +126,7 @@
             content: text,
             importance: row.importance || raw.importance || '',
             attachments,
-            hidden: Boolean(row.hidden ?? raw.hidden),
+            hidden: truthyHidden(row.hidden ?? raw.hidden),
             imagePath: normalizeRecordPageImagePath(row.image_path || raw.imagePath || raw.image || raw.pageImage || '', row.page || raw.page),
             source: 'supabase'
         };
@@ -183,7 +196,7 @@
                 startFile: row.start_file || raw.startFile || raw.start || '',
                 endFile: row.end_file || raw.endFile || raw.end || '',
                 imagePath: normalizeRecordPageImagePath(row.image_path || raw.imagePath || raw.image || '', page),
-                hidden: Boolean(row.hidden ?? raw.hidden)
+                hidden: truthyHidden(row.hidden ?? raw.hidden)
             };
         });
     };
@@ -201,13 +214,13 @@
                 choices: Array.isArray(row.choices) ? row.choices : (Array.isArray(raw.choices) ? raw.choices : []),
                 answer: row.answer || raw.answer || '',
                 explanation: row.explanation || raw.explanation || '',
-                image: row.image_path || raw.image || raw.imagePath || ''
+                image: normalizePrivateStoragePath(row.image_path || raw.image || raw.imagePath || '')
             };
         });
     };
 
     const signAssetUrl = async (path, { expiresIn } = {}) => {
-        const safePath = String(path || '').replace(/^\/+/, '');
+        const safePath = normalizePrivateStoragePath(path);
         if (!safePath || /^https?:\/\//i.test(safePath)) return safePath;
         const config = await getConfig();
         const client = await getClient();
@@ -218,7 +231,10 @@
 
     const signAssetUrls = async (paths, options) => {
         const unique = [...new Set((paths || []).filter(Boolean))];
-        const entries = await Promise.all(unique.map(async (path) => [path, await signAssetUrl(path, options)]));
+        const settled = await Promise.allSettled(unique.map(async (path) => [path, await signAssetUrl(path, options)]));
+        const entries = settled
+            .filter((result) => result.status === 'fulfilled')
+            .map((result) => result.value);
         return new Map(entries);
     };
 
@@ -256,6 +272,7 @@
         loadQuizQuestions,
         loadRecordPages,
         loadRecords,
+        normalizePrivateStoragePath,
         normalizeRecordPageImagePath,
         signAssetUrl,
         signAssetUrls

@@ -35,8 +35,7 @@ function getActiveRecords() {
 
 async function ensureFavoriteRecordKeys() {
     if (favoriteRecordKeys) return favoriteRecordKeys;
-    const favorites = await window.RecordInteractions?.getFavorites?.().catch(() => []);
-    favoriteRecordKeys = new Set((favorites || []).map((item) => String(item.record_id || item.fileName || item.id || item)));
+    favoriteRecordKeys = await window.RecordInteractions?.getFavoriteKeys?.().catch(() => new Set()) || new Set();
     return favoriteRecordKeys;
 }
 
@@ -63,69 +62,38 @@ function renderFilterUI() {
     });
 }
 
-function renderPersonReviewPanel(person) {
+function renderPersonReviewStatus(person) {
     if (!window.ReviewSystem || !person?.id) return;
-    const bioNode = document.getElementById("person-bio");
-    if (!bioNode || document.querySelector(".person-review-panel")) return;
-    const panel = document.createElement("section");
-    panel.className = "person-review-panel";
-    panel.innerHTML = `
-        <h2>Profile claim</h2>
-        <p class="person-review-status" aria-live="polite">Loading request status...</p>
-        <form class="person-claim-form">
-            <label><span>Claim note</span><textarea name="note" rows="3" placeholder="Tell the admin why this is you"></textarea></label>
-            <button type="submit" class="btn-action">Submit claim</button>
-        </form>
-        <form class="person-edit-form">
-            <label><span>Display name</span><input name="displayName" type="text" maxlength="80" value="${escapeHtml(person.name || person.id || '')}"></label>
-            <label><span>Aliases</span><input name="alias" type="text" maxlength="200" value="${escapeHtml(person.alias || '')}"></label>
-            <label><span>Bio</span><textarea name="bio" rows="4">${escapeHtml(person.bio || '')}</textarea></label>
-            <button type="submit" class="btn-action">Submit edit</button>
-        </form>
-    `;
-    bioNode.insertAdjacentElement("afterend", panel);
-    const status = panel.querySelector(".person-review-status");
+    const info = document.querySelector(".person-info");
+    if (!info || document.querySelector(".person-review-status")) return;
+    const status = document.createElement("p");
+    status.className = "person-review-status";
+    status.setAttribute("aria-live", "polite");
+    status.textContent = "正在读取认领状态…";
+    info.appendChild(status);
     const refreshStatus = async () => {
         const requests = await window.ReviewSystem.listMyRequests({ personId: person.id }).catch(() => null);
         if (!requests) {
-            status.textContent = "Request status unavailable.";
+            status.textContent = "认领状态暂不可用。";
             return;
         }
         const claim = requests.claims?.[0];
         const edit = requests.edits?.[0];
-        status.textContent = `Claim: ${claim?.status || 'none'} / Edit: ${edit?.status || 'none'}`;
+        status.textContent = `认领审核：${claim?.status || '暂无'}；资料编辑审核：${edit?.status || '暂无'}。请从右上角账号菜单进入认领或编辑流程。`;
     };
-    panel.querySelector(".person-claim-form")?.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const form = event.currentTarget;
-        status.textContent = "Submitting claim...";
-        await window.ReviewSystem.submitPersonClaim({ personId: person.id, note: form.note.value.trim() }).then(() => {
-            form.reset();
-            status.textContent = "Claim submitted for review.";
-            refreshStatus();
-        }).catch((error) => {
-            console.warn("Claim submit failed:", error);
-            status.textContent = "Claim submit failed.";
-        });
-    });
-    panel.querySelector(".person-edit-form")?.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const form = event.currentTarget;
-        status.textContent = "Submitting edit...";
-        await window.ReviewSystem.submitPersonEdit({
-            personId: person.id,
-            displayName: form.displayName.value.trim(),
-            alias: form.alias.value.trim(),
-            bio: form.bio.value.trim()
-        }).then(() => {
-            status.textContent = "Edit submitted for review.";
-            refreshStatus();
-        }).catch((error) => {
-            console.warn("Edit submit failed:", error);
-            status.textContent = "Edit submit failed.";
-        });
-    });
     refreshStatus();
+}
+
+function renderPersonAvatar(person) {
+    const info = document.querySelector(".person-info");
+    if (!info || document.querySelector(".person-avatar-card")) return;
+    const card = document.createElement("div");
+    card.className = "person-avatar-card";
+    const avatar = person.avatarUrl || person.avatar_url || person.avatar || "";
+    card.innerHTML = avatar
+        ? `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(person.name || person.id)} 的头像" loading="lazy" decoding="async">`
+        : `<span>${escapeHtml((person.name || person.id || "?").slice(0, 1))}</span>`;
+    info.prepend(card);
 }
 
 const cacheReady = window.cacheReadyPromise || Promise.resolve();
@@ -139,8 +107,10 @@ cacheReady.then(() => Promise.all([loadAllPeople(), loadAllRecords()])).then(([p
     }
 
     document.getElementById("person-id").textContent = person.id;
-    document.getElementById("person-alias").innerHTML = `<strong>${parseContent(person.alias || "-")}</strong>`;
+    const aliasText = person.alias || (Array.isArray(person.aliases) ? person.aliases.join("、") : "");
+    document.getElementById("person-alias").innerHTML = `<strong>${parseContent(aliasText || "-")}</strong>`;
     document.getElementById("person-bio").innerHTML = `<strong>${formatContent(person.bio || "-")}</strong>`;
+    renderPersonAvatar(person);
 
     if (person.role === "teacher" || person.role === "other") {
         if (recordSwitch) recordSwitch.hidden = true;
@@ -154,7 +124,7 @@ cacheReady.then(() => Promise.all([loadAllPeople(), loadAllRecords()])).then(([p
     sortRecords(authoredRecords);
     renderRecordList(participatedRecords, recordContainer);
     renderFilterUI();
-    renderPersonReviewPanel(person);
+    renderPersonReviewStatus(person);
 });
 
 switchButtons.forEach((btn) => {

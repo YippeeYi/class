@@ -53,15 +53,27 @@
     const prefetchCache = new Set();
     const dataWarmCache = new Set();
 
+    const getSafeRouteUrl = (href) => {
+        const value = String(href || '').trim();
+        if (!value || value === '#' || value.startsWith('#') || value.startsWith('javascript:')) return null;
+        if (/^[a-z][a-z0-9+.-]*:/i.test(value) && !/^https?:/i.test(value)) return null;
+        if (/^[a-zA-Z0-9_-]+$/.test(value) && !value.endsWith('.html')) return null;
+        let url;
+        try {
+            url = new URL(value, window.location.href);
+        } catch (error) {
+            return null;
+        }
+        if (url.origin !== window.location.origin) return null;
+        const file = url.pathname.split('/').pop() || '';
+        const isHtmlPage = /\.html$/i.test(file) || file === '' || file === location.pathname.split('/').pop();
+        return isHtmlPage ? url : null;
+    };
+
     const prefetchPage = (href) => {
-        if (!href) {
-            return;
-        }
-        const url = new URL(href, window.location.href);
+        const url = getSafeRouteUrl(href);
+        if (!url) return;
         if (prefetchCache.has(url.href)) {
-            return;
-        }
-        if (url.origin !== window.location.origin) {
             return;
         }
 
@@ -74,9 +86,8 @@
     };
 
     const warmRouteData = (href) => {
-        if (!href) return;
-        const url = new URL(href, window.location.href);
-        if (url.origin !== window.location.origin || dataWarmCache.has(url.pathname)) return;
+        const url = getSafeRouteUrl(href);
+        if (!url || dataWarmCache.has(url.pathname)) return;
         dataWarmCache.add(url.pathname);
 
         const path = url.pathname.split('/').pop() || 'index.html';
@@ -110,13 +121,13 @@
         if (!trigger) {
             return;
         }
-
-        const href = trigger.getAttribute('data-nav-target')
-            || trigger.getAttribute('data-target')
-            || trigger.getAttribute('href');
-        if (!href || href.startsWith('#') || href.startsWith('javascript:')) {
+        if (trigger.matches('button:not([data-nav-target]), input, select, option, textarea, datalist, [role="button"]:not([data-nav-target])')) {
             return;
         }
+
+        const href = trigger.getAttribute('data-nav-target')
+            || (trigger.tagName === 'A' ? trigger.getAttribute('href') : '')
+            || trigger.getAttribute('href');
         prefetchPage(href);
         warmRouteData(href);
     };
@@ -140,6 +151,7 @@
             prefetchPage('search.html');
             prefetchPage('timeline.html');
             prefetchPage('shop.html');
+            prefetchPage('credits.html');
             warmCoreData();
         };
 

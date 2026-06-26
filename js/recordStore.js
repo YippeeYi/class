@@ -10,8 +10,12 @@ window.RecordStore = {
     hiddenLoaded: false
 };
 
+function isHiddenRecord(record) {
+    return record?.hidden === true || String(record?.hidden || "").trim().toLowerCase() === "true";
+}
+
 function normalizeRecordList(list, { hidden = false } = {}) {
-    return list.filter((record) => record && Boolean(record.hidden) === Boolean(hidden)).map((record, index) => {
+    return list.filter((record) => record && isHiddenRecord(record) === Boolean(hidden)).map((record, index) => {
         if (!record.time) {
             delete record.time;
         }

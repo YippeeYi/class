@@ -156,6 +156,29 @@ $$;
 
 grant execute on function public.get_record_interaction_summaries(text[]) to authenticated;
 
+alter table if exists public.record_reactions drop constraint if exists record_reactions_type_check;
+alter table if exists public.record_reactions
+    add constraint record_reactions_type_check check (type in ('like', 'happy', 'surprised', 'sad', 'angry', 'favorite'));
+
+create table if not exists public.record_comment_likes (
+    id uuid primary key default gen_random_uuid(),
+    comment_id uuid not null references public.record_comments(id) on delete cascade,
+    user_id uuid not null references auth.users(id) on delete cascade,
+    created_at timestamptz not null default now(),
+    unique (comment_id, user_id)
+);
+
+create index if not exists record_comment_likes_comment_id_idx on public.record_comment_likes (comment_id);
+create index if not exists record_comment_likes_user_id_idx on public.record_comment_likes (user_id);
+alter table public.record_comment_likes enable row level security;
+
+drop policy if exists "comment_likes_select_authenticated" on public.record_comment_likes;
+create policy "comment_likes_select_authenticated" on public.record_comment_likes for select to authenticated using (true);
+drop policy if exists "comment_likes_insert_self" on public.record_comment_likes;
+create policy "comment_likes_insert_self" on public.record_comment_likes for insert to authenticated with check (auth.uid() = user_id);
+drop policy if exists "comment_likes_delete_self" on public.record_comment_likes;
+create policy "comment_likes_delete_self" on public.record_comment_likes for delete to authenticated using (auth.uid() = user_id);
+
 -- Phase 1 additions: profiles, hidden records, review queues, wall messages.
 -- Execute this after the previous setup files. It is safe to rerun.
 
@@ -252,6 +275,7 @@ create table if not exists public.person_edit_requests (
     requested_display_name text,
     requested_alias text,
     requested_bio text,
+    requested_avatar_url text,
     status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
     review_note text,
     reviewed_by uuid references auth.users(id) on delete set null,
@@ -259,6 +283,8 @@ create table if not exists public.person_edit_requests (
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
+
+alter table public.person_edit_requests add column if not exists requested_avatar_url text;
 
 create index if not exists correction_requests_user_status_idx on public.correction_requests (user_id, status, created_at desc);
 create index if not exists wall_messages_status_created_idx on public.wall_messages (status, created_at desc);
