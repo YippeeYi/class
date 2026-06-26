@@ -163,6 +163,8 @@
                 aliases: Array.isArray(row.aliases) ? row.aliases : (Array.isArray(raw.aliases) ? raw.aliases : []),
                 bio: row.bio || raw.bio || '',
                 avatarUrl: row.avatar_url || raw.avatarUrl || raw.avatar || '',
+                claimedBy: row.claimed_by || raw.claimedBy || raw.claimed_by || '',
+                claimedAt: row.claimed_at || raw.claimedAt || raw.claimed_at || '',
                 source: 'supabase'
             };
             if (typeof onProgressStep === 'function') onProgressStep(item.id);
@@ -260,6 +262,24 @@
         return new Map(entries);
     };
 
+    const uploadAssetFile = async (path, file, { contentType, upsert = true } = {}) => {
+        const safePath = normalizePrivateStoragePath(path);
+        if (!safePath || !file) throw new Error('Storage upload path and file are required.');
+        const config = await getConfig();
+        const client = await getClient();
+        const { data, error } = await client.storage.from(config.bucket).upload(safePath, file, {
+            cacheControl: '3600',
+            contentType: contentType || file.type || 'application/octet-stream',
+            upsert
+        });
+        if (error) throw error;
+        signedUrlCache.delete(safePath);
+        failedSignCache.delete(safePath);
+        const folder = safePath.split('/').slice(0, -1).join('/');
+        if (folder) listCache.delete(folder);
+        return data?.path || safePath;
+    };
+
     const listAssetPaths = async (prefix = '') => {
         const safePrefix = normalizePrivateStoragePath(prefix).replace(/\/+$/, '');
         if (listCache.has(safePrefix)) return listCache.get(safePrefix);
@@ -318,6 +338,7 @@
         normalizeRecordPageImagePath,
         signAssetUrl,
         signAssetUrls,
+        uploadAssetFile,
         listAssetPaths
     };
 })();

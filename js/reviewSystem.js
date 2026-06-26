@@ -146,7 +146,7 @@
                 .from(peopleTable)
                 .update({ claimed_by: row.user_id, claimed_at: nowIso() })
                 .eq('id', row.person_id)
-                .is('claimed_by', null);
+                .or('claimed_by.is.null,claimed_by.eq.');
             if (error) throw error;
         }
         if (tableKey === 'personEditRequests') {
@@ -154,13 +154,17 @@
                 .split(/[,]/)
                 .map((item) => item.trim())
                 .filter(Boolean);
-            const payload = {
-                display_name: String(row.requested_display_name || '').trim(),
-                alias: aliasList.join(', '),
-                aliases: aliasList,
-                bio: String(row.requested_bio || '').trim(),
-                updated_at: nowIso()
-            };
+            const payload = { updated_at: nowIso() };
+            const displayName = String(row.requested_display_name || '').trim();
+            const bio = String(row.requested_bio || '').trim();
+            const avatarUrl = String(row.requested_avatar_url || '').trim();
+            if (displayName) payload.display_name = displayName;
+            if (String(row.requested_alias || '').trim()) {
+                payload.alias = aliasList.join(', ');
+                payload.aliases = aliasList;
+            }
+            if (bio) payload.bio = bio;
+            if (avatarUrl) payload.avatar_url = avatarUrl;
             const { error } = await client
                 .from(peopleTable)
                 .update(payload)

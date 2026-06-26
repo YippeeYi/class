@@ -20,9 +20,16 @@
     const DROPDOWN_CLOSE_DELAY = 140;
     const sortDropdown = sortControls?.querySelector('.sort-dropdown');
 
+    function getPendingHighlightKey() {
+        const userId = window.getCurrentUser?.()?.id || '';
+        return userId ? `${PENDING_HIGHLIGHT_KEY}:${userId}` : '';
+    }
+
     function readPendingHighlights() {
+        const key = getPendingHighlightKey();
+        if (!key) return new Set();
         try {
-            const raw = JSON.parse(localStorage.getItem('classRecord:achievementPendingHighlights') || '[]');
+            const raw = JSON.parse(localStorage.getItem(key) || '[]');
             return new Set(Array.isArray(raw) ? raw.filter(Boolean) : []);
         } catch (error) {
             return new Set();
@@ -30,7 +37,8 @@
     }
 
     function savePendingHighlights() {
-        localStorage.setItem(PENDING_HIGHLIGHT_KEY, JSON.stringify([...pendingHighlightIds]));
+        const key = getPendingHighlightKey();
+        if (key) localStorage.setItem(key, JSON.stringify([...pendingHighlightIds]));
     }
 
     function openSortDropdown() {

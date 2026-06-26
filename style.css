@@ -2411,7 +2411,7 @@ body>#glossary-list {
 
 .record-written-layout {
   display: grid;
-  grid-template-columns: minmax(380px, 1.35fr) minmax(0, 0.85fr);
+  grid-template-columns: minmax(320px, 42%) minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
@@ -2456,8 +2456,7 @@ body>#glossary-list {
   font-weight: 800;
 }
 
-.record-written-image.is-missing img,
-.record-written-image.is-hidden-missing {
+.record-written-image.is-missing img {
   display: none;
 }
 
@@ -2477,8 +2476,7 @@ body>#glossary-list {
 }
 
 .record-written-image.is-loaded .record-written-image-loading,
-.record-written-image.is-missing .record-written-image-loading,
-.record-written-image.is-hidden-missing .record-written-image-loading {
+.record-written-image.is-missing .record-written-image-loading {
   display: none;
 }
 
@@ -6447,6 +6445,85 @@ body.hidden-record-mode .hidden-record-banner {
   background: color-mix(in srgb, var(--theme-surface) 88%, white);
   color: var(--text-main);
   font: inherit;
+}
+
+.record-written-layout .record-written-image {
+  position: sticky;
+  top: max(18px, env(safe-area-inset-top));
+  align-self: start;
+  min-height: 320px;
+}
+
+.record-written-image.is-missing::before,
+.record-written-image.is-error::before {
+  display: flex;
+}
+
+.record-written-image.is-loaded::before,
+.record-written-image.is-loading::before {
+  display: none;
+}
+
+.record-written-image.is-missing img,
+.record-written-image.is-error img {
+  display: none;
+}
+
+.record-written-image.is-loaded .record-written-image-loading,
+.record-written-image.is-missing .record-written-image-loading,
+.record-written-image.is-error .record-written-image-loading {
+  display: none;
+}
+
+.person-info {
+  position: relative;
+}
+
+.person-avatar-card {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 96px;
+  margin: 0;
+  border-radius: 12px;
+}
+
+.person-info.has-person-avatar {
+  padding-right: 116px;
+}
+
+.person-avatar-tools {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.person-avatar-tools[hidden] {
+  display: none;
+}
+
+.person-avatar-tools input[type="file"] {
+  max-width: 100%;
+}
+
+@media (max-width: 900px) {
+  .record-written-layout .record-written-image {
+    position: relative;
+    top: auto;
+    min-height: 240px;
+  }
+}
+
+@media (max-width: 640px) {
+  .person-avatar-card {
+    position: static;
+    width: 84px;
+    margin-bottom: 12px;
+  }
+
+  .person-info.has-person-avatar {
+    padding-right: 0;
+  }
 }
 
 .account-panel small {

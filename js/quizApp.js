@@ -672,18 +672,26 @@
     if (window.ClassRecordData?.isEnabled?.()) {
       try {
         const rows = await window.ClassRecordData.loadQuizQuestions(SECRET_CONTENT);
+        const existingImagePaths = new Set(
+          (await window.ClassRecordData.listAssetPaths?.(`images/quiz/${SECRET_CONTENT}`).catch(() => [])) || []
+        );
         const settled = await Promise.allSettled(rows.map(async (item, index) => {
           const imagePath = item.image || item.imagePath || '';
-          const image = imagePath ? await window.ClassRecordData.signAssetUrl(imagePath, { quiet: true }).catch((error) => {
-            console.warn('题目图片签名失败：', imagePath, error);
-            return '';
-          }) : '';
+          const normalizedImagePath = window.ClassRecordData.normalizePrivateStoragePath?.(imagePath) || imagePath;
+          const shouldSignImage = normalizedImagePath && (
+            /^https?:\/\//i.test(normalizedImagePath)
+            || !normalizedImagePath.startsWith(`images/quiz/${SECRET_CONTENT}/`)
+            || existingImagePaths.has(normalizedImagePath)
+          );
+          const image = shouldSignImage ? await window.ClassRecordData.signAssetUrl(normalizedImagePath, { quiet: true }).catch(() => '') : '';
           return normalizeQuestion({
             id: item.id || `${SECRET_CONTENT}-${index + 1}`,
-            type: item.type || 'fill',
+            type: item.type || 'choice',
             content: SECRET_CONTENT,
             prompt: item.prompt || 'Hidden question',
             answer: item.answer || '',
+            options: item.options || item.choices || [],
+            choices: item.choices || item.options || [],
             explanation: item.explanation || '',
             image
           }, index);
@@ -959,12 +967,12 @@
     const group = button.dataset.group;
     const value = button.dataset.value;
     if (group === 'contents' && value === SECRET_CONTENT) {
-      activeFilters.types = new Set(['fill']);
+      activeFilters.types = new Set(getAvailableTypesForContent(SECRET_CONTENT).length ? getAvailableTypesForContent(SECRET_CONTENT) : ['choice']);
       activeFilters.contents = new Set([SECRET_CONTENT]);
       renderQuestion();
       return;
     }
-    if (group === 'types' && activeFilters.contents.has(SECRET_CONTENT) && value !== 'fill') {
+    if (group === 'types' && activeFilters.contents.has(SECRET_CONTENT) && !getAvailableTypesForContent(SECRET_CONTENT).includes(value)) {
       return;
     }
     if (group === 'contents' && value !== SECRET_CONTENT && activeFilters.contents.has(SECRET_CONTENT)) {

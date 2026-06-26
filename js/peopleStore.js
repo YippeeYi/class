@@ -8,8 +8,8 @@ window.PeopleStore = {
     loaded: false
 };
 
-window.loadAllPeople = async function ({ onProgressStep } = {}) {
-    if (PeopleStore.loaded) {
+window.loadAllPeople = async function ({ onProgressStep, force = false } = {}) {
+    if (PeopleStore.loaded && !force) {
         return PeopleStore.people;
     }
     if (!window.ClassRecordData?.isEnabled()) {
@@ -19,6 +19,7 @@ window.loadAllPeople = async function ({ onProgressStep } = {}) {
     const list = await loadWithCache({
         key: "people",
         expire: 24 * 60 * 60 * 1000,
+        force,
         loader: () => window.ClassRecordData.loadPeople({ onProgressStep })
     });
 

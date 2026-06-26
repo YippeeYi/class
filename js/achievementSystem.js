@@ -161,17 +161,31 @@
         return state;
     }
 
+    function getCurrentUserId() {
+        return window.getCurrentUser?.()?.id || '';
+    }
+
+    function getAchievementStorageKey() {
+        const userId = getCurrentUserId();
+        return userId ? `${STORAGE_KEY}:${userId}` : '';
+    }
+
     function readState() {
+        const storageKey = getAchievementStorageKey();
+        if (!storageKey) return clone(DEFAULT_STATE);
         try {
-            return mergeState(JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'));
+            return mergeState(JSON.parse(localStorage.getItem(storageKey) || 'null'));
         } catch (error) {
             return clone(DEFAULT_STATE);
         }
     }
 
     function readQcoinState() {
+        const userId = getCurrentUserId();
+        const storageKey = userId ? `${QCOIN_STORAGE_KEY}:${userId}` : '';
+        if (!storageKey) return {};
         try {
-            const raw = JSON.parse(localStorage.getItem(QCOIN_STORAGE_KEY) || 'null');
+            const raw = JSON.parse(localStorage.getItem(storageKey) || 'null');
             return raw && typeof raw === 'object' ? raw : {};
         } catch (error) {
             return {};
@@ -179,10 +193,14 @@
     }
 
     let currentState = readState();
+    let remoteStateReady = false;
+    let syncingRemoteState = null;
+    const pendingRecords = [];
     const listeners = new Set();
 
     function saveState() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(currentState));
+        const storageKey = getAchievementStorageKey();
+        if (storageKey) localStorage.setItem(storageKey, JSON.stringify(currentState));
         window.ClassRecordUserState?.saveAchievementState?.(currentState);
         window.ClassRecordSupabase?.updateProfileState?.({
             achievement_progress: currentState.completed || {},
@@ -391,6 +409,10 @@
     }
     function record(type, value) {
         if (window.ClassRecordHiddenModeActive) return;
+        if (!remoteStateReady) {
+            pendingRecords.push([type, value]);
+            return;
+        }
         if (type === 'page') {
             currentState.stats.pages[value] = Number(currentState.stats.pages[value] || 0) + 1;
         } else if (type === 'person') {
@@ -505,18 +527,39 @@
         if (document.fullscreenElement) record('fullscreen', 'entered');
     });
 
+    function flushPendingRecords() {
+        if (!remoteStateReady || !pendingRecords.length) return;
+        const records = pendingRecords.splice(0, pendingRecords.length);
+        records.forEach(([type, value]) => record(type, value));
+    }
+
     function syncRemoteAchievementState() {
-        window.ClassRecordUserState?.getAchievementState?.().then((remoteState) => {
-            if (!remoteState || !Object.keys(remoteState).length) {
-                window.ClassRecordUserState?.saveAchievementState?.(currentState);
-                return;
-            }
-            currentState = mergeState(remoteState);
-            syncQcoinStats();
-            evaluate({ notify: false });
-            listeners.forEach((listener) => listener(getAchievementView(), []));
-            window.dispatchEvent(new CustomEvent("achievementchange", { detail: { achievements: getAchievementView(), unlocked: [] } }));
-        }).catch((error) => console.warn("账号成就状态加载失败：", error));
+        if (syncingRemoteState) return syncingRemoteState;
+        syncingRemoteState = (window.ClassRecordUserState?.ready || Promise.resolve())
+            .then(() => window.ClassRecordUserState?.getAchievementState?.())
+            .then((remoteState) => {
+                if (remoteState && Object.keys(remoteState).length) {
+                    currentState = mergeState(remoteState);
+                } else {
+                    currentState = readState();
+                    window.ClassRecordUserState?.saveAchievementState?.(currentState);
+                }
+                syncQcoinStats();
+                evaluate({ notify: false });
+                remoteStateReady = true;
+                listeners.forEach((listener) => listener(getAchievementView(), []));
+                window.dispatchEvent(new CustomEvent("achievementchange", { detail: { achievements: getAchievementView(), unlocked: [] } }));
+                flushPendingRecords();
+            })
+            .catch((error) => {
+                console.warn('Account achievement state load failed:', error);
+                remoteStateReady = true;
+                flushPendingRecords();
+            })
+            .finally(() => {
+                syncingRemoteState = null;
+            });
+        return syncingRemoteState;
     }
 
     function replayQueuedNotifications() {
@@ -536,16 +579,20 @@
     }
 
     bindInteractionTracking();
-    syncRemoteAchievementState();
+    const initialRemoteSync = syncRemoteAchievementState();
     window.addEventListener('classRecordUserStateReady', syncRemoteAchievementState);
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            replayQueuedNotifications();
-            recordCurrentPage();
+            initialRemoteSync.finally(() => {
+                replayQueuedNotifications();
+                recordCurrentPage();
+            });
         }, { once: true });
     } else {
-        replayQueuedNotifications();
-        recordCurrentPage();
+        initialRemoteSync.finally(() => {
+            replayQueuedNotifications();
+            recordCurrentPage();
+        });
     }
 })();

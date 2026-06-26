@@ -21,6 +21,11 @@
     const listeners = new Set();
     const clone = (value) => JSON.parse(JSON.stringify(value));
 
+    function getStorageKey() {
+        const userId = window.getCurrentUser?.()?.id || '';
+        return userId ? `${STORAGE_KEY}:${userId}` : '';
+    }
+
     function mergeState(raw) {
         const state = clone(DEFAULT_STATE);
         if (!raw || typeof raw !== 'object') return state;
@@ -33,7 +38,9 @@
     }
 
     function readState() {
-        try { return mergeState(JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')); }
+        const storageKey = getStorageKey();
+        if (!storageKey) return clone(DEFAULT_STATE);
+        try { return mergeState(JSON.parse(localStorage.getItem(storageKey) || 'null')); }
         catch (error) { return clone(DEFAULT_STATE); }
     }
 
@@ -50,7 +57,8 @@
     }
 
     function saveState() {
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(currentState)); }
+        const storageKey = getStorageKey();
+        try { if (storageKey) localStorage.setItem(storageKey, JSON.stringify(currentState)); }
         catch (error) { /* ignore */ }
         persistRemote();
     }
@@ -188,7 +196,7 @@
     };
 
     window.addEventListener('storage', (event) => {
-        if (event.key !== STORAGE_KEY) return;
+        if (event.key !== getStorageKey()) return;
         currentState = readState();
         syncBalanceTargets();
     });
@@ -199,8 +207,9 @@
     }, { once: true });
     window.QcoinState.subscribe(syncBalanceTargets);
 
-    window.ClassRecordUserState?.getQcoinState?.().then((remoteState) => {
+    (window.ClassRecordUserState?.ready || Promise.resolve()).then(() => window.ClassRecordUserState?.getQcoinState?.()).then((remoteState) => {
         if (!remoteState || !Object.keys(remoteState).length) {
+            currentState = readState();
             window.ClassRecordUserState?.saveQcoinState?.(currentState);
             return;
         }

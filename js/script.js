@@ -10,6 +10,7 @@ const HIDDEN_RECORD_SEQUENCE = "qibaishihuaxia";
 let allRecords = [];
 let recordPageConfig = [];
 let favoriteRecordKeys = null;
+let writtenImageRenderToken = 0;
 let hiddenMode = false;
 let hiddenSequenceBuffer = "";
 
@@ -120,15 +121,21 @@ function getRecordIndexMap() {
   return map;
 }
 
+function normalizeHiddenPageKey(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return "";
+  const fileName = text.split(/[\\/]/).pop() || text;
+  const match = fileName.match(/^h?(\d{1,3})(?:\.jpeg)?$/i);
+  if (match) return match[1].padStart(2, "0");
+  return "";
+}
+
 function getPageRecords(page, filteredRecords, recordIndexMap) {
   if (hiddenMode) {
-    const pageId = String(page.page || "").replace(/^H/i, "").padStart(2, "0");
-    const hiddenImageName = `H${pageId}.jpeg`.toLowerCase();
-    const normalImageName = `${pageId}.jpeg`.toLowerCase();
+    const pageId = normalizeHiddenPageKey(page.page);
     const byImage = filteredRecords.filter((record) => {
-      const fields = [record.page, record.pageNumber, record.image, record.imagePath, record.pageImage, record.image_path]
-        .map((value) => String(value || "").toLowerCase());
-      return fields.some((value) => value === pageId || value.endsWith(hiddenImageName) || value.endsWith(normalImageName));
+      const fields = [record.page, record.pageNumber, record.image, record.imagePath, record.pageImage, record.image_path, record.pageId, record.page_id];
+      return fields.some((value) => normalizeHiddenPageKey(value) === pageId);
     });
     if (byImage.length) return byImage;
   }
@@ -153,13 +160,23 @@ function getPageImagePath(page, pageRecords) {
   return normalizeRecordPageImagePath(page.imagePath || pageRecords.find((record) => record.imagePath)?.imagePath, page.page);
 }
 
+function setWrittenImageState(figure, state, token) {
+  if (!figure || String(figure.dataset.renderToken || "") !== String(token)) return;
+  figure.dataset.imageState = state;
+  figure.classList.toggle("is-loading", state === "loading");
+  figure.classList.toggle("is-loaded", state === "loaded");
+  figure.classList.toggle("is-missing", state === "missing");
+  figure.classList.toggle("is-error", state === "error");
+}
+
 function renderWrittenView(records) {
+  const token = ++writtenImageRenderToken;
   const pages = getWrittenPages(records);
   if (!pages.length) {
     container.innerHTML = `<div class="record-written-empty">${hiddenMode ? "隐藏记录模式下没有可展示的书面记录页。" : "当前筛选条件下没有可展示的记录。"}</div>`;
     return;
   }
-  currentPageIndex = Math.min(currentPageIndex, pages.length - 1);
+  currentPageIndex = Math.max(0, Math.min(currentPageIndex, pages.length - 1));
   const page = pages[currentPageIndex];
   const pageRecords = page.records || [];
   pageRecords.sort((a, b) => (a.recordIndex ?? 0) - (b.recordIndex ?? 0));
@@ -187,7 +204,7 @@ function renderWrittenView(records) {
         </div>
       </div>
       <div class="record-written-layout">
-        <figure class="record-written-image${imagePath ? '' : ' is-missing'}${hiddenMode ? ' is-hidden-image' : ''}">
+        <figure class="record-written-image${imagePath ? ' is-loading' : ' is-missing'}${hiddenMode ? ' is-hidden-image' : ''}" data-render-token="${token}" data-image-state="${imagePath ? 'loading' : 'missing'}">
           ${imagePath ? `<img ${srcAttr} ${secureAttr} alt="${page.page} 原始书面记录" loading="eager" decoding="async" fetchpriority="high">` : ""}
           <span class="record-written-image-loading">${imagePath ? "加载中…" : "未找到书面文件"}</span>
         </figure>
@@ -197,23 +214,23 @@ function renderWrittenView(records) {
   `;
 
   renderRecordList(pageRecords, container.querySelector(".record-written-records"));
-  if (window.ClassRecordData?.isEnabled() && imagePath) {
-    window.ClassRecordData.resolveAssetElements(container).catch((error) => console.warn("书面记录图片加载失败：", error));
-  }
+  const writtenFigure = container.querySelector(".record-written-image");
   const writtenImage = container.querySelector(".record-written-image img");
   writtenImage?.addEventListener("load", (event) => {
-    const figure = event.currentTarget.closest(".record-written-image");
-    figure?.classList.add("is-loaded");
-    figure?.classList.remove("is-missing");
+    setWrittenImageState(event.currentTarget.closest(".record-written-image"), "loaded", token);
   }, { once: true });
   writtenImage?.addEventListener("error", (event) => {
-    const figure = event.currentTarget.closest(".record-written-image");
-    if (hiddenMode) {
-      figure?.classList.add("is-hidden-missing");
-    } else {
-      figure?.classList.add("is-missing");
-    }
+    setWrittenImageState(event.currentTarget.closest(".record-written-image"), "error", token);
   }, { once: true });
+  if (window.ClassRecordData?.isEnabled() && imagePath) {
+    window.ClassRecordData.resolveAssetElements(container).then(() => {
+      if (!writtenImage || writtenImage.src) return;
+      setWrittenImageState(writtenFigure, "missing", token);
+    }).catch((error) => {
+      console.warn("书面记录图片加载失败：", error);
+      setWrittenImageState(writtenFigure, "error", token);
+    });
+  }
   container.querySelector(".record-page-prev")?.addEventListener("click", () => {
     currentPageIndex = Math.max(currentPageIndex - 1, 0);
     renderCurrentViewAsync();

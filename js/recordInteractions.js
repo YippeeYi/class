@@ -114,7 +114,7 @@
         const active = summary.myEmotions.has(emotion.type);
         return `
             <button type="button" class="record-social-btn record-emotion-btn${active ? ' is-active' : ''}" data-action="toggle-reaction" data-type="${escapeAttr(emotion.type)}" aria-label="${escapeAttr(emotion.label)}" aria-pressed="${active}">
-                <span class="record-social-emoji" aria-hidden="true">${emotion.icon}</span><strong>${source === 'popover' ? emotion.label : count}</strong>
+                <span class="record-social-emoji" aria-hidden="true">${emotion.icon}</span>${count ? `<strong>${count}</strong>` : ''}
             </button>
         `;
     };
