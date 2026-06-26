@@ -9,14 +9,7 @@ if (!termId) {
 const recordContainer = document.getElementById("record-list");
 let allRecords = [];
 let relatedRecords = [];
-let termFilterCriteria = { year: "", month: "", day: "", important: false, excludeDaily: false, favorites: false };
-let favoriteRecordKeys = null;
-
-async function ensureFavoriteRecordKeys() {
-    if (favoriteRecordKeys) return favoriteRecordKeys;
-    favoriteRecordKeys = await window.RecordInteractions?.getFavoriteKeys?.().catch(() => new Set()) || new Set();
-    return favoriteRecordKeys;
-}
+let termFilterCriteria = { year: "", month: "", day: "", important: false, excludeDaily: false };
 
 const cacheReady = window.cacheReadyPromise || Promise.resolve();
 
@@ -48,10 +41,6 @@ cacheReady.then(() => Promise.all([loadAllGlossary(), loadAllPeople(), loadAllRe
 
     const renderFilteredRecords = async () => {
         let filtered = filterRecordsByDate(relatedRecords, termFilterCriteria);
-        if (termFilterCriteria.favorites) {
-            const keys = await ensureFavoriteRecordKeys();
-            filtered = filtered.filter((record) => keys.has(String(record.fileName || record.id)));
-        }
         sortRecords(filtered);
         renderRecordList(filtered, recordContainer);
     };

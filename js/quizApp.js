@@ -1,7 +1,4 @@
 (() => {
-  const CHOICE_REWARD = 100;
-  const FILL_REWARD = 500;
-  const JUDGE_REWARD = 100;
   const SECRET_SEQUENCE = 'lamian';
   const SECRET_CONTENT = 'lamian';
   const questionText = document.getElementById('quiz-question-text');
@@ -249,7 +246,6 @@
     const answer = String(raw.answer ?? raw.correctAnswer ?? '').trim();
     const options = uniqueOptions(raw.options || raw.choices || raw.answers || []);
     const imagePath = raw.image || raw.imagePath || raw.image_url || '';
-    const reward = Number(raw.reward) || (type === 'choice' ? CHOICE_REWARD : type === 'judge' ? JUDGE_REWARD : FILL_REWARD);
     return {
       ...raw,
       id: String(raw.id || `${content || 'question'}-${index + 1}`),
@@ -266,8 +262,7 @@
       sideLabel: raw.sideLabel || raw.side_label || '',
       sideText: raw.sideText || raw.side_text || '',
       options: type === 'choice' ? uniqueOptionsWithAnswer(answer, options) : options,
-      choices: type === 'choice' ? uniqueOptionsWithAnswer(answer, options) : options,
-      reward
+      choices: type === 'choice' ? uniqueOptionsWithAnswer(answer, options) : options
     };
   }
 
@@ -361,7 +356,6 @@
     return {
       ...base,
       type: 'choice',
-      reward: CHOICE_REWARD,
       prompt: kind === 'person' ? '\u8bf7\u6839\u636e\u8bb0\u5f55\u5185\u5bb9\u9009\u62e9\u88ab\u6316\u7a7a\u7684\u4eba\u540d\u3002' : '\u8bf7\u6839\u636e\u8bb0\u5f55\u5185\u5bb9\u9009\u62e9\u88ab\u6316\u7a7a\u7684\u672f\u8bed\u3002',
       options: shuffle(finalOptions.slice(0, 4))
     };
@@ -374,7 +368,6 @@
     return {
       ...base,
       type: 'fill',
-      reward: FILL_REWARD,
       prompt: kind === 'person' ? '\u8bf7\u586b\u5199\u8bb0\u5f55\u4e2d\u88ab\u6316\u7a7a\u7684\u4eba\u540d\u3002' : '\u8bf7\u586b\u5199\u8bb0\u5f55\u4e2d\u88ab\u6316\u7a7a\u7684\u672f\u8bed\u3002',
       options: []
     };
@@ -410,7 +403,6 @@
       availableRefs,
       replacementPool: uniqueValues(replacementPool),
       replacementPeople,
-      reward: JUDGE_REWARD,
       options: ['\u6b63\u786e', '\u9519\u8bef'],
       randomizeOnPick: true
     };
@@ -591,7 +583,6 @@
       answer: record.author,
       prompt: '\u8bf7\u9009\u62e9\u8fd9\u6761\u8bb0\u5f55\u7684\u8bb0\u5f55\u4eba',
       recordText: buildDisplayText(record).trim(),
-      reward: CHOICE_REWARD,
       options: shuffle(options)
     };
   }
@@ -606,7 +597,6 @@
       answer: String(record.author).toLowerCase(),
       prompt: '\u8bf7\u586b\u5199\u8fd9\u6761\u8bb0\u5f55\u7684\u8bb0\u5f55\u4eba\u59d3\u540d\u62fc\u97f3\u9996\u5b57\u6bcd\u3002',
       recordText: buildDisplayText(record).trim(),
-      reward: FILL_REWARD,
       options: []
     };
   }
@@ -629,7 +619,6 @@
       correctionTarget: 'side',
       wrongText: '',
       correctText: record.author,
-      reward: JUDGE_REWARD,
       options: ['\u6b63\u786e', '\u9519\u8bef'],
       randomizeOnPick: true
     };
@@ -682,7 +671,6 @@
       answer: record.date,
       prompt: '\u8bf7\u9009\u62e9\u8fd9\u6761\u8bb0\u5f55\u7684\u8bb0\u5f55\u65f6\u95f4',
       recordText: buildDisplayText(record).trim(),
-      reward: CHOICE_REWARD,
       options: shuffle(options)
     };
   }
@@ -692,19 +680,28 @@
       try {
         const rows = await window.ClassRecordData.loadQuizQuestions(SECRET_CONTENT);
         const normalizeSecretImagePath = (value) => {
-          const path = window.ClassRecordData.normalizePrivateStoragePath?.(value) || String(value || '').trim();
+          const raw = String(value || '').trim();
+          const path = window.ClassRecordData.normalizePrivateStoragePath?.(raw) || raw.replace(/^\/+/, '');
           if (!path || /^https?:\/\//i.test(path)) return path;
-          if (path.startsWith(`images/quiz/${SECRET_CONTENT}/`)) return path;
-          if (path.startsWith(`quiz/${SECRET_CONTENT}/`)) return `images/${path}`;
-          if (!path.includes('/')) return `images/quiz/${SECRET_CONTENT}/${path}`;
+          const clean = path
+            .replace(/^images\/record-pages\//i, '')
+            .replace(/^record-pages\//i, '')
+            .replace(/^images\/quiz\/lamian\//i, '')
+            .replace(/^quiz\/lamian\//i, '')
+            .replace(/^lamian\//i, '');
+          if (!clean.includes('/')) return `images/quiz/${SECRET_CONTENT}/${clean}`;
           return path;
         };
         const settled = await Promise.allSettled(rows.map(async (item, index) => {
           const imagePath = normalizeSecretImagePath(item.image || item.imagePath || '');
-          const image = imagePath ? await window.ClassRecordData.signAssetUrl(imagePath, { quiet: true }).catch((error) => {
-            console.warn('Secret quiz image signing failed:', imagePath, error);
-            return '';
-          }) : '';
+          let image = '';
+          if (imagePath) {
+            image = await window.ClassRecordData.signAssetUrl(imagePath, { quiet: true }).catch((error) => {
+              console.warn('Secret quiz image signing failed:', imagePath, error);
+              return '';
+            });
+            if (!image) console.warn('Secret quiz image unavailable:', imagePath);
+          }
           return normalizeQuestion({
             id: item.id || `${SECRET_CONTENT}-${index + 1}`,
             type: 'fill',
@@ -714,7 +711,8 @@
             options: item.options || item.choices || [],
             choices: item.choices || item.options || [],
             explanation: item.explanation || '',
-            image
+            image,
+            imagePath
           }, index);
         }));
         return settled
@@ -873,7 +871,7 @@
     nextButton.disabled = false;
     renderQuestionBody(false);
     const visibleContentLabels = secretUnlocked ? { ...contentLabels, ...secretContentLabels } : contentLabels;
-    questionMeta.textContent = `\u6761\u76ee ${currentQuestion.id} \u00b7 ${typeLabels[currentQuestion.type]} \u00b7 ${visibleContentLabels[currentQuestion.content]} \u00b7 \u7b54\u5bf9\u5956\u52b1 ${currentQuestion.reward} Q\u5e01`;
+    questionMeta.textContent = `\u6761\u76ee ${currentQuestion.id} \u00b7 ${typeLabels[currentQuestion.type]} \u00b7 ${visibleContentLabels[currentQuestion.content]}`;
 
     const isFill = currentQuestion.type === 'fill' || currentQuestion.content === SECRET_CONTENT;
     optionsWrap.hidden = isFill;
@@ -932,9 +930,7 @@
 
     answeredCurrent = true;
     if (fillInput) fillInput.disabled = true;
-    window.QcoinState.recordQuizResult(true);
-    window.QcoinState.addCoins(currentQuestion.reward, 'quiz-reward');
-    setFeedback(`\u2713 \u56de\u7b54\u6b63\u786e\uff0c\u83b7\u5f97 ${currentQuestion.reward} Q\u5e01\u3002`, 'success');
+    setFeedback('\u2713 \u56de\u7b54\u6b63\u786e\u3002', 'success');
   }
 
   function handleAnswer(option) {
@@ -947,8 +943,6 @@
     const isCorrect = currentQuestion.type === 'fill'
       ? normalizeAnswer(option) === normalizeAnswer(currentQuestion.answer)
       : option === currentQuestion.answer;
-    window.QcoinState.recordQuizResult(isCorrect);
-
     if (currentQuestion.type === 'fill') {
       if (fillInput) fillInput.disabled = true;
     } else {
@@ -965,8 +959,7 @@
 
     renderQuestionBody(true);
     if (isCorrect) {
-      window.QcoinState.addCoins(currentQuestion.reward, 'quiz-reward');
-      setFeedback(`\u2713 \u56de\u7b54\u6b63\u786e\uff0c\u83b7\u5f97 ${currentQuestion.reward} Q\u5e01\u3002`, 'success');
+      setFeedback('\u2713 \u56de\u7b54\u6b63\u786e\u3002', 'success');
     } else {
       setFeedback(`\u2715 \u56de\u7b54\u9519\u8bef\uff0c\u6b63\u786e\u7b54\u6848\u662f ${currentQuestion.answer}\u3002`, 'error');
     }
@@ -1029,7 +1022,6 @@
     secretBuffer = (secretBuffer + event.key.toLowerCase()).slice(-SECRET_SEQUENCE.length);
     if (!secretUnlocked && secretBuffer === SECRET_SEQUENCE) {
       secretUnlocked = true;
-      window.AchievementState?.record('secret', SECRET_CONTENT);
       renderFilter();
     }
   });

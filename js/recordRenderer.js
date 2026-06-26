@@ -86,19 +86,10 @@ function buildRecordSocialShell(record) {
             <div class="record-social-actions" aria-label="记录互动">
                 <span class="record-emotion-group" data-emotion-group></span>
                 <button type="button" class="record-social-btn record-emotion-more" data-action="open-emotions" aria-label="添加情绪态度" aria-expanded="false">☺+</button>
-                <button type="button" class="record-social-btn" data-action="toggle-reaction" data-type="favorite" aria-label="收藏" aria-pressed="false"><span class="record-social-emoji" aria-hidden="true">☆</span><strong>0</strong></button>
-                <button type="button" class="record-social-btn" data-action="toggle-comments" aria-label="查看评论" aria-expanded="false"><span class="record-social-emoji" aria-hidden="true">💬</span><strong>0</strong></button>
                 <button type="button" class="record-social-btn" data-action="share-record" aria-label="复制记录链接"><span class="record-social-emoji" aria-hidden="true">🔗</span></button>
             </div>
             <div class="record-emotion-popover" data-emotion-popover hidden></div>
-            <div class="record-comments" hidden>
-                <div class="record-comment-list"><div class="record-comment-empty">评论加载中…</div></div>
-                <form class="record-comment-form">
-                    <textarea name="comment" maxlength="500" rows="2" placeholder="写下评论…" required></textarea>
-                    <button type="submit" class="btn-action">发送</button>
-                </form>
-                <p class="record-social-status" aria-live="polite"></p>
-            </div>
+            <p class="record-social-status" aria-live="polite"></p>
         </section>
     `;
 }
@@ -308,7 +299,6 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
         <div class="filter-actions">
             <button type="button" class="btn-action filter-important" data-field="important">重要记录</button>
             <button type="button" class="btn-action filter-exclude-daily" data-field="excludeDaily">隐藏日期</button>
-            <button type="button" class="btn-action filter-favorites" data-field="favorites">我的收藏</button>
             <button type="button" class="btn-action clear">清空</button>
         </div>
         <div class="record-filter-status" aria-live="polite"></div>
@@ -323,7 +313,6 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
     const clearButton = wrapper.querySelector(".clear");
     const importantButton = wrapper.querySelector(".filter-important");
     const excludeDailyButton = wrapper.querySelector(".filter-exclude-daily");
-    const favoritesButton = wrapper.querySelector(".filter-favorites");
     const searchInput = wrapper.querySelector(".record-search-input");
     const statusEl = wrapper.querySelector(".record-filter-status");
 
@@ -333,7 +322,6 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
         day: initial.day || "",
         important: Boolean(initial.important),
         excludeDaily: Boolean(initial.excludeDaily),
-        favorites: Boolean(initial.favorites),
         query: initial.query || ""
     };
     let lastRecordedSearchQuery = normalizeSearchText(currentCriteria.query);
@@ -349,9 +337,6 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
         }
         if (excludeDailyButton) {
             excludeDailyButton.classList.toggle("is-active", Boolean(criteria.excludeDaily));
-        }
-        if (favoritesButton) {
-            favoritesButton.classList.toggle("is-active", Boolean(criteria.favorites));
         }
         if (searchInput && searchInput.value !== criteria.query) {
             searchInput.value = criteria.query || "";
@@ -394,7 +379,6 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
         if (criteria.day) items.push(`${criteria.day}日`);
         if (criteria.important) items.push("重要记录");
         if (criteria.excludeDaily) items.push("隐藏日期");
-        if (criteria.favorites) items.push("我的收藏");
         if (criteria.query) items.push(`关键词“${criteria.query}”`);
         return items;
     };
@@ -418,7 +402,6 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
         const normalizedQuery = normalizeSearchText(currentCriteria.query);
         if (normalizedQuery && normalizedQuery !== lastRecordedSearchQuery) {
             lastRecordedSearchQuery = normalizedQuery;
-            window.AchievementState?.record("search", "record");
         }
         onFilterChange?.(currentCriteria);
     };
@@ -493,8 +476,7 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
     dayOptions.addEventListener("click", handleOptionClick);
     importantButton?.addEventListener("click", () => applyCriteria({ ...currentCriteria, important: !currentCriteria.important }));
     excludeDailyButton?.addEventListener("click", () => applyCriteria({ ...currentCriteria, excludeDaily: !currentCriteria.excludeDaily }));
-    favoritesButton?.addEventListener("click", () => applyCriteria({ ...currentCriteria, favorites: !currentCriteria.favorites }));
-    clearButton.addEventListener("click", () => applyCriteria({ year: "", month: "", day: "", important: false, excludeDaily: false, favorites: false, query: "" }));
+    clearButton.addEventListener("click", () => applyCriteria({ year: "", month: "", day: "", important: false, excludeDaily: false, query: "" }));
     searchInput?.addEventListener("input", () => {
         window.clearTimeout(searchInput._recordSearchTimer);
         searchInput._recordSearchTimer = window.setTimeout(() => {

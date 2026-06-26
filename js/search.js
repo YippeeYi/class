@@ -150,7 +150,6 @@
         const normalizedQuery = normalize(query);
         if (normalizedQuery && normalizedQuery !== lastRecordedQuery) {
             lastRecordedQuery = normalizedQuery;
-            window.AchievementState?.record("search", "global");
         }
 
         const matches = searchIndex

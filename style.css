@@ -2164,135 +2164,6 @@ body>#glossary-list {
   background: rgba(180, 35, 24, 0.94);
 }
 
-.achievement-unlock-stack {
-  position: fixed;
-  top: 18px;
-  left: 50%;
-  z-index: 1200;
-  display: grid;
-  gap: 10px;
-  width: min(480px, calc(100vw - 28px));
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-
-.achievement-unlock {
-  position: relative;
-  isolation: isolate;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-  min-height: 86px;
-  padding: 11px 14px;
-  overflow: hidden;
-  border-radius: 16px;
-  color: #102033;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(236, 253, 245, 0.88)),
-    radial-gradient(circle at 18% 24%, rgba(250, 204, 21, 0.32), transparent 32%);
-  border: 2px solid rgba(250, 204, 21, 0.62);
-  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.3), 0 0 0 8px rgba(250, 204, 21, 0.1);
-  opacity: 0;
-  transform: translateY(-24px) scale(0.94);
-  transition: opacity 0.42s ease, transform 0.52s cubic-bezier(.2, 1.1, .24, 1);
-}
-
-.achievement-unlock.is-visible {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
-
-.achievement-unlock.is-hidden-unlock {
-  color: #f8fafc;
-  background:
-    linear-gradient(135deg, rgba(7, 10, 24, 0.98), rgba(34, 27, 84, 0.96)),
-    radial-gradient(circle at 18% 32%, rgba(192, 132, 252, 0.34), transparent 30%),
-    radial-gradient(circle at 82% 18%, rgba(45, 212, 191, 0.16), transparent 24%);
-  border-color: rgba(216, 180, 254, 0.62);
-  box-shadow: 0 24px 80px rgba(17, 24, 39, 0.46), 0 0 0 1px rgba(255, 255, 255, 0.08), 0 0 34px rgba(167, 139, 250, 0.28);
-}
-
-.achievement-unlock-burst {
-  position: absolute;
-  left: 44px;
-  top: 50%;
-  width: 90px;
-  height: 90px;
-  z-index: -1;
-  border-radius: 50%;
-  background:
-    conic-gradient(from 0deg, transparent, rgba(250, 204, 21, 0.3), transparent 26%, rgba(45, 212, 191, 0.22), transparent 52%, rgba(251, 113, 133, 0.22), transparent 78%, rgba(250, 204, 21, 0.28), transparent);
-  opacity: 0.76;
-  animation: achievement-burst-spin 2.6s linear infinite;
-}
-
-.achievement-unlock.is-hidden-unlock .achievement-unlock-burst {
-  background:
-    conic-gradient(from 0deg, transparent, rgba(216, 180, 254, 0.42), transparent 24%, rgba(45, 212, 191, 0.28), transparent 48%, rgba(129, 140, 248, 0.34), transparent 72%, rgba(244, 114, 182, 0.26), transparent);
-  filter: blur(0.3px) saturate(1.2);
-}
-
-.achievement-unlock-art {
-  width: 60px;
-  aspect-ratio: 1;
-  display: grid;
-  place-items: center;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7), 0 12px 26px rgba(15, 23, 42, 0.18);
-}
-
-.achievement-unlock.is-hidden-unlock .achievement-unlock-art {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(224, 231, 255, 0.74));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.52), 0 14px 30px rgba(0, 0, 0, 0.32), 0 0 22px rgba(216, 180, 254, 0.42);
-}
-
-.achievement-unlock-copy {
-  display: grid;
-  gap: 3px;
-}
-
-.achievement-unlock-copy span {
-  color: #b45309;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.achievement-unlock.is-hidden-unlock .achievement-unlock-copy span {
-  color: #d8b4fe;
-}
-
-.achievement-unlock-copy strong {
-  font-size: clamp(18px, 3.4vw, 24px);
-  line-height: 1.05;
-}
-
-.achievement-unlock-copy p {
-  margin: 0;
-  color: color-mix(in srgb, currentColor 76%, transparent);
-  font-size: 13px;
-  line-height: 1.35;
-}
-
-.achievement-icon-svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-@keyframes achievement-burst-spin {
-  from {
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-
-  to {
-    transform: translate(-50%, -50%) rotate(1turn);
-  }
-}
-
 @keyframes guide-logo-tap {
 
   0%,
@@ -2501,21 +2372,6 @@ body>#glossary-list {
   .record-written-image {
     position: static;
   }
-}
-
-.qcoin-mini {
-  position: fixed;
-  z-index: 20;
-  left: 12px;
-  top: 16px;
-  transform: none;
-  padding: 6px 11px;
-  border-radius: 999px;
-  color: var(--control-active-text);
-  background-image: var(--control-active-gradient);
-  box-shadow: var(--control-active-glow);
-  font-size: 13px;
-  font-weight: 800;
 }
 
 .achievement-shell {
@@ -3525,10 +3381,6 @@ body>.archive-tool-shell {
   padding: 16px;
 }
 
-.shop-card.is-owned {
-  border-color: color-mix(in srgb, #f4c430 45%, var(--theme-accent-strong));
-}
-
 .shop-card-head {
   display: grid;
   gap: 4px;
@@ -3547,12 +3399,7 @@ body>.archive-tool-shell {
   gap: 10px;
 }
 
-.shop-price {
-  font-weight: 850;
-  color: var(--text-strong);
-}
-
-.shop-buy-btn:disabled,
+.shop-use-btn:disabled,
 .shop-unlock-actions button:disabled {
   opacity: 0.58;
   cursor: not-allowed;
@@ -5738,7 +5585,7 @@ body>.archive-tool-shell {
   box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--theme-accent-strong) 60%, #f4c430), inset 0 1px 0 rgba(255, 255, 255, 0.34);
 }
 
-.shop-background-card .shop-buy-btn {
+.shop-background-card .shop-use-btn {
   min-width: 104px;
 }
 
@@ -5865,10 +5712,6 @@ body>.archive-tool-shell {
   .shop-card-foot,
   .shop-unlock-actions {
     flex-direction: column;
-  }
-
-  .shop-price {
-    width: 100%;
   }
 
   .people-table,
@@ -6066,6 +5909,11 @@ body>.archive-tool-shell {
 .record-emotion-popover[hidden],
 .record-emotion-more[hidden] {
   display: none;
+}
+
+.record-social-empty {
+  color: var(--text-soft);
+  font-size: 13px;
 }
 
 .record-comments {

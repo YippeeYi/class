@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>登录 · 编日史</title>
+    <title>访问密钥 · 编日史</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="favicon.ico">
@@ -14,12 +14,11 @@
 
 <body class="auth-page">
     <div class="auth-card">
-        <h1>登录编日史</h1>
-        <p class="auth-hint">使用管理员分配的初始账号和密码登录，进入后可在主页修改密码。</p>
+        <h1>输入访问密钥</h1>
+        <p class="auth-hint">请输入班级统一访问密钥。</p>
         <form class="auth-form">
-            <input type="text" name="login" placeholder="账号" autocomplete="username" required>
-            <input type="password" name="password" placeholder="密码" autocomplete="current-password" required>
-            <button type="submit">登录</button>
+            <input type="password" name="siteKey" placeholder="访问密钥" autocomplete="current-password" required>
+            <button type="submit">进入</button>
         </form>
         <p class="auth-error" aria-live="polite"></p>
     </div>

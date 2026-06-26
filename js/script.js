@@ -9,7 +9,6 @@ const HIDDEN_RECORD_SEQUENCE = "qibaishihuaxia";
 
 let allRecords = [];
 let recordPageConfig = [];
-let favoriteRecordKeys = null;
 let writtenImageRenderToken = 0;
 let hiddenMode = false;
 let hiddenSequenceBuffer = "";
@@ -22,7 +21,6 @@ function parseInitialRecordCriteria() {
     day: params.get("day") || "",
     important: params.get("important") === "1" || params.get("important") === "true",
     excludeDaily: params.get("excludeDaily") === "1" || params.get("excludeDaily") === "true",
-    favorites: params.get("favorites") === "1" || params.get("favorites") === "true",
     query: params.get("q") || ""
   };
 }
@@ -43,15 +41,8 @@ function isDailyRecord(record) {
   return getRecordSerial(record) === "00";
 }
 
-function getRecordKeyForFavorite(record) {
-  return record.fileName || record.id || "";
-}
-
 function getFilteredRecords() {
   let filtered = filterRecordsByDate(allRecords, currentCriteria);
-  if (currentCriteria.favorites) {
-    filtered = favoriteRecordKeys ? filtered.filter((record) => favoriteRecordKeys.has(getRecordKeyForFavorite(record))) : [];
-  }
   sortRecords(filtered);
   return filtered;
 }
@@ -269,20 +260,7 @@ function renderWrittenView(records) {
   });
 }
 
-async function ensureFavoriteRecordKeys() {
-  if (hiddenMode || !currentCriteria.favorites || favoriteRecordKeys) return;
-  if (!window.RecordInteractions?.getFavoriteKeys) {
-    favoriteRecordKeys = new Set();
-    return;
-  }
-  favoriteRecordKeys = await window.RecordInteractions.getFavoriteKeys().catch((error) => {
-    console.warn("收藏记录加载失败：", error);
-    return new Set();
-  });
-}
-
 async function renderCurrentViewAsync() {
-  await ensureFavoriteRecordKeys();
   renderCurrentView();
 }
 
@@ -332,8 +310,7 @@ function renderHiddenModeBanner(message = "隐藏记录查看已开启。本模�
 }
 
 function resetCriteriaForHiddenMode() {
-  currentCriteria = { year: "", month: "", day: "", important: false, excludeDaily: false, favorites: false, query: "" };
-  favoriteRecordKeys = null;
+  currentCriteria = { year: "", month: "", day: "", important: false, excludeDaily: false, query: "" };
   currentPageIndex = 0;
 }
 
@@ -356,7 +333,7 @@ async function enterHiddenRecordMode() {
       getRecords: () => allRecords,
       initial: currentCriteria,
       onFilterChange: criteria => {
-        currentCriteria = { ...criteria, favorites: false };
+        currentCriteria = { ...criteria };
         currentPageIndex = 0;
         renderCurrentViewAsync();
       }
@@ -382,18 +359,6 @@ function bindHiddenRecordShortcut() {
   });
 }
 
-window.addEventListener("recordfavoritechange", (event) => {
-  if (hiddenMode || !favoriteRecordKeys) return;
-  const key = event.detail?.recordKey;
-  if (!key) return;
-  if (event.detail?.favorited) {
-    favoriteRecordKeys.add(key);
-  } else {
-    favoriteRecordKeys.delete(key);
-  }
-  if (currentCriteria.favorites) renderCurrentViewAsync();
-});
-
 const cacheReady = window.cacheReadyPromise || Promise.resolve();
 
 bindHiddenRecordShortcut();
@@ -412,7 +377,6 @@ cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
       initial: currentCriteria,
       onFilterChange: criteria => {
         currentCriteria = criteria;
-        if (!criteria.favorites) favoriteRecordKeys = null;
         currentPageIndex = 0;
         renderCurrentViewAsync();
       }
@@ -420,5 +384,5 @@ cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
   })
   .catch((error) => {
     console.warn("记录加载失败：", error);
-    container.innerHTML = '<div class="record-empty"><strong>记录加载失败。</strong><span>请确认 Supabase 数据表和登录状态后重试。</span></div>';
+    container.innerHTML = '<div class="record-empty"><strong>记录加载失败。</strong><span>请确认 Supabase 数据表和访问密钥状态后重试。</span></div>';
   });

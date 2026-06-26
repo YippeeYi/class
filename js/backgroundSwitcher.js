@@ -48,24 +48,10 @@
 
     const normalizedOptions = options.map(normalizeOption).filter((option) => option.id);
     const normalizedById = new Map(normalizedOptions.map((option) => [option.id, option]));
-    let currentId = window.QcoinState?.getActiveBackground?.() || storage.get();
+    let currentId = storage.get();
     let activeThemeToken = 0;
 
-    const isBackgroundOwned = (id) => {
-        if (!window.QcoinState || typeof window.QcoinState.ownsBackground !== "function") {
-            return true;
-        }
-        return window.QcoinState.ownsBackground(id);
-    };
-
-    const getBackgroundCost = (id) => {
-        if (!window.QcoinState || typeof window.QcoinState.getBackgroundCost !== "function") {
-            return 0;
-        }
-        return Number(window.QcoinState.getBackgroundCost(id)) || 0;
-    };
-
-    if (!normalizedById.has(currentId) || !isBackgroundOwned(currentId)) {
+    if (!normalizedById.has(currentId)) {
         currentId = fallbackId;
     }
 
@@ -411,8 +397,7 @@
     };
 
     const applyBackground = (id, { persist = true, notify = true } = {}) => {
-        const requested = normalizedById.get(id) || normalizedOptions[0];
-        const option = isBackgroundOwned(requested.id) ? requested : normalizedOptions[0];
+        const option = normalizedById.get(id) || normalizedOptions[0];
         root.style.setProperty("--page-bg-image", "none");
         root.style.setProperty("--page-bg-size", option.image ? option.fit : "cover");
         root.style.setProperty("--page-bg-position", option.position || "center center");
@@ -421,7 +406,6 @@
         currentId = option.id;
         if (persist) {
             storage.set(option.id);
-            window.QcoinState?.setActiveBackground?.(option.id);
         }
         activeThemeToken += 1;
         const token = activeThemeToken;
@@ -444,7 +428,6 @@
             dispatchBackgroundEvent("backgroundthemechange", option, "theme-ready");
             if (notify) {
                 dispatchBackgroundEvent("backgroundchange", option, "complete");
-                window.AchievementState?.record("background", option.id);
             }
             return option;
         });
@@ -511,8 +494,6 @@
         get options() {
             return getSortedOptions().map((option) => ({
                 ...option,
-                owned: isBackgroundOwned(option.id),
-                cost: getBackgroundCost(option.id),
                 active: option.id === currentId
             }));
         },
@@ -522,21 +503,10 @@
         warm(imageSrc, priority) {
             return warmImage(imageSrc, priority);
         },
-        owns(id) {
-            return isBackgroundOwned(id);
-        },
-        getCost(id) {
-            return getBackgroundCost(id);
+        owns() {
+            return true;
         }
     };
-
-    window.QcoinState?.subscribe(() => {
-        if (!isBackgroundOwned(currentId)) {
-            applyBackground(fallbackId);
-            return;
-        }
-        window.dispatchEvent(new CustomEvent("backgroundinventorychange", { detail: { backgroundId: currentId } }));
-    });
 
     ensureFullscreenControl();
     applyBackground(currentId, { persist: false, notify: false });

@@ -41,7 +41,7 @@
             '🔎 小提示：记录详情里的人名和术语都可点击跳转查看。',
             '🧠 小提示：核心入口优先看记录、人物和术语。',
             '🗓️ 小提示：时间线页面适合按月份复盘重要事件。',
-            '🪙 小提示：答题获得的 Q币可以在商店兑换背景。'
+            '🎹 小提示：背景页可以直接切换全站背景。'
         ];
 
         if (!tipEl || tips.length === 0) {
@@ -105,18 +105,6 @@
         });
     };
 
-    const renderAdminEntry = async () => {
-        const adminEntry = document.getElementById('guide-admin-entry');
-        if (!adminEntry) return;
-        adminEntry.hidden = true;
-        try {
-            const isAdmin = await window.ClassRecordSupabase?.isCurrentUserAdmin?.();
-            adminEntry.hidden = !isAdmin;
-        } catch (error) {
-            console.warn('Admin entry check failed:', error);
-            adminEntry.hidden = true;
-        }
-    };
     const renderGuideHighlights = async () => {
         const wrap = document.getElementById('guide-highlights');
         const secondary = document.querySelector('.guide-secondary-panel');
@@ -171,7 +159,6 @@
             };
         }
         if (secondary) secondary.hidden = false;
-        renderAdminEntry();
     };
 
     const showNav = () => {
@@ -198,13 +185,18 @@
 
     bindStatCardLinks();
 
+    document.getElementById('clear-access-btn')?.addEventListener('click', async () => {
+        if (!window.confirm('确定移除本机保存的访问密钥并清除本站缓存吗？')) return;
+        await window.clearAccessKey?.();
+        window.location.replace('auth.html');
+    });
+
     const logo = document.querySelector('.guide-logo');
     if (logo) {
         let logoTapCount = 0;
         let logoTapTimer = null;
         logo.addEventListener('click', () => {
             logoTapCount += 1;
-            window.AchievementState?.record('logo-tap', 'guide-logo');
             logo.classList.remove('is-logo-tapped');
             void logo.offsetWidth;
             logo.classList.add('is-logo-tapped');
@@ -217,12 +209,9 @@
                 logo.classList.remove('is-logo-secret');
                 void logo.offsetWidth;
                 logo.classList.add('is-logo-secret');
-                window.AchievementState?.record('secret', 'guide-logo');
             }
         });
     }
-
-    waitForAccess().then(renderAdminEntry).catch(() => {});
 
     waitForAccess()
         .then(() => renderGuideHighlights().catch((error) => {
