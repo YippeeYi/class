@@ -66,19 +66,6 @@ function normalizeRecordPageImagePath(value, page) {
   return `${base}.jpeg`;
 }
 
-function buildHiddenRecordPagesFallback() {
-  return Array.from({ length: 83 }, (_, index) => {
-    const page = String(index + 1).padStart(2, "0");
-    return {
-      page: `H${page}`,
-      start: "",
-      end: "",
-      imagePath: `images/record-pages/H${page}.jpeg`,
-      hiddenProbe: true
-    };
-  });
-}
-
 function normalizeRecordPage(page, index) {
   if (typeof page === "string") {
     return {
@@ -97,21 +84,33 @@ function normalizeRecordPage(page, index) {
   };
 }
 
-async function loadRecordPageConfig() {
-  try {
-    const pages = window.ClassRecordData?.isEnabled()
-      ? await window.ClassRecordData.loadRecordPages({ hidden: hiddenMode })
-      : [];
-    recordPageConfig = Array.isArray(pages) ? pages.map(normalizeRecordPage).filter((page) => page.page) : [];
-    if (hiddenMode && !recordPageConfig.length) {
-      recordPageConfig = buildHiddenRecordPagesFallback();
-    }
-  } catch (error) {
-    console.warn(hiddenMode ? "隐藏书面记录页配置加载失败：" : "书面记录页配置加载失败：", error);
-    recordPageConfig = hiddenMode ? buildHiddenRecordPagesFallback() : [];
-  }
+async function loadHiddenRecordImagePages() {
+  if (!window.ClassRecordData?.listAssetPaths) return [];
+  const paths = await window.ClassRecordData.listAssetPaths("images/record-pages");
+  return paths
+    .map((path) => {
+      const fileName = String(path || "").split(/[\\/]/).pop() || "";
+      const match = fileName.match(/^(H\d{2,3})\.jpeg$/i);
+      return match ? { page: match[1].toUpperCase(), start: "", end: "", imagePath: path } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.page.localeCompare(b.page, undefined, { numeric: true }));
 }
 
+async function loadRecordPageConfig() {
+  try {
+    let pages = [];
+    if (hiddenMode) {
+      pages = await loadHiddenRecordImagePages();
+    } else if (window.ClassRecordData?.isEnabled()) {
+      pages = await window.ClassRecordData.loadRecordPages({ hidden: false });
+    }
+    recordPageConfig = Array.isArray(pages) ? pages.map(normalizeRecordPage).filter((page) => page.page) : [];
+  } catch (error) {
+    console.warn(hiddenMode ? "Hidden record page config load failed:" : "Record page config load failed:", error);
+    recordPageConfig = [];
+  }
+}
 function getRecordIndexMap() {
   const map = new Map();
   allRecords.forEach((record) => {
@@ -144,21 +143,13 @@ function getPageRecords(page, filteredRecords, recordIndexMap) {
 }
 
 function getWrittenPages(records) {
-  if (hiddenMode && recordPageConfig.some((page) => page.hiddenProbe)) {
-    const recordIndexMap = getRecordIndexMap();
-    return recordPageConfig.map((page) => ({ ...page, records: getPageRecords(page, records, recordIndexMap) }));
-  }
   const recordIndexMap = getRecordIndexMap();
   return recordPageConfig
     .map((page) => ({ ...page, records: getPageRecords(page, records, recordIndexMap) }))
     .filter((page) => page.records.length || (!page.start && !page.end));
 }
-
 function getPageImagePath(page, pageRecords) {
-  if (hiddenMode) {
-    const pageId = String(page.page || "").replace(/^H/i, "").padStart(2, "0");
-    return page.imagePath || `images/record-pages/H${pageId}.jpeg`;
-  }
+  if (hiddenMode) return page.imagePath || "";
   return normalizeRecordPageImagePath(page.imagePath || pageRecords.find((record) => record.imagePath)?.imagePath, page.page);
 }
 

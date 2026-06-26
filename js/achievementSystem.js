@@ -107,6 +107,7 @@
     const DEFAULT_STATE = {
         completed: {},
         seenCompleted: [],
+        notifiedCompleted: [],
         stats: {
             pages: {},
             peopleViewed: [],
@@ -139,6 +140,7 @@
             ? Object.fromEntries(Object.entries(raw.completed).filter(([id]) => ACHIEVEMENT_IDS.has(id)))
             : {};
         state.seenCompleted = Array.isArray(raw.seenCompleted) ? [...new Set(raw.seenCompleted)].filter((id) => ACHIEVEMENT_IDS.has(id)) : [];
+        state.notifiedCompleted = Array.isArray(raw.notifiedCompleted) ? [...new Set(raw.notifiedCompleted)].filter((id) => ACHIEVEMENT_IDS.has(id)) : [];
         state.stats = { ...state.stats, ...(raw.stats || {}) };
         state.stats.pages = { ...(raw.stats?.pages || {}) };
         state.stats.peopleViewed = Array.isArray(raw.stats?.peopleViewed) ? [...new Set(raw.stats.peopleViewed)] : [];
@@ -184,7 +186,7 @@
         window.ClassRecordUserState?.saveAchievementState?.(currentState);
         window.ClassRecordSupabase?.updateProfileState?.({
             achievement_progress: currentState.completed || {},
-            achievement_hovered_state: { seenCompleted: currentState.seenCompleted || [] }
+            achievement_hovered_state: { seenCompleted: currentState.seenCompleted || [], notifiedCompleted: currentState.notifiedCompleted || [] }
         }).catch(() => {});
     }
 
@@ -372,16 +374,21 @@
             currentState.completed[achievement.id] = Date.now();
             unlocked.push(achievement);
         });
+        const notifyTargets = notify
+            ? unlocked.filter((achievement) => !currentState.notifiedCompleted.includes(achievement.id))
+            : [];
+        if (notifyTargets.length) {
+            currentState.notifiedCompleted = [...new Set([...currentState.notifiedCompleted, ...notifyTargets.map((achievement) => achievement.id)])];
+        }
         saveState();
         if (unlocked.length) {
             const snapshot = getAchievementView();
             listeners.forEach((listener) => listener(snapshot, unlocked));
             window.dispatchEvent(new CustomEvent('achievementchange', { detail: { achievements: snapshot, unlocked } }));
-            if (notify) unlocked.forEach((achievement) => notifyAchievement(achievement, { notifyId: enqueueAchievementNotice(achievement) }));
+            notifyTargets.forEach((achievement) => notifyAchievement(achievement, { notifyId: enqueueAchievementNotice(achievement) }));
         }
         return unlocked;
     }
-
     function record(type, value) {
         if (window.ClassRecordHiddenModeActive) return;
         if (type === 'page') {
@@ -516,7 +523,7 @@
         const queue = readNotifyQueue();
         if (!queue.length) return;
         const now = Date.now();
-        const validQueue = queue.filter((item) => now - Number(item.createdAt || 0) < 30000);
+        const validQueue = queue.filter((item) => now - Number(item.createdAt || 0) < 30000 && !currentState.notifiedCompleted.includes(item.id));
         writeNotifyQueue(validQueue);
         validQueue.forEach((item, index) => {
             const achievement = ACHIEVEMENTS.find((entry) => entry.id === item.id);

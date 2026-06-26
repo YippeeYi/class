@@ -105,6 +105,18 @@
         });
     };
 
+    const renderAdminEntry = async () => {
+        const adminEntry = document.getElementById('guide-admin-entry');
+        if (!adminEntry) return;
+        adminEntry.hidden = true;
+        try {
+            const isAdmin = await window.ClassRecordSupabase?.isCurrentUserAdmin?.();
+            adminEntry.hidden = !isAdmin;
+        } catch (error) {
+            console.warn('Admin entry check failed:', error);
+            adminEntry.hidden = true;
+        }
+    };
     const renderGuideHighlights = async () => {
         const wrap = document.getElementById('guide-highlights');
         const secondary = document.querySelector('.guide-secondary-panel');
@@ -159,6 +171,7 @@
             };
         }
         if (secondary) secondary.hidden = false;
+        renderAdminEntry();
     };
 
     const showNav = () => {
@@ -208,6 +221,8 @@
             }
         });
     }
+
+    waitForAccess().then(renderAdminEntry).catch(() => {});
 
     waitForAccess()
         .then(() => renderGuideHighlights().catch((error) => {

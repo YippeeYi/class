@@ -6506,3 +6506,26 @@ body.hidden-record-mode .hidden-record-banner {
     width: 108px;
   }
 }
+
+
+.record-filter .filter-actions .btn-action.is-active {
+  color: var(--control-active-text);
+  background-color: var(--accent-dark);
+  background-image: var(--control-active-gradient);
+  border-color: transparent;
+  box-shadow: var(--control-active-glow);
+}
+
+
+.quiz-image-missing {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  padding: 18px;
+  border: 1px dashed var(--field-border-color, var(--line-soft));
+  border-radius: 8px;
+  color: var(--text-subtle);
+  background: color-mix(in srgb, var(--theme-surface) 72%, transparent);
+  font-weight: 700;
+  pointer-events: none;
+}

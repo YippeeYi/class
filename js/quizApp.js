@@ -147,7 +147,7 @@
         <span class="quiz-question-prompt quiz-question-prompt--secret">${escapeHtml(currentQuestion.prompt)}</span>
         <span class="quiz-secret-visual">
           ${currentQuestion.image ? `<img src="${escapeHtml(currentQuestion.image)}" alt="题目图片" loading="eager" decoding="async">` : '<span class="quiz-image-missing">题目图片资源缺失</span>'}
-          ${renderSecretAnswerBoxes()}
+          ${currentQuestion.type === 'fill' ? renderSecretAnswerBoxes() : ''}
         </span>
       `;
       return;
@@ -246,8 +246,8 @@
       recordText: String(raw.recordText || raw.record_text || raw.text || '').trim(),
       sideLabel: raw.sideLabel || raw.side_label || '',
       sideText: raw.sideText || raw.side_text || '',
-      options,
-      choices: options,
+      options: type === 'choice' ? uniqueOptionsWithAnswer(answer, options) : options,
+      choices: type === 'choice' ? uniqueOptionsWithAnswer(answer, options) : options,
       reward
     };
   }
@@ -674,7 +674,7 @@
         const rows = await window.ClassRecordData.loadQuizQuestions(SECRET_CONTENT);
         const settled = await Promise.allSettled(rows.map(async (item, index) => {
           const imagePath = item.image || item.imagePath || '';
-          const image = imagePath ? await window.ClassRecordData.signAssetUrl(imagePath).catch((error) => {
+          const image = imagePath ? await window.ClassRecordData.signAssetUrl(imagePath, { quiet: true }).catch((error) => {
             console.warn('题目图片签名失败：', imagePath, error);
             return '';
           }) : '';
@@ -776,6 +776,9 @@
     return picked;
   }
 
+  function getAvailableTypesForContent(content) {
+    return Object.keys(typeLabels).filter((type) => allQuestions.some((question) => question.content === content && question.type === type));
+  }
   function renderFilter() {
     if (!filterWrap) return;
     const visibleContentLabels = secretUnlocked ? { ...contentLabels, ...secretContentLabels } : contentLabels;
@@ -790,7 +793,8 @@
       const unavailable = group === 'contents' && value === SECRET_CONTENT
         ? !hasAnyQuestionInGroup(group, value)
         : !hasAnyQuestionInGroup(group, value) || !hasQuestionWhenSelected(group, value);
-      const secretTypeBlocked = group === 'types' && secretSelected && value !== 'fill';
+      const availableSecretTypes = secretSelected ? getAvailableTypesForContent(SECRET_CONTENT) : [];
+      const secretTypeBlocked = group === 'types' && secretSelected && !availableSecretTypes.includes(value);
       const disabled = secretTypeBlocked || (currentSet.has(value) ? nextSet.size === 0 || !hasQuestionFor(nextTypes, nextContents) : unavailable);
       return `
         <button type="button" class="btn-action filter-option${currentSet.has(value) ? ' is-active' : ''}${unavailable ? ' is-disabled' : ''}" data-group="${group}" data-value="${value}"${disabled ? ' disabled' : ''}>
@@ -833,7 +837,7 @@
 
     currentQuestion = pickNextQuestion();
     answeredCurrent = false;
-    secretProgress = currentQuestion.content === SECRET_CONTENT ? Array.from(String(currentQuestion.answer || '')).map(() => '') : [];
+    secretProgress = currentQuestion.content === SECRET_CONTENT && currentQuestion.type === 'fill' ? Array.from(String(currentQuestion.answer || '')).map(() => '') : [];
     feedback.textContent = '';
     feedback.className = 'quiz-feedback';
     quizCard?.classList.remove('is-answer-success', 'is-answer-error');

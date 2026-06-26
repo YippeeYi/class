@@ -5,6 +5,10 @@
 
     let configPromise = null;
     let clientPromise = null;
+    const signedUrlCache = new Map();
+    const failedSignCache = new Map();
+    const listCache = new Map();
+    const FAILED_SIGN_TTL = 5 * 60 * 1000;
 
     const loadScriptOnce = (src) => new Promise((resolve, reject) => {
         if ([...document.scripts].some((script) => script.src === src)) {
@@ -219,14 +223,31 @@
         });
     };
 
-    const signAssetUrl = async (path, { expiresIn } = {}) => {
+    const signAssetUrl = async (path, { expiresIn, quiet = false } = {}) => {
         const safePath = normalizePrivateStoragePath(path);
         if (!safePath || /^https?:\/\//i.test(safePath)) return safePath;
+        const now = Date.now();
+        const failedAt = failedSignCache.get(safePath);
+        if (failedAt && now - failedAt < FAILED_SIGN_TTL) {
+            if (quiet) return '';
+            throw new Error(`Storage asset unavailable: ${safePath}`);
+        }
+        if (signedUrlCache.has(safePath)) return signedUrlCache.get(safePath);
         const config = await getConfig();
         const client = await getClient();
-        const { data, error } = await client.storage.from(config.bucket).createSignedUrl(safePath, expiresIn || 60 * 30);
-        if (error) throw error;
-        return data?.signedUrl || '';
+        const promise = client.storage.from(config.bucket).createSignedUrl(safePath, expiresIn || 60 * 30)
+            .then(({ data, error }) => {
+                if (error) throw error;
+                return data?.signedUrl || '';
+            })
+            .catch((error) => {
+                signedUrlCache.delete(safePath);
+                failedSignCache.set(safePath, Date.now());
+                if (quiet) return '';
+                throw error;
+            });
+        signedUrlCache.set(safePath, promise);
+        return promise;
     };
 
     const signAssetUrls = async (paths, options) => {
@@ -234,10 +255,31 @@
         const settled = await Promise.allSettled(unique.map(async (path) => [path, await signAssetUrl(path, options)]));
         const entries = settled
             .filter((result) => result.status === 'fulfilled')
-            .map((result) => result.value);
+            .map((result) => result.value)
+            .filter(([, url]) => Boolean(url));
         return new Map(entries);
     };
 
+    const listAssetPaths = async (prefix = '') => {
+        const safePrefix = normalizePrivateStoragePath(prefix).replace(/\/+$/, '');
+        if (listCache.has(safePrefix)) return listCache.get(safePrefix);
+        const config = await getConfig();
+        const client = await getClient();
+        const promise = client.storage.from(config.bucket).list(safePrefix, {
+            limit: 1000,
+            sortBy: { column: 'name', order: 'asc' }
+        }).then(({ data, error }) => {
+            if (error) throw error;
+            return (data || [])
+                .filter((item) => item && item.name && !item.name.endsWith('/'))
+                .map((item) => `${safePrefix}/${item.name}`.replace(/^\/+/, ''));
+        }).catch((error) => {
+            listCache.delete(safePrefix);
+            throw error;
+        });
+        listCache.set(safePrefix, promise);
+        return promise;
+    };
     const resolveAssetElements = async (root = document) => {
         const imageNodes = [...root.querySelectorAll('img[data-secure-src]')];
         const linkNodes = [...root.querySelectorAll('a[data-secure-href]')];
@@ -275,6 +317,7 @@
         normalizePrivateStoragePath,
         normalizeRecordPageImagePath,
         signAssetUrl,
-        signAssetUrls
+        signAssetUrls,
+        listAssetPaths
     };
 })();

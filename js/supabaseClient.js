@@ -196,14 +196,22 @@
 
     const isCurrentUserAdmin = async () => {
         const supabase = await getClient();
+        const user = await getUser().catch(() => null);
+        if (!user) return false;
         const { data, error } = await supabase.rpc("is_admin");
-        if (error) {
-            console.warn("Admin check failed:", error);
+        if (!error && data === true) return true;
+        if (error) console.warn("Admin RPC check failed, falling back to profile role:", error);
+        const { data: profile, error: profileError } = await supabase
+            .from(getConfig().tables.profiles)
+            .select("role")
+            .eq("id", user.id)
+            .maybeSingle();
+        if (profileError) {
+            console.warn("Admin profile role check failed:", profileError);
             return false;
         }
-        return data === true;
+        return String(profile?.role || "").toLowerCase() === "admin";
     };
-
     const onAuthStateChange = async (callback) => {
         const supabase = await getClient();
         return supabase.auth.onAuthStateChange(callback);
