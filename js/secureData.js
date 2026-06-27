@@ -9,7 +9,36 @@
     const recordPagePromises = new Map();
     const signedUrlCache = new Map();
     const failedSignCache = new Map();
+    const imagePreloadCache = new Map();
     const FAILED_SIGN_TTL = 5 * 60 * 1000;
+    const SIGNED_URL_REFRESH_BUFFER = 60 * 1000;
+    const FAILED_ASSET_SESSION_KEY = 'classRecordMissingAssets.v1';
+
+    try {
+        const storedFailures = JSON.parse(sessionStorage.getItem(FAILED_ASSET_SESSION_KEY) || '{}');
+        Object.entries(storedFailures).forEach(([path, time]) => {
+            if (Date.now() - Number(time) < FAILED_SIGN_TTL) failedSignCache.set(path, Number(time));
+        });
+    } catch (error) {
+        // Missing-asset caching is an optimization only.
+    }
+
+    const persistFailedAssets = () => {
+        try {
+            sessionStorage.setItem(FAILED_ASSET_SESSION_KEY, JSON.stringify(Object.fromEntries(failedSignCache)));
+        } catch (error) {
+            // Keep the in-memory cache when session storage is unavailable.
+        }
+    };
+
+    const markAssetFailed = (path) => {
+        failedSignCache.set(path, Date.now());
+        persistFailedAssets();
+    };
+
+    const clearAssetFailure = (path) => {
+        if (failedSignCache.delete(path)) persistFailedAssets();
+    };
 
     const loadScriptOnce = (src) => new Promise((resolve, reject) => {
         if ([...document.scripts].some((script) => script.src === src)) {
@@ -254,58 +283,145 @@
         const safePath = normalizePrivateStoragePath(path);
         if (!safePath || /^https?:\/\//i.test(safePath)) return safePath;
         const now = Date.now();
+        const lifetime = expiresIn || 60 * 30;
         const failedAt = failedSignCache.get(safePath);
         if (failedAt && now - failedAt < FAILED_SIGN_TTL) {
             if (quiet) return '';
             throw new Error(`Storage asset unavailable: ${safePath}`);
         }
-        if (signedUrlCache.has(safePath)) return signedUrlCache.get(safePath);
+        const cached = signedUrlCache.get(safePath);
+        if (cached && cached.expiresAt - SIGNED_URL_REFRESH_BUFFER > now) return cached.promise;
+        if (cached) signedUrlCache.delete(safePath);
         const config = await getConfig();
         const client = await getClient();
-        const promise = client.storage.from(config.bucket).createSignedUrl(safePath, expiresIn || 60 * 30)
+        const promise = client.storage.from(config.bucket).createSignedUrl(safePath, lifetime)
             .then(({ data, error }) => {
                 if (error) throw error;
+                clearAssetFailure(safePath);
                 return data?.signedUrl || '';
             })
             .catch((error) => {
                 signedUrlCache.delete(safePath);
-                failedSignCache.set(safePath, Date.now());
+                markAssetFailed(safePath);
                 if (quiet) return '';
                 throw error;
             });
-        signedUrlCache.set(safePath, promise);
+        signedUrlCache.set(safePath, { promise, expiresAt: now + lifetime * 1000 });
         return promise;
     };
 
-    const signAssetUrls = async (paths, options) => {
-        const unique = [...new Set((paths || []).filter(Boolean))];
-        const settled = await Promise.allSettled(unique.map(async (path) => [path, await signAssetUrl(path, options)]));
-        const entries = settled
-            .filter((result) => result.status === 'fulfilled')
-            .map((result) => result.value)
-            .filter(([, url]) => Boolean(url));
-        return new Map(entries);
+    const signAssetUrls = async (paths, { expiresIn = 60 * 30, quiet = true } = {}) => {
+        const originals = [...new Set((paths || []).filter(Boolean))];
+        const result = new Map();
+        const cachedLoads = [];
+        const uncached = [];
+        const now = Date.now();
+        originals.forEach((original) => {
+            const safePath = normalizePrivateStoragePath(original);
+            if (!safePath || /^https?:\/\//i.test(safePath)) {
+                if (safePath) result.set(original, safePath);
+                return;
+            }
+            const cached = signedUrlCache.get(safePath);
+            if (cached && cached.expiresAt - SIGNED_URL_REFRESH_BUFFER > now) {
+                cachedLoads.push(cached.promise.then((url) => { if (url) result.set(original, url); }));
+                return;
+            }
+            if (!failedSignCache.has(safePath) || now - failedSignCache.get(safePath) >= FAILED_SIGN_TTL) {
+                uncached.push({ original, safePath });
+            }
+        });
+        await Promise.allSettled(cachedLoads);
+        if (uncached.length) {
+            try {
+                const config = await getConfig();
+                const client = await getClient();
+                const { data, error } = await client.storage
+                    .from(config.bucket)
+                    .createSignedUrls(uncached.map((item) => item.safePath), expiresIn);
+                if (error) throw error;
+                (data || []).forEach((item, index) => {
+                    const candidate = uncached[index];
+                    const url = item?.signedUrl || '';
+                    if (!candidate || !url || item?.error) {
+                        if (candidate) markAssetFailed(candidate.safePath);
+                        return;
+                    }
+                    clearAssetFailure(candidate.safePath);
+                    signedUrlCache.set(candidate.safePath, {
+                        promise: Promise.resolve(url),
+                        expiresAt: now + expiresIn * 1000
+                    });
+                    result.set(candidate.original, url);
+                });
+            } catch (error) {
+                const fallback = await Promise.allSettled(uncached.map(async ({ original, safePath }) => {
+                    const url = await signAssetUrl(safePath, { expiresIn, quiet });
+                    if (url) result.set(original, url);
+                }));
+                if (!quiet && fallback.every((item) => item.status === 'rejected')) throw error;
+            }
+        }
+        return result;
+    };
+
+    const preloadAsset = async (path, { priority = 'low' } = {}) => {
+        const safePath = normalizePrivateStoragePath(path);
+        if (!safePath) return null;
+        if (imagePreloadCache.has(safePath)) return imagePreloadCache.get(safePath);
+        const promise = signAssetUrl(safePath, { quiet: true }).then((url) => {
+            if (!url) return null;
+            return new Promise((resolve) => {
+                const image = new Image();
+                image.decoding = 'async';
+                image.fetchPriority = priority;
+                image.onload = () => resolve(url);
+                image.onerror = () => resolve(null);
+                image.src = url;
+            });
+        });
+        imagePreloadCache.set(safePath, promise);
+        return promise;
     };
 
     const resolveAssetElements = async (root = document) => {
-        const imageNodes = [...root.querySelectorAll('img[data-secure-src]')];
+        const imageNodes = [...root.querySelectorAll('img[data-secure-src]:not([data-secure-bound])')];
         const linkNodes = [...root.querySelectorAll('a[data-secure-href]')];
+        const lazyImages = imageNodes.filter((node) => node.loading === 'lazy' && 'IntersectionObserver' in window);
+        const immediateImages = imageNodes.filter((node) => !lazyImages.includes(node));
         const paths = [
-            ...imageNodes.map((node) => node.getAttribute('data-secure-src')),
+            ...immediateImages.map((node) => node.getAttribute('data-secure-src')),
             ...linkNodes.map((node) => node.getAttribute('data-secure-href'))
         ].filter(Boolean);
         const signed = await signAssetUrls(paths).catch((error) => {
             console.warn('Secure asset signing failed:', error);
             return new Map();
         });
-        imageNodes.forEach((node) => {
+        immediateImages.forEach((node) => {
             const src = signed.get(node.getAttribute('data-secure-src'));
             if (src) node.src = src;
+            node.dataset.secureBound = 'true';
         });
         linkNodes.forEach((node) => {
             const href = signed.get(node.getAttribute('data-secure-href'));
             if (href) node.href = href;
         });
+        if (lazyImages.length) {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach((entry) => {
+                    if (!entry.isIntersecting) return;
+                    const node = entry.target;
+                    observer.unobserve(node);
+                    signAssetUrl(node.getAttribute('data-secure-src'), { quiet: true }).then((src) => {
+                        if (src && node.isConnected) node.src = src;
+                    });
+                });
+            }, { rootMargin: '320px 0px' });
+            lazyImages.forEach((node) => {
+                node.dataset.secureBound = 'true';
+                observer.observe(node);
+            });
+        }
     };
 
     const bindSecureImages = resolveAssetElements;
@@ -323,6 +439,7 @@
         loadRecords,
         normalizePrivateStoragePath,
         normalizeRecordPageImagePath,
+        preloadAsset,
         signAssetUrl,
         signAssetUrls
     };

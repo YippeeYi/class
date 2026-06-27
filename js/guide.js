@@ -140,20 +140,22 @@
         setText('guide-people-count', valueOrEmpty(peopleResult).length);
         setText('guide-term-count', valueOrEmpty(glossaryResult).length);
 
-        const records = valueOrEmpty(recordsResult).filter((record) => !(record.hidden === true || String(record.hidden || '').toLowerCase() === 'true'));
+        const records = valueOrEmpty(recordsResult).filter((record) => {
+            const hidden = record?.hidden === true || String(record?.hidden || '').trim().toLowerCase() === 'true';
+            return !hidden;
+        });
         const now = new Date();
+        const year = String(now.getFullYear());
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const day = String(now.getDate()).padStart(2, '0');
-        const todayMatches = records.filter((record) => {
-            const parts = String(record.date || '').split('-');
-            return parts[1] === month && parts[2] === day;
-        });
+        const today = `${year}-${month}-${day}`;
+        const todayMatches = records.filter((record) => String(record.date || '').trim() === today);
         const todayButton = document.getElementById('guide-today-history');
         if (todayButton) {
             todayButton.hidden = todayMatches.length === 0;
             document.body.classList.toggle('guide-has-today-history', !todayButton.hidden);
             todayButton.onclick = () => {
-                const target = `record.html?month=${encodeURIComponent(month)}&day=${encodeURIComponent(day)}`;
+                const target = `record.html?year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}&day=${encodeURIComponent(day)}`;
                 if (typeof window.navigateTo === 'function') window.navigateTo(target);
                 else location.href = target;
             };

@@ -8,7 +8,7 @@
 
     const TARGET_KEY = "classRecordRedirectTarget";
     const VERIFIED_KEY = "classRecordSiteKeyVerified.v1";
-    const ACCESS_TTL = 10 * 1000;
+    const ACCESS_TTL = 14 * 24 * 60 * 60 * 1000;
     const AUTH_PAGE = "auth.html";
     const CONFIG_SCRIPT = "js/supabaseConfig.js";
     const CLIENT_SCRIPT = "js/supabaseClient.js";

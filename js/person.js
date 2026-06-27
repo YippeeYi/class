@@ -68,7 +68,7 @@ async function renderPersonAvatar(person) {
     if (!src) return;
     const card = document.createElement("div");
     card.className = "person-avatar-card";
-    card.innerHTML = `<img src="${escapeHtml(src)}" alt="${escapeHtml(person.name || person.id)}" loading="lazy" decoding="async">`;
+    card.innerHTML = `<img src="${escapeHtml(src)}" alt="${escapeHtml(person.name || person.id)}" loading="eager" decoding="async" fetchpriority="high">`;
     card.querySelector("img")?.addEventListener("error", () => {
         card.remove();
         info.classList.remove("has-person-avatar");

@@ -210,6 +210,20 @@ function setWrittenImageState(figure, state, token) {
   figure.classList.toggle("is-error", state === "error");
 }
 
+function preloadAdjacentWrittenPages(pages, pageIndex) {
+  if (!window.ClassRecordData?.preloadAsset) return;
+  const paths = [pageIndex - 1, pageIndex + 1]
+    .filter((index) => index >= 0 && index < pages.length)
+    .map((index) => getPageImagePath(pages[index], pages[index].records || []))
+    .filter(Boolean);
+  if (!paths.length) return;
+  const preload = () => paths.forEach((path) => {
+    window.ClassRecordData.preloadAsset(path, { priority: "low" }).catch(() => {});
+  });
+  if ("requestIdleCallback" in window) window.requestIdleCallback(preload, { timeout: 1200 });
+  else window.setTimeout(preload, 250);
+}
+
 function renderWrittenView(records) {
   const token = ++writtenImageRenderToken;
   const pages = getWrittenPages(records);
@@ -277,6 +291,7 @@ function renderWrittenView(records) {
       setWrittenImageState(writtenFigure, "error", token);
     });
   }
+  preloadAdjacentWrittenPages(pages, currentPageIndex);
   container.querySelector(".record-page-prev")?.addEventListener("click", () => {
     currentPageIndex = Math.max(currentPageIndex - 1, 0);
     renderCurrentViewAsync();

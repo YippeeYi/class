@@ -155,7 +155,7 @@
       questionText.innerHTML = `
         <span class="quiz-question-prompt quiz-question-prompt--secret">${escapeHtml(currentQuestion.prompt)}</span>
         <span class="quiz-secret-visual">
-          ${currentQuestion.image ? `<img src="${escapeHtml(currentQuestion.image)}" alt="\u9898\u76ee\u56fe\u7247" loading="eager" decoding="async">` : '<span class="quiz-image-missing">\u9898\u76ee\u56fe\u7247\u8d44\u6e90\u7f3a\u5931</span>'}
+          ${currentQuestion.imagePath ? `<img src="" data-secure-src="${escapeHtml(currentQuestion.imagePath)}" alt="\u9898\u76ee\u56fe\u7247" loading="eager" decoding="async" fetchpriority="high">` : '<span class="quiz-image-missing">\u9898\u76ee\u56fe\u7247\u8d44\u6e90\u7f3a\u5931</span>'}
           ${renderSecretAnswerBoxes()}
         </span>
       `;
@@ -166,6 +166,9 @@
         fallback.textContent = '\u9898\u76ee\u56fe\u7247\u52a0\u8f7d\u5931\u8d25';
         image.replaceWith(fallback);
       }, { once: true });
+      window.ClassRecordData?.resolveAssetElements?.(questionText).catch(() => {
+        image?.dispatchEvent(new Event('error'));
+      });
       return;
     }
 
@@ -692,16 +695,8 @@
           if (!clean.includes('/')) return `images/quiz/${SECRET_CONTENT}/${clean}`;
           return path;
         };
-        const settled = await Promise.allSettled(rows.map(async (item, index) => {
+        return rows.map((item, index) => {
           const imagePath = normalizeSecretImagePath(item.image || item.imagePath || '');
-          let image = '';
-          if (imagePath) {
-            image = await window.ClassRecordData.signAssetUrl(imagePath, { quiet: true }).catch((error) => {
-              console.warn('Secret quiz image signing failed:', imagePath, error);
-              return '';
-            });
-            if (!image) console.warn('Secret quiz image unavailable:', imagePath);
-          }
           return normalizeQuestion({
             id: item.id || `${SECRET_CONTENT}-${index + 1}`,
             type: 'fill',
@@ -711,14 +706,10 @@
             options: item.options || item.choices || [],
             choices: item.choices || item.options || [],
             explanation: item.explanation || '',
-            image,
+            image: '',
             imagePath
           }, index);
-        }));
-        return settled
-          .filter((result) => result.status === 'fulfilled')
-          .map((result) => result.value)
-          .filter((question) => question.answer);
+        }).filter((question) => question.answer);
       } catch (error) {
         console.warn('Supabase secret questions load failed:', error);
       }

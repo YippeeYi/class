@@ -13,6 +13,7 @@
     const paletteMemoryCache = new Map();
     const paletteStorageKey = "classRecordBackgroundPalette.v2";
     const paletteSessionKey = "classRecordBackgroundPaletteSession.v1";
+    const activeThemeSnapshotKey = "classRecordActiveTheme.v1";
     const categoryOrder = ["基础", "影像", "风景", "其他"];
 
     const storage = {
@@ -53,6 +54,7 @@
 
     if (!normalizedById.has(currentId)) {
         currentId = fallbackId;
+        storage.set(currentId);
     }
 
     const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -275,20 +277,20 @@
         return promise;
     };
 
-    const extractPaletteFromImage = async (imageSrc) => {
+    const extractPaletteFromImage = async (imageSrc, cacheKey = imageSrc) => {
         if (!imageSrc) {
             return null;
         }
-        if (paletteMemoryCache.has(imageSrc)) {
-            return paletteMemoryCache.get(imageSrc);
+        if (paletteMemoryCache.has(cacheKey)) {
+            return paletteMemoryCache.get(cacheKey);
         }
 
-        const sessionPalette = readPaletteSessionCache()[imageSrc];
-        const storedPalette = sessionPalette || readPaletteStorageCache()[imageSrc];
+        const sessionPalette = readPaletteSessionCache()[cacheKey];
+        const storedPalette = sessionPalette || readPaletteStorageCache()[cacheKey];
         if (storedPalette) {
-            paletteMemoryCache.set(imageSrc, storedPalette);
+            paletteMemoryCache.set(cacheKey, storedPalette);
             if (!sessionPalette) {
-                writePaletteCache(paletteSessionKey, window.sessionStorage, imageSrc, storedPalette);
+                writePaletteCache(paletteSessionKey, window.sessionStorage, cacheKey, storedPalette);
             }
             return storedPalette;
         }
@@ -354,9 +356,20 @@
             ? { r: Math.round(best.r / best.weight), g: Math.round(best.g / best.weight), b: Math.round(best.b / best.weight) }
             : fallback;
         const palette = dominant ? buildPalette(dominant) : null;
-        paletteMemoryCache.set(imageSrc, palette);
-        writePaletteCaches(imageSrc, palette);
+        paletteMemoryCache.set(cacheKey, palette);
+        writePaletteCaches(cacheKey, palette);
         return palette;
+    };
+
+    const writeActiveThemeSnapshot = (option, palette) => {
+        try {
+            localStorage.setItem(activeThemeSnapshotKey, JSON.stringify({
+                backgroundId: option.id,
+                palette: palette || {}
+            }));
+        } catch (error) {
+            // The in-memory theme remains active when storage is unavailable.
+        }
     };
 
     const dispatchBackgroundEvent = (type, option, phase) => {
@@ -368,15 +381,17 @@
             if (token === activeThemeToken) {
                 applyDefaultTheme();
                 root.dataset.backgroundThemeReady = "true";
+                writeActiveThemeSnapshot(option, null);
             }
             return null;
         }
         try {
             const imageSrc = await resolveImageSrc(option.image);
-            const palette = await extractPaletteFromImage(imageSrc);
+            const palette = await extractPaletteFromImage(imageSrc, option.image);
             if (token === activeThemeToken) {
                 applyPaletteTheme(palette);
                 root.dataset.backgroundThemeReady = "true";
+                writeActiveThemeSnapshot(option, palette);
             }
             return palette;
         } catch (error) {
@@ -389,16 +404,16 @@
     };
 
     const warmVisibleBackgrounds = (activeOption) => {
-        const activeIndex = normalizedOptions.findIndex((option) => option.id === activeOption.id);
-        normalizedOptions
-            .slice(Math.max(0, activeIndex - 1), activeIndex + 3)
-            .filter((option) => option.image)
-            .forEach((option, index) => warmImage(option.image, index === 0 ? "high" : "low"));
+        if (activeOption.image) warmImage(activeOption.image, "high");
     };
 
     const applyBackground = (id, { persist = true, notify = true } = {}) => {
         const option = normalizedById.get(id) || normalizedOptions[0];
-        root.style.setProperty("--page-bg-image", "none");
+        if (!option.image) {
+            root.style.setProperty("--page-bg-image", "none");
+        } else if (currentId !== option.id || !root.style.getPropertyValue("--page-bg-image") || root.style.getPropertyValue("--page-bg-image") === "none") {
+            root.style.setProperty("--page-bg-image", `url("${option.image}")`);
+        }
         root.style.setProperty("--page-bg-size", option.image ? option.fit : "cover");
         root.style.setProperty("--page-bg-position", option.position || "center center");
         root.style.setProperty("--page-bg-repeat", "no-repeat");
@@ -409,7 +424,11 @@
         }
         activeThemeToken += 1;
         const token = activeThemeToken;
-        root.dataset.backgroundThemeReady = option.image ? "false" : "true";
+        const cachedPalette = option.image
+            ? (readPaletteSessionCache()[option.image] || readPaletteStorageCache()[option.image])
+            : null;
+        if (cachedPalette) applyPaletteTheme(cachedPalette);
+        root.dataset.backgroundThemeReady = option.image && !cachedPalette ? "false" : "true";
         if (option.image) {
             resolveImageSrc(option.image).then((signedSrc) => {
                 if (token === activeThemeToken && signedSrc) {
