@@ -84,6 +84,15 @@
         root.dataset.backgroundId = backgroundId;
         root.dataset.backgroundThemeReady = image ? "false" : "true";
         root.style.setProperty("--page-bg-image", image ? `url("${image}")` : "none");
+        if (image && ![...document.querySelectorAll('link[rel="preload"][as="image"]')]
+            .some((link) => link.href === new URL(image, window.location.href).href)) {
+            const preload = document.createElement("link");
+            preload.rel = "preload";
+            preload.as = "image";
+            preload.href = image;
+            preload.fetchPriority = "high";
+            document.head.appendChild(preload);
+        }
         const palette = snapshot?.backgroundId === backgroundId && snapshot.palette && Object.keys(snapshot.palette).length
             ? snapshot.palette
             : window.ClassRecordThemePresets[backgroundId];

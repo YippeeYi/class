@@ -7,14 +7,12 @@ if (!termId) {
 }
 
 const recordContainer = document.getElementById("record-list");
-let allRecords = [];
 let relatedRecords = [];
 let termFilterCriteria = { year: "", month: "", day: "", important: false, excludeDaily: false };
 
 const cacheReady = window.cacheReadyPromise || Promise.resolve();
 
 cacheReady.then(() => Promise.all([loadAllGlossary(), loadAllPeople(), loadAllRecords()])).then(([glossary, people, records]) => {
-    allRecords = records;
     const term = glossary.find((item) => item.id === termId);
     if (!term) {
         alert("Term not found.");
@@ -32,7 +30,7 @@ cacheReady.then(() => Promise.all([loadAllGlossary(), loadAllPeople(), loadAllRe
     document.getElementById("term-related").innerHTML = relatedNames.length ? relatedNames.join(", ") : "-";
 
     const pattern = new RegExp(`\\{\\{${termId}\\|.+?\\}\\}`);
-    relatedRecords = allRecords.filter((record) => record.content && pattern.test(record.content));
+    relatedRecords = records.filter((record) => record.content && pattern.test(record.content));
     sortRecords(relatedRecords);
 
     const filterHost = document.createElement("div");

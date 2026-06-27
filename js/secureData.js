@@ -192,7 +192,6 @@
             // fallback for rows imported before `raw.hidden` was preserved.
             hidden: truthyHidden(Object.prototype.hasOwnProperty.call(raw, 'hidden') ? raw.hidden : row.hidden),
             imagePath: normalizeRecordPageImagePath(row.image_path || raw.imagePath || raw.image || raw.pageImage || ''),
-            source: 'supabase'
         };
     };
 
@@ -239,9 +238,6 @@
                 aliases: Array.isArray(row.aliases) ? row.aliases : (Array.isArray(raw.aliases) ? raw.aliases : []),
                 bio: row.bio || raw.bio || '',
                 avatarUrl: row.avatar_url || raw.avatarUrl || raw.avatar || '',
-                claimedBy: row.claimed_by || raw.claimedBy || raw.claimed_by || '',
-                claimedAt: row.claimed_at || raw.claimedAt || raw.claimed_at || '',
-                source: 'supabase'
             };
             if (typeof onProgressStep === 'function') onProgressStep(item.id);
             return item;
@@ -259,7 +255,6 @@
                 term: row.term || raw.term || '',
                 aliases: Array.isArray(row.aliases) ? row.aliases : (Array.isArray(raw.aliases) ? raw.aliases : []),
                 definition: row.definition || raw.definition || raw.description || '',
-                source: 'supabase'
             };
             if (typeof onProgressStep === 'function') onProgressStep(item.id);
             return item;
@@ -419,8 +414,12 @@
                 image.src = url;
             });
         });
-        imagePreloadCache.set(safePath, promise);
-        return promise;
+        const reusablePromise = promise.then((result) => {
+            if (!result) imagePreloadCache.delete(safePath);
+            return result;
+        });
+        imagePreloadCache.set(safePath, reusablePromise);
+        return reusablePromise;
     };
 
     const listAssetPaths = async (directory, { search = '', limit = 100 } = {}) => {
@@ -460,9 +459,16 @@
             console.warn('Secure asset signing failed:', error);
             return new Map();
         });
+        const assignImage = (node, src) => {
+            if (src && node.isConnected) {
+                node.src = src;
+                return;
+            }
+            if (node.isConnected) node.dispatchEvent(new Event('error'));
+        };
         immediateImages.forEach((node) => {
             const src = signed.get(node.getAttribute('data-secure-src'));
-            if (src) node.src = src;
+            assignImage(node, src);
             node.dataset.secureBound = 'true';
         });
         linkNodes.forEach((node) => {
@@ -471,14 +477,16 @@
         });
         if (lazyImages.length) {
             const observer = new IntersectionObserver((entries) => {
-                entries.forEach((entry) => {
-                    if (!entry.isIntersecting) return;
-                    const node = entry.target;
-                    observer.unobserve(node);
-                    signAssetUrl(node.getAttribute('data-secure-src'), { quiet: true }).then((src) => {
-                        if (src && node.isConnected) node.src = src;
-                    });
-                });
+                const visibleNodes = entries
+                    .filter((entry) => entry.isIntersecting)
+                    .map((entry) => entry.target);
+                visibleNodes.forEach((node) => observer.unobserve(node));
+                if (!visibleNodes.length) return;
+                signAssetUrls(visibleNodes.map((node) => node.getAttribute('data-secure-src')))
+                    .then((urls) => visibleNodes.forEach((node) => {
+                        assignImage(node, urls.get(node.getAttribute('data-secure-src')));
+                    }))
+                    .catch(() => visibleNodes.forEach((node) => assignImage(node, '')));
             }, { rootMargin: '320px 0px' });
             lazyImages.forEach((node) => {
                 node.dataset.secureBound = 'true';
@@ -486,8 +494,6 @@
             });
         }
     };
-
-    const bindSecureImages = resolveAssetElements;
 
     window.addEventListener('classrecordcacheclearing', () => {
         recordPromises.clear();
@@ -499,7 +505,6 @@
     });
 
     window.ClassRecordData = {
-        bindSecureImages,
         resolveAssetElements,
         getClient,
         getConfig,
@@ -511,7 +516,6 @@
         loadRecordPages,
         loadRecords,
         normalizePrivateStoragePath,
-        normalizeRecordPageImagePath,
         preloadAsset,
         signAssetUrl,
         signAssetUrls

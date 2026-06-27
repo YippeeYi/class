@@ -155,7 +155,7 @@
       questionText.innerHTML = `
         <span class="quiz-question-prompt quiz-question-prompt--secret">${escapeHtml(currentQuestion.prompt)}</span>
         <span class="quiz-secret-visual">
-          ${currentQuestion.imagePath ? `<img src="" data-secure-src="${escapeHtml(currentQuestion.imagePath)}" alt="\u9898\u76ee\u56fe\u7247" loading="eager" decoding="async" fetchpriority="high">` : '<span class="quiz-image-missing">\u9898\u76ee\u56fe\u7247\u8d44\u6e90\u7f3a\u5931</span>'}
+          ${currentQuestion.imagePath ? `<img src="" data-secure-src="${escapeHtml(currentQuestion.imagePath)}" alt="\u9898\u76ee\u56fe\u7247" width="1200" height="800" loading="eager" decoding="async" fetchpriority="high">` : '<span class="quiz-image-missing">\u9898\u76ee\u56fe\u7247\u8d44\u6e90\u7f3a\u5931</span>'}
           ${renderSecretAnswerBoxes()}
         </span>
       `;
@@ -259,7 +259,6 @@
       prompt: String(raw.prompt || raw.question || raw.title || '\u8bf7\u5b8c\u6210\u8fd9\u9053\u9898\u3002').trim(),
       answer,
       explanation: String(raw.explanation || raw.analysis || '').trim(),
-      image: imagePath,
       imagePath,
       recordText: String(raw.recordText || raw.record_text || raw.text || '').trim(),
       sideLabel: raw.sideLabel || raw.side_label || '',
@@ -706,7 +705,6 @@
             options: item.options || item.choices || [],
             choices: item.choices || item.options || [],
             explanation: item.explanation || '',
-            image: '',
             imagePath
           }, index);
         }).filter((question) => question.answer);

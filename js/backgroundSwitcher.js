@@ -241,7 +241,11 @@
     };
 
     const ensureResourceHint = (imageSrc) => {
-        if (!imageSrc || preloadLinkCache.has(imageSrc)) {
+        const absoluteSrc = imageSrc ? new URL(imageSrc, window.location.href).href : "";
+        const alreadyPreloaded = [...document.querySelectorAll('link[rel="preload"][as="image"]')]
+            .some((link) => link.href === absoluteSrc);
+        if (!imageSrc || preloadLinkCache.has(imageSrc) || alreadyPreloaded) {
+            if (imageSrc && alreadyPreloaded) preloadLinkCache.add(imageSrc);
             return;
         }
         const link = document.createElement("link");

@@ -2,6 +2,7 @@
     const itemsWrap = document.getElementById("shop-items");
     const summary = document.getElementById("shop-summary");
     if (!itemsWrap) return;
+    let previewObserver = null;
 
     function escapeHtml(text) {
         return String(text || "")
@@ -49,11 +50,15 @@
             return;
         }
 
+        previewObserver?.disconnect();
         itemsWrap.innerHTML = items.map((item) => {
             const active = item.active || item.id === window.BackgroundState?.currentId;
             const title = getItemTitle(item);
+            const previewStyle = item.image
+                ? (active ? ` style="--shop-preview:url('${escapeHtml(item.image)}')"` : "")
+                : ` style="--shop-preview:${item.preview || "var(--control-gradient)"}"`;
             return `
-                <article class="shop-card shop-background-card${active ? " is-active" : ""}" style="--shop-preview:${item.preview || "var(--control-gradient)"}">
+                <article class="shop-card shop-background-card${active ? " is-active" : ""}" data-background-id="${escapeHtml(item.id)}"${previewStyle}>
                     <span class="shop-background-preview" aria-hidden="true"></span>
                     <div class="shop-card-head">
                         <span class="shop-item-type">${escapeHtml(item.category)}背景</span>
@@ -67,6 +72,27 @@
                 </article>
             `;
         }).join("");
+
+        const deferredCards = [...itemsWrap.querySelectorAll(".shop-background-card:not(.is-active)")];
+        if (!("IntersectionObserver" in window)) {
+            deferredCards.forEach(loadCardPreview);
+            return;
+        }
+        previewObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                previewObserver.unobserve(entry.target);
+                loadCardPreview(entry.target);
+            });
+        }, { rootMargin: "240px 0px" });
+        deferredCards.forEach((card) => previewObserver.observe(card));
+    }
+
+    function loadCardPreview(card) {
+        const option = window.BackgroundState?.options?.find((item) => item.id === card.dataset.backgroundId);
+        if (!option?.image) return;
+        card.style.setProperty("--shop-preview", `url("${option.image}")`);
+        window.BackgroundState?.warm(option.image, "low");
     }
 
     itemsWrap.addEventListener("click", (event) => {
@@ -74,22 +100,19 @@
         if (!useButton) return;
         const backgroundId = useButton.dataset.shopUse;
         const applied = window.BackgroundState?.apply(backgroundId);
-        window.showAppToast?.("背景已切换。", "success");
         renderItems();
-        applied?.themeReady?.then(renderItems).catch(() => renderItems());
+        applied?.themeReady?.catch(() => {});
     });
 
     itemsWrap.addEventListener("pointerover", (event) => {
         const card = event.target.closest(".shop-background-card");
         if (!card) return;
-        const id = card.querySelector("[data-shop-use]")?.dataset.shopUse;
+        const id = card.dataset.backgroundId;
         const option = window.BackgroundState?.options?.find((item) => item.id === id);
         if (option?.image) {
             window.BackgroundState.warm(option.image, "high");
         }
     }, { passive: true });
 
-    window.addEventListener("backgroundthemechange", renderItems);
-    window.addEventListener("backgroundchange", renderItems);
     renderItems();
 })();

@@ -39,10 +39,6 @@ function normalizeFileName(value) {
   return String(value || "").trim().replace(/^data\/record\//i, "");
 }
 
-function getRecordSerial(record) {
-  return (record.fileName || record.id || "").replace(/\.json$/i, "").slice(-2);
-}
-
 function getFilteredRecords() {
   let filtered = filterRecordsByDate(allRecords, currentCriteria);
   sortRecords(filtered);
@@ -308,7 +304,7 @@ function renderWrittenView(records) {
       </div>
       <div class="record-written-layout">
         <figure class="record-written-image${imagePath ? ' is-loading' : ' is-missing'}${hiddenMode ? ' is-hidden-image' : ''}" data-render-token="${token}" data-image-state="${imagePath ? 'loading' : 'missing'}">
-          ${imagePath ? `<img ${srcAttr} ${secureAttr} alt="${hiddenMode ? `${page.page} 隐藏书面记录` : `${page.page} 原始书面记录`}" loading="eager" decoding="async" fetchpriority="high">` : ""}
+          ${imagePath ? `<img ${srcAttr} ${secureAttr} alt="${hiddenMode ? `${page.page} 隐藏书面记录` : `${page.page} 原始书面记录`}" width="2856" height="4282" loading="eager" decoding="async" fetchpriority="high">` : ""}
           <span class="record-written-image-loading">${imagePath ? "加载中…" : "未找到书面文件"}</span>
         </figure>
         <div class="record-written-records"></div>

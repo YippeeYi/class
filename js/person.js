@@ -11,7 +11,6 @@ const filterContainer = document.getElementById("record-filter");
 const recordSwitch = document.querySelector(".record-switch");
 const switchButtons = document.querySelectorAll(".switch-btn");
 
-let allRecords = [];
 let participatedRecords = [];
 let authoredRecords = [];
 let currentFilter = { year: "", month: "", day: "", important: false, excludeDaily: false, query: "" };
@@ -68,7 +67,7 @@ async function renderPersonAvatar(person) {
     if (!src) return;
     const card = document.createElement("div");
     card.className = "person-avatar-card";
-    card.innerHTML = `<img src="${escapeHtml(src)}" alt="${escapeHtml(person.name || person.id)}" loading="eager" decoding="async" fetchpriority="high">`;
+    card.innerHTML = `<img src="${escapeHtml(src)}" alt="${escapeHtml(person.name || person.id)}" width="192" height="192" loading="eager" decoding="async" fetchpriority="high">`;
     card.querySelector("img")?.addEventListener("error", () => {
         card.remove();
         info.classList.remove("has-person-avatar");
@@ -80,7 +79,6 @@ async function renderPersonAvatar(person) {
 const cacheReady = window.cacheReadyPromise || Promise.resolve();
 
 cacheReady.then(() => Promise.all([loadAllPeople({ force: true }), loadAllRecords()])).then(([people, records]) => {
-    allRecords = records;
     const person = people.find((item) => item.id === personId);
     if (!person) {
         alert("Person not found.");
@@ -98,8 +96,8 @@ cacheReady.then(() => Promise.all([loadAllPeople({ force: true }), loadAllRecord
     }
 
     const personRefPattern = new RegExp(`\\[\\[${escapeRegExp(personId)}\\|.+?\\]\\]`);
-    participatedRecords = allRecords.filter((record) => record.content && personRefPattern.test(record.content));
-    authoredRecords = allRecords.filter((record) => record.author === personId);
+    participatedRecords = records.filter((record) => record.content && personRefPattern.test(record.content));
+    authoredRecords = records.filter((record) => record.author === personId);
 
     sortRecords(participatedRecords);
     sortRecords(authoredRecords);
