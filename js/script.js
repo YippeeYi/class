@@ -262,7 +262,7 @@ function preloadAdjacentWrittenPages(pages, pageIndex) {
     .filter(Boolean);
   if (!paths.length) return;
   const preload = () => paths.forEach((path) => {
-    window.ClassRecordData.preloadAsset(path, { priority: "low" }).catch(() => {});
+    window.ClassRecordData.preloadAsset(path, { priority: "low" }).catch(() => { });
   });
   if ("requestIdleCallback" in window) window.requestIdleCallback(preload, { timeout: 1200 });
   else window.setTimeout(preload, 250);
@@ -305,7 +305,7 @@ function renderWrittenView(records) {
       <div class="record-written-layout">
         <figure class="record-written-image${imagePath ? ' is-loading' : ' is-missing'}${hiddenMode ? ' is-hidden-image' : ''}" data-render-token="${token}" data-image-state="${imagePath ? 'loading' : 'missing'}">
           ${imagePath ? `<img ${srcAttr} ${secureAttr} alt="${hiddenMode ? `${page.page} 隐藏书面记录` : `${page.page} 原始书面记录`}" width="2856" height="4282" loading="eager" decoding="async" fetchpriority="high">` : ""}
-          <span class="record-written-image-loading">${imagePath ? "加载中…" : "未找到书面文件"}</span>
+          <span class="record-written-image-loading">${imagePath ? "加载中···" : "未找到书面文件"}</span>
         </figure>
         <div class="record-written-records"></div>
       </div>
@@ -377,7 +377,7 @@ function renderWrittenView(records) {
 async function renderCurrentViewAsync() {
   const expectedMode = hiddenMode ? "hidden" : "normal";
   if (currentView === "written" && recordPageConfigMode !== expectedMode) {
-    container.innerHTML = `<div class="record-written-empty">${hiddenMode ? "正在检测隐藏书面记录图片…" : "正在加载书面记录…"}</div>`;
+    container.innerHTML = `<div class="record-written-empty">${hiddenMode ? "正在检测隐藏书面记录图片···" : "正在加载书面记录···"}</div>`;
     await loadRecordPageConfig();
     if (currentView !== "written" || expectedMode !== (hiddenMode ? "hidden" : "normal")) return;
   }
@@ -443,8 +443,8 @@ async function enterHiddenRecordMode() {
   window.ClassRecordHiddenModeActive = true;
   document.body.classList.add("hidden-record-mode");
   resetCriteriaForHiddenMode();
-  container.innerHTML = '<div class="record-empty"><strong>正在加载隐藏记录…</strong><span>仅本次会话可见，刷新后恢复普通记录。</span></div>';
-  renderHiddenModeBanner("正在加载隐藏记录…", "info");
+  container.innerHTML = '<div class="record-empty"><strong>正在加载隐藏记录···</strong><span>仅本次会话可见，刷新后恢复普通记录。</span></div>';
+  renderHiddenModeBanner("正在加载隐藏记录···", "info");
   try {
     const records = await window.loadHiddenRecords();
     allRecords = records;

@@ -68,8 +68,8 @@
         const index = key ? lower.indexOf(key) : -1;
         const start = index >= 0 ? Math.max(0, index - 34) : 0;
         const end = index >= 0 ? Math.min(plain.length, index + key.length + 56) : Math.min(plain.length, 96);
-        const head = start > 0 ? "…" : "";
-        const tail = end < plain.length ? "…" : "";
+        const head = start > 0 ? "···" : "";
+        const tail = end < plain.length ? "···" : "";
         const slice = plain.slice(start, end);
         if (!key || index < 0) return escapeHtml(`${head}${slice}${tail}`);
         const localIndex = index - start;
