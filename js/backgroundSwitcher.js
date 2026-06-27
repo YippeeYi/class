@@ -123,6 +123,7 @@
             "--panel-border", "--panel-bg", "--nav-bg", "--nav-border", "--control-gradient", "--control-gradient-hover",
             "--control-active-gradient", "--control-active-glow", "--control-shadow", "--control-shadow-hover",
             "--control-shadow-pressed", "--focus-ring", "--control-text", "--control-active-text", "--accent-dark",
+            "--shadow-soft", "--field-border", "--overlay-backdrop", "--overlay-card-bg", "--overlay-card-shadow",
             "--bg-card", "--guide-panel-bg", "--guide-card-bg", "--progress-track-bg", "--table-header-bg",
             "--table-row-hover-bg", "--table-row-hover-edge", "--table-row-hover-border", "--important-border", "--important-bg",
             "--attachment-bg", "--attachment-border", "--tooltip-bg", "--link-soft-bg", "--term-soft-bg"
@@ -213,7 +214,12 @@
             "--control-shadow": `0 8px 18px rgba(${toRgbString(accentStrong)}, 0.12)`,
             "--control-shadow-hover": `0 12px 24px rgba(${toRgbString(accentStrong)}, 0.18)`,
             "--control-shadow-pressed": `0 4px 10px rgba(${toRgbString(accentStrong)}, 0.16)`,
+            "--shadow-soft": `0 14px 34px rgba(${toRgbString(accentStrong)}, 0.14)`,
             "--focus-ring": `0 0 0 2px rgba(${toRgbString(surface)}, 0.95), 0 0 0 4px rgba(${toRgbString(accent)}, 0.38), 0 12px 24px rgba(${toRgbString(accentStrong)}, 0.18)`,
+            "--field-border": `2px solid rgba(${toRgbString(accentStrong)}, 0.18)`,
+            "--overlay-backdrop": `rgba(${toRgbString(accentStrong)}, 0.26)`,
+            "--overlay-card-bg": `rgba(${toRgbString(surface)}, 0.96)`,
+            "--overlay-card-shadow": `0 20px 40px rgba(${toRgbString(accentStrong)}, 0.22)`,
             "--control-text": controlText,
             "--control-active-text": controlActiveText,
             "--accent-dark": toHex(accentStrong),
@@ -427,8 +433,15 @@
         const cachedPalette = option.image
             ? (readPaletteSessionCache()[option.image] || readPaletteStorageCache()[option.image])
             : null;
-        if (cachedPalette) applyPaletteTheme(cachedPalette);
-        root.dataset.backgroundThemeReady = option.image && !cachedPalette ? "false" : "true";
+        const immediatePalette = cachedPalette || window.ClassRecordThemePresets?.[option.id] || null;
+        if (!option.image) {
+            applyDefaultTheme();
+            writeActiveThemeSnapshot(option, null);
+        } else if (immediatePalette) {
+            applyPaletteTheme(immediatePalette);
+            writeActiveThemeSnapshot(option, immediatePalette);
+        }
+        root.dataset.backgroundThemeReady = option.image && !immediatePalette ? "false" : "true";
         if (option.image) {
             resolveImageSrc(option.image).then((signedSrc) => {
                 if (token === activeThemeToken && signedSrc) {

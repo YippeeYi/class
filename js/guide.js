@@ -145,17 +145,18 @@
             return !hidden;
         });
         const now = new Date();
-        const year = String(now.getFullYear());
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const day = String(now.getDate()).padStart(2, '0');
-        const today = `${year}-${month}-${day}`;
-        const todayMatches = records.filter((record) => String(record.date || '').trim() === today);
+        const todayMatches = records.filter((record) => {
+            const match = String(record.date || '').trim().match(/^\d{4}-(\d{2})-(\d{2})$/);
+            return Boolean(match && match[1] === month && match[2] === day);
+        });
         const todayButton = document.getElementById('guide-today-history');
         if (todayButton) {
             todayButton.hidden = todayMatches.length === 0;
             document.body.classList.toggle('guide-has-today-history', !todayButton.hidden);
             todayButton.onclick = () => {
-                const target = `record.html?year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}&day=${encodeURIComponent(day)}`;
+                const target = `record.html?month=${encodeURIComponent(month)}&day=${encodeURIComponent(day)}`;
                 if (typeof window.navigateTo === 'function') window.navigateTo(target);
                 else location.href = target;
             };

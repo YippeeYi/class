@@ -137,6 +137,32 @@ async function loadHiddenRecordImagePages() {
     const imageTemplate = normalPages.find((page) => page.imagePath)?.imagePath || "";
     if (!imageTemplate) return [];
 
+    const normalizedTemplate = window.ClassRecordData.normalizePrivateStoragePath?.(imageTemplate) || imageTemplate;
+    const lastDirectorySeparator = Math.max(normalizedTemplate.lastIndexOf("/"), normalizedTemplate.lastIndexOf("\\"));
+    const directory = lastDirectorySeparator >= 0 ? normalizedTemplate.slice(0, lastDirectorySeparator) : "";
+    if (window.ClassRecordData.listAssetPaths && !/^https?:\/\//i.test(normalizedTemplate)) {
+      try {
+        const listedPaths = await window.ClassRecordData.listAssetPaths(directory, { search: "H", limit: 100 });
+        const existingPages = listedPaths.map((imagePath) => {
+          const pageKey = normalizeHiddenPageKey(imagePath);
+          const pageNumber = Number(pageKey);
+          if (!pageKey || pageNumber < HIDDEN_PAGE_MIN || pageNumber > HIDDEN_PAGE_MAX) return null;
+          const normalPage = normalPageMap.get(String(pageNumber));
+          return {
+            ...(normalPage || {}),
+            page: `H${pageKey}`,
+            originalPage: String(pageNumber),
+            start: normalPage?.start || "",
+            end: normalPage?.end || "",
+            imagePath
+          };
+        }).filter(Boolean);
+        return existingPages.sort((a, b) => Number(a.originalPage) - Number(b.originalPage));
+      } catch (error) {
+        // Fall back to quiet, cached probes when Storage listing is unavailable.
+      }
+    }
+
     const candidates = [];
     for (let pageNumber = HIDDEN_PAGE_MIN; pageNumber <= HIDDEN_PAGE_MAX; pageNumber += 1) {
       const pageKey = String(pageNumber).padStart(2, "0");

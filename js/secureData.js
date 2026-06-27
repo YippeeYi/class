@@ -7,6 +7,7 @@
     let clientPromise = null;
     const recordPromises = new Map();
     const recordPagePromises = new Map();
+    const assetListPromises = new Map();
     const signedUrlCache = new Map();
     const failedSignCache = new Map();
     const imagePreloadCache = new Map();
@@ -384,6 +385,30 @@
         return promise;
     };
 
+    const listAssetPaths = async (directory, { search = '', limit = 100 } = {}) => {
+        const safeDirectory = normalizePrivateStoragePath(directory).replace(/\/+$/, '');
+        const cacheKey = `${safeDirectory}|${search}|${limit}`;
+        if (!assetListPromises.has(cacheKey)) {
+            const promise = Promise.all([getConfig(), getClient()]).then(async ([config, client]) => {
+                const { data, error } = await client.storage.from(config.bucket).list(safeDirectory, {
+                    limit,
+                    offset: 0,
+                    search: search || undefined,
+                    sortBy: { column: 'name', order: 'asc' }
+                });
+                if (error) throw error;
+                return (data || [])
+                    .filter((item) => item?.name)
+                    .map((item) => `${safeDirectory ? `${safeDirectory}/` : ''}${item.name}`);
+            }).catch((error) => {
+                assetListPromises.delete(cacheKey);
+                throw error;
+            });
+            assetListPromises.set(cacheKey, promise);
+        }
+        return assetListPromises.get(cacheKey);
+    };
+
     const resolveAssetElements = async (root = document) => {
         const imageNodes = [...root.querySelectorAll('img[data-secure-src]:not([data-secure-bound])')];
         const linkNodes = [...root.querySelectorAll('a[data-secure-href]')];
@@ -435,6 +460,7 @@
         loadGlossary,
         loadPeople,
         loadQuizQuestions,
+        listAssetPaths,
         loadRecordPages,
         loadRecords,
         normalizePrivateStoragePath,

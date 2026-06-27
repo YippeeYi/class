@@ -2324,7 +2324,7 @@ body>#glossary-list {
   border-radius: 12px;
   border: 2px dashed var(--attachment-border);
   color: var(--text-subtle);
-  background: rgba(255, 255, 255, 0.46);
+  background: color-mix(in srgb, var(--theme-surface) 78%, transparent);
   font-weight: 800;
 }
 
@@ -5412,10 +5412,10 @@ body>.archive-tool-shell {
   display: none;
   margin: 12px 0;
   padding: 10px 12px;
-  border: 1px solid rgba(176, 69, 69, 0.28);
+  border: 1px solid color-mix(in srgb, var(--theme-accent-strong) 28%, transparent);
   border-radius: 8px;
-  background: rgba(255, 245, 245, 0.86);
-  color: #7f1d1d;
+  background: color-mix(in srgb, var(--theme-surface) 86%, transparent);
+  color: var(--theme-accent-strong);
   font-weight: 700;
 }
 
@@ -5427,9 +5427,9 @@ body.hidden-record-mode .hidden-record-banner {
   display: grid;
   min-height: 180px;
   place-items: center;
-  border: 1px dashed rgba(120, 113, 108, 0.4);
+  border: 1px dashed color-mix(in srgb, var(--theme-accent-strong) 40%, transparent);
   border-radius: 8px;
-  color: #78716c;
+  color: var(--text-soft);
 }
 
 .person-avatar-card {
