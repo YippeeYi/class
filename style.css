@@ -1,4 +1,7 @@
-﻿html.auth-pending body:not(.auth-page) { visibility: hidden; }
+﻿html.auth-pending body:not(.auth-page) {
+  visibility: hidden;
+}
+
 @font-face {
   font-family: "Google Sans Flex";
   src: url("fonts/GoogleSansFlex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf") format("truetype");
@@ -741,7 +744,7 @@ body>#glossary-list {
 }
 
 .record.importance-important::before {
-  content: "閲嶈";
+  content: "⚠";
   position: absolute;
   top: 0;
   right: 0;
@@ -2315,7 +2318,7 @@ body>#glossary-list {
 }
 
 .record-written-image.is-missing::before {
-  content: "鏈壘鍒颁功闈㈡枃浠?;
+  content: "can't find img";
   display: flex;
   align-items: center;
   justify-content: center;
