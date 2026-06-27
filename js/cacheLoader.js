@@ -25,28 +25,13 @@ window.loadWithCache = async function ({ key, expire = 24 * 60 * 60 * 1000, load
 window.clearCache = async function () {
     memoryCache.clear();
     inflightLoads.clear();
-    try {
-        Object.keys(localStorage).forEach((key) => {
-            if (key.startsWith(CACHE_PREFIX) || key.startsWith("sb-")) localStorage.removeItem(key);
-        });
-        Object.keys(sessionStorage).forEach((key) => {
-            if (key.startsWith(CACHE_PREFIX) || key.startsWith("sb-")) sessionStorage.removeItem(key);
-        });
-    } catch (error) {
-        // Ignore storage failures.
-    }
-    if ("caches" in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) || key.toLowerCase().includes("classrecord")).map((key) => caches.delete(key)));
-    }
-    if ("serviceWorker" in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations().catch(() => []);
-        await Promise.all(registrations
-            .filter((registration) => registration.active?.scriptURL?.includes("service-worker.js"))
-            .map((registration) => registration.unregister().catch(() => false)));
-    }
-    window.ClassRecordHiddenModeActive = false;
+    await window.clearAllSiteCache?.();
 };
+
+window.addEventListener("classrecordcacheclearing", () => {
+    memoryCache.clear();
+    inflightLoads.clear();
+});
 
 window.needsCacheLoad = function ({ expire = 24 * 60 * 60 * 1000 } = {}) {
     return !isCacheValid("records:visible", expire) || !isCacheValid("people", expire) || !isCacheValid("glossary", expire);

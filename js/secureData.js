@@ -14,6 +14,36 @@
     const FAILED_SIGN_TTL = 5 * 60 * 1000;
     const SIGNED_URL_REFRESH_BUFFER = 60 * 1000;
     const FAILED_ASSET_SESSION_KEY = 'classRecordMissingAssets.v1';
+    const SIGNED_URL_SESSION_KEY = 'classRecordSignedUrls.v1';
+
+    const persistSignedUrls = () => {
+        try {
+            const entries = {};
+            signedUrlCache.forEach((item, path) => {
+                if (item.url && item.expiresAt > Date.now() + SIGNED_URL_REFRESH_BUFFER) {
+                    entries[path] = { url: item.url, expiresAt: item.expiresAt };
+                }
+            });
+            sessionStorage.setItem(SIGNED_URL_SESSION_KEY, JSON.stringify(entries));
+        } catch (error) {
+            // The in-memory URL cache remains available.
+        }
+    };
+
+    try {
+        const storedUrls = JSON.parse(sessionStorage.getItem(SIGNED_URL_SESSION_KEY) || '{}');
+        Object.entries(storedUrls).forEach(([path, item]) => {
+            if (item?.url && Number(item.expiresAt) > Date.now() + SIGNED_URL_REFRESH_BUFFER) {
+                signedUrlCache.set(path, {
+                    url: item.url,
+                    promise: Promise.resolve(item.url),
+                    expiresAt: Number(item.expiresAt)
+                });
+            }
+        });
+    } catch (error) {
+        // Signed URL persistence is an optimization only.
+    }
 
     try {
         const storedFailures = JSON.parse(sessionStorage.getItem(FAILED_ASSET_SESSION_KEY) || '{}');
@@ -299,7 +329,13 @@
             .then(({ data, error }) => {
                 if (error) throw error;
                 clearAssetFailure(safePath);
-                return data?.signedUrl || '';
+                const url = data?.signedUrl || '';
+                const item = signedUrlCache.get(safePath);
+                if (item && url) {
+                    item.url = url;
+                    persistSignedUrls();
+                }
+                return url;
             })
             .catch((error) => {
                 signedUrlCache.delete(safePath);
@@ -350,11 +386,13 @@
                     }
                     clearAssetFailure(candidate.safePath);
                     signedUrlCache.set(candidate.safePath, {
+                        url,
                         promise: Promise.resolve(url),
                         expiresAt: now + expiresIn * 1000
                     });
                     result.set(candidate.original, url);
                 });
+                persistSignedUrls();
             } catch (error) {
                 const fallback = await Promise.allSettled(uncached.map(async ({ original, safePath }) => {
                     const url = await signAssetUrl(safePath, { expiresIn, quiet });
@@ -450,6 +488,15 @@
     };
 
     const bindSecureImages = resolveAssetElements;
+
+    window.addEventListener('classrecordcacheclearing', () => {
+        recordPromises.clear();
+        recordPagePromises.clear();
+        assetListPromises.clear();
+        signedUrlCache.clear();
+        failedSignCache.clear();
+        imagePreloadCache.clear();
+    });
 
     window.ClassRecordData = {
         bindSecureImages,

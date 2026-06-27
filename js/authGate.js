@@ -72,34 +72,18 @@
         document.head.appendChild(script);
     });
 
-    const clearAuthStorage = () => {
-        const isAuthKey = (key) => key === VERIFIED_KEY
-            || key === TARGET_KEY
-            || /^classRecord(SiteKey|Access|Auth|Verified)/i.test(String(key || ""));
-        [localStorage, sessionStorage].forEach((storage) => {
-            try {
-                Object.keys(storage).forEach((key) => {
-                    if (isAuthKey(key)) storage.removeItem(key);
-                });
-            } catch (error) {
-                console.warn("密钥状态清理失败：", error);
-            }
-        });
-    };
-
-    const hasVerifiedAccess = ({ refresh = false } = {}) => {
+    const getAccessState = () => {
         try {
-            const item = JSON.parse(localStorage.getItem(VERIFIED_KEY) || "null");
+            const raw = localStorage.getItem(VERIFIED_KEY);
+            if (!raw) return { verified: false, shouldClear: false };
+            const item = JSON.parse(raw);
             const lastAccessAt = Date.parse(item?.lastAccessAt || item?.verifiedAt || "");
             if (item?.verified !== true || !Number.isFinite(lastAccessAt) || Date.now() - lastAccessAt > ACCESS_TTL) {
-                clearAuthStorage();
-                return false;
+                return { verified: false, shouldClear: true };
             }
-            if (refresh) saveVerifiedAccess();
-            return true;
+            return { verified: true, shouldClear: false };
         } catch (error) {
-            clearAuthStorage();
-            return false;
+            return { verified: false, shouldClear: true };
         }
     };
 
@@ -108,35 +92,6 @@
             verified: true,
             lastAccessAt: new Date().toISOString()
         }));
-    };
-
-    const shouldClearKey = (key) => {
-        const lower = String(key || "").toLowerCase();
-        return lower.startsWith("classrecord")
-            || lower.startsWith("sb-");
-    };
-
-    const clearProjectCache = async () => {
-        try {
-            Object.keys(localStorage).forEach((key) => {
-                if (shouldClearKey(key)) localStorage.removeItem(key);
-            });
-            Object.keys(sessionStorage).forEach((key) => {
-                if (shouldClearKey(key)) sessionStorage.removeItem(key);
-            });
-        } catch (error) {
-            console.warn("项目缓存清理失败：", error);
-        }
-        window.ClassRecordHiddenModeActive = false;
-        if (typeof window.clearCache === "function") {
-            await window.clearCache().catch((error) => console.warn("缓存清理失败：", error));
-        }
-        if ("caches" in window) {
-            const keys = await caches.keys().catch(() => []);
-            await Promise.all(keys
-                .filter((key) => key.startsWith("classRecord") || key.toLowerCase().includes("classrecord"))
-                .map((key) => caches.delete(key)));
-        }
     };
 
     const storeRedirectTarget = () => {
@@ -167,7 +122,11 @@
 
     const handleGate = async () => {
         try {
-            const verified = hasVerifiedAccess({ refresh: true });
+            const accessState = getAccessState();
+            if (accessState.shouldClear) {
+                await window.clearAllSiteCache?.({ preserveRedirectTarget: !isAuthPage });
+            }
+            const verified = accessState.verified;
             if (!verified && !isAuthPage) {
                 storeRedirectTarget();
                 window.location.replace(AUTH_PAGE);
@@ -175,6 +134,7 @@
             }
             await ensureSupabaseClient();
             if (verified) {
+                saveVerifiedAccess();
                 resolveAccessPromise();
                 revealPage();
                 if (isAuthPage) redirectAfterVerification();
@@ -213,7 +173,7 @@
     };
 
     window.clearAccessKey = async () => {
-        await clearProjectCache();
+        await window.clearAllSiteCache?.();
     };
 
     handleGate();

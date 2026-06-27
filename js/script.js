@@ -49,6 +49,17 @@ function getFilteredRecords() {
   return filtered;
 }
 
+function hasActiveRecordFilter() {
+  return Boolean(
+    currentCriteria.year
+    || currentCriteria.month
+    || currentCriteria.day
+    || currentCriteria.important
+    || currentCriteria.excludeDaily
+    || String(currentCriteria.query || "").trim()
+  );
+}
+
 function normalizeRecordPageImagePath(value, page) {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -87,7 +98,16 @@ async function loadRecordPageConfig() {
       pages = await window.ClassRecordData.loadRecordPages({ hidden: false });
     }
     if (loadToken !== recordPageLoadToken || targetMode !== (hiddenMode ? "hidden" : "normal")) return;
-    recordPageConfig = Array.isArray(pages) ? pages.map(normalizeRecordPage).filter((page) => page.page) : [];
+    let normalizedPages = Array.isArray(pages) ? pages.map(normalizeRecordPage).filter((page) => page.page && page.imagePath) : [];
+    if (targetMode === "normal" && normalizedPages.length && window.ClassRecordData?.signAssetUrls) {
+      const signedImages = await window.ClassRecordData.signAssetUrls(
+        normalizedPages.map((page) => page.imagePath),
+        { quiet: true }
+      );
+      if (loadToken !== recordPageLoadToken || targetMode !== (hiddenMode ? "hidden" : "normal")) return;
+      normalizedPages = normalizedPages.filter((page) => signedImages.has(page.imagePath));
+    }
+    recordPageConfig = normalizedPages;
     recordPageConfigMode = targetMode;
   } catch (error) {
     if (loadToken !== recordPageLoadToken) return;
@@ -218,9 +238,11 @@ function getPageRecords(page, filteredRecords) {
 }
 
 function getWrittenPages(records) {
-  const pages = recordPageConfig.map((page) => ({ ...page, records: getPageRecords(page, records) }));
-  if (hiddenMode) return pages;
-  return pages.filter((page) => page.records.length || (!page.start && !page.end));
+  const filtering = hasActiveRecordFilter();
+  return recordPageConfig
+    .map((page) => ({ ...page, records: getPageRecords(page, records) }))
+    .filter((page) => Boolean(getPageImagePath(page, page.records)))
+    .filter((page) => !filtering || page.records.length > 0);
 }
 function getPageImagePath(page, pageRecords) {
   if (hiddenMode) return page.imagePath || "";

@@ -82,7 +82,7 @@
         const image = backgroundImages[backgroundId] || "";
         const snapshot = JSON.parse(localStorage.getItem(snapshotKey) || "null");
         root.dataset.backgroundId = backgroundId;
-        root.dataset.backgroundThemeReady = "false";
+        root.dataset.backgroundThemeReady = image ? "false" : "true";
         root.style.setProperty("--page-bg-image", image ? `url("${image}")` : "none");
         const palette = snapshot?.backgroundId === backgroundId && snapshot.palette && Object.keys(snapshot.palette).length
             ? snapshot.palette

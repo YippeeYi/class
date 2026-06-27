@@ -34,7 +34,6 @@
     };
 
     const normalizeOption = (option) => {
-        const secureImage = Boolean(window.ClassRecordData?.isEnabled?.() && option.image);
         return {
             id: String(option.id || ""),
             category: option.category || "其他",
@@ -43,7 +42,7 @@
             image: option.image || "",
             fit: option.fit || "cover",
             position: option.position || "center center",
-            preview: secureImage ? "linear-gradient(145deg, var(--theme-surface), var(--theme-surface-strong))" : (option.preview || (option.image ? `url("${option.image}")` : "linear-gradient(145deg, #fffdf8, #f3ece1 56%, #ece5d9)"))
+            preview: option.preview || (option.image ? `url("${option.image}")` : "linear-gradient(145deg, #fffdf8, #f3ece1 56%, #ece5d9)")
         };
     };
 
@@ -254,7 +253,7 @@
     };
 
     const resolveImageSrc = async (imageSrc) => {
-        if (!imageSrc || !window.ClassRecordData?.isEnabled?.()) {
+        if (!imageSrc || /^images\/backgrounds\//i.test(imageSrc) || !window.ClassRecordData?.isEnabled?.()) {
             return imageSrc;
         }
         return window.ClassRecordData.signAssetUrl(imageSrc).catch(() => "");

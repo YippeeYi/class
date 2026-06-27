@@ -694,13 +694,13 @@ body>#glossary-list {
   color: var(--text-soft);
 }
 
-/* 绌虹姸鎬?*/
+/* 空状态 */
 .person-info {
   margin-top: 16px;
 }
 
 
-/* 閸楁洘娼拋鏉跨秿閸楋紕澧?*/
+/* 记录卡片 */
 .record {
   background: var(--bg-card);
   backdrop-filter: blur(10px);
@@ -953,7 +953,7 @@ body>#glossary-list {
   border-bottom-color: var(--link-accent-hover);
 }
 
-/* 閺堫垵顕?*/
+/* 术语标签 */
 .term-tag {
   display: inline-block;
   color: var(--term-accent);
@@ -1003,7 +1003,7 @@ body>#glossary-list {
   user-select: none;
 }
 
-/* 姒涙垵绠?*/
+/* 隐藏文本 */
 
 .redacted {
   position: relative;
@@ -1198,7 +1198,7 @@ body>#glossary-list {
   flex: 1;
 
   white-space: pre-wrap;
-  /* 閺€顖涘瘮閹广垼顢?*/
+  /* 保留原始换行 */
 }
 
 
@@ -1568,9 +1568,9 @@ body>#glossary-list {
 
 .feature-page {
   --page-bg-base:
-    radial-gradient(circle at 15% 20%, rgba(255, 253, 234, 0.95), rgba(255, 253, 234, 0) 20%),
-    radial-gradient(circle at 80% 15%, rgba(215, 233, 255, 0.7), rgba(215, 233, 255, 0) 24%),
-    linear-gradient(180deg, #f4f1eb 0%, #eef2f8 48%, #f8f2e8 100%);
+    radial-gradient(circle at 15% 20%, color-mix(in srgb, var(--theme-surface) 88%, transparent), transparent 20%),
+    radial-gradient(circle at 80% 15%, color-mix(in srgb, var(--theme-surface-strong) 72%, transparent), transparent 24%),
+    linear-gradient(180deg, var(--theme-surface) 0%, var(--theme-surface-strong) 52%, var(--theme-surface) 100%);
 }
 
 .feature-shell {
@@ -1582,8 +1582,8 @@ body>#glossary-list {
 
 .quiz-card {
   border-radius: 28px;
-  background: rgba(255, 253, 248, 0.62);
-  border: 1px solid rgba(255, 255, 255, 0.56);
+  background: color-mix(in srgb, var(--theme-surface) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-accent-strong) 16%, transparent);
   backdrop-filter: blur(16px);
   box-shadow: 0 24px 60px rgba(31, 41, 55, 0.14);
   position: relative;
@@ -1628,7 +1628,7 @@ body>#glossary-list {
   width: 18px;
   height: 18px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.58);
+  background: color-mix(in srgb, var(--theme-surface) 82%, transparent);
   font-size: 12px;
 }
 
@@ -1742,7 +1742,7 @@ body>#glossary-list {
   justify-content: center;
   border: 2px solid color-mix(in srgb, var(--theme-accent-strong) 54%, transparent);
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.68);
+  background: color-mix(in srgb, var(--theme-surface) 82%, transparent);
   color: var(--theme-accent-strong);
   font-size: 22px;
   font-weight: 900;
@@ -1760,7 +1760,7 @@ body>#glossary-list {
   padding: 10px 14px;
   border-radius: 16px;
   border: 1px solid color-mix(in srgb, var(--theme-accent-strong) 28%, transparent);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(239, 246, 255, 0.86));
+  background: var(--control-gradient);
   color: var(--text-main);
   font-size: 17px;
 }
@@ -1904,18 +1904,18 @@ body>#glossary-list {
 
 .quiz-fill-input {
   min-height: 58px;
-  border: 1px solid rgba(79, 70, 229, 0.18);
+  border: 1px solid color-mix(in srgb, var(--theme-accent-strong) 20%, transparent);
   border-radius: 18px;
   padding: 0 18px;
-  background: rgba(255, 255, 255, 0.86);
+  background: color-mix(in srgb, var(--theme-surface) 88%, transparent);
   color: var(--text-main);
   font: inherit;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
 .quiz-fill-input:focus {
-  outline: 3px solid rgba(79, 70, 229, 0.16);
-  border-color: rgba(79, 70, 229, 0.42);
+  outline: 3px solid color-mix(in srgb, var(--theme-accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--theme-accent-strong) 46%, transparent);
 }
 
 .quiz-submit {
@@ -1930,8 +1930,8 @@ body>#glossary-list {
   gap: 14px;
   padding: 18px;
   border-radius: 20px;
-  border: 1px solid rgba(79, 70, 229, 0.12);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.84), rgba(244, 245, 255, 0.74));
+  border: 1px solid color-mix(in srgb, var(--theme-accent-strong) 16%, transparent);
+  background: var(--control-gradient);
   text-align: left;
   font: inherit;
   color: var(--text-main);
@@ -1941,7 +1941,7 @@ body>#glossary-list {
 
 .quiz-option:hover {
   transform: translateY(-2px);
-  box-shadow: 0 18px 30px rgba(79, 70, 229, 0.12);
+  box-shadow: var(--control-shadow-hover);
 }
 
 .quiz-option:active {
@@ -1961,7 +1961,7 @@ body>#glossary-list {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: linear-gradient(135deg, #182547, #3a4f86);
+  background: var(--control-active-gradient);
   color: #fff;
   font-weight: 700;
 }
@@ -2317,8 +2317,9 @@ body>#glossary-list {
   border: var(--field-border);
 }
 
-.record-written-image.is-missing::before {
-  content: "can't find img";
+.record-written-image.is-missing::before,
+.record-written-image.is-error::before {
+  content: "未找到书面记录图片";
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2331,7 +2332,8 @@ body>#glossary-list {
   font-weight: 800;
 }
 
-.record-written-image.is-missing img {
+.record-written-image.is-missing img,
+.record-written-image.is-error img {
   display: none;
 }
 
@@ -2351,7 +2353,8 @@ body>#glossary-list {
 }
 
 .record-written-image.is-loaded .record-written-image-loading,
-.record-written-image.is-missing .record-written-image-loading {
+.record-written-image.is-missing .record-written-image-loading,
+.record-written-image.is-error .record-written-image-loading {
   display: none;
 }
 
@@ -2523,7 +2526,7 @@ body>#glossary-list {
   }
 }
 
-/* 鏂板妫€绱綋楠岀簿淇?*/
+/* 搜索与筛选区域优化 */
 .record-filter {
   align-items: flex-end;
   gap: 12px;
@@ -2662,7 +2665,7 @@ body>#glossary-list {
   }
 }
 
-/* 绛涢€夊尯鍩熺簿淇?*/
+/* 筛选区域紧凑布局 */
 body>.record-switch,
 body>.record-view-switch {
   margin-bottom: 6px;
@@ -2708,7 +2711,7 @@ body>.sort-controls {
   font-weight: 600;
 }
 
-/* 绛旈椤电瓫閫夋瑙嗚鏀舵潫 */
+/* 答题页筛选框视觉收束 */
 .quiz-filter.record-filter {
   align-items: center;
   gap: 10px 14px;
@@ -2748,7 +2751,7 @@ body>.sort-controls {
   border-radius: 999px;
 }
 
-/* 璁块棶楠岃瘉椤电嫭绔嬫樉绀?*/
+/* 访问验证页独立显示 */
 body.auth-page {
   min-height: auto;
   background: #fff;
