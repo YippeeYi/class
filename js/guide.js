@@ -75,15 +75,6 @@
         tipTimer = window.setInterval(switchTip, 3600);
     };
 
-    const positionTodayHistoryButton = (button) => {
-        const side = Math.random() < 0.5 ? 'left' : 'right';
-        const offsetY = Math.round((Math.random() * 2 - 1) * 22);
-        button.classList.remove('guide-today-history--left', 'guide-today-history--right');
-        button.classList.add(`guide-today-history--${side}`);
-        button.style.setProperty('--today-offset-y', `${offsetY}px`);
-    };
-
-
     const bindStatCardLinks = () => {
         const cards = document.querySelectorAll('.guide-stat-link[data-target]');
         cards.forEach((card) => {
@@ -160,9 +151,7 @@
         const todayButton = document.getElementById('guide-today-history');
         if (todayButton) {
             todayButton.hidden = todayMatches.length === 0;
-            if (!todayButton.hidden) {
-                positionTodayHistoryButton(todayButton);
-            }
+            document.body.classList.toggle('guide-has-today-history', !todayButton.hidden);
             todayButton.onclick = () => {
                 const target = `record.html?month=${encodeURIComponent(month)}&day=${encodeURIComponent(day)}`;
                 if (typeof window.navigateTo === 'function') window.navigateTo(target);

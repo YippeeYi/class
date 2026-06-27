@@ -6,12 +6,18 @@
 const container = document.getElementById("record-list");
 const filterContainer = document.getElementById("record-filter");
 const HIDDEN_RECORD_SEQUENCE = "qibaishihuaxia";
+const HIDDEN_PAGE_MIN = 1;
+const HIDDEN_PAGE_MAX = 83;
+const HIDDEN_PAGE_CHECK_CONCURRENCY = 6;
 
 let allRecords = [];
 let recordPageConfig = [];
+let recordPageConfigMode = "";
+let recordPageLoadToken = 0;
 let writtenImageRenderToken = 0;
 let hiddenMode = false;
 let hiddenSequenceBuffer = "";
+let hiddenRecordPagesPromise = null;
 
 function parseInitialRecordCriteria() {
   const params = new URLSearchParams(location.search);
@@ -71,29 +77,25 @@ function normalizeRecordPage(page, index) {
 }
 
 async function loadRecordPageConfig() {
+  const targetMode = hiddenMode ? "hidden" : "normal";
+  const loadToken = ++recordPageLoadToken;
   try {
     let pages = [];
-    if (hiddenMode) {
+    if (targetMode === "hidden") {
       pages = await loadHiddenRecordImagePages();
     } else if (window.ClassRecordData?.isEnabled()) {
       pages = await window.ClassRecordData.loadRecordPages({ hidden: false });
     }
+    if (loadToken !== recordPageLoadToken || targetMode !== (hiddenMode ? "hidden" : "normal")) return;
     recordPageConfig = Array.isArray(pages) ? pages.map(normalizeRecordPage).filter((page) => page.page) : [];
+    recordPageConfigMode = targetMode;
   } catch (error) {
-    console.warn(hiddenMode ? "Hidden record page config load failed:" : "Record page config load failed:", error);
+    if (loadToken !== recordPageLoadToken) return;
+    console.warn(targetMode === "hidden" ? "Hidden record page config load failed:" : "Record page config load failed:", error);
     recordPageConfig = [];
+    recordPageConfigMode = targetMode;
   }
 }
-function getRecordIndexMap() {
-  const map = new Map();
-  const records = window.RecordStore?.allRecords?.length ? window.RecordStore.allRecords : allRecords;
-  records.forEach((record) => {
-    const fileName = normalizeFileName(record.fileName);
-    if (fileName) map.set(fileName, record.recordIndex);
-  });
-  return map;
-}
-
 function normalizeHiddenPageKey(value) {
   const text = String(value || "").trim().toLowerCase();
   if (!text) return "";
@@ -101,6 +103,11 @@ function normalizeHiddenPageKey(value) {
   const match = fileName.match(/^h?(\d{1,3})(?:\.jpeg)?$/i);
   if (match) return match[1].padStart(2, "0");
   return "";
+}
+
+function normalizePageNumber(value) {
+  const match = String(value || "").trim().match(/^(?:H)?(\d{1,3})$/i);
+  return match ? String(Number(match[1])) : "";
 }
 
 function deriveHiddenImagePath(originalPath, pageKey) {
@@ -121,31 +128,71 @@ function deriveHiddenImagePath(originalPath, pageKey) {
 
 async function loadHiddenRecordImagePages() {
   if (!window.ClassRecordData?.isEnabled()) return [];
-  const configuredHiddenPages = await window.ClassRecordData.loadRecordPages({ hidden: true });
-  const sourcePages = configuredHiddenPages.length
-    ? configuredHiddenPages.map(normalizeRecordPage)
-    : (await window.ClassRecordData.loadRecordPages({ hidden: false })).map(normalizeRecordPage).map((page) => {
-        const key = normalizeHiddenPageKey(page.page) || normalizeHiddenPageKey(page.imagePath);
-        return key ? { ...page, page: `H${key}`, imagePath: deriveHiddenImagePath(page.imagePath, key) } : null;
-      }).filter(Boolean);
-  return sourcePages
-    .sort((a, b) => normalizeHiddenPageKey(a.page).localeCompare(normalizeHiddenPageKey(b.page), undefined, { numeric: true }));
+  if (hiddenRecordPagesPromise) return hiddenRecordPagesPromise;
+
+  hiddenRecordPagesPromise = (async () => {
+    const normalPages = (await window.ClassRecordData.loadRecordPages({ hidden: false }))
+      .map(normalizeRecordPage);
+    const normalPageMap = new Map(normalPages.map((page) => [normalizePageNumber(page.page), page]));
+    const imageTemplate = normalPages.find((page) => page.imagePath)?.imagePath || "";
+    if (!imageTemplate) return [];
+
+    const candidates = [];
+    for (let pageNumber = HIDDEN_PAGE_MIN; pageNumber <= HIDDEN_PAGE_MAX; pageNumber += 1) {
+      const pageKey = String(pageNumber).padStart(2, "0");
+      const normalPage = normalPageMap.get(String(pageNumber));
+      const imagePath = deriveHiddenImagePath(normalPage?.imagePath || imageTemplate, pageKey);
+      if (imagePath) candidates.push({ pageKey, normalPage, imagePath });
+    }
+
+    const existingPages = [];
+    let nextCandidate = 0;
+    const checkNext = async () => {
+      while (nextCandidate < candidates.length) {
+        const candidate = candidates[nextCandidate];
+        nextCandidate += 1;
+        const signedUrl = await window.ClassRecordData
+          .signAssetUrl(candidate.imagePath, { quiet: true })
+          .catch(() => "");
+        if (!signedUrl) continue;
+        existingPages.push({
+          ...(candidate.normalPage || {}),
+          page: `H${candidate.pageKey}`,
+          originalPage: String(Number(candidate.pageKey)),
+          start: candidate.normalPage?.start || "",
+          end: candidate.normalPage?.end || "",
+          imagePath: candidate.imagePath
+        });
+      }
+    };
+
+    await Promise.all(Array.from(
+      { length: Math.min(HIDDEN_PAGE_CHECK_CONCURRENCY, candidates.length) },
+      () => checkNext()
+    ));
+    return existingPages.sort((a, b) => Number(a.originalPage) - Number(b.originalPage));
+  })().catch((error) => {
+    hiddenRecordPagesPromise = null;
+    throw error;
+  });
+
+  return hiddenRecordPagesPromise;
 }
 
-function getPageRecords(page, filteredRecords, recordIndexMap) {
-  const startIndex = recordIndexMap.get(normalizeFileName(page.start));
-  const endIndex = recordIndexMap.get(normalizeFileName(page.end));
-  if (!Number.isInteger(startIndex) || !Number.isInteger(endIndex)) {
-    return [];
-  }
-  const from = Math.min(startIndex, endIndex);
-  const to = Math.max(startIndex, endIndex);
-  return filteredRecords.filter((record) => record.recordIndex >= from && record.recordIndex <= to);
+function getPageRecords(page, filteredRecords) {
+  const startFile = normalizeFileName(page.start).toLowerCase();
+  const endFile = normalizeFileName(page.end).toLowerCase();
+  if (!startFile || !endFile) return [];
+  const from = startFile < endFile ? startFile : endFile;
+  const to = startFile < endFile ? endFile : startFile;
+  return filteredRecords.filter((record) => {
+    const fileName = normalizeFileName(record.fileName || record.id).toLowerCase();
+    return Boolean(fileName) && fileName >= from && fileName <= to;
+  });
 }
 
 function getWrittenPages(records) {
-  const recordIndexMap = getRecordIndexMap();
-  const pages = recordPageConfig.map((page) => ({ ...page, records: getPageRecords(page, records, recordIndexMap) }));
+  const pages = recordPageConfig.map((page) => ({ ...page, records: getPageRecords(page, records) }));
   if (hiddenMode) return pages;
   return pages.filter((page) => page.records.length || (!page.start && !page.end));
 }
@@ -269,6 +316,12 @@ function renderWrittenView(records) {
 }
 
 async function renderCurrentViewAsync() {
+  const expectedMode = hiddenMode ? "hidden" : "normal";
+  if (currentView === "written" && recordPageConfigMode !== expectedMode) {
+    container.innerHTML = `<div class="record-written-empty">${hiddenMode ? "正在检测隐藏书面记录图片…" : "正在加载书面记录…"}</div>`;
+    await loadRecordPageConfig();
+    if (currentView !== "written" || expectedMode !== (hiddenMode ? "hidden" : "normal")) return;
+  }
   renderCurrentView();
 }
 
@@ -325,13 +378,16 @@ function resetCriteriaForHiddenMode() {
 async function enterHiddenRecordMode() {
   if (hiddenMode) return;
   hiddenMode = true;
+  recordPageLoadToken += 1;
+  recordPageConfig = [];
+  recordPageConfigMode = "";
   window.ClassRecordHiddenModeActive = true;
   document.body.classList.add("hidden-record-mode");
   resetCriteriaForHiddenMode();
   container.innerHTML = '<div class="record-empty"><strong>正在加载隐藏记录…</strong><span>仅本次会话可见，刷新后恢复普通记录。</span></div>';
   renderHiddenModeBanner("正在加载隐藏记录…", "info");
   try {
-    const [records] = await Promise.all([window.loadHiddenRecords(), loadRecordPageConfig()]);
+    const records = await window.loadHiddenRecords();
     allRecords = records;
     sortRecords(allRecords);
     renderHiddenModeBanner(`隐藏记录查看已开启，共 ${allRecords.length} 条。刷新后自动恢复普通记录。`, "success");
