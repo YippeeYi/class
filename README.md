@@ -7,7 +7,7 @@
 - 没有账号体系：没有注册、登录、用户身份表、用户 ID、管理员账号或个人中心。
 - 统一密钥通过 Supabase RPC `verify_site_key(input_key text)` 验证。
 - 前端不读取明文密钥表，不硬编码正确密钥。
-- 验证通过后，本地只保存 `classRecordSiteKeyVerified.v1` 这个“已通过”状态，不保存原始密钥。
+- 验证通过后，本地只保存 `classRecordSiteKeyVerified.v1` 这个“已通过”状态及最近访问时间，不保存原始密钥；状态采用 14 天滑动有效期。
 - 前端允许的 Supabase 交互只有密钥验证、必要数据读取、Storage 签名 URL 和必要的只读展示请求。
 - 前端不再提交评论、收藏、表情、分享、成就、Q 币、答题结果、纠错、留言或任何用户本地状态。
 

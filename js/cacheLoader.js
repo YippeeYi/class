@@ -22,9 +22,6 @@ window.loadWithCache = async function ({ key, expire = 24 * 60 * 60 * 1000, load
 };
 
 
-window.ensureImageCacheLoaded = async function () { return Promise.resolve(); };
-window.needsImageCacheLoad = async function () { return false; };
-
 window.clearCache = async function () {
     memoryCache.clear();
     inflightLoads.clear();

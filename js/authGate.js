@@ -8,6 +8,7 @@
 
     const TARGET_KEY = "classRecordRedirectTarget";
     const VERIFIED_KEY = "classRecordSiteKeyVerified.v1";
+    const ACCESS_TTL = 14 * 24 * 60 * 60 * 1000;
     const AUTH_PAGE = "auth.html";
     const CONFIG_SCRIPT = "js/supabaseConfig.js";
     const CLIENT_SCRIPT = "js/supabaseClient.js";
@@ -71,11 +72,33 @@
         document.head.appendChild(script);
     });
 
-    const hasVerifiedAccess = () => {
+    const clearAuthStorage = () => {
+        const isAuthKey = (key) => key === VERIFIED_KEY
+            || key === TARGET_KEY
+            || /^classRecord(SiteKey|Access|Auth|Verified)/i.test(String(key || ""));
+        [localStorage, sessionStorage].forEach((storage) => {
+            try {
+                Object.keys(storage).forEach((key) => {
+                    if (isAuthKey(key)) storage.removeItem(key);
+                });
+            } catch (error) {
+                console.warn("密钥状态清理失败：", error);
+            }
+        });
+    };
+
+    const hasVerifiedAccess = ({ refresh = false } = {}) => {
         try {
             const item = JSON.parse(localStorage.getItem(VERIFIED_KEY) || "null");
-            return Boolean(item?.verified === true);
+            const lastAccessAt = Date.parse(item?.lastAccessAt || item?.verifiedAt || "");
+            if (item?.verified !== true || !Number.isFinite(lastAccessAt) || Date.now() - lastAccessAt > ACCESS_TTL) {
+                clearAuthStorage();
+                return false;
+            }
+            if (refresh) saveVerifiedAccess();
+            return true;
         } catch (error) {
+            clearAuthStorage();
             return false;
         }
     };
@@ -83,7 +106,7 @@
     const saveVerifiedAccess = () => {
         localStorage.setItem(VERIFIED_KEY, JSON.stringify({
             verified: true,
-            verifiedAt: new Date().toISOString()
+            lastAccessAt: new Date().toISOString()
         }));
     };
 
@@ -144,13 +167,14 @@
 
     const handleGate = async () => {
         try {
-            if (!hasVerifiedAccess() && !isAuthPage) {
+            const verified = hasVerifiedAccess({ refresh: true });
+            if (!verified && !isAuthPage) {
                 storeRedirectTarget();
                 window.location.replace(AUTH_PAGE);
                 return;
             }
             await ensureSupabaseClient();
-            if (hasVerifiedAccess()) {
+            if (verified) {
                 resolveAccessPromise();
                 revealPage();
                 if (isAuthPage) redirectAfterVerification();

@@ -6,8 +6,6 @@
 const container = document.getElementById("record-list");
 const filterContainer = document.getElementById("record-filter");
 const HIDDEN_RECORD_SEQUENCE = "qibaishihuaxia";
-const HIDDEN_RECORD_PAGE_MIN = 1;
-const HIDDEN_RECORD_PAGE_MAX = 83;
 
 let allRecords = [];
 let recordPageConfig = [];
@@ -37,10 +35,6 @@ function normalizeFileName(value) {
 
 function getRecordSerial(record) {
   return (record.fileName || record.id || "").replace(/\.json$/i, "").slice(-2);
-}
-
-function isDailyRecord(record) {
-  return getRecordSerial(record) === "00";
 }
 
 function getFilteredRecords() {
@@ -92,7 +86,8 @@ async function loadRecordPageConfig() {
 }
 function getRecordIndexMap() {
   const map = new Map();
-  allRecords.forEach((record) => {
+  const records = window.RecordStore?.allRecords?.length ? window.RecordStore.allRecords : allRecords;
+  records.forEach((record) => {
     const fileName = normalizeFileName(record.fileName);
     if (fileName) map.set(fileName, record.recordIndex);
   });
@@ -106,10 +101,6 @@ function normalizeHiddenPageKey(value) {
   const match = fileName.match(/^h?(\d{1,3})(?:\.jpeg)?$/i);
   if (match) return match[1].padStart(2, "0");
   return "";
-}
-
-function padHiddenPageNumber(value) {
-  return String(value).padStart(2, "0");
 }
 
 function deriveHiddenImagePath(originalPath, pageKey) {
@@ -130,41 +121,14 @@ function deriveHiddenImagePath(originalPath, pageKey) {
 
 async function loadHiddenRecordImagePages() {
   if (!window.ClassRecordData?.isEnabled()) return [];
-  const normalPages = await window.ClassRecordData.loadRecordPages({ hidden: false });
-  const pageMap = new Map();
-  normalPages.map(normalizeRecordPage).forEach((page) => {
-    const keys = [
-      normalizeHiddenPageKey(page.page),
-      normalizeHiddenPageKey(page.imagePath)
-    ].filter(Boolean);
-    keys.forEach((key) => {
-      if (!pageMap.has(key)) pageMap.set(key, page);
-    });
-  });
-
-  const checks = [];
-  for (let index = HIDDEN_RECORD_PAGE_MIN; index <= HIDDEN_RECORD_PAGE_MAX; index += 1) {
-    const key = padHiddenPageNumber(index);
-    const normalPage = pageMap.get(key);
-    if (!normalPage?.imagePath) continue;
-    const hiddenImagePath = deriveHiddenImagePath(normalPage.imagePath, key);
-    if (!hiddenImagePath) continue;
-    checks.push((async () => {
-      const signedUrl = await window.ClassRecordData.signAssetUrl(hiddenImagePath, { quiet: true }).catch(() => "");
-      if (!signedUrl) return null;
-      return {
-        ...normalPage,
-        page: `H${key}`,
-        originalPage: normalPage.page,
-        imagePath: hiddenImagePath
-      };
-    })());
-  }
-
-  const results = await Promise.allSettled(checks);
-  return results
-    .filter((result) => result.status === "fulfilled" && result.value)
-    .map((result) => result.value)
+  const configuredHiddenPages = await window.ClassRecordData.loadRecordPages({ hidden: true });
+  const sourcePages = configuredHiddenPages.length
+    ? configuredHiddenPages.map(normalizeRecordPage)
+    : (await window.ClassRecordData.loadRecordPages({ hidden: false })).map(normalizeRecordPage).map((page) => {
+        const key = normalizeHiddenPageKey(page.page) || normalizeHiddenPageKey(page.imagePath);
+        return key ? { ...page, page: `H${key}`, imagePath: deriveHiddenImagePath(page.imagePath, key) } : null;
+      }).filter(Boolean);
+  return sourcePages
     .sort((a, b) => normalizeHiddenPageKey(a.page).localeCompare(normalizeHiddenPageKey(b.page), undefined, { numeric: true }));
 }
 

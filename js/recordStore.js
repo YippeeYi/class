@@ -4,6 +4,7 @@
  ************************************************************/
 
 window.RecordStore = {
+    allRecords: [],
     records: [],
     loaded: false,
     hiddenRecords: [],
@@ -22,9 +23,12 @@ function normalizeRecordList(list, { hidden = false } = {}) {
         if (!Number.isInteger(record.recordIndex)) {
             record.recordIndex = index;
         }
-        record.hidden = Boolean(hidden);
-        return record;
+        return { ...record, hidden: Boolean(hidden) };
     });
+}
+
+function refreshCombinedRecords() {
+    RecordStore.allRecords = [...RecordStore.records, ...RecordStore.hiddenRecords];
 }
 
 window.loadAllRecords = async function ({ onProgressStep } = {}) {
@@ -40,9 +44,9 @@ window.loadAllRecords = async function ({ onProgressStep } = {}) {
         expire: 24 * 60 * 60 * 1000,
         loader: () => window.ClassRecordData.loadRecords({ onProgressStep, hidden: false })
     });
-
     RecordStore.records = normalizeRecordList(list, { hidden: false });
     RecordStore.loaded = true;
+    refreshCombinedRecords();
     return RecordStore.records;
 };
 
@@ -59,8 +63,8 @@ window.loadHiddenRecords = async function ({ onProgressStep } = {}) {
         expire: 5 * 60 * 1000,
         loader: () => window.ClassRecordData.loadRecords({ onProgressStep, hidden: true })
     });
-
     RecordStore.hiddenRecords = normalizeRecordList(list, { hidden: true });
     RecordStore.hiddenLoaded = true;
+    refreshCombinedRecords();
     return RecordStore.hiddenRecords;
 };

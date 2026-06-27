@@ -5,6 +5,8 @@
 
     let configPromise = null;
     let clientPromise = null;
+    const recordPromises = new Map();
+    const recordPagePromises = new Map();
     const signedUrlCache = new Map();
     const failedSignCache = new Map();
     const FAILED_SIGN_TTL = 5 * 60 * 1000;
@@ -126,7 +128,9 @@
             content: text,
             importance: row.importance || raw.importance || '',
             attachments,
-            hidden: truthyHidden(row.hidden ?? raw.hidden),
+            // The source JSON flag is authoritative. The column is only a
+            // fallback for rows imported before `raw.hidden` was preserved.
+            hidden: truthyHidden(Object.prototype.hasOwnProperty.call(raw, 'hidden') ? raw.hidden : row.hidden),
             imagePath: normalizeRecordPageImagePath(row.image_path || raw.imagePath || raw.image || raw.pageImage || ''),
             source: 'supabase'
         };
@@ -135,16 +139,29 @@
     const loadRecords = async ({ onProgressStep, hidden = false } = {}) => {
         const config = await getConfig();
         const client = await getClient();
-        let query = client.from(config.tables.records).select('*').order('record_index', { ascending: true });
-        if (hidden) {
-            query = query.or('hidden.eq.true,raw->>hidden.eq.true');
-        } else {
-            query = query.eq('hidden', false).not('raw->>hidden', 'eq', 'true');
+        const cacheKey = String(Boolean(hidden));
+        if (!recordPromises.has(cacheKey)) {
+            let query = client.from(config.tables.records)
+                .select('*')
+                .order('record_index', { ascending: true });
+            // `raw.hidden` mirrors the source JSON and is authoritative. An
+            // explicit OR is required because `neq` alone discards SQL NULLs.
+            query = hidden
+                ? query.eq('raw->>hidden', 'true')
+                : query.or('raw->>hidden.is.null,raw->>hidden.neq.true');
+            const promise = query
+                .then(({ data, error }) => {
+                    if (error) throw error;
+                    return (data || []).map(normalizeRecord);
+                })
+                .catch((error) => {
+                    recordPromises.delete(cacheKey);
+                    throw error;
+                });
+            recordPromises.set(cacheKey, promise);
         }
-        const { data: rows, error } = await query;
-        if (error) throw error;
-        return (rows || []).map((row, index) => {
-            const record = normalizeRecord(row, index);
+        const records = await recordPromises.get(cacheKey);
+        return records.filter((record) => record.hidden === Boolean(hidden)).map((record) => {
             if (typeof onProgressStep === 'function') onProgressStep(record.fileName);
             return record;
         });
@@ -191,10 +208,19 @@
 
     const loadRecordPages = async ({ hidden = false } = {}) => {
         const config = await getConfig();
-        const rows = await selectAll(config.tables.recordPages, '*', 'sort_order', { hidden: Boolean(hidden) });
+        const cacheKey = String(Boolean(hidden));
+        if (!recordPagePromises.has(cacheKey)) {
+            const promise = selectAll(config.tables.recordPages, '*', 'sort_order', { hidden: Boolean(hidden) })
+                .catch((error) => {
+                    recordPagePromises.delete(cacheKey);
+                    throw error;
+                });
+            recordPagePromises.set(cacheKey, promise);
+        }
+        const rows = await recordPagePromises.get(cacheKey);
         return rows.map((row, index) => {
             const raw = parseRaw(row);
-            const page = Number(row.page ?? raw.page ?? index + 1);
+            const page = String(row.page ?? raw.page ?? index + 1).trim();
             return {
                 ...raw,
                 page,
