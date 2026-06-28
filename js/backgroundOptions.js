@@ -26,8 +26,8 @@
         id: "sad-frog",
         category: "\u98ce\u666f",
         label: "\u98ce\u666f",
-        meta: "悲伤蛙",
-        image: "images/backgrounds/sad-frog.png",
-        preview: "url('images/backgrounds/sad-frog.png')"
+        meta: "Debian",
+        image: "images/backgrounds/debian.png",
+        preview: "url('images/backgrounds/debian.png')"
     }
 ];
