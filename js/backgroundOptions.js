@@ -29,5 +29,13 @@
         meta: "青山",
         image: "images/backgrounds/green-grass.png",
         preview: "url('images/backgrounds/green-grass.png')"
+    },
+    {
+        id: "field-cottage",
+        category: "\u98ce\u666f",
+        label: "\u98ce\u666f",
+        meta: "田园屋舍",
+        image: "images/backgrounds/field-cottage.png",
+        preview: "url('images/backgrounds/field-cottage.png')"
     }
 ];
