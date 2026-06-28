@@ -23,14 +23,6 @@
         preview: "url('images/backgrounds/gray-skull.png')"
     },
     {
-        id: "green-grass",
-        category: "\u98ce\u666f",
-        label: "\u98ce\u666f",
-        meta: "青山",
-        image: "images/backgrounds/green-grass.png",
-        preview: "url('images/backgrounds/green-grass.png')"
-    },
-    {
         id: "field-cottage",
         category: "\u98ce\u666f",
         label: "\u98ce\u666f",
