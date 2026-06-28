@@ -23,11 +23,11 @@
         preview: "url('images/backgrounds/gray-skull.png')"
     },
     {
-        id: "sad-frog",
+        id: "green-grass",
         category: "\u98ce\u666f",
         label: "\u98ce\u666f",
-        meta: "Debian",
-        image: "images/backgrounds/debian.png",
-        preview: "url('images/backgrounds/debian.png')"
+        meta: "青山",
+        image: "images/backgrounds/green-grass.png",
+        preview: "url('images/backgrounds/green-grass.png')"
     }
 ];
