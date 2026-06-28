@@ -21,5 +21,13 @@
         meta: "灰色骷髅头",
         image: "images/backgrounds/gray-skull.png",
         preview: "url('images/backgrounds/gray-skull.png')"
+    },
+    {
+        id: "sad-frog",
+        category: "\u98ce\u666f",
+        label: "\u98ce\u666f",
+        meta: "悲伤蛙",
+        image: "images/backgrounds/sad-frog.png",
+        preview: "url('images/backgrounds/sad-frog.png')"
     }
 ];
