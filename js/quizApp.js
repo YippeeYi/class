@@ -153,21 +153,22 @@
     if (!currentQuestion) return;
     if (currentQuestion.content === SECRET_CONTENT) {
       questionText.innerHTML = `
-      <span class="quiz-question-prompt quiz-question-prompt--secret">${escapeHtml(currentQuestion.prompt)}</span>
-      <span class="quiz-secret-visual">
-        ${currentQuestion.imagePath ? `<img src="${escapeHtml(currentQuestion.imagePath)}" alt="题目图片" width="1200" height="800" loading="eager" decoding="async" fetchpriority="high">` : '<span class="quiz-image-missing">题目图片资源缺失</span>'}
-        ${renderSecretAnswerBoxes()}
-      </span>
-    `;
-
+        <span class="quiz-question-prompt quiz-question-prompt--secret">${escapeHtml(currentQuestion.prompt)}</span>
+        <span class="quiz-secret-visual">
+          ${currentQuestion.imagePath ? `<img src="" data-secure-src="${escapeHtml(currentQuestion.imagePath)}" alt="\u9898\u76ee\u56fe\u7247" width="1200" height="800" loading="eager" decoding="async" fetchpriority="high">` : '<span class="quiz-image-missing">\u9898\u76ee\u56fe\u7247\u8d44\u6e90\u7f3a\u5931</span>'}
+          ${renderSecretAnswerBoxes()}
+        </span>
+      `;
       const image = questionText.querySelector('.quiz-secret-visual img');
       image?.addEventListener('error', () => {
         const fallback = document.createElement('span');
         fallback.className = 'quiz-image-missing';
-        fallback.textContent = '题目图片加载失败';
+        fallback.textContent = '\u9898\u76ee\u56fe\u7247\u52a0\u8f7d\u5931\u8d25';
         image.replaceWith(fallback);
       }, { once: true });
-
+      window.ClassRecordData?.resolveAssetElements?.(questionText).catch(() => {
+        image?.dispatchEvent(new Event('error'));
+      });
       return;
     }
 
@@ -178,12 +179,11 @@
     } else if (currentQuestion.type === 'judge') {
       recordHtml = renderJudgeRecord(currentQuestion, revealed);
     }
-
     questionText.innerHTML = `
-    <span class="quiz-question-prompt">${escapeHtml(currentQuestion.prompt)}</span>
-    <span class="quiz-question-record${shouldBlankRecord ? ' has-answer-blank' : ''}">${formatContent(recordHtml)}</span>
-    ${renderSideBox(currentQuestion, revealed)}
-  `;
+      <span class="quiz-question-prompt">${escapeHtml(currentQuestion.prompt)}</span>
+      <span class="quiz-question-record${shouldBlankRecord ? ' has-answer-blank' : ''}">${formatContent(recordHtml)}</span>
+      ${renderSideBox(currentQuestion, revealed)}
+    `;
   }
 
   function stripOptionMarkup(text) {
@@ -678,47 +678,41 @@
   }
 
   async function loadSecretQuestions() {
-    try {
-      const response = await fetch(`data/quiz/${SECRET_CONTENT}.json`, { cache: 'no-cache' });
-      if (!response.ok) {
-        throw new Error(`隐藏题数据加载失败：${response.status}`);
+    if (window.ClassRecordData?.isEnabled?.()) {
+      try {
+        const rows = await window.ClassRecordData.loadQuizQuestions(SECRET_CONTENT);
+        const normalizeSecretImagePath = (value) => {
+          const raw = String(value || '').trim();
+          const path = window.ClassRecordData.normalizePrivateStoragePath?.(raw) || raw.replace(/^\/+/, '');
+          if (!path || /^https?:\/\//i.test(path)) return path;
+          const clean = path
+            .replace(/^images\/record-pages\//i, '')
+            .replace(/^record-pages\//i, '')
+            .replace(/^images\/quiz\/lamian\//i, '')
+            .replace(/^quiz\/lamian\//i, '')
+            .replace(/^lamian\//i, '');
+          if (!clean.includes('/')) return `images/quiz/${SECRET_CONTENT}/${clean}`;
+          return path;
+        };
+        return rows.map((item, index) => {
+          const imagePath = normalizeSecretImagePath(item.image || item.imagePath || '');
+          return normalizeQuestion({
+            id: item.id || `${SECRET_CONTENT}-${index + 1}`,
+            type: 'fill',
+            content: SECRET_CONTENT,
+            prompt: item.prompt || 'Hidden question',
+            answer: item.answer || '',
+            options: item.options || item.choices || [],
+            choices: item.choices || item.options || [],
+            explanation: item.explanation || '',
+            imagePath
+          }, index);
+        }).filter((question) => question.answer);
+      } catch (error) {
+        console.warn('Supabase secret questions load failed:', error);
       }
-
-      const data = await response.json();
-      const rows = Array.isArray(data)
-        ? data
-        : (Array.isArray(data.questions) ? data.questions : []);
-
-      const normalizeFrontendQuizImagePath = (value) => {
-        const raw = String(value || '').trim().replace(/\\/g, '/');
-        if (!raw) return '';
-
-        if (/^(https?:)?\/\//i.test(raw)) return raw;
-        if (raw.startsWith('/') || raw.startsWith('./') || raw.startsWith('../')) return raw;
-        if (raw.includes('/')) return raw;
-
-        return `data/quiz/${SECRET_CONTENT}/${raw}`;
-      };
-
-      return rows.map((item, index) => {
-        const imagePath = normalizeFrontendQuizImagePath(item.image || item.imagePath || '');
-
-        return normalizeQuestion({
-          id: item.id || `${SECRET_CONTENT}-${index + 1}`,
-          type: 'fill',
-          content: SECRET_CONTENT,
-          prompt: item.prompt || item.question || item.title || 'Hidden question',
-          answer: item.answer || item.correctAnswer || '',
-          options: item.options || item.choices || [],
-          choices: item.choices || item.options || [],
-          explanation: item.explanation || item.analysis || '',
-          imagePath
-        }, index);
-      }).filter((question) => question.answer);
-    } catch (error) {
-      console.warn('Local secret questions load failed:', error);
-      return [];
     }
+    return [];
   }
 
   function setFeedback(message, type) {
