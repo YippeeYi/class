@@ -1,13 +1,13 @@
 (() => {
     const CREDITS = {
         groups: [
-            { title: '书面记录', members: ['总主编：[[shr吞噬细胞]]，[[zzk|Johnson]]', '主编：qyc,sjy,', '功能实现', '测试验收'] },
-            { title: '网站制作', members: ['制作：CRAFT', '内容编写：CRAFT'] }
+            { title: '书面记录', members: ['总主编：[[shr|吞噬细胞]],[[zzk|Johnson]]', '主编：[[qyc|qyc]],[[sjy|冰球王子]],[[zlpa|四字]],[[ljy|栗笋]],[[wy|wy]],[[hxw|氦星人]],[[dfy|CRAFT]],[[sry|孔亚峰主人（狗💩）]]', '吉祥物：[[lxc|lxc（刘乐乐）]]'] },
+            { title: '网站制作', members: ['制作：[[dfy|CRAFT]]', '内容编写：[[dfy|CRAFT]],[[zzk|Johnson]]'] }
         ],
         thanks: [
-            '感谢所有提供记录、图片、人物资料和术语解释的同学。',
+            '感谢[[shr|吞噬细胞]]对史实确认的大力支持。',
             '感谢参与测试、反馈问题并持续维护资料准确性的同学。',
-            '具体姓名可后续在本配置中集中补充维护。'
+            '感谢每一位为编日史制作提供帮助的同学。'
         ]
     };
 
