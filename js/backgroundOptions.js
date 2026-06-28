@@ -19,7 +19,7 @@
         category: "\u98ce\u666f",
         label: "\u98ce\u666f",
         meta: "灰色骷髅头",
-        image: "images/backgrounds/gray-skull.jpg",
+        image: "images/backgrounds/gray-skull.png",
         preview: "url('images/backgrounds/gray-skull.png')"
     }
 ];
