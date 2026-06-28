@@ -1,8 +1,8 @@
 (() => {
     const CREDITS = {
         groups: [
-            { title: '制作组', members: ['资料整理', '页面设计', '功能实现', '测试验收'] },
-            { title: '内容维护', members: ['编日史记录整理小组', '人物与术语校对小组'] }
+            { title: '书面记录', members: [parseContent('[[shr|吞噬细胞]],[[zzk|Johnson]]'), '主编：qyc,sjy,', '功能实现', '测试验收'] },
+            { title: '网站制作', members: ['制作：CRAFT', '内容编写：CRAFT'] }
         ],
         thanks: [
             '感谢所有提供记录、图片、人物资料和术语解释的同学。',
