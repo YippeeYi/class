@@ -1,7 +1,7 @@
 (() => {
     const CREDITS = {
         groups: [
-            { title: '书面记录', members: ['总主编：[[shr|吞噬细胞]],[[zzk|Johnson]]', '主编：[[qyc|qyc]],[[sjy|冰球王子]],[[zlpa|四字]],[[ljy|栗笋]],[[wy|wy]],[[hxw|氦星人]],[[dfy|CRAFT]],[[sry|孔亚峰主人（狗💩）]]', '吉祥物：[[lxc|lxc（刘乐乐）]]'] },
+            { title: '书面记录', members: ['总主编：[[shr|吞噬细胞]]', '主编：[[zzk|Johnson]],[[qyc|qyc]],[[sjy|冰球王子]],[[zlpa|四字]],[[ljy|栗笋]],[[wy|wy]],[[hxw|氦星人]],[[dfy|CRAFT]],[[sry|孔亚峰主人（狗💩）]]', '吉祥物：[[lxc|lxc（刘乐乐）]]'] },
             { title: '网站制作', members: ['制作：[[dfy|CRAFT]]', '内容编写：[[dfy|CRAFT]],[[zzk|Johnson]]'] }
         ],
         thanks: [
