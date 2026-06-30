@@ -5,7 +5,7 @@
             { title: '网站制作', members: ['制作：[[dfy|CRAFT]]', '内容编写：[[dfy|CRAFT]],[[zzk|Johnson]]'] }
         ],
         thanks: [
-            '感谢[[shr|吞噬细胞]],[[zzk|Johnson]]对史实校准的大力支持。',
+            '感谢[[shr|吞噬细胞]],[[zzk|Johnson]],[[sjy|冰球王子]],[[zlpa|四字]]对史实校准的大力支持。',
             '[[dfy|我]]谨代表编日史制作组向每一位为编日史制作提供帮助的同学表达衷心的感谢！'
         ]
     };
