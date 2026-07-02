@@ -2335,6 +2335,7 @@ body>#glossary-list {
 }
 
 .record-written-message:hover {
+  transform: translateY(-2px);
   box-shadow:
     0 18px 40px rgba(var(--theme-rgb), 0.2),
     0 0 0 1px color-mix(in srgb, var(--theme-accent) 20%, transparent),
