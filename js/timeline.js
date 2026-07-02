@@ -165,17 +165,21 @@
     }
 
     function getAuthorColor(id) {
-        return authorColorMap.get(id) || 'hsl(210 52% 64%)';
+        return authorColorMap.get(id) || '#7fa8c9';
     }
 
     function buildAuthorColor(index) {
-        // 十二色相环：相邻记录人跨色相取色，降低饱和度和明度对比以保持柔和。
-        const hueRing = [0, 180, 30, 210, 60, 240, 90, 270, 120, 300, 150, 330];
-        const hue = hueRing[index % hueRing.length];
-        const ring = Math.floor(index / hueRing.length);
-        const saturation = 52 + (ring % 2) * 6;
-        const lightness = 62 + (Math.floor(ring / 2) % 2) * 5;
-        return `hsl(${hue} ${saturation}% ${lightness}%)`;
+        // 低对比十二色相环。交错取色让列表中相邻记录人保持可辨识度。
+        const colorRing = [
+            '#d88f8f', '#73b5b3', '#d6a078', '#7fa8c9',
+            '#c8b36f', '#9794c8', '#9fbd78', '#b18fc2',
+            '#7db38b', '#c78eaf', '#72ad9a', '#d08e9c'
+        ];
+        const base = colorRing[index % colorRing.length];
+        const ring = Math.floor(index / colorRing.length);
+        if (!ring) return base;
+        const lightMix = 8 + (ring % 3) * 5;
+        return `color-mix(in srgb, ${base} ${100 - lightMix}%, ${ring % 2 ? 'white' : 'var(--text-main)'})`;
     }
 
     function getAuthorDistribution(recordList) {

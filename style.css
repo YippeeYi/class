@@ -807,11 +807,9 @@ body>#glossary-list {
 }
 
 .record-jump-dialog {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  z-index: 3;
-  width: min(250px, calc(100% - 28px));
+  position: fixed;
+  z-index: 30;
+  width: 260px;
   max-width: min(360px, calc(100vw - 32px));
   margin: 0;
   padding: 10px 12px;
@@ -836,9 +834,12 @@ body>#glossary-list {
   pointer-events: none;
 }
 
-.record.has-record-jump-dialog {
-  min-height: 112px;
-  padding-right: 286px;
+.record-jump-dialog.is-below {
+  transform: translateY(8px);
+}
+
+.record-jump-dialog.is-below.is-visible {
+  transform: translateY(0);
 }
 
 .record-jump-dialog::before {
@@ -2301,19 +2302,8 @@ body>#glossary-list {
 }
 
 @media (max-width: 620px) {
-  .record.has-record-jump-dialog {
-    padding-right: 18px;
-  }
-
   .record-jump-dialog {
-    position: relative;
-    top: auto;
-    right: auto;
-    width: 100%;
-    max-width: 100%;
-    margin-top: 12px;
-    margin-right: 0;
-    margin-left: auto;
+    max-width: calc(100vw - 24px);
     transform: translateY(8px);
   }
 
@@ -2326,10 +2316,35 @@ body>#glossary-list {
   }
 }
 
+.record-jump-dialog.is-below::before {
+  display: none;
+}
+
 .record-written-message {
   margin-bottom: 18px;
-  border: 1px solid color-mix(in srgb, var(--theme-accent) 34%, transparent);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--theme-surface) 94%, white), color-mix(in srgb, var(--theme-accent) 8%, var(--theme-surface-strong)));
+  overflow: hidden;
+  border: 2px solid color-mix(in srgb, var(--theme-accent) 48%, var(--line-soft));
+  border-left: 7px solid color-mix(in srgb, var(--theme-accent) 72%, var(--theme-accent-strong));
+  background:
+    linear-gradient(105deg, color-mix(in srgb, var(--theme-accent) 13%, transparent), transparent 46%),
+    var(--bg-card);
+  box-shadow:
+    var(--shadow-soft),
+    0 0 0 1px color-mix(in srgb, var(--theme-accent) 12%, transparent),
+    0 10px 28px color-mix(in srgb, var(--theme-accent) 16%, transparent);
+}
+
+.record-written-message:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 18px 40px rgba(var(--theme-rgb), 0.2),
+    0 0 0 1px color-mix(in srgb, var(--theme-accent) 20%, transparent),
+    0 12px 32px color-mix(in srgb, var(--theme-accent) 22%, transparent);
+}
+
+.record-written-message .meta span:first-child {
+  color: color-mix(in srgb, var(--theme-accent-strong) 82%, var(--text-main));
+  font-weight: 820;
 }
 
 .record-written-image.is-loaded .record-written-image-loading,

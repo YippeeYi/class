@@ -20,6 +20,7 @@ let hiddenSequenceBuffer = "";
 let hiddenRecordPagesPromise = null;
 let pendingRecordJump = null;
 let activeRecordJumpDialog = null;
+let activeRecordJumpCleanup = null;
 let pageMessageMap = new Map();
 let pageMessagesPromise = null;
 const writtenImagePreloadCache = new Map();
@@ -465,12 +466,10 @@ function renderRecordFilterForCurrentState() {
 function closeRecordJumpDialog({ immediate = false } = {}) {
   const dialog = activeRecordJumpDialog;
   activeRecordJumpDialog = null;
+  activeRecordJumpCleanup?.();
+  activeRecordJumpCleanup = null;
   if (!dialog) return;
-  const target = dialog.closest(".record");
-  const remove = () => {
-    dialog.remove();
-    target?.classList.remove("has-record-jump-dialog");
-  };
+  const remove = () => dialog.remove();
   if (immediate) {
     remove();
     return;
@@ -481,7 +480,7 @@ function closeRecordJumpDialog({ immediate = false } = {}) {
 }
 
 async function returnFromRecordJump(origin) {
-  closeRecordJumpDialog();
+  closeRecordJumpDialog({ immediate: true });
   pendingRecordJump = null;
   if (origin.externalHref) {
     location.href = origin.externalHref;
@@ -516,9 +515,41 @@ function showRecordJumpDialog(target, jumpState) {
     closeRecordJumpDialog();
   });
   dialog.querySelector("[data-jump-return]")?.addEventListener("click", () => returnFromRecordJump(jumpState.origin));
-  target.classList.add("has-record-jump-dialog");
-  target.appendChild(dialog);
+  document.body.appendChild(dialog);
   activeRecordJumpDialog = dialog;
+  const positionDialog = () => {
+    if (!dialog.isConnected || !target.isConnected) return;
+    const gap = 12;
+    const viewportPadding = 12;
+    const targetRect = target.getBoundingClientRect();
+    const width = Math.min(260, window.innerWidth - viewportPadding * 2);
+    dialog.style.width = `${width}px`;
+    const height = dialog.offsetHeight;
+    const fitsRight = window.innerWidth - targetRect.right - gap >= width;
+    dialog.classList.toggle("is-below", !fitsRight);
+    if (fitsRight) {
+      dialog.style.left = `${targetRect.right + gap}px`;
+      dialog.style.top = `${Math.min(Math.max(targetRect.top + (targetRect.height - height) / 2, viewportPadding), window.innerHeight - height - viewportPadding)}px`;
+      return;
+    }
+    const left = Math.min(Math.max(targetRect.left + (targetRect.width - width) / 2, viewportPadding), window.innerWidth - width - viewportPadding);
+    const below = targetRect.bottom + gap;
+    const top = below + height <= window.innerHeight - viewportPadding
+      ? below
+      : Math.max(viewportPadding, targetRect.top - height - gap);
+    dialog.style.left = `${left}px`;
+    dialog.style.top = `${top}px`;
+  };
+  const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(positionDialog) : null;
+  resizeObserver?.observe(target);
+  window.addEventListener("resize", positionDialog);
+  window.addEventListener("scroll", positionDialog, { passive: true });
+  activeRecordJumpCleanup = () => {
+    resizeObserver?.disconnect();
+    window.removeEventListener("resize", positionDialog);
+    window.removeEventListener("scroll", positionDialog);
+  };
+  positionDialog();
   requestAnimationFrame(() => dialog.classList.add("is-visible"));
 }
 
