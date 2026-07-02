@@ -183,10 +183,10 @@
         return { entries, total, background: segments.length ? `conic-gradient(${segments.join(',')})` : 'var(--theme-surface-strong)' };
     }
 
-    function renderAuthorLegend(recordList, className = 'timeline-author-legend') {
+    function renderAuthorLegend(recordList, className = 'timeline-author-legend', { showValues = true } = {}) {
         const { entries, total } = getAuthorDistribution(recordList);
-        const legend = entries.map(([id, count], index) => `
-            <li><i style="--legend-color:${getAuthorColor(id)}"></i><span>${escapeHtml(getPersonLabel(id))}</span><strong>${count} · ${formatPercent(count, total)}</strong></li>
+        const legend = entries.map(([id, count]) => `
+            <li><i style="--legend-color:${getAuthorColor(id)}"></i><span>${escapeHtml(getPersonLabel(id))}</span>${showValues ? `<strong>${count} · ${formatPercent(count, total)}</strong>` : ''}</li>
         `).join('');
         return `<ul class="${className}">${legend || '<li class="is-empty">暂无可统计数据</li>'}</ul>`;
     }
@@ -341,8 +341,7 @@
                         ${years.map((item) => `
                             <button type="button" class="timeline-year-card${item.key === activeYear ? ' is-active' : ''}" data-year="${item.key}">
                                 <span class="timeline-year-key">${item.key}</span>
-                                <strong>${item.records.length}</strong>
-                                <span>${item.months.length} 个月</span>
+                                <span>${item.records.length} 条</span>
                             </button>
                         `).join('')}
                     </div>
@@ -432,7 +431,6 @@
             <section class="timeline-month-stat-grid" aria-label="${formatMonthTitle(month.key)} 统计摘要">
                 <article><span>记录总数</span><strong>${month.records.length}</strong></article>
                 <article><span>重要记录</span><strong>${month.important.length}</strong></article>
-                <article><span>重要占比</span><strong>${formatPercent(month.important.length, month.records.length)}</strong></article>
                 <article><span>有记录天数</span><strong>${activeDays}</strong></article>
                 <article><span>全月天数</span><strong>${dayCount}</strong></article>
                 <article><span>活跃人物</span><strong>${month.people.size}</strong></article>
@@ -450,7 +448,7 @@
                 <div class="timeline-calendar-grid">${calendarCells}</div>
                 <div class="timeline-calendar-legend">
                     <span>记录人</span>
-                    ${renderAuthorLegend(month.records, 'timeline-author-legend timeline-author-legend--calendar')}
+                    ${renderAuthorLegend(month.records, 'timeline-author-legend timeline-author-legend--calendar', { showValues: false })}
                 </div>
             </section>
             <div class="timeline-insight-grid">

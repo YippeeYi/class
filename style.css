@@ -791,9 +791,9 @@ body>#glossary-list {
   display: inline-block;
   padding: 0 0.12em;
   border: 0;
-  border-bottom: 2px dashed var(--term-border);
+  border-bottom: 2px dashed transparent;
   background: transparent;
-  color: var(--link-accent);
+  color: var(--term-accent);
   font: inherit;
   font-weight: 750;
   cursor: pointer;
@@ -801,8 +801,8 @@ body>#glossary-list {
 }
 
 .record-jump-link:hover {
-  border-bottom-color: var(--link-accent-hover);
-  background: var(--link-soft-bg);
+  border-bottom-color: var(--term-border);
+  background: color-mix(in srgb, var(--term-soft-bg) 76%, transparent);
   box-shadow: 0 4px 12px color-mix(in srgb, var(--theme-accent-strong) 14%, transparent);
 }
 
@@ -2230,14 +2230,14 @@ body>#glossary-list {
 
 .record-written-image-loading {
   position: absolute;
-  inset: 8px;
+  inset: 0;
   display: grid;
   place-items: center;
-  border-radius: 12px;
+  border-radius: 18px;
   color: var(--text-subtle);
   font-weight: 800;
   pointer-events: none;
-  background: color-mix(in srgb, var(--theme-surface) 86%, transparent);
+  background: color-mix(in srgb, var(--theme-surface) 94%, white);
   z-index: 2;
   gap: 12px;
   align-content: center;
@@ -2245,10 +2245,10 @@ body>#glossary-list {
 }
 
 .record-written-image-loading i {
-  width: 48px;
-  height: 48px;
+  width: 30px;
+  height: 30px;
   justify-self: center;
-  border: 5px solid color-mix(in srgb, var(--theme-accent-strong) 18%, transparent);
+  border: 3px solid color-mix(in srgb, var(--theme-accent-strong) 18%, transparent);
   border-top-color: var(--theme-accent-strong);
   border-radius: 50%;
   animation: written-image-spin 0.8s linear infinite;
@@ -4358,9 +4358,13 @@ body>.archive-tool-shell {
   gap: 14px;
 }
 
-.timeline-period-chart,
-.timeline-period-chart > .timeline-chart-card {
-  min-height: 100%;
+.timeline-period-chart { min-height: 260px; }
+
+.timeline-period-chart > .timeline-author-pie-card {
+  width: 100%;
+  height: 260px;
+  min-height: 260px;
+  max-height: 260px;
 }
 
 .timeline-period-controls {
@@ -4382,7 +4386,26 @@ body>.archive-tool-shell {
   align-content: stretch;
 }
 
-.timeline-period-layout .timeline-year-card { min-height: 0; height: 100%; }
+.timeline-period-layout .timeline-year-card {
+  height: 64px;
+  min-height: 64px;
+  place-content: center;
+  place-items: center;
+  gap: 5px;
+  padding: 7px 5px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.timeline-period-layout .timeline-year-card .timeline-year-key {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.timeline-period-layout .timeline-year-card span:not(.timeline-year-key) {
+  font-size: 11px;
+  line-height: 1;
+}
 
 .timeline-period-layout .timeline-month-picker {
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -4486,7 +4509,16 @@ body>.archive-tool-shell {
   font-size: 24px;
 }
 
-.timeline-author-pie-card { justify-items: stretch; }
+.timeline-author-pie-card {
+  box-sizing: border-box;
+  height: 260px;
+  min-height: 260px;
+  max-height: 260px;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: stretch;
+  justify-items: stretch;
+  overflow: hidden;
+}
 
 .timeline-author-pie-body {
   display: grid;
@@ -4494,6 +4526,8 @@ body>.archive-tool-shell {
   align-items: center;
   gap: 18px;
   width: 100%;
+  min-height: 0;
+  padding-top: 4px;
 }
 
 .timeline-author-pie { width: 140px; height: 140px; }
@@ -4501,7 +4535,7 @@ body>.archive-tool-shell {
 .timeline-author-legend {
   display: grid;
   gap: 7px;
-  max-height: 174px;
+  max-height: 166px;
   margin: 0;
   padding: 2px 4px 2px 0;
   overflow: auto;
@@ -4527,36 +4561,15 @@ body>.archive-tool-shell {
 .timeline-author-legend li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .timeline-author-legend li strong { font-size: 11px; color: var(--text-soft); }
 
-.timeline-author-day-options {
-  display: flex;
-  gap: 5px;
-  width: 100%;
-  padding-bottom: 9px;
-  overflow-x: auto;
-}
-
-.timeline-author-day-options button {
-  flex: 0 0 auto;
-  padding: 3px 7px;
-  border: var(--field-border);
-  border-radius: 999px;
-  background: var(--control-bg);
-  color: var(--control-text);
-  cursor: pointer;
-}
-
-.timeline-author-day-options button.is-active {
-  background: var(--theme-accent-strong);
-  color: var(--control-active-text);
-}
-
 @media (max-width: 560px) {
   .timeline-author-pie-body {
-    grid-template-columns: 1fr;
-    justify-items: center;
+    grid-template-columns: 112px minmax(0, 1fr);
+    justify-items: stretch;
+    gap: 10px;
   }
 
-  .timeline-author-legend { width: 100%; }
+  .timeline-author-pie { width: 108px; height: 108px; }
+  .timeline-author-legend { width: auto; }
 }
 
 .timeline-line-card {
@@ -5425,19 +5438,6 @@ body>.archive-tool-shell {
   position: relative;
 }
 
-.record-written-image-loading {
-  position: absolute;
-  inset: 12px auto auto 12px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: var(--overlay-card-bg);
-  color: var(--text-subtle);
-  font-size: 12px;
-}
-
-.record-written-image img[src]:not([src=""])+.record-written-image-loading {
-  display: none;
-}
 
 .hidden-record-banner {
   display: none;
@@ -5627,7 +5627,7 @@ body.hidden-record-mode .hidden-record-banner {
 }
 
 .timeline-author-legend--calendar li {
-  grid-template-columns: 10px minmax(60px, auto) auto;
+  grid-template-columns: 10px minmax(60px, auto);
 }
 
 @media (max-width: 820px) {

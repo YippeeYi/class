@@ -27,7 +27,7 @@
   let secretProgress = [];
   let secretUnlocked = false;
   let secretBuffer = '';
-  let preferSecretQuestionOnce = false;
+  let preferredContentOnce = '';
   let activeFilters = {
     types: new Set(Object.keys(typeLabels)),
     contents: new Set(Object.keys(contentLabels))
@@ -739,11 +739,11 @@
     const avoidSet = new Set(recentQuestionIds);
     const freshPool = questionBank.filter((question) => !avoidSet.has(questionRecordKey(question)));
     const pool = freshPool.length ? freshPool : questionBank;
-    const secretPool = preferSecretQuestionOnce
-      ? questionBank.filter((question) => question.content === SECRET_CONTENT)
+    const preferredPool = preferredContentOnce
+      ? questionBank.filter((question) => question.content === preferredContentOnce)
       : [];
-    const picked = randomizeQuestion(pickRandom(secretPool.length ? secretPool : pool));
-    preferSecretQuestionOnce = false;
+    const picked = randomizeQuestion(pickRandom(preferredPool.length ? preferredPool : pool));
+    preferredContentOnce = '';
     const key = questionRecordKey(picked);
     if (key) {
       recentQuestionIds = [key, ...recentQuestionIds.filter((item) => item !== key)].slice(0, 6);
@@ -914,8 +914,11 @@
       Object.keys(typeLabels).forEach((type) => activeFilters.types.add(type));
       Object.keys(secretUnlocked ? { ...contentLabels, ...secretContentLabels } : contentLabels)
         .forEach((content) => activeFilters.contents.add(content));
-      preferSecretQuestionOnce = secretUnlocked && activeFilters.contents.has(SECRET_CONTENT)
-        && allQuestions.some((question) => question.content === SECRET_CONTENT);
+      preferredContentOnce = secretUnlocked
+        && activeFilters.contents.has(SECRET_CONTENT)
+        && allQuestions.some((question) => question.content === SECRET_CONTENT)
+        ? SECRET_CONTENT
+        : '';
       renderQuestion();
       return;
     }
@@ -932,6 +935,7 @@
       if (hasQuestionFor(nextTypes, nextContents)) values.delete(value);
     } else {
       values.add(value);
+      if (group === 'contents') preferredContentOnce = value;
     }
     renderQuestion();
   });
