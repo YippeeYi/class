@@ -35,7 +35,7 @@ function detectCriticalLoaders() {
         loaders.push(window.loadAllGlossary);
     }
 
-    if (document.getElementById('person-id')) {
+    if (document.getElementById('person-name')) {
         loaders.push(window.loadAllPeople);
         loaders.push(window.loadAllRecords);
     }

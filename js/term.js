@@ -25,7 +25,8 @@ cacheReady.then(() => Promise.all([loadAllGlossary(), loadAllPeople(), loadAllRe
 
     const relatedNames = (term.relatedPeople || []).map((pid) => {
         const person = people.find((item) => item.id === pid);
-        return person ? parseContent(`[[${person.id}|${person.id}]]`) : pid;
+        const label = person?.name || person?.alias || person?.id || pid;
+        return person ? parseContent(`[[${person.id}|${label}]]`) : pid;
     });
     document.getElementById("term-related").innerHTML = relatedNames.length ? relatedNames.join(", ") : "-";
 

@@ -303,7 +303,7 @@ const importPeople = async () => {
 
         rows.push({
             id: raw.id || fileBaseNameWithoutExt(fileName),
-            display_name: raw.displayName || raw.display_name || raw.name || '',
+            name: raw.name || raw.displayName || raw.display_name || '',
             alias: raw.alias || aliases.join(', '),
             aliases,
             role: raw.role || 'student',

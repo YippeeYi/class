@@ -90,10 +90,10 @@
             ...people.map((person) => ({
                 type: "person",
                 id: person.id,
-                title: person.id,
-                richTitle: parseContent(person.alias || person.id),
+                title: stripRecordMarkup(person.name || person.alias || person.id),
+                richTitle: parseContent(person.name || person.alias || person.id),
                 meta: person.role ? `身份 ${person.role}` : "人物条目",
-                text: [person.id, person.alias, person.bio, person.role].filter(Boolean).join(" "),
+                text: [person.id, person.name, person.alias, person.bio, person.role].filter(Boolean).join(" "),
                 href: `person.html?id=${encodeURIComponent(person.id)}`,
                 sortKey: person.id || ""
             })),

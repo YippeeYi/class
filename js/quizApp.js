@@ -286,6 +286,7 @@
 
     people.forEach((person) => {
       add(person.id, person.id);
+      add(person.id, String(person.name || '').trim());
       extractTokenRefs(`[[${person.id}|${person.alias || ''}]]`, 'person').forEach((ref) => add(person.id, ref.label));
     });
     records.filter((record) => !String(record.fileName || record.id || '').replace(/\.json$/i, '').endsWith('-00')).forEach((record) => {

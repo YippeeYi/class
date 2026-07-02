@@ -17,7 +17,6 @@
     let knownPeopleIds = new Set();
 
     const MONTH_LABELS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
-    const AUTHOR_COLORS = ['#6f8fe8', '#e8899f', '#65b7a5', '#e4ad58', '#9a7bd1', '#6da7cf', '#d07f69', '#82a85d', '#c08bba', '#69aab1'];
     let authorColorMap = new Map();
 
     function escapeHtml(text) {
@@ -83,7 +82,7 @@
     function getPersonLabel(id) {
         if (!id || id === 'unknown') return '未知记录人';
         const person = people.find((item) => item.id === id);
-        return stripRecordMarkup(person?.alias || id);
+        return stripRecordMarkup(person?.name || person?.alias || id);
     }
 
     function getTermLabel(id) {
@@ -166,7 +165,14 @@
     }
 
     function getAuthorColor(id) {
-        return authorColorMap.get(id) || AUTHOR_COLORS[authorColorMap.size % AUTHOR_COLORS.length];
+        return authorColorMap.get(id) || 'hsl(210 74% 56%)';
+    }
+
+    function buildAuthorColor(index) {
+        const hue = Math.round((index * 137.508 + 18) % 360);
+        const saturation = 72 + (index % 3) * 5;
+        const lightness = 54 + (Math.floor(index / 3) % 2) * 6;
+        return `hsl(${hue} ${saturation}% ${lightness}%)`;
     }
 
     function getAuthorDistribution(recordList) {
@@ -230,7 +236,7 @@
 
     function buildTimelineData() {
         const authorIds = [...new Set(records.map(getAuthorId))].sort((a, b) => a.localeCompare(b));
-        authorColorMap = new Map(authorIds.map((id, index) => [id, AUTHOR_COLORS[index % AUTHOR_COLORS.length]]));
+        authorColorMap = new Map(authorIds.map((id, index) => [id, buildAuthorColor(index)]));
         const monthGroups = new Map();
         records.forEach((record) => {
             const date = parseRecordDate(record);

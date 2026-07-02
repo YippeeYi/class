@@ -17,6 +17,19 @@ function stableRecordJumpHue(fileName) {
     return 190 + ((hash >>> 0) % 140);
 }
 
+function escapeRecordAttribute(value) {
+    return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
+
+function getPersonDisplayNameById(id) {
+    const person = window.PeopleStore?.people?.find((item) => item.id === id);
+    return stripRecordMarkup(person?.name || person?.alias || id).trim() || id;
+}
+
 function parseContent(text) {
     if (!text) return "";
 
@@ -31,7 +44,7 @@ function parseContent(text) {
         // 记录跳转语法：[[record:JSON文件名|显示文字]]，文件名可省略 .json。
         .replace(/\[\[record:([a-zA-Z0-9_-]+(?:\.json)?)\|(.+?)\]\]/g, (_, fileName, label) => `<button type="button" class="record-jump-link" data-record-jump="${fileName}" style="--record-jump-hue:${stableRecordJumpHue(fileName)}">${label}</button>`)
         .replace(/\{\{([a-zA-Z0-9_-]+)\|(.+?)\}\}/g, (_, id, label) => `<span class="term-tag" data-id="${id}">${label}</span>`)
-        .replace(/\[\[([a-zA-Z0-9_-]+)\|(.+?)\]\]/g, (_, id, label) => `<span class="person-tag" data-id="${id}" title="${id}">${label}</span>`)
+        .replace(/\[\[([a-zA-Z0-9_-]+)\|(.+?)\]\]/g, (_, id, label) => `<span class="person-tag" data-id="${id}" title="${escapeRecordAttribute(getPersonDisplayNameById(id))}">${label}</span>`)
         .replace(/\(\((.+?)\)\)/g, (_, content) => `<span class="redacted"><span class="redacted-mask"></span><span class="redacted-content">${content}</span></span>`)
         .replace(/>>(.+?)<</g, (_, value) => `<span class="record-align-right">${value}</span>`)
         .replace(/\^(.+?)\^/g, (_, value) => `<sup>${value}</sup>`)

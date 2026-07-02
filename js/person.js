@@ -85,7 +85,8 @@ cacheReady.then(() => Promise.all([loadAllPeople({ force: true }), loadAllRecord
         return;
     }
 
-    document.getElementById("person-id").textContent = person.id;
+    const displayName = String(person.name || person.alias || person.id || "").trim();
+    document.getElementById("person-name").textContent = stripRecordMarkup(displayName) || person.id;
     const aliasText = person.alias || (Array.isArray(person.aliases) ? person.aliases.join("、") : "");
     document.getElementById("person-alias").innerHTML = `<strong>${parseContent(aliasText || "-")}</strong>`;
     document.getElementById("person-bio").innerHTML = `<strong>${formatContent(person.bio || "-")}</strong>`;

@@ -4432,12 +4432,35 @@ body>.archive-tool-shell {
 
 .timeline-period-layout .timeline-year-card span:not(.timeline-year-key) {
   font-size: 11px;
+  font-weight: 800;
   line-height: 1;
 }
 
 .timeline-period-layout .timeline-month-picker {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-template-rows: repeat(3, minmax(56px, 1fr));
+  grid-template-rows: repeat(3, 70px);
+}
+
+.timeline-period-layout .timeline-month-pill {
+  height: 70px;
+  min-height: 70px;
+  place-content: center;
+  place-items: center;
+  gap: 5px;
+  padding: 7px 5px;
+  text-align: center;
+}
+
+.timeline-period-layout .timeline-month-pill strong {
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.timeline-period-layout .timeline-month-pill span {
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .timeline-chart-card {
@@ -5643,8 +5666,8 @@ body.hidden-record-mode .hidden-record-banner {
   position: absolute;
   top: 8px;
   right: 8px;
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   border: 2px solid color-mix(in srgb, var(--theme-surface) 82%, white);
   border-radius: 50%;
   box-shadow: 0 2px 6px rgba(var(--theme-rgb), 0.16);
@@ -5714,8 +5737,8 @@ body.hidden-record-mode .hidden-record-banner {
   }
 
   .timeline-day-author-pie {
-    width: 18px;
-    height: 18px;
+    width: 24px;
+    height: 24px;
     top: 6px;
     right: 6px;
   }

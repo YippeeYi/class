@@ -36,6 +36,10 @@ const roleNameMap = {
     other: "其他"
 };
 
+function getPersonDisplayName(person) {
+    return String(person?.name || person?.alias || person?.id || "").trim();
+}
+
 /* ===============================
    按角色分组渲染
    =============================== */
@@ -60,7 +64,7 @@ function renderByRole(sortKey = "id", sortOrder = "asc") {
         <thead>
           <tr>
             <th>序号</th>
-            <th>ID</th>
+            <th>姓名</th>
             <th>别名</th>
             <th>参与</th>
             <th>记录</th>
@@ -70,7 +74,7 @@ function renderByRole(sortKey = "id", sortOrder = "asc") {
           ${list.map((p, i) => `
             <tr data-id="${p.id}">
               <td>${i + 1}</td>
-              <td>${p.id}</td>
+              <td>${parseContent(getPersonDisplayName(p)) || "-"}</td>
               <td>${parseContent(p.alias) || "-"}</td>
               <td>${countAsParticipant(p.id)}</td>
               <td>${p.role === "student" ? countAsAuthor(p.id) : "-"}</td>
