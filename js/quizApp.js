@@ -81,6 +81,10 @@
     return `<span class="quiz-answer-blank${revealed ? ' is-revealed' : ''}" style="--blank-chars:${width}"><span>${escapeHtml(answer)}</span></span>`;
   }
 
+  function stripQuizRecordJumpMarkup(text) {
+    return String(text || '').replace(/\[\[record:[a-zA-Z0-9_-]+(?:\.json)?\|(.+?)\]\]/g, '$1');
+  }
+
   function renderRecordWithBlank(recordText, answer, revealed = false) {
     if (recordText.includes(answer)) {
       return recordText.replace(answer, blankHtml(answer, revealed));
@@ -134,11 +138,11 @@
     return html + source.slice(cursor);
   }
 
-  function renderJudgeRecord(question, revealed = false) {
+  function renderJudgeRecord(question, revealed = false, recordText = question.recordText || '') {
     if (question.answer === '\u6b63\u786e' || question.correctionTarget === 'side') {
-      return question.recordText || '';
+      return recordText;
     }
-    return renderJudgeCorrections(question.recordText || '', question.corrections || [{ wrongText: question.wrongText, correctText: question.correctText }], revealed);
+    return renderJudgeCorrections(recordText, question.corrections || [{ wrongText: question.wrongText, correctText: question.correctText }], revealed);
   }
 
   function renderSideBox(question, revealed = false) {
@@ -172,11 +176,12 @@
     }
 
     const shouldBlankRecord = (currentQuestion.type === 'choice' || currentQuestion.type === 'fill') && ['person', 'term'].includes(currentQuestion.content);
-    let recordHtml = currentQuestion.recordText || '';
+    const recordText = stripQuizRecordJumpMarkup(currentQuestion.recordText);
+    let recordHtml = recordText;
     if (shouldBlankRecord) {
-      recordHtml = renderRecordWithBlank(currentQuestion.recordText || '', currentQuestion.answer, revealed);
+      recordHtml = renderRecordWithBlank(recordText, currentQuestion.answer, revealed);
     } else if (currentQuestion.type === 'judge') {
-      recordHtml = renderJudgeRecord(currentQuestion, revealed);
+      recordHtml = renderJudgeRecord(currentQuestion, revealed, recordText);
     }
     questionText.innerHTML = `
       <span class="quiz-question-prompt">${escapeHtml(currentQuestion.prompt)}</span>
@@ -195,7 +200,7 @@
   }
 
   function buildPlainText(record) {
-    return String(record.content || '')
+    return stripQuizRecordJumpMarkup(record.content)
       .replace(/\{\{([a-zA-Z0-9_-]+)\|(.+?)\}\}/g, '$2')
       .replace(/\[\[([a-zA-Z0-9_-]+)\|(.+?)\]\]/g, '$2')
       .replace(/\(\((.+?)\)\)/g, '$1')
@@ -205,7 +210,7 @@
   }
 
   function buildDisplayText(record) {
-    return String(record.content || '')
+    return stripQuizRecordJumpMarkup(record.content)
       .replace(/\{\{([a-zA-Z0-9_-]+)\|(.+?)\}\}/g, '$2')
       .replace(/\[\[([a-zA-Z0-9_-]+)\|(.+?)\]\]/g, '$2');
   }
