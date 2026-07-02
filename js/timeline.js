@@ -165,7 +165,7 @@
     }
 
     function getAuthorColor(id) {
-        return authorColorMap.get(id) || buildAuthorColor(id, new Set());
+        return authorColorMap.get(id) || buildAuthorColor(id, []);
     }
 
     function stableColorHash(value) {
@@ -178,33 +178,34 @@
         return hash >>> 0;
     }
 
-    function buildAuthorColor(id, usedColors) {
-        const hash = stableColorHash(id);
-        const warmHues = [
-            8, 18, 28, 38, 48, 58,
-            334, 344, 354, 324, 314,
-            72, 84, 94,
-            14, 24, 34, 44, 54, 64
-        ];
-        const saturations = [72, 76, 80];
-        const lightnesses = [57, 60, 63];
-        const start = hash % warmHues.length;
-        const saturationStart = (hash >>> 8) % saturations.length;
-        const lightnessStart = (hash >>> 12) % lightnesses.length;
-        let color = '';
+    function circularHueDistance(first, second) {
+        const distance = Math.abs(first - second) % 360;
+        return Math.min(distance, 360 - distance);
+    }
 
-        // 同色冲突时先遍历完整暖色色相池，再轻微调整饱和度和亮度。
-        for (let attempt = 0; attempt < warmHues.length * saturations.length * lightnesses.length; attempt += 1) {
-            const hueRound = attempt % warmHues.length;
-            const variantRound = Math.floor(attempt / warmHues.length);
-            const hue = warmHues[(start + hueRound * 7) % warmHues.length];
-            const saturation = saturations[(saturationStart + variantRound) % saturations.length];
-            const lightness = lightnesses[(lightnessStart + Math.floor(variantRound / saturations.length)) % lightnesses.length];
-            color = `hsl(${hue} ${saturation}% ${lightness}%)`;
-            if (!usedColors.has(color)) break;
+    function buildAuthorColor(id, usedHues) {
+        const hash = stableColorHash(id);
+        const goldenAngle = 137.508;
+        const preferredHue = ((hash % 997) * goldenAngle) % 360;
+        let hue = preferredHue;
+        if (usedHues.length) {
+            let bestDistance = -1;
+            let bestOffset = 360;
+            // 在完整色相环中找离现有颜色最远的位置；与首选色相的距离用于稳定破同分。
+            for (let candidate = 0; candidate < 360; candidate += 1) {
+                const distance = Math.min(...usedHues.map((used) => circularHueDistance(candidate, used)));
+                const offset = circularHueDistance(candidate, preferredHue);
+                if (distance > bestDistance || (distance === bestDistance && offset < bestOffset)) {
+                    hue = candidate;
+                    bestDistance = distance;
+                    bestOffset = offset;
+                }
+            }
         }
-        usedColors.add(color);
-        return color;
+        usedHues.push(hue);
+        const saturation = 64 + ((hash >>> 8) % 3) * 2;
+        const lightness = 56 + ((hash >>> 12) % 2) * 2;
+        return `hsl(${Math.round(hue)} ${saturation}% ${lightness}%)`;
     }
 
     function getAuthorDistribution(recordList) {
@@ -268,8 +269,8 @@
 
     function buildTimelineData() {
         const authorIds = [...new Set(records.map(getAuthorId))].sort((a, b) => a.localeCompare(b));
-        const usedColors = new Set();
-        authorColorMap = new Map(authorIds.map((id) => [id, buildAuthorColor(id, usedColors)]));
+        const usedHues = [];
+        authorColorMap = new Map(authorIds.map((id) => [id, buildAuthorColor(id, usedHues)]));
         const monthGroups = new Map();
         records.forEach((record) => {
             const date = parseRecordDate(record);
