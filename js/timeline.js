@@ -17,6 +17,13 @@
     let knownPeopleIds = new Set();
 
     const MONTH_LABELS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+    const OTHER_AUTHOR_ID = '__other__';
+    const PRESET_WARM_PIE_COLORS = [
+        'hsl(12 68% 66%)', 'hsl(26 70% 65%)', 'hsl(40 68% 66%)',
+        'hsl(54 66% 67%)', 'hsl(350 68% 67%)', 'hsl(336 64% 68%)',
+        'hsl(20 62% 70%)', 'hsl(32 66% 68%)', 'hsl(46 62% 70%)',
+        'hsl(4 64% 69%)', 'hsl(322 60% 70%)', 'hsl(72 58% 68%)'
+    ];
     let authorColorMap = new Map();
 
     function escapeHtml(text) {
@@ -80,6 +87,7 @@
     }
 
     function getPersonLabel(id) {
+        if (id === OTHER_AUTHOR_ID) return '其他';
         if (!id || id === 'unknown') return '未知记录人';
         const person = people.find((item) => item.id === id);
         return stripRecordMarkup(person?.name || person?.alias || id);
@@ -165,7 +173,8 @@
     }
 
     function getAuthorColor(id) {
-        return authorColorMap.get(id) || buildAuthorColor(id, new Set());
+        if (id === OTHER_AUTHOR_ID) return 'hsl(32 58% 68%)';
+        return authorColorMap.get(id) || buildAuthorColor(id, new Set(), 1);
     }
 
     function stableColorHash(value) {
@@ -178,16 +187,26 @@
         return hash >>> 0;
     }
 
-    function buildAuthorColor(id, usedColors) {
+    function buildAuthorColor(id, usedColors, total) {
         const hash = stableColorHash(id);
+        if (total <= PRESET_WARM_PIE_COLORS.length) {
+            const start = hash % PRESET_WARM_PIE_COLORS.length;
+            let color = PRESET_WARM_PIE_COLORS[start];
+            for (let attempt = 0; attempt < PRESET_WARM_PIE_COLORS.length; attempt += 1) {
+                color = PRESET_WARM_PIE_COLORS[(start + attempt * 5) % PRESET_WARM_PIE_COLORS.length];
+                if (!usedColors.has(color)) break;
+            }
+            usedColors.add(color);
+            return color;
+        }
         const warmHues = [
             8, 18, 28, 38, 48, 58,
             334, 344, 354, 324, 314,
             72, 84, 94,
             14, 24, 34, 44, 54, 64
         ];
-        const saturations = [72, 76, 80];
-        const lightnesses = [57, 60, 63];
+        const saturations = [62, 66, 70];
+        const lightnesses = [64, 67, 70];
         const start = hash % warmHues.length;
         const saturationStart = (hash >>> 8) % saturations.length;
         const lightnessStart = (hash >>> 12) % lightnesses.length;
@@ -207,22 +226,48 @@
         return color;
     }
 
-    function getAuthorDistribution(recordList) {
-        const counts = new Map();
-        recordList.forEach((record) => countMapValue(counts, getAuthorId(record)));
-        const entries = topEntries(counts, Number.MAX_SAFE_INTEGER);
-        const total = entries.reduce((sum, [, count]) => sum + count, 0);
-        let cursor = 0;
-        const segments = entries.map(([id, count], index) => {
-            const start = cursor;
-            cursor += total ? count / total * 100 : 0;
-            return `${getAuthorColor(id)} ${start.toFixed(2)}% ${cursor.toFixed(2)}%`;
+    function mergeSmallAuthorEntries(entries, total, enabled) {
+        if (!enabled || entries.length <= 10 || !total) return entries;
+        const retained = [];
+        const merged = [];
+        entries.forEach((entry, index) => {
+            const share = entry[1] / total;
+            if ((index >= 8 && share < 0.04) || index >= 12) merged.push(entry);
+            else retained.push(entry);
         });
-        return { entries, total, background: segments.length ? `conic-gradient(${segments.join(',')})` : 'var(--theme-surface-strong)' };
+        if (merged.length < 2) return entries;
+        return [...retained, [OTHER_AUTHOR_ID, merged.reduce((sum, [, count]) => sum + count, 0)]];
     }
 
-    function renderAuthorLegend(recordList, className = 'timeline-author-legend', { showValues = true } = {}) {
-        const { entries, total } = getAuthorDistribution(recordList);
+    function buildAuthorPieBackground(entries, total) {
+        if (!entries.length || !total) return 'var(--theme-surface-strong)';
+        if (entries.length === 1) return getAuthorColor(entries[0][0]);
+        let cursor = 0;
+        const segments = entries.flatMap(([id, count]) => {
+            const start = cursor;
+            const sweep = count / total * 360;
+            cursor += sweep;
+            const gap = Math.min(1.4, sweep * 0.12);
+            const colorEnd = Math.max(start, cursor - gap);
+            return [
+                `${getAuthorColor(id)} ${start.toFixed(2)}deg ${colorEnd.toFixed(2)}deg`,
+                `var(--pie-separator-color) ${colorEnd.toFixed(2)}deg ${cursor.toFixed(2)}deg`
+            ];
+        });
+        return `conic-gradient(${segments.join(',')})`;
+    }
+
+    function getAuthorDistribution(recordList, { mergeSmall = false } = {}) {
+        const counts = new Map();
+        recordList.forEach((record) => countMapValue(counts, getAuthorId(record)));
+        const rawEntries = topEntries(counts, Number.MAX_SAFE_INTEGER);
+        const total = rawEntries.reduce((sum, [, count]) => sum + count, 0);
+        const entries = mergeSmallAuthorEntries(rawEntries, total, mergeSmall);
+        return { entries, total, authorCount: rawEntries.length, background: buildAuthorPieBackground(entries, total) };
+    }
+
+    function renderAuthorLegend(recordList, className = 'timeline-author-legend', { showValues = true, mergeSmall = false } = {}) {
+        const { entries, total } = getAuthorDistribution(recordList, { mergeSmall });
         const legend = entries.map(([id, count]) => `
             <li><i style="--legend-color:${getAuthorColor(id)}"></i><span>${escapeHtml(getPersonLabel(id))}</span>${showValues ? `<strong>${count} · ${formatPercent(count, total)}</strong>` : ''}</li>
         `).join('');
@@ -230,13 +275,13 @@
     }
 
     function renderAuthorPie(recordList, title) {
-        const { entries, total, background } = getAuthorDistribution(recordList);
+        const { entries, total, authorCount, background } = getAuthorDistribution(recordList, { mergeSmall: true });
         return `
             <section class="timeline-chart-card timeline-pie-card timeline-author-pie-card" aria-label="${escapeHtml(title)}">
-                <header><h3>${escapeHtml(title)}</h3><p>${total ? `${entries.length} 位记录人 · ${total} 条记录` : '暂无记录人数据'}</p></header>
+                <header><h3>${escapeHtml(title)}</h3><p>${total ? `${authorCount} 位记录人 · ${total} 条记录` : '暂无记录人数据'}</p></header>
                 <div class="timeline-author-pie-body">
                     <div class="timeline-pie timeline-author-pie" style="background:${background}"><strong>${total}</strong></div>
-                    ${renderAuthorLegend(recordList)}
+                    ${renderAuthorLegend(recordList, 'timeline-author-legend', { mergeSmall: true })}
                 </div>
             </section>
         `;
@@ -269,7 +314,7 @@
     function buildTimelineData() {
         const authorIds = [...new Set(records.map(getAuthorId))].sort((a, b) => a.localeCompare(b));
         const usedColors = new Set();
-        authorColorMap = new Map(authorIds.map((id) => [id, buildAuthorColor(id, usedColors)]));
+        authorColorMap = new Map(authorIds.map((id) => [id, buildAuthorColor(id, usedColors, authorIds.length)]));
         const monthGroups = new Map();
         records.forEach((record) => {
             const date = parseRecordDate(record);

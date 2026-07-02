@@ -89,6 +89,7 @@
   --theme-color-soft: color-mix(in srgb, var(--theme-accent) 18%, transparent);
   --theme-border-color: color-mix(in srgb, var(--theme-accent-strong) 32%, rgba(13, 13, 14, 0.16));
   --theme-text-on-bg: var(--text-main);
+  --pie-separator-color: color-mix(in srgb, var(--theme-surface) 88%, white);
 }
 
 h1,
@@ -5807,5 +5808,3 @@ body.hidden-record-mode .hidden-record-banner {
 .timeline-months:empty {
   display: none;
 }
-
-/**/
