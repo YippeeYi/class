@@ -155,7 +155,7 @@
       questionText.innerHTML = `
         <span class="quiz-question-prompt quiz-question-prompt--secret">${escapeHtml(currentQuestion.prompt)}</span>
         <span class="quiz-secret-visual">
-          ${currentQuestion.imagePath ? `<img src="" data-secure-src="${escapeHtml(currentQuestion.imagePath)}" alt="\u9898\u76ee\u56fe\u7247" width="1200" height="800" loading="eager" decoding="async" fetchpriority="high">` : '<span class="quiz-image-missing">\u9898\u76ee\u56fe\u7247\u8d44\u6e90\u7f3a\u5931</span>'}
+          ${currentQuestion.imagePath ? `<img src="${escapeHtml(currentQuestion.imagePath)}" alt="\u9898\u76ee\u56fe\u7247" width="1200" height="800" loading="eager" decoding="async" fetchpriority="high">` : '<span class="quiz-image-missing">\u9898\u76ee\u56fe\u7247\u8d44\u6e90\u7f3a\u5931</span>'}
           ${renderSecretAnswerBoxes()}
         </span>
       `;
@@ -166,9 +166,6 @@
         fallback.textContent = '\u9898\u76ee\u56fe\u7247\u52a0\u8f7d\u5931\u8d25';
         image.replaceWith(fallback);
       }, { once: true });
-      window.ClassRecordData?.resolveAssetElements?.(questionText).catch(() => {
-        image?.dispatchEvent(new Event('error'));
-      });
       return;
     }
 
@@ -678,41 +675,22 @@
   }
 
   async function loadSecretQuestions() {
-    if (window.ClassRecordData?.isEnabled?.()) {
-      try {
-        const rows = await window.ClassRecordData.loadQuizQuestions(SECRET_CONTENT);
-        const normalizeSecretImagePath = (value) => {
-          const raw = String(value || '').trim();
-          const path = window.ClassRecordData.normalizePrivateStoragePath?.(raw) || raw.replace(/^\/+/, '');
-          if (!path || /^https?:\/\//i.test(path)) return path;
-          const clean = path
-            .replace(/^images\/record-pages\//i, '')
-            .replace(/^record-pages\//i, '')
-            .replace(/^images\/quiz\/lamian\//i, '')
-            .replace(/^quiz\/lamian\//i, '')
-            .replace(/^lamian\//i, '');
-          if (!clean.includes('/')) return `images/quiz/${SECRET_CONTENT}/${clean}`;
-          return path;
-        };
-        return rows.map((item, index) => {
-          const imagePath = normalizeSecretImagePath(item.image || item.imagePath || '');
-          return normalizeQuestion({
-            id: item.id || `${SECRET_CONTENT}-${index + 1}`,
-            type: 'fill',
-            content: SECRET_CONTENT,
-            prompt: item.prompt || 'Hidden question',
-            answer: item.answer || '',
-            options: item.options || item.choices || [],
-            choices: item.choices || item.options || [],
-            explanation: item.explanation || '',
-            imagePath
-          }, index);
-        }).filter((question) => question.answer);
-      } catch (error) {
-        console.warn('Supabase secret questions load failed:', error);
-      }
+    try {
+      const response = await fetch('data/quiz/lamian.json', { cache: 'force-cache' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      const rows = Array.isArray(payload) ? payload : (payload.questions || payload.items || []);
+      return rows.map((item, index) => normalizeQuestion({
+        ...item,
+        id: item.id || `${SECRET_CONTENT}-${index + 1}`,
+        type: 'fill',
+        content: SECRET_CONTENT,
+        imagePath: String(item.image || item.imagePath || '').trim().replace(/^\/+/, '')
+      }, index)).filter((question) => question.answer);
+    } catch (error) {
+      console.warn('Local secret questions load failed:', error);
+      return [];
     }
-    return [];
   }
 
   function setFeedback(message, type) {
@@ -732,39 +710,7 @@
     return allQuestions.some((question) => question[group === 'types' ? 'type' : 'content'] === value);
   }
 
-  function hasQuestionWhenSelected(group, value) {
-    const selectedTypes = group === 'types' ? new Set([value]) : activeFilters.types;
-    const selectedContents = group === 'contents' ? new Set([value]) : activeFilters.contents;
-    return hasQuestionFor(selectedTypes, selectedContents);
-  }
-
-
-  function pruneFilters() {
-    let changed = true;
-    while (changed) {
-      changed = false;
-      const nextTypes = new Set([...activeFilters.types].filter((type) => allQuestions.some((question) => question.type === type && activeFilters.contents.has(question.content))));
-      if (nextTypes.size && nextTypes.size !== activeFilters.types.size) {
-        activeFilters.types = nextTypes;
-        changed = true;
-      }
-      const nextContents = new Set([...activeFilters.contents].filter((content) => allQuestions.some((question) => activeFilters.types.has(question.type) && question.content === content)));
-      if (nextContents.size && nextContents.size !== activeFilters.contents.size) {
-        activeFilters.contents = nextContents;
-        changed = true;
-      }
-    }
-  }
-
   function updateQuestionBank() {
-    pruneFilters();
-    if (!hasQuestionFor(activeFilters.types, activeFilters.contents)) {
-      const firstQuestion = allQuestions[0];
-      if (firstQuestion) {
-        activeFilters.types = new Set([firstQuestion.type]);
-        activeFilters.contents = new Set([firstQuestion.content]);
-      }
-    }
     questionBank = allQuestions.filter((question) => activeFilters.types.has(question.type) && activeFilters.contents.has(question.content));
     renderFilter();
   }
@@ -792,13 +738,9 @@
     return picked;
   }
 
-  function getAvailableTypesForContent(content) {
-    return Object.keys(typeLabels).filter((type) => allQuestions.some((question) => question.content === content && question.type === type));
-  }
   function renderFilter() {
     if (!filterWrap) return;
     const visibleContentLabels = secretUnlocked ? { ...contentLabels, ...secretContentLabels } : contentLabels;
-    const secretSelected = activeFilters.contents.has(SECRET_CONTENT);
     const buildButton = (group, value, label) => {
       const currentSet = activeFilters[group];
       const nextSet = new Set(currentSet);
@@ -806,15 +748,13 @@
       else nextSet.add(value);
       const nextTypes = group === 'types' ? nextSet : activeFilters.types;
       const nextContents = group === 'contents' ? nextSet : activeFilters.contents;
-      const unavailable = group === 'contents' && value === SECRET_CONTENT
-        ? !hasAnyQuestionInGroup(group, value)
-        : !hasAnyQuestionInGroup(group, value) || !hasQuestionWhenSelected(group, value);
-      const availableSecretTypes = secretSelected ? getAvailableTypesForContent(SECRET_CONTENT) : [];
-      const secretTypeBlocked = group === 'types' && secretSelected && !availableSecretTypes.includes(value);
-      const disabled = secretTypeBlocked || (currentSet.has(value) ? nextSet.size === 0 || !hasQuestionFor(nextTypes, nextContents) : unavailable);
+      const selected = currentSet.has(value);
+      const unavailable = !hasAnyQuestionInGroup(group, value);
+      // 未选项始终可重新选择；只对“模拟取消后结果为空”的已选项禁用。
+      const disabled = selected && !hasQuestionFor(nextTypes, nextContents);
       return `
-        <button type="button" class="btn-action filter-option${currentSet.has(value) ? ' is-active' : ''}${unavailable ? ' is-disabled' : ''}" data-group="${group}" data-value="${value}"${disabled ? ' disabled' : ''}>
-          <span class="quiz-filter-check">${currentSet.has(value) ? '\u2713' : '+'}</span>${label}
+        <button type="button" class="btn-action filter-option${selected ? ' is-active' : ''}${disabled ? ' is-disabled' : ''}" data-group="${group}" data-value="${value}"${disabled ? ' disabled aria-disabled="true"' : ''}>
+          <span class="quiz-filter-check">${selected ? '\u2713' : '+'}</span>${label}
         </button>
       `;
     };
@@ -960,7 +900,8 @@
     if (allButton) {
       activeFilters = {
         types: new Set(Object.keys(typeLabels).filter((type) => allQuestions.some((question) => question.type === type))),
-        contents: new Set(Object.keys(contentLabels).filter((content) => allQuestions.some((question) => question.content === content)))
+        contents: new Set(Object.keys(secretUnlocked ? { ...contentLabels, ...secretContentLabels } : contentLabels)
+          .filter((content) => allQuestions.some((question) => question.content === content)))
       };
       renderQuestion();
       return;
@@ -969,24 +910,13 @@
 
     const group = button.dataset.group;
     const value = button.dataset.value;
-    if (group === 'contents' && value === SECRET_CONTENT) {
-      activeFilters.types = new Set(getAvailableTypesForContent(SECRET_CONTENT).length ? getAvailableTypesForContent(SECRET_CONTENT) : ['fill']);
-      activeFilters.contents = new Set([SECRET_CONTENT]);
-      renderQuestion();
-      return;
-    }
-    if (group === 'types' && activeFilters.contents.has(SECRET_CONTENT) && !getAvailableTypesForContent(SECRET_CONTENT).includes(value)) {
-      return;
-    }
-    if (group === 'contents' && value !== SECRET_CONTENT && activeFilters.contents.has(SECRET_CONTENT)) {
-      activeFilters.contents = new Set([value]);
-      activeFilters.types = new Set(Object.keys(typeLabels).filter((type) => allQuestions.some((question) => question.type === type && question.content === value)));
-      renderQuestion();
-      return;
-    }
     const values = activeFilters[group];
     if (values.has(value)) {
-      if (values.size > 1) values.delete(value);
+      const nextValues = new Set(values);
+      nextValues.delete(value);
+      const nextTypes = group === 'types' ? nextValues : activeFilters.types;
+      const nextContents = group === 'contents' ? nextValues : activeFilters.contents;
+      if (hasQuestionFor(nextTypes, nextContents)) values.delete(value);
     } else {
       values.add(value);
     }

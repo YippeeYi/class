@@ -32,7 +32,7 @@ function parseInitialRecordCriteria() {
 }
 
 let currentCriteria = parseInitialRecordCriteria();
-let currentView = "list";
+let currentView = new URLSearchParams(location.search).get("view") === "written" ? "written" : "list";
 let currentPageIndex = 0;
 
 function normalizeFileName(value) {
@@ -61,7 +61,7 @@ function normalizeRecordPageImagePath(value, page) {
   if (!raw) return "";
   if (/^https?:\/\//i.test(raw)) return raw;
   const cleaned = raw.replace(/^\.\//, "").replace(/^\//, "");
-  if (/\.(png|jpe?g|webp|gif)$/i.test(cleaned)) return cleaned.replace(/\.jpg$/i, ".jpeg").replace(/\.png$/i, ".jpeg");
+  if (/\.(png|jpe?g|webp|gif)$/i.test(cleaned)) return cleaned;
   return `${cleaned}.jpeg`;
 }
 
@@ -95,14 +95,6 @@ async function loadRecordPageConfig() {
     }
     if (loadToken !== recordPageLoadToken || targetMode !== (hiddenMode ? "hidden" : "normal")) return;
     let normalizedPages = Array.isArray(pages) ? pages.map(normalizeRecordPage).filter((page) => page.page && page.imagePath) : [];
-    if (targetMode === "normal" && normalizedPages.length && window.ClassRecordData?.signAssetUrls) {
-      const signedImages = await window.ClassRecordData.signAssetUrls(
-        normalizedPages.map((page) => page.imagePath),
-        { quiet: true }
-      );
-      if (loadToken !== recordPageLoadToken || targetMode !== (hiddenMode ? "hidden" : "normal")) return;
-      normalizedPages = normalizedPages.filter((page) => signedImages.has(page.imagePath));
-    }
     recordPageConfig = normalizedPages;
     recordPageConfigMode = targetMode;
   } catch (error) {
@@ -280,8 +272,6 @@ function renderWrittenView(records) {
   const pageRecords = page.records || [];
   pageRecords.sort((a, b) => (a.recordIndex ?? 0) - (b.recordIndex ?? 0));
   const imagePath = getPageImagePath(page, pageRecords);
-  const secureAttr = imagePath ? `data-secure-src="${imagePath}"` : "";
-  const srcAttr = 'src=""';
   const pageOptions = pages.map((item, index) => `
     <button type="button" class="btn-action filter-option${index === currentPageIndex ? ' is-active' : ''}" data-page-index="${index}">
       ${item.page}
@@ -304,7 +294,7 @@ function renderWrittenView(records) {
       </div>
       <div class="record-written-layout">
         <figure class="record-written-image${imagePath ? ' is-loading' : ' is-missing'}${hiddenMode ? ' is-hidden-image' : ''}" data-render-token="${token}" data-image-state="${imagePath ? 'loading' : 'missing'}">
-          ${imagePath ? `<img ${srcAttr} ${secureAttr} alt="${hiddenMode ? `${page.page} 隐藏书面记录` : `${page.page} 原始书面记录`}" width="2856" height="4282" loading="eager" decoding="async" fetchpriority="high">` : ""}
+          ${imagePath ? `<img alt="${hiddenMode ? `${page.page} 隐藏书面记录` : `${page.page} 原始书面记录`}" width="2856" height="4282" loading="eager" decoding="async" fetchpriority="high">` : ""}
           <span class="record-written-image-loading">${imagePath ? "加载中···" : "未找到书面文件"}</span>
         </figure>
         <div class="record-written-records"></div>
@@ -326,10 +316,14 @@ function renderWrittenView(records) {
   writtenImage?.addEventListener("error", (event) => {
     setWrittenImageState(event.currentTarget.closest(".record-written-image"), "error", token);
   }, { once: true });
-  if (window.ClassRecordData?.isEnabled() && imagePath) {
-    window.ClassRecordData.resolveAssetElements(container).then(() => {
-      if (!writtenImage || writtenImage.src) return;
-      setWrittenImageState(writtenFigure, "missing", token);
+  if (window.ClassRecordData?.isEnabled() && imagePath && writtenImage) {
+    window.ClassRecordData.preloadAsset(imagePath, { priority: "high" }).then((src) => {
+      if (!writtenImage.isConnected || String(writtenFigure?.dataset.renderToken) !== String(token)) return;
+      if (!src) {
+        setWrittenImageState(writtenFigure, "error", token);
+        return;
+      }
+      writtenImage.src = src;
     }).catch((error) => {
       console.warn("书面记录图片加载失败：", error);
       setWrittenImageState(writtenFigure, "error", token);
@@ -407,11 +401,49 @@ function renderViewControls() {
     const button = event.target.closest(".switch-btn");
     if (!button) return;
     currentView = button.dataset.view || "list";
+    const params = new URLSearchParams(location.search);
+    if (currentView === "written") params.set("view", "written");
+    else params.delete("view");
+    history.replaceState(null, "", `${location.pathname}${params.toString() ? `?${params}` : ""}${location.hash}`);
     currentPageIndex = 0;
     controls.querySelectorAll(".switch-btn").forEach((item) => item.classList.toggle("active", item === button));
     renderCurrentViewAsync();
   });
 }
+
+// 供记录文本中的 [[record:文件名|文字]] 复用；动画仍由 renderRecordList 的锚点逻辑统一处理。
+window.ClassRecordNavigateToRecord = async (recordKey) => {
+  const normalizedKey = normalizeFileName(recordKey).replace(/\.json$/i, "");
+  const target = allRecords.find((record) => normalizeFileName(record.fileName || record.id).replace(/\.json$/i, "") === normalizedKey);
+  if (!target) {
+    console.warn(`未找到目标记录：${recordKey}`);
+    window.alert("未找到要跳转的记录。");
+    return;
+  }
+  currentCriteria = { year: "", month: "", day: "", important: false, excludeDaily: false, query: "" };
+  renderRecordFilter({
+    container: filterContainer,
+    getRecords: () => allRecords,
+    initial: currentCriteria,
+    onFilterChange: criteria => {
+      currentCriteria = { ...criteria };
+      currentPageIndex = 0;
+      renderCurrentViewAsync();
+    }
+  });
+  const anchor = getRecordAnchorId(target);
+  history.replaceState(null, "", `${location.pathname}${location.search}#${anchor}`);
+  if (currentView === "written") {
+    if (recordPageConfigMode !== (hiddenMode ? "hidden" : "normal")) await loadRecordPageConfig();
+    const pageIndex = recordPageConfig.findIndex((page) => getPageRecords(page, [target]).length > 0);
+    if (pageIndex >= 0) currentPageIndex = pageIndex;
+    else window.alert("目标记录存在，但没有找到对应的书面记录页。");
+  } else {
+    currentView = "list";
+  }
+  renderViewControls();
+  renderCurrentViewAsync();
+};
 
 function renderHiddenModeBanner(message = "隐藏记录查看已开启。本模式不会保存，刷新或退出后自动回到普通记录。", tone = "info") {
   let banner = document.getElementById("hidden-record-banner");
@@ -491,6 +523,12 @@ cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
     if (hiddenMode) return;
     allRecords = records;
     sortRecords(allRecords);
+    if (currentView === "written" && location.hash) {
+      const anchor = location.hash.slice(1);
+      const target = allRecords.find((record) => getRecordAnchorId(record) === anchor);
+      const pageIndex = target ? recordPageConfig.findIndex((page) => getPageRecords(page, [target]).length > 0) : -1;
+      if (pageIndex >= 0) currentPageIndex = pageIndex;
+    }
     renderViewControls();
     renderCurrentViewAsync();
 

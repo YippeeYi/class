@@ -47,6 +47,16 @@ python -m http.server 8000
 http://localhost:8000/index.html
 ```
 
+## 记录正文跳转标记
+
+记录 JSON 的 `content` 可使用 `[[record:文件名|显示文字]]` 创建记录跳转。例如：
+
+```text
+参见 [[record:2025-01-06-01|这条记录]]。
+```
+
+文件名可带或不带 `.json`。点击后会复用记录页现有的平滑滚动与高亮动画；书面记录模式会保持书面模式并定位到目标所在页，其他页面或按条模式会进入按条记录。
+
 ## Supabase 密钥设置
 
 完整 SQL 见 `docs/supabase-setup.sql`。核心机制：

@@ -164,9 +164,9 @@
 
     const normalizeRecordPageImagePath = (value) => {
         const raw = String(value || '').trim();
-        if (/^https?:\/\//i.test(raw)) return raw.replace(/\.jpg(\?|#|$)/i, '.jpeg$1');
+        if (/^https?:\/\//i.test(raw)) return raw;
         if (!raw) return '';
-        return normalizePrivateStoragePath(raw).replace(/\.jpg$/i, '.jpeg');
+        return normalizePrivateStoragePath(raw);
     };
 
     const normalizeRecord = (row, fallbackIndex = 0) => {

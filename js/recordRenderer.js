@@ -13,9 +13,13 @@ function parseContent(text) {
     return text
         .replace(/!!(.+?)!!/g, (_, content) => `<span class="record-center-line">${content}</span>`)
         .replace(/->\[(.+?)\|\|(.+?)\]<-/g, (_, top, bottom) => {
-            const width = Math.max(Array.from(stripRecordMarkup(top)).length, Array.from(stripRecordMarkup(bottom)).length, 2);
+            // 答题挖空会注入 span；箭头宽度只按可见文字计算，不能把标签字符算进去。
+            const visibleLength = (value) => Array.from(stripRecordMarkup(value).replace(/<[^>]*>/g, "")).length;
+            const width = Math.max(visibleLength(top), visibleLength(bottom), 2);
             return `<span class="record-arrow-note" style="--arrow-note-chars:${width}"><span class="record-arrow-note-text">${top}</span><span class="record-arrow-note-line" aria-hidden="true"></span><span class="record-arrow-note-text">${bottom}</span></span>`;
         })
+        // 记录跳转语法：[[record:JSON文件名|显示文字]]，文件名可省略 .json。
+        .replace(/\[\[record:([a-zA-Z0-9_-]+(?:\.json)?)\|(.+?)\]\]/g, (_, fileName, label) => `<button type="button" class="record-jump-link" data-record-jump="${fileName}">${label}</button>`)
         .replace(/\{\{([a-zA-Z0-9_-]+)\|(.+?)\}\}/g, (_, id, label) => `<span class="term-tag" data-id="${id}">${label}</span>`)
         .replace(/\[\[([a-zA-Z0-9_-]+)\|(.+?)\]\]/g, (_, id, label) => `<span class="person-tag" data-id="${id}" title="${id}">${label}</span>`)
         .replace(/\(\((.+?)\)\)/g, (_, content) => `<span class="redacted"><span class="redacted-mask"></span><span class="redacted-content">${content}</span></span>`)
@@ -30,6 +34,7 @@ function stripRecordMarkup(text) {
     return text
         .replace(/!!(.+?)!!/g, "$1")
         .replace(/->\[(.+?)\|\|(.+?)\]<-/g, "$1 $2")
+        .replace(/\[\[record:([a-zA-Z0-9_-]+(?:\.json)?)\|(.+?)\]\]/g, "$2")
         .replace(/\{\{([a-zA-Z0-9_-]+)\|(.+?)\}\}/g, "$2")
         .replace(/\[\[([a-zA-Z0-9_-]+)\|(.+?)\]\]/g, "$2")
         .replace(/\(\((.+?)\)\)/g, "$1")
@@ -40,6 +45,21 @@ function stripRecordMarkup(text) {
 
 window.stripRecordMarkup = stripRecordMarkup;
 
+document.addEventListener("click", (event) => {
+    const jump = event.target.closest(".record-jump-link[data-record-jump]");
+    if (!jump) return;
+    const recordKey = String(jump.dataset.recordJump || "").replace(/\.json$/i, "");
+    if (!recordKey) return;
+    if (typeof window.ClassRecordNavigateToRecord === "function") {
+        window.ClassRecordNavigateToRecord(recordKey);
+        return;
+    }
+    const anchor = `record-${recordKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+    const href = `record.html?view=list#${anchor}`;
+    if (typeof window.navigateTo === "function") window.navigateTo(href);
+    else location.href = href;
+});
+
 function normalizeSearchText(text) {
     return stripRecordMarkup(String(text || ""))
         .replace(/\s+/g, " ")
@@ -48,16 +68,7 @@ function normalizeSearchText(text) {
 }
 
 function getRecordSearchText(record) {
-    return normalizeSearchText([
-        record.id,
-        record.fileName,
-        record.date,
-        record.time,
-        record.author,
-        record.content,
-        record.importance,
-        ...(record.attachments || []).flatMap((item) => [item.name, item.file])
-    ].filter(Boolean).join(" "));
+    return normalizeSearchText(record.content || "");
 }
 
 function formatContent(text) {
@@ -274,7 +285,7 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
             <div id="filter-day-options" class="filter-options" role="group" aria-label="按日筛选"></div>
         </div>
         <div class="filter-search-field">
-            <input id="record-keyword" class="record-search-input" type="search" placeholder="搜索正文、作者、附件" autocomplete="off" aria-label="搜索记录关键词">
+            <input id="record-keyword" class="record-search-input" type="search" placeholder="搜索记录正文" autocomplete="off" aria-label="搜索记录正文关键词">
         </div>
         <div class="filter-actions">
             <button type="button" class="btn-action filter-important" data-field="important">重要记录</button>

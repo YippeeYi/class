@@ -14,6 +14,7 @@
     let years = [];
     let activeYear = '';
     let activeMonth = '';
+    let activeDay = '';
     let knownPeopleIds = new Set();
 
     const MONTH_LABELS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
@@ -79,6 +80,7 @@
     }
 
     function getPersonLabel(id) {
+        if (!id || id === 'unknown') return '未知记录人';
         const person = people.find((item) => item.id === id);
         return stripRecordMarkup(person?.alias || id);
     }
@@ -158,15 +160,30 @@
         `;
     }
 
-    function renderPieChart({ title, value, total, label }) {
-        const safeTotal = Math.max(0, Number(total) || 0);
-        const safeValue = Math.max(0, Math.min(Number(value) || 0, safeTotal));
-        const percent = safeTotal ? Math.round(safeValue / safeTotal * 100) : 0;
+    function renderAuthorPie(recordList, title, { dayOptions = [] } = {}) {
+        const counts = new Map();
+        recordList.forEach((record) => countMapValue(counts, String(record.author || '').trim() || 'unknown'));
+        const entries = topEntries(counts, Number.MAX_SAFE_INTEGER);
+        const total = entries.reduce((sum, [, count]) => sum + count, 0);
+        const palette = ['#6f8fe8', '#e8899f', '#65b7a5', '#e4ad58', '#9a7bd1', '#6da7cf', '#d07f69', '#82a85d'];
+        let cursor = 0;
+        const segments = entries.map(([id, count], index) => {
+            const start = cursor;
+            cursor += total ? count / total * 100 : 0;
+            return `${palette[index % palette.length]} ${start.toFixed(2)}% ${cursor.toFixed(2)}%`;
+        });
+        const legend = entries.map(([id, count], index) => `
+            <li><i style="--legend-color:${palette[index % palette.length]}"></i><span>${escapeHtml(getPersonLabel(id))}</span><strong>${count} · ${formatPercent(count, total)}</strong></li>
+        `).join('');
+        const dayButtons = dayOptions.length ? `<div class="timeline-author-day-options" aria-label="选择日期">${dayOptions.map((day) => `<button type="button" class="${day === activeDay ? 'is-active' : ''}" data-author-day="${day}">${day}</button>`).join('')}</div>` : '';
         return `
-            <section class="timeline-chart-card timeline-pie-card" aria-label="${escapeHtml(title)}">
-                <header><h3>${escapeHtml(title)}</h3><p>${escapeHtml(label || '')}</p></header>
-                <div class="timeline-pie" style="--pie-value:${percent}%"><strong>${percent}%</strong></div>
-                <p class="timeline-chart-note">${safeValue} / ${safeTotal}</p>
+            <section class="timeline-chart-card timeline-pie-card timeline-author-pie-card" aria-label="${escapeHtml(title)}">
+                <header><h3>${escapeHtml(title)}</h3><p>${total ? `${entries.length} 位记录人 · ${total} 条记录` : '暂无记录人数据'}</p></header>
+                ${dayButtons}
+                <div class="timeline-author-pie-body">
+                    <div class="timeline-pie timeline-author-pie" style="background:${segments.length ? `conic-gradient(${segments.join(',')})` : 'var(--theme-surface-strong)'}"><strong>${total}</strong></div>
+                    <ul class="timeline-author-legend">${legend || '<li class="is-empty">暂无可统计数据</li>'}</ul>
+                </div>
             </section>
         `;
     }
@@ -188,7 +205,7 @@
         };
         recordList.forEach((record) => {
             if (record.importance === 'important') summary.important.push(record);
-            if (isKnownPersonId(record.author)) countMapValue(summary.authors, record.author);
+            countMapValue(summary.authors, String(record.author || '').trim() || 'unknown');
             extractPeople(record).forEach((id) => countMapValue(summary.people, id));
             extractTerms(record).forEach((id) => countMapValue(summary.terms, id));
         });
@@ -301,7 +318,7 @@
             </article>
             <div class="timeline-chart-grid timeline-chart-grid--overview">
                 ${renderBarChart(monthTrend, { title: '月度记录柱形图', valueSuffix: ' 条', dataKey: 'month' })}
-                ${renderPieChart({ title: '重要记录占比', value: totalImportant, total: records.length })}
+                ${renderAuthorPie(records, '整体记录人占比')}
             </div>
         `;
     }
@@ -354,6 +371,9 @@
                     `;
                 }).join('')}
             </div>
+            <div class="timeline-chart-grid timeline-chart-grid--overview">
+                ${renderAuthorPie(year.records, `${year.key} 年记录人占比`)}
+            </div>
         `;
     }
     function renderMonths() {
@@ -392,6 +412,9 @@
             recordsByDay.set(date.day, list);
         });
         const activeDays = recordsByDay.size;
+        const availableDays = [...recordsByDay.keys()].sort();
+        if (!recordsByDay.has(activeDay)) activeDay = availableDays[availableDays.length - 1] || '';
+        const activeDayRecords = recordsByDay.get(activeDay) || [];
         const dayCount = getMonthDayCount(month);
         const daySeries = Array.from({ length: dayCount }, (_, index) => {
             const day = padDay(index + 1);
@@ -426,6 +449,8 @@
             </section>
             <div class="timeline-chart-grid">
                 ${renderBarChart(daySeries, { title: '每日记录柱形图', valueSuffix: ' 条', full: true, dataKey: 'day' })}
+                ${renderAuthorPie(month.records, `${formatMonthTitle(month.key)}记录人占比`)}
+                ${renderAuthorPie(activeDayRecords, `${month.key}-${activeDay || '--'} 记录人占比`, { dayOptions: availableDays })}
             </div>
             <section class="timeline-insight-card timeline-calendar-card">
                 <header class="timeline-calendar-head">
@@ -462,6 +487,7 @@
         if (!/^\d{4}-\d{2}$/.test(monthKey)) return;
         activeMonth = monthKey;
         activeYear = monthKey.slice(0, 4);
+        activeDay = '';
         renderYears();
         renderYearOverview();
         renderMonths();
@@ -478,6 +504,7 @@
         const button = event.target.closest('[data-year]');
         if (!button) return;
         activeYear = button.dataset.year;
+        activeDay = '';
         const year = getActiveYear();
         activeMonth = year?.months[year.months.length - 1]?.key || '';
         renderYears();
@@ -509,6 +536,12 @@
     });
 
     detail.addEventListener('click', (event) => {
+        const authorDayButton = event.target.closest('[data-author-day]');
+        if (authorDayButton) {
+            activeDay = authorDayButton.dataset.authorDay;
+            renderDetail();
+            return;
+        }
         const monthButton = event.target.closest('[data-open-month]');
         if (monthButton) {
             const [year, month] = monthButton.dataset.openMonth.split('-');
