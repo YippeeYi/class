@@ -18,12 +18,11 @@
 
     const MONTH_LABELS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
     const OTHER_AUTHOR_ID = '__other__';
-    const PIE_SEPARATOR_COLOR = 'hsl(36, 32%, 94%)';
-    const CLEAN_PIE_COLORS = [
-        'hsl(18, 72%, 66%)', 'hsl(36, 74%, 64%)', 'hsl(48, 72%, 66%)',
-        'hsl(350, 64%, 68%)', 'hsl(155, 60%, 64%)', 'hsl(176, 60%, 63%)',
-        'hsl(202, 68%, 66%)', 'hsl(222, 62%, 68%)', 'hsl(274, 58%, 70%)',
-        'hsl(8, 68%, 69%)', 'hsl(92, 58%, 66%)', 'hsl(326, 62%, 70%)'
+    const PRESET_WARM_PIE_COLORS = [
+        'hsl(12 68% 66%)', 'hsl(26 70% 65%)', 'hsl(40 68% 66%)',
+        'hsl(54 66% 67%)', 'hsl(350 68% 67%)', 'hsl(336 64% 68%)',
+        'hsl(20 62% 70%)', 'hsl(32 66% 68%)', 'hsl(46 62% 70%)',
+        'hsl(4 64% 69%)', 'hsl(322 60% 70%)', 'hsl(72 58% 68%)'
     ];
     let authorColorMap = new Map();
 
@@ -174,7 +173,7 @@
     }
 
     function getAuthorColor(id) {
-        if (id === OTHER_AUTHOR_ID) return 'hsl(28, 60%, 70%)';
+        if (id === OTHER_AUTHOR_ID) return 'hsl(32 58% 68%)';
         return authorColorMap.get(id) || buildAuthorColor(id, new Set(), 1);
     }
 
@@ -190,36 +189,37 @@
 
     function buildAuthorColor(id, usedColors, total) {
         const hash = stableColorHash(id);
-        if (total <= CLEAN_PIE_COLORS.length) {
-            const start = hash % CLEAN_PIE_COLORS.length;
-            let color = CLEAN_PIE_COLORS[start];
-            for (let attempt = 0; attempt < CLEAN_PIE_COLORS.length; attempt += 1) {
-                color = CLEAN_PIE_COLORS[(start + attempt * 5) % CLEAN_PIE_COLORS.length];
+        if (total <= PRESET_WARM_PIE_COLORS.length) {
+            const start = hash % PRESET_WARM_PIE_COLORS.length;
+            let color = PRESET_WARM_PIE_COLORS[start];
+            for (let attempt = 0; attempt < PRESET_WARM_PIE_COLORS.length; attempt += 1) {
+                color = PRESET_WARM_PIE_COLORS[(start + attempt * 5) % PRESET_WARM_PIE_COLORS.length];
                 if (!usedColors.has(color)) break;
             }
             usedColors.add(color);
             return color;
         }
-        const cleanHues = [
-            8, 18, 32, 46, 350, 334,
-            92, 142, 156, 172, 188, 204,
-            220, 238, 274, 312, 326, 58
+        const warmHues = [
+            8, 18, 28, 38, 48, 58,
+            334, 344, 354, 324, 314,
+            72, 84, 94,
+            14, 24, 34, 44, 54, 64
         ];
-        const saturations = [62, 68, 74];
-        const lightnesses = [64, 68, 72];
-        const start = hash % cleanHues.length;
+        const saturations = [62, 66, 70];
+        const lightnesses = [64, 67, 70];
+        const start = hash % warmHues.length;
         const saturationStart = (hash >>> 8) % saturations.length;
         const lightnessStart = (hash >>> 12) % lightnesses.length;
         let color = '';
 
-        // 同色冲突时先遍历完整干净色相池，再轻微调整饱和度和亮度。
-        for (let attempt = 0; attempt < cleanHues.length * saturations.length * lightnesses.length; attempt += 1) {
-            const hueRound = attempt % cleanHues.length;
-            const variantRound = Math.floor(attempt / cleanHues.length);
-            const hue = cleanHues[(start + hueRound * 5) % cleanHues.length];
+        // 同色冲突时先遍历完整暖色色相池，再轻微调整饱和度和亮度。
+        for (let attempt = 0; attempt < warmHues.length * saturations.length * lightnesses.length; attempt += 1) {
+            const hueRound = attempt % warmHues.length;
+            const variantRound = Math.floor(attempt / warmHues.length);
+            const hue = warmHues[(start + hueRound * 7) % warmHues.length];
             const saturation = saturations[(saturationStart + variantRound) % saturations.length];
             const lightness = lightnesses[(lightnessStart + Math.floor(variantRound / saturations.length)) % lightnesses.length];
-            color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+            color = `hsl(${hue} ${saturation}% ${lightness}%)`;
             if (!usedColors.has(color)) break;
         }
         usedColors.add(color);
@@ -240,8 +240,8 @@
     }
 
     function buildAuthorPieBackground(entries, total) {
-        if (!entries.length || !total) return 'none';
-        if (entries.length === 1) return `conic-gradient(${getAuthorColor(entries[0][0])} 0deg 360deg)`;
+        if (!entries.length || !total) return 'var(--theme-surface-strong)';
+        if (entries.length === 1) return getAuthorColor(entries[0][0]);
         let cursor = 0;
         const segments = entries.flatMap(([id, count]) => {
             const start = cursor;
@@ -251,7 +251,7 @@
             const colorEnd = Math.max(start, cursor - gap);
             return [
                 `${getAuthorColor(id)} ${start.toFixed(2)}deg ${colorEnd.toFixed(2)}deg`,
-                `${PIE_SEPARATOR_COLOR} ${colorEnd.toFixed(2)}deg ${cursor.toFixed(2)}deg`
+                `var(--pie-separator-color) ${colorEnd.toFixed(2)}deg ${cursor.toFixed(2)}deg`
             ];
         });
         return `conic-gradient(${segments.join(',')})`;
@@ -263,13 +263,7 @@
         const rawEntries = topEntries(counts, Number.MAX_SAFE_INTEGER);
         const total = rawEntries.reduce((sum, [, count]) => sum + count, 0);
         const entries = mergeSmallAuthorEntries(rawEntries, total, mergeSmall);
-        return {
-            entries,
-            total,
-            authorCount: rawEntries.length,
-            baseColor: entries.length ? getAuthorColor(entries[0][0]) : 'hsl(36, 40%, 88%)',
-            background: buildAuthorPieBackground(entries, total)
-        };
+        return { entries, total, authorCount: rawEntries.length, background: buildAuthorPieBackground(entries, total) };
     }
 
     function renderAuthorLegend(recordList, className = 'timeline-author-legend', { showValues = true, mergeSmall = false } = {}) {
@@ -281,12 +275,12 @@
     }
 
     function renderAuthorPie(recordList, title) {
-        const { entries, total, authorCount, baseColor, background } = getAuthorDistribution(recordList, { mergeSmall: true });
+        const { entries, total, authorCount, background } = getAuthorDistribution(recordList, { mergeSmall: true });
         return `
             <section class="timeline-chart-card timeline-pie-card timeline-author-pie-card" aria-label="${escapeHtml(title)}">
                 <header><h3>${escapeHtml(title)}</h3><p>${total ? `${authorCount} 位记录人 · ${total} 条记录` : '暂无记录人数据'}</p></header>
                 <div class="timeline-author-pie-body">
-                    <div class="timeline-pie timeline-author-pie" style="background-color:${baseColor};background-image:${background}"><strong>${total}</strong></div>
+                    <div class="timeline-pie timeline-author-pie" style="background:${background}"><strong>${total}</strong></div>
                     ${renderAuthorLegend(recordList, 'timeline-author-legend', { mergeSmall: true })}
                 </div>
             </section>
@@ -511,7 +505,7 @@
                 <button type="button" class="timeline-calendar-day${day.value ? '' : ' is-empty'}${day.important ? ' has-important' : ''}"${day.value ? ` data-day="${day.shortLabel}"` : ' disabled aria-disabled="true"'} aria-label="${day.value ? `打开 ${month.key}-${day.shortLabel} 的记录` : `${month.key}-${day.shortLabel} 无记录`}">
                     <span>${day.shortLabel}</span>
                     <strong>${day.value}</strong>
-                    ${day.value ? `<i class="timeline-day-author-pie" style="background-color:${pie.baseColor};background-image:${pie.background}" aria-hidden="true"></i>` : ''}
+                    ${day.value ? `<i class="timeline-day-author-pie" style="background:${pie.background}" aria-hidden="true"></i>` : ''}
                     <em>${day.important ? `重要 ${day.important}` : ' '}</em>
                 </button>
             `;
