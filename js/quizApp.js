@@ -27,6 +27,7 @@
   let secretProgress = [];
   let secretUnlocked = false;
   let secretBuffer = '';
+  let preferSecretQuestionOnce = false;
   let activeFilters = {
     types: new Set(Object.keys(typeLabels)),
     contents: new Set(Object.keys(contentLabels))
@@ -676,17 +677,25 @@
 
   async function loadSecretQuestions() {
     try {
-      const response = await fetch('data/quiz/lamian.json', { cache: 'force-cache' });
+      const sourceUrl = new URL('data/quiz/lamian.json', document.baseURI);
+      const response = await fetch(sourceUrl, { cache: 'no-store', credentials: 'same-origin' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = await response.json();
       const rows = Array.isArray(payload) ? payload : (payload.questions || payload.items || []);
-      return rows.map((item, index) => normalizeQuestion({
+      const questions = rows.map((item, index) => normalizeQuestion({
         ...item,
         id: item.id || `${SECRET_CONTENT}-${index + 1}`,
         type: 'fill',
         content: SECRET_CONTENT,
         imagePath: String(item.image || item.imagePath || '').trim().replace(/^\/+/, '')
-      }, index)).filter((question) => question.answer);
+      }, index)).filter((question) => question.answer && question.content === SECRET_CONTENT);
+      questions.forEach((question) => {
+        if (!question.imagePath) return;
+        const image = new Image();
+        image.decoding = 'async';
+        image.src = question.imagePath;
+      });
+      return questions;
     } catch (error) {
       console.warn('Local secret questions load failed:', error);
       return [];
@@ -730,7 +739,11 @@
     const avoidSet = new Set(recentQuestionIds);
     const freshPool = questionBank.filter((question) => !avoidSet.has(questionRecordKey(question)));
     const pool = freshPool.length ? freshPool : questionBank;
-    const picked = randomizeQuestion(pickRandom(pool));
+    const secretPool = preferSecretQuestionOnce
+      ? questionBank.filter((question) => question.content === SECRET_CONTENT)
+      : [];
+    const picked = randomizeQuestion(pickRandom(secretPool.length ? secretPool : pool));
+    preferSecretQuestionOnce = false;
     const key = questionRecordKey(picked);
     if (key) {
       recentQuestionIds = [key, ...recentQuestionIds.filter((item) => item !== key)].slice(0, 6);
@@ -898,11 +911,11 @@
     const button = event.target.closest('.filter-option');
     const allButton = event.target.closest('.quiz-filter-all');
     if (allButton) {
-      activeFilters = {
-        types: new Set(Object.keys(typeLabels).filter((type) => allQuestions.some((question) => question.type === type))),
-        contents: new Set(Object.keys(secretUnlocked ? { ...contentLabels, ...secretContentLabels } : contentLabels)
-          .filter((content) => allQuestions.some((question) => question.content === content)))
-      };
+      Object.keys(typeLabels).forEach((type) => activeFilters.types.add(type));
+      Object.keys(secretUnlocked ? { ...contentLabels, ...secretContentLabels } : contentLabels)
+        .forEach((content) => activeFilters.contents.add(content));
+      preferSecretQuestionOnce = secretUnlocked && activeFilters.contents.has(SECRET_CONTENT)
+        && allQuestions.some((question) => question.content === SECRET_CONTENT);
       renderQuestion();
       return;
     }

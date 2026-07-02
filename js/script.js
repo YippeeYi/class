@@ -18,6 +18,9 @@ let writtenImageRenderToken = 0;
 let hiddenMode = false;
 let hiddenSequenceBuffer = "";
 let hiddenRecordPagesPromise = null;
+let pendingRecordJump = null;
+let activeRecordJumpDialog = null;
+const writtenImagePreloadCache = new Map();
 
 function parseInitialRecordCriteria() {
   const params = new URLSearchParams(location.search);
@@ -246,15 +249,50 @@ function setWrittenImageState(figure, state, token) {
   figure.classList.toggle("is-error", state === "error");
 }
 
+function preloadBrowserImage(src, priority = "low") {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.fetchPriority = priority;
+    image.onload = () => resolve(src);
+    image.onerror = () => resolve("");
+    image.src = src;
+  });
+}
+
+function preloadWrittenImage(path, { priority = "low" } = {}) {
+  const sourcePath = String(path || "").trim();
+  if (!sourcePath) return Promise.resolve("");
+  if (writtenImagePreloadCache.has(sourcePath)) return writtenImagePreloadCache.get(sourcePath);
+  const isDirectSource = /^(?:https?:|data:|blob:)/i.test(sourcePath) || /^(?:\.\/|\/)?images\//i.test(sourcePath);
+  const promise = (async () => {
+    if (isDirectSource) {
+      const directUrl = /^(?:https?:|data:|blob:)/i.test(sourcePath)
+        ? sourcePath
+        : new URL(sourcePath.replace(/^\//, ""), document.baseURI).href;
+      const directResult = await preloadBrowserImage(directUrl, priority);
+      if (directResult) return directResult;
+    }
+    return window.ClassRecordData?.preloadAsset
+      ? (await window.ClassRecordData.preloadAsset(sourcePath, { priority }).catch(() => "")) || ""
+      : "";
+  })();
+  const reusable = promise.then((result) => {
+    if (!result) writtenImagePreloadCache.delete(sourcePath);
+    return result;
+  });
+  writtenImagePreloadCache.set(sourcePath, reusable);
+  return reusable;
+}
+
 function preloadAdjacentWrittenPages(pages, pageIndex) {
-  if (!window.ClassRecordData?.preloadAsset) return;
-  const paths = [pageIndex - 1, pageIndex + 1]
+  const paths = [pageIndex - 2, pageIndex - 1, pageIndex + 1, pageIndex + 2]
     .filter((index) => index >= 0 && index < pages.length)
     .map((index) => getPageImagePath(pages[index], pages[index].records || []))
     .filter(Boolean);
   if (!paths.length) return;
   const preload = () => paths.forEach((path) => {
-    window.ClassRecordData.preloadAsset(path, { priority: "low" }).catch(() => { });
+    preloadWrittenImage(path, { priority: "low" }).catch(() => { });
   });
   if ("requestIdleCallback" in window) window.requestIdleCallback(preload, { timeout: 1200 });
   else window.setTimeout(preload, 250);
@@ -295,7 +333,7 @@ function renderWrittenView(records) {
       <div class="record-written-layout">
         <figure class="record-written-image${imagePath ? ' is-loading' : ' is-missing'}${hiddenMode ? ' is-hidden-image' : ''}" data-render-token="${token}" data-image-state="${imagePath ? 'loading' : 'missing'}">
           ${imagePath ? `<img alt="${hiddenMode ? `${page.page} 隐藏书面记录` : `${page.page} 原始书面记录`}" width="2856" height="4282" loading="eager" decoding="async" fetchpriority="high">` : ""}
-          <span class="record-written-image-loading">${imagePath ? "加载中···" : "未找到书面文件"}</span>
+          <span class="record-written-image-loading">${imagePath ? '<i aria-hidden="true"></i><b>正在加载书面记录</b>' : "未找到书面文件"}</span>
         </figure>
         <div class="record-written-records"></div>
       </div>
@@ -316,8 +354,8 @@ function renderWrittenView(records) {
   writtenImage?.addEventListener("error", (event) => {
     setWrittenImageState(event.currentTarget.closest(".record-written-image"), "error", token);
   }, { once: true });
-  if (window.ClassRecordData?.isEnabled() && imagePath && writtenImage) {
-    window.ClassRecordData.preloadAsset(imagePath, { priority: "high" }).then((src) => {
+  if (imagePath && writtenImage) {
+    preloadWrittenImage(imagePath, { priority: "high" }).then((src) => {
       if (!writtenImage.isConnected || String(writtenFigure?.dataset.renderToken) !== String(token)) return;
       if (!src) {
         setWrittenImageState(writtenFigure, "error", token);
@@ -368,6 +406,69 @@ function renderWrittenView(records) {
   });
 }
 
+function renderRecordFilterForCurrentState() {
+  renderRecordFilter({
+    container: filterContainer,
+    getRecords: () => allRecords,
+    initial: currentCriteria,
+    onFilterChange: criteria => {
+      currentCriteria = { ...criteria };
+      currentPageIndex = 0;
+      renderCurrentViewAsync();
+    }
+  });
+}
+
+function closeRecordJumpDialog() {
+  activeRecordJumpDialog?.remove();
+  activeRecordJumpDialog = null;
+}
+
+async function returnFromRecordJump(origin) {
+  closeRecordJumpDialog();
+  pendingRecordJump = null;
+  if (origin.externalHref) {
+    location.href = origin.externalHref;
+    return;
+  }
+  currentView = origin.view;
+  currentPageIndex = origin.pageIndex;
+  currentCriteria = { ...origin.criteria };
+  const returnHash = origin.anchorId ? `#${origin.anchorId}` : "";
+  history.replaceState(null, "", `${location.pathname}${location.search}${returnHash}`);
+  renderViewControls();
+  renderRecordFilterForCurrentState();
+  await renderCurrentViewAsync();
+  if (!origin.anchorId) window.scrollTo({ top: origin.scrollY, behavior: "smooth" });
+}
+
+function showRecordJumpDialog(target, jumpState) {
+  closeRecordJumpDialog();
+  const dialog = document.createElement("aside");
+  dialog.className = "record-jump-dialog";
+  dialog.setAttribute("role", "dialog");
+  dialog.setAttribute("aria-label", "记录跳转完成");
+  dialog.innerHTML = `
+    <span>已定位到目标记录</span>
+    <div>
+      <button type="button" class="btn-action" data-jump-stay>留在这里</button>
+      <button type="button" class="btn-action" data-jump-return>返回原位置</button>
+    </div>
+  `;
+  dialog.querySelector("[data-jump-stay]")?.addEventListener("click", () => {
+    pendingRecordJump = null;
+    closeRecordJumpDialog();
+  });
+  dialog.querySelector("[data-jump-return]")?.addEventListener("click", () => returnFromRecordJump(jumpState.origin));
+  target.insertAdjacentElement("afterend", dialog);
+  activeRecordJumpDialog = dialog;
+}
+
+document.addEventListener("classrecord:record-focused", (event) => {
+  if (!pendingRecordJump || event.detail?.anchorId !== pendingRecordJump.targetAnchorId) return;
+  showRecordJumpDialog(event.detail.target, pendingRecordJump);
+});
+
 async function renderCurrentViewAsync() {
   const expectedMode = hiddenMode ? "hidden" : "normal";
   if (currentView === "written" && recordPageConfigMode !== expectedMode) {
@@ -412,7 +513,7 @@ function renderViewControls() {
 }
 
 // 供记录文本中的 [[record:文件名|文字]] 复用；动画仍由 renderRecordList 的锚点逻辑统一处理。
-window.ClassRecordNavigateToRecord = async (recordKey) => {
+window.ClassRecordNavigateToRecord = async (recordKey, { sourceElement } = {}) => {
   const normalizedKey = normalizeFileName(recordKey).replace(/\.json$/i, "");
   const target = allRecords.find((record) => normalizeFileName(record.fileName || record.id).replace(/\.json$/i, "") === normalizedKey);
   if (!target) {
@@ -420,18 +521,19 @@ window.ClassRecordNavigateToRecord = async (recordKey) => {
     window.alert("未找到要跳转的记录。");
     return;
   }
+  closeRecordJumpDialog();
+  const sourceRecord = sourceElement?.closest?.(".record");
+  const origin = {
+    view: currentView,
+    pageIndex: currentPageIndex,
+    criteria: { ...currentCriteria },
+    anchorId: sourceRecord?.id || "",
+    scrollY: window.scrollY
+  };
   currentCriteria = { year: "", month: "", day: "", important: false, excludeDaily: false, query: "" };
-  renderRecordFilter({
-    container: filterContainer,
-    getRecords: () => allRecords,
-    initial: currentCriteria,
-    onFilterChange: criteria => {
-      currentCriteria = { ...criteria };
-      currentPageIndex = 0;
-      renderCurrentViewAsync();
-    }
-  });
+  renderRecordFilterForCurrentState();
   const anchor = getRecordAnchorId(target);
+  pendingRecordJump = { targetAnchorId: anchor, origin };
   history.replaceState(null, "", `${location.pathname}${location.search}#${anchor}`);
   if (currentView === "written") {
     if (recordPageConfigMode !== (hiddenMode ? "hidden" : "normal")) await loadRecordPageConfig();
@@ -442,7 +544,7 @@ window.ClassRecordNavigateToRecord = async (recordKey) => {
     currentView = "list";
   }
   renderViewControls();
-  renderCurrentViewAsync();
+  await renderCurrentViewAsync();
 };
 
 function renderHiddenModeBanner(message = "隐藏记录查看已开启。本模式不会保存，刷新或退出后自动回到普通记录。", tone = "info") {
@@ -523,6 +625,22 @@ cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
     if (hiddenMode) return;
     allRecords = records;
     sortRecords(allRecords);
+    try {
+      const storedJump = JSON.parse(sessionStorage.getItem("classrecord:pending-record-jump") || "null");
+      sessionStorage.removeItem("classrecord:pending-record-jump");
+      const isFresh = storedJump && Date.now() - Number(storedJump.createdAt || 0) < 5 * 60 * 1000;
+      const targetExists = isFresh && allRecords.some((record) => getRecordAnchorId(record) === storedJump.targetAnchorId);
+      if (targetExists) {
+        pendingRecordJump = {
+          targetAnchorId: storedJump.targetAnchorId,
+          origin: { externalHref: storedJump.originHref }
+        };
+      } else if (isFresh) {
+        window.alert("未找到要跳转的记录。");
+      }
+    } catch (error) {
+      sessionStorage.removeItem("classrecord:pending-record-jump");
+    }
     if (currentView === "written" && location.hash) {
       const anchor = location.hash.slice(1);
       const target = allRecords.find((record) => getRecordAnchorId(record) === anchor);

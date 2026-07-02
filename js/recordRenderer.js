@@ -51,10 +51,22 @@ document.addEventListener("click", (event) => {
     const recordKey = String(jump.dataset.recordJump || "").replace(/\.json$/i, "");
     if (!recordKey) return;
     if (typeof window.ClassRecordNavigateToRecord === "function") {
-        window.ClassRecordNavigateToRecord(recordKey);
+        window.ClassRecordNavigateToRecord(recordKey, { sourceElement: jump });
         return;
     }
     const anchor = `record-${recordKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+    const sourceRecord = jump.closest(".record");
+    const sourceUrl = new URL(location.href);
+    if (sourceRecord?.id) sourceUrl.hash = sourceRecord.id;
+    try {
+        sessionStorage.setItem("classrecord:pending-record-jump", JSON.stringify({
+            targetAnchorId: anchor,
+            originHref: sourceUrl.href,
+            createdAt: Date.now()
+        }));
+    } catch (error) {
+        // Storage may be unavailable in privacy modes; the jump itself still works.
+    }
     const href = `record.html?view=list#${anchor}`;
     if (typeof window.navigateTo === "function") window.navigateTo(href);
     else location.href = href;
@@ -152,6 +164,26 @@ function afterScrollSettles(target, callback, { timeout = 2600, quiet = 220 } = 
     requestAnimationFrame(tick);
 }
 
+function focusRecordAnchor(anchorId, { behavior = "smooth" } = {}) {
+    const target = document.getElementById(String(anchorId || "").replace(/^#/, ""));
+    if (!target) return false;
+    requestAnimationFrame(() => {
+        target.scrollIntoView({ behavior, block: "center" });
+        afterScrollSettles(target, () => {
+            target.classList.remove("record-anchor-highlight");
+            void target.offsetWidth;
+            target.classList.add("record-anchor-highlight");
+            window.setTimeout(() => target.classList.remove("record-anchor-highlight"), 1500);
+            document.dispatchEvent(new CustomEvent("classrecord:record-focused", {
+                detail: { anchorId: target.id, target }
+            }));
+        });
+    });
+    return true;
+}
+
+window.ClassRecordFocusAnchor = focusRecordAnchor;
+
 function renderRecordList(records, container) {
     records.forEach((record) => {
         if (!record.id) {
@@ -188,18 +220,7 @@ function renderRecordList(records, container) {
     }
 
     if (location.hash) {
-        const target = document.getElementById(location.hash.slice(1));
-        if (target) {
-            requestAnimationFrame(() => {
-                target.scrollIntoView({ behavior: "smooth", block: "center" });
-                afterScrollSettles(target, () => {
-                    target.classList.remove("record-anchor-highlight");
-                    void target.offsetWidth;
-                    target.classList.add("record-anchor-highlight");
-                    window.setTimeout(() => target.classList.remove("record-anchor-highlight"), 1500);
-                });
-            });
-        }
+        focusRecordAnchor(location.hash.slice(1));
     }
 }
 

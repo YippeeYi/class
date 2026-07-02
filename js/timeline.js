@@ -14,10 +14,11 @@
     let years = [];
     let activeYear = '';
     let activeMonth = '';
-    let activeDay = '';
     let knownPeopleIds = new Set();
 
     const MONTH_LABELS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+    const AUTHOR_COLORS = ['#6f8fe8', '#e8899f', '#65b7a5', '#e4ad58', '#9a7bd1', '#6da7cf', '#d07f69', '#82a85d', '#c08bba', '#69aab1'];
+    let authorColorMap = new Map();
 
     function escapeHtml(text) {
         return String(text || '')
@@ -160,29 +161,44 @@
         `;
     }
 
-    function renderAuthorPie(recordList, title, { dayOptions = [] } = {}) {
+    function getAuthorId(record) {
+        return String(record?.author || '').trim() || 'unknown';
+    }
+
+    function getAuthorColor(id) {
+        return authorColorMap.get(id) || AUTHOR_COLORS[authorColorMap.size % AUTHOR_COLORS.length];
+    }
+
+    function getAuthorDistribution(recordList) {
         const counts = new Map();
-        recordList.forEach((record) => countMapValue(counts, String(record.author || '').trim() || 'unknown'));
+        recordList.forEach((record) => countMapValue(counts, getAuthorId(record)));
         const entries = topEntries(counts, Number.MAX_SAFE_INTEGER);
         const total = entries.reduce((sum, [, count]) => sum + count, 0);
-        const palette = ['#6f8fe8', '#e8899f', '#65b7a5', '#e4ad58', '#9a7bd1', '#6da7cf', '#d07f69', '#82a85d'];
         let cursor = 0;
         const segments = entries.map(([id, count], index) => {
             const start = cursor;
             cursor += total ? count / total * 100 : 0;
-            return `${palette[index % palette.length]} ${start.toFixed(2)}% ${cursor.toFixed(2)}%`;
+            return `${getAuthorColor(id)} ${start.toFixed(2)}% ${cursor.toFixed(2)}%`;
         });
+        return { entries, total, background: segments.length ? `conic-gradient(${segments.join(',')})` : 'var(--theme-surface-strong)' };
+    }
+
+    function renderAuthorLegend(recordList, className = 'timeline-author-legend') {
+        const { entries, total } = getAuthorDistribution(recordList);
         const legend = entries.map(([id, count], index) => `
-            <li><i style="--legend-color:${palette[index % palette.length]}"></i><span>${escapeHtml(getPersonLabel(id))}</span><strong>${count} · ${formatPercent(count, total)}</strong></li>
+            <li><i style="--legend-color:${getAuthorColor(id)}"></i><span>${escapeHtml(getPersonLabel(id))}</span><strong>${count} · ${formatPercent(count, total)}</strong></li>
         `).join('');
-        const dayButtons = dayOptions.length ? `<div class="timeline-author-day-options" aria-label="选择日期">${dayOptions.map((day) => `<button type="button" class="${day === activeDay ? 'is-active' : ''}" data-author-day="${day}">${day}</button>`).join('')}</div>` : '';
+        return `<ul class="${className}">${legend || '<li class="is-empty">暂无可统计数据</li>'}</ul>`;
+    }
+
+    function renderAuthorPie(recordList, title) {
+        const { entries, total, background } = getAuthorDistribution(recordList);
         return `
             <section class="timeline-chart-card timeline-pie-card timeline-author-pie-card" aria-label="${escapeHtml(title)}">
                 <header><h3>${escapeHtml(title)}</h3><p>${total ? `${entries.length} 位记录人 · ${total} 条记录` : '暂无记录人数据'}</p></header>
-                ${dayButtons}
                 <div class="timeline-author-pie-body">
-                    <div class="timeline-pie timeline-author-pie" style="background:${segments.length ? `conic-gradient(${segments.join(',')})` : 'var(--theme-surface-strong)'}"><strong>${total}</strong></div>
-                    <ul class="timeline-author-legend">${legend || '<li class="is-empty">暂无可统计数据</li>'}</ul>
+                    <div class="timeline-pie timeline-author-pie" style="background:${background}"><strong>${total}</strong></div>
+                    ${renderAuthorLegend(recordList)}
                 </div>
             </section>
         `;
@@ -213,6 +229,8 @@
     }
 
     function buildTimelineData() {
+        const authorIds = [...new Set(records.map(getAuthorId))].sort((a, b) => a.localeCompare(b));
+        authorColorMap = new Map(authorIds.map((id, index) => [id, AUTHOR_COLORS[index % AUTHOR_COLORS.length]]));
         const monthGroups = new Map();
         records.forEach((record) => {
             const date = parseRecordDate(record);
@@ -290,55 +308,45 @@
     }
     function renderOverview() {
         const totalImportant = records.filter((record) => record.importance === 'important').length;
-        const latestMonth = months[0];
         const activePeople = new Set(records.flatMap(extractPeople)).size;
         const monthTrend = [...months]
             .sort((a, b) => a.key.localeCompare(b.key))
             .map((month) => ({ label: month.key, shortLabel: month.key.slice(5), value: month.records.length, month: month.key }));
         overview.innerHTML = `
-            <article class="archive-stat-card">
-                <span>记录</span>
-                <strong>${records.length}</strong>
-            </article>
-            <article class="archive-stat-card">
-                <span>月份</span>
-                <strong>${months.length}</strong>
-            </article>
-            <article class="archive-stat-card">
-                <span>重要</span>
-                <strong>${totalImportant}</strong>
-            </article>
-            <article class="archive-stat-card">
-                <span>人物</span>
-                <strong>${activePeople}</strong>
-            </article>
-            <article class="archive-stat-card archive-stat-card--wide">
-                <span>最新月份</span>
-                <strong>${latestMonth ? `${latestMonth.key} · ${latestMonth.records.length} 条` : '--'}</strong>
-            </article>
+            <div class="timeline-overview-stats">
+                <article class="archive-stat-card"><span>记录</span><strong>${records.length}</strong></article>
+                <article class="archive-stat-card"><span>月份</span><strong>${months.length}</strong></article>
+                <article class="archive-stat-card"><span>重要</span><strong>${totalImportant}</strong></article>
+                <article class="archive-stat-card"><span>人物</span><strong>${activePeople}</strong></article>
+                <article class="archive-stat-card"><span>术语</span><strong>${glossary.length}</strong></article>
+            </div>
             <div class="timeline-chart-grid timeline-chart-grid--overview">
-                ${renderBarChart(monthTrend, { title: '月度记录柱形图', valueSuffix: ' 条', dataKey: 'month' })}
                 ${renderAuthorPie(records, '整体记录人占比')}
+                ${renderBarChart(monthTrend, { title: '月度记录柱形图', valueSuffix: ' 条', dataKey: 'month' })}
             </div>
         `;
     }
     function renderYears() {
+        const year = getActiveYear();
         yearsWrap.innerHTML = `
-            <header class="timeline-step-head">
-                <span>1</span>
-                <div>
-                    <h2>选择年份</h2>
-                    <p>先确定年份，再进入月份统计。</p>
+            <div class="timeline-period-layout timeline-period-layout--year">
+                <div class="timeline-period-chart">
+                    ${year ? renderAuthorPie(year.records, `${year.key} 年记录人占比`) : ''}
                 </div>
-            </header>
-            <div class="timeline-year-strip">
-                ${years.map((year) => `
-                    <button type="button" class="timeline-year-card${year.key === activeYear ? ' is-active' : ''}" data-year="${year.key}">
-                        <span class="timeline-year-key">${year.key}</span>
-                        <strong>${year.records.length}</strong>
-                        <span>${year.months.length} 个月</span>
-                    </button>
-                `).join('')}
+                <div class="timeline-period-controls">
+                    <div class="timeline-period-actions">
+                        ${year ? `<button type="button" class="btn-action" data-open-year="${year.key}">打开本年记录</button>` : ''}
+                    </div>
+                    <div class="timeline-year-strip">
+                        ${years.map((item) => `
+                            <button type="button" class="timeline-year-card${item.key === activeYear ? ' is-active' : ''}" data-year="${item.key}">
+                                <span class="timeline-year-key">${item.key}</span>
+                                <strong>${item.records.length}</strong>
+                                <span>${item.months.length} 个月</span>
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -350,45 +358,34 @@
         }
 
         const byMonth = new Map(year.months.map((item) => [item.month, item]));
+        const month = getActiveMonth();
         yearOverview.innerHTML = `
-            <header class="timeline-step-head">
-                <span>2</span>
-                <div>
-                    <h2>选择月份</h2>
-                    <p>${year.key} 年 12 个月都可查看，无记录月份会显示全月 0。</p>
+            <div class="timeline-period-layout timeline-period-layout--month">
+                <div class="timeline-period-chart">
+                    ${renderAuthorPie(month?.records || [], `${formatMonthTitle(month?.key)}记录人占比`)}
                 </div>
-                <button type="button" class="btn-action" data-open-year="${year.key}">打开本年记录</button>
-            </header>
-            <div class="timeline-month-picker">
-                ${MONTH_LABELS.map((month) => {
-                    const item = byMonth.get(month);
-                    const key = item?.key || `${year.key}-${month}`;
-                    return `
-                        <button type="button" class="timeline-month-pill${key === activeMonth ? ' is-active' : ''}${item ? '' : ' is-empty'}" data-month="${key}"${item ? '' : ' disabled aria-disabled="true"'}>
-                            <strong>${month}</strong>
-                            <span>${item ? `${item.records.length} 条` : '0 条'}</span>
-                        </button>
-                    `;
-                }).join('')}
-            </div>
-            <div class="timeline-chart-grid timeline-chart-grid--overview">
-                ${renderAuthorPie(year.records, `${year.key} 年记录人占比`)}
+                <div class="timeline-period-controls">
+                    <div class="timeline-period-actions">
+                        ${month ? `<button type="button" class="btn-action" data-open-month="${month.key}">打开本月记录</button>` : ''}
+                    </div>
+                    <div class="timeline-month-picker">
+                        ${MONTH_LABELS.map((monthNumber) => {
+                            const item = byMonth.get(monthNumber);
+                            const key = item?.key || `${year.key}-${monthNumber}`;
+                            return `
+                                <button type="button" class="timeline-month-pill${key === activeMonth ? ' is-active' : ''}${item ? '' : ' is-empty'}" data-month="${key}"${item ? '' : ' disabled aria-disabled="true"'}>
+                                    <strong>${monthNumber}</strong>
+                                    <span>${item ? `${item.records.length} 条` : '0 条'}</span>
+                                </button>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
             </div>
         `;
     }
     function renderMonths() {
-        const month = getActiveMonth();
-        monthsWrap.innerHTML = `
-            <section class="timeline-month-list-panel timeline-current-month-panel">
-                <header class="timeline-step-head timeline-step-head--small">
-                    <span>3</span>
-                    <div>
-                        <h2>查看每日统计</h2>
-                        <p>当前月份：${formatMonthTitle(month?.key)}，下方显示完整日历。</p>
-                    </div>
-                </header>
-            </section>
-        `;
+        monthsWrap.innerHTML = '';
     }
     function renderDetail() {
         const month = getActiveMonth();
@@ -412,31 +409,26 @@
             recordsByDay.set(date.day, list);
         });
         const activeDays = recordsByDay.size;
-        const availableDays = [...recordsByDay.keys()].sort();
-        if (!recordsByDay.has(activeDay)) activeDay = availableDays[availableDays.length - 1] || '';
-        const activeDayRecords = recordsByDay.get(activeDay) || [];
         const dayCount = getMonthDayCount(month);
         const daySeries = Array.from({ length: dayCount }, (_, index) => {
             const day = padDay(index + 1);
             const dayRecords = recordsByDay.get(day) || [];
             return { label: `${day} 日`, shortLabel: day, value: dayRecords.length, day, important: dayRecords.filter((record) => record.importance === 'important').length };
         });
-        const calendarCells = daySeries.map((day) => `
+        const calendarCells = daySeries.map((day) => {
+            const dayRecords = recordsByDay.get(day.day) || [];
+            const pie = getAuthorDistribution(dayRecords);
+            return `
                 <button type="button" class="timeline-calendar-day${day.value ? '' : ' is-empty'}${day.important ? ' has-important' : ''}"${day.value ? ` data-day="${day.shortLabel}"` : ' disabled aria-disabled="true"'} aria-label="${day.value ? `打开 ${month.key}-${day.shortLabel} 的记录` : `${month.key}-${day.shortLabel} 无记录`}">
                     <span>${day.shortLabel}</span>
                     <strong>${day.value}</strong>
+                    ${day.value ? `<i class="timeline-day-author-pie" style="background:${pie.background}" aria-hidden="true"></i>` : ''}
                     <em>${day.important ? `重要 ${day.important}` : ' '}</em>
                 </button>
-            `).join('');
+            `;
+        }).join('');
 
         detail.innerHTML = `
-            <header class="timeline-detail-head">
-                <div>
-                    <h2>${formatMonthTitle(month.key)} 每日统计</h2>
-                    <p>${month.records.length} 条记录，覆盖 ${activeDays} / ${dayCount} 天，平均正文 ${avgLength} 字。</p>
-                </div>
-                <button type="button" class="btn-action" data-open-month="${month.key}">打开本月记录</button>
-            </header>
             <section class="timeline-month-stat-grid" aria-label="${formatMonthTitle(month.key)} 统计摘要">
                 <article><span>记录总数</span><strong>${month.records.length}</strong></article>
                 <article><span>重要记录</span><strong>${month.important.length}</strong></article>
@@ -446,17 +438,20 @@
                 <article><span>活跃人物</span><strong>${month.people.size}</strong></article>
                 <article><span>记录人</span><strong>${month.authors.size}</strong></article>
                 <article><span>高频术语</span><strong>${month.terms.size}</strong></article>
+                <article><span>平均正文</span><strong>${avgLength} 字</strong></article>
             </section>
             <div class="timeline-chart-grid">
                 ${renderBarChart(daySeries, { title: '每日记录柱形图', valueSuffix: ' 条', full: true, dataKey: 'day' })}
-                ${renderAuthorPie(month.records, `${formatMonthTitle(month.key)}记录人占比`)}
-                ${renderAuthorPie(activeDayRecords, `${month.key}-${activeDay || '--'} 记录人占比`, { dayOptions: availableDays })}
             </div>
             <section class="timeline-insight-card timeline-calendar-card">
                 <header class="timeline-calendar-head">
                     <h3>每日记录分布</h3>
                 </header>
                 <div class="timeline-calendar-grid">${calendarCells}</div>
+                <div class="timeline-calendar-legend">
+                    <span>记录人</span>
+                    ${renderAuthorLegend(month.records, 'timeline-author-legend timeline-author-legend--calendar')}
+                </div>
             </section>
             <div class="timeline-insight-grid">
                 <section class="timeline-insight-card">
@@ -487,7 +482,6 @@
         if (!/^\d{4}-\d{2}$/.test(monthKey)) return;
         activeMonth = monthKey;
         activeYear = monthKey.slice(0, 4);
-        activeDay = '';
         renderYears();
         renderYearOverview();
         renderMonths();
@@ -501,10 +495,14 @@
     });
 
     yearsWrap.addEventListener('click', (event) => {
+        const openYearButton = event.target.closest('[data-open-year]');
+        if (openYearButton) {
+            navigate(`record.html?year=${encodeURIComponent(openYearButton.dataset.openYear)}`);
+            return;
+        }
         const button = event.target.closest('[data-year]');
         if (!button) return;
         activeYear = button.dataset.year;
-        activeDay = '';
         const year = getActiveYear();
         activeMonth = year?.months[year.months.length - 1]?.key || '';
         renderYears();
@@ -514,9 +512,10 @@
     });
 
     yearOverview.addEventListener('click', (event) => {
-        const yearButton = event.target.closest('[data-open-year]');
-        if (yearButton) {
-            navigate(`record.html?year=${encodeURIComponent(yearButton.dataset.openYear)}`);
+        const openMonthButton = event.target.closest('[data-open-month]');
+        if (openMonthButton) {
+            const [year, month] = openMonthButton.dataset.openMonth.split('-');
+            navigate(`record.html?year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}`);
             return;
         }
         const monthButton = event.target.closest('[data-month]');
@@ -536,12 +535,6 @@
     });
 
     detail.addEventListener('click', (event) => {
-        const authorDayButton = event.target.closest('[data-author-day]');
-        if (authorDayButton) {
-            activeDay = authorDayButton.dataset.authorDay;
-            renderDetail();
-            return;
-        }
         const monthButton = event.target.closest('[data-open-month]');
         if (monthButton) {
             const [year, month] = monthButton.dataset.openMonth.split('-');
