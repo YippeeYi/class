@@ -3068,7 +3068,6 @@ body>.archive-tool-shell {
 }
 
 .guide-entry-card:hover {
-  transform: translateY(-2px);
   background: var(--control-hover-bg);
   background-image: var(--control-gradient-hover);
   border-color: color-mix(in srgb, var(--theme-accent-strong) 38%, transparent);
