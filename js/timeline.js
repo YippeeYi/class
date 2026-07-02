@@ -18,12 +18,12 @@
 
     const MONTH_LABELS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
     const OTHER_AUTHOR_ID = '__other__';
-    const PIE_SEPARATOR_COLOR = 'hsl(0, 0%, 98%)';
+    const PIE_SEPARATOR_COLOR = 'hsl(36, 32%, 94%)';
     const CLEAN_PIE_COLORS = [
-        'hsl(2, 64%, 68%)', 'hsl(22, 68%, 66%)', 'hsl(42, 68%, 66%)',
-        'hsl(62, 62%, 66%)', 'hsl(105, 56%, 64%)', 'hsl(145, 58%, 64%)',
-        'hsl(178, 58%, 64%)', 'hsl(205, 64%, 66%)', 'hsl(230, 60%, 68%)',
-        'hsl(270, 56%, 70%)', 'hsl(315, 58%, 70%)', 'hsl(342, 60%, 69%)'
+        'hsl(8, 68%, 66%)', 'hsl(18, 70%, 66%)', 'hsl(32, 72%, 64%)',
+        'hsl(46, 70%, 66%)', 'hsl(145, 56%, 64%)', 'hsl(168, 58%, 62%)',
+        'hsl(196, 64%, 66%)', 'hsl(220, 60%, 68%)', 'hsl(265, 56%, 70%)',
+        'hsl(340, 58%, 70%)', 'hsl(350, 62%, 68%)', 'hsl(92, 56%, 66%)'
     ];
     let authorColorMap = new Map();
 
@@ -205,7 +205,7 @@
             92, 142, 156, 172, 188, 204,
             220, 238, 274, 312, 326, 58
         ];
-        const saturations = [58, 64, 70];
+        const saturations = [60, 66, 72];
         const lightnesses = [64, 68, 72];
         const start = hash % cleanHues.length;
         const saturationStart = (hash >>> 8) % saturations.length;
@@ -259,7 +259,7 @@
         ].join(' ');
     }
 
-    function renderAuthorPieSvg(entries, total, { strokeWidth = 0.7 } = {}) {
+    function renderAuthorPieSvg(entries, total) {
         if (!entries.length || !total) {
             return '<svg class="timeline-pie-svg" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="48.6" fill="hsl(36, 40%, 88%)" /></svg>';
         }
@@ -271,7 +271,7 @@
             const start = cursor;
             const sweep = count / total * 360;
             cursor += sweep;
-            return `<path d="${describePieSlice(start, cursor)}" fill="${getAuthorColor(id)}" stroke="${PIE_SEPARATOR_COLOR}" stroke-width="${strokeWidth}" stroke-linejoin="round" vector-effect="non-scaling-stroke" />`;
+            return `<path d="${describePieSlice(start, cursor)}" fill="${getAuthorColor(id)}" stroke="${PIE_SEPARATOR_COLOR}" stroke-width="0.7" stroke-linejoin="round" vector-effect="non-scaling-stroke" />`;
         }).join('');
         return `<svg class="timeline-pie-svg" viewBox="0 0 100 100" aria-hidden="true">${slices}</svg>`;
     }
@@ -285,7 +285,8 @@
         return {
             entries,
             total,
-            authorCount: rawEntries.length
+            authorCount: rawEntries.length,
+            svg: renderAuthorPieSvg(entries, total)
         };
     }
 
@@ -298,8 +299,7 @@
     }
 
     function renderAuthorPie(recordList, title) {
-        const { entries, total, authorCount } = getAuthorDistribution(recordList, { mergeSmall: true });
-        const svg = renderAuthorPieSvg(entries, total, { strokeWidth: 1.15 });
+        const { entries, total, authorCount, svg } = getAuthorDistribution(recordList, { mergeSmall: true });
         return `
             <section class="timeline-chart-card timeline-pie-card timeline-author-pie-card" aria-label="${escapeHtml(title)}">
                 <header><h3>${escapeHtml(title)}</h3><p>${total ? `${authorCount} 位记录人 · ${total} 条记录` : '暂无记录人数据'}</p></header>
@@ -529,7 +529,7 @@
                 <button type="button" class="timeline-calendar-day${day.value ? '' : ' is-empty'}${day.important ? ' has-important' : ''}"${day.value ? ` data-day="${day.shortLabel}"` : ' disabled aria-disabled="true"'} aria-label="${day.value ? `打开 ${month.key}-${day.shortLabel} 的记录` : `${month.key}-${day.shortLabel} 无记录`}">
                     <span>${day.shortLabel}</span>
                     <strong>${day.value}</strong>
-                    ${day.value ? `<i class="timeline-day-author-pie" aria-hidden="true">${renderAuthorPieSvg(pie.entries, pie.total, { strokeWidth: 0.55 })}</i>` : ''}
+                    ${day.value ? `<i class="timeline-day-author-pie" aria-hidden="true">${pie.svg}</i>` : ''}
                     <em>${day.important ? `重要 ${day.important}` : ' '}</em>
                 </button>
             `;
