@@ -166,17 +166,17 @@
     }
 
     function getAuthorColor(id) {
-        if (id === '__other__') return 'hsl(330 64% 68%)';
-        return authorColorMap.get(id) || 'hsl(214 66% 66%)';
+        if (id === '__other__') return 'hsl(326 70% 64%)';
+        return authorColorMap.get(id) || 'hsl(218 70% 62%)';
     }
 
     function buildAuthorColor(index) {
-        // 明确的色相步进比随机 RGB 更稳定；跨轮次只轻微调整饱和度和明度。
-        const hues = [6, 32, 52, 138, 186, 214, 258, 330];
+        // 基础色相覆盖红、橙、黄、绿、青、蓝、紫、粉，并保持足够间距。
+        const hues = [4, 38, 62, 132, 178, 218, 270, 326];
         const ring = Math.floor(index / hues.length);
-        const hue = (hues[index % hues.length] + ring * 11) % 360;
-        const saturation = [68, 62, 72][ring % 3];
-        const lightness = [66, 70, 63][Math.floor(ring / 3) % 3];
+        const hue = (hues[index % hues.length] + ring * 14) % 360;
+        const saturation = [72, 66, 75][ring % 3];
+        const lightness = [62, 68, 58][Math.floor(ring / 3) % 3];
         return `hsl(${hue} ${saturation}% ${lightness}%)`;
     }
 

@@ -4523,6 +4523,18 @@ body>.archive-tool-shell {
   line-height: 1;
 }
 
+@media (min-width: 821px) {
+  .timeline-period-layout--month .timeline-month-picker {
+    min-height: 0;
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+  }
+
+  .timeline-period-layout--month .timeline-month-pill {
+    height: auto;
+    min-height: 0;
+  }
+}
+
 .timeline-chart-card {
   min-width: 0;
   padding: 14px;
@@ -4682,13 +4694,14 @@ body>.archive-tool-shell {
 .timeline-author-legend li {
   display: grid;
   grid-template-columns: 10px minmax(0, 1fr);
-  align-items: center;
+  align-items: baseline;
   gap: 7px;
   min-width: 0;
   font-size: 12px;
 }
 
 .timeline-author-legend li i {
+  align-self: center;
   width: 9px;
   height: 9px;
   border-radius: 50%;
@@ -4696,9 +4709,11 @@ body>.archive-tool-shell {
 }
 
 .timeline-author-legend li span {
+  min-height: 18px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 18px;
 }
 
 .timeline-author-legend li.has-values {
@@ -4709,7 +4724,7 @@ body>.archive-tool-shell {
 .timeline-author-legend-count,
 .timeline-author-legend-percent {
   text-align: left;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-soft);
 }
 
