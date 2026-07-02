@@ -80,6 +80,7 @@
     }
 
     function getPersonLabel(id) {
+        if (id === '__other__') return '其他';
         if (!id || id === 'unknown') return '未知记录人';
         const person = people.find((item) => item.id === id);
         return stripRecordMarkup(person?.name || person?.alias || id);
@@ -165,53 +166,85 @@
     }
 
     function getAuthorColor(id) {
-        return authorColorMap.get(id) || '#7fa8c9';
+        if (id === '__other__') return 'hsl(330 64% 68%)';
+        return authorColorMap.get(id) || 'hsl(214 66% 66%)';
     }
 
     function buildAuthorColor(index) {
-        // 低对比十二色相环。交错取色让列表中相邻记录人保持可辨识度。
-        const colorRing = [
-            '#d88f8f', '#73b5b3', '#d6a078', '#7fa8c9',
-            '#c8b36f', '#9794c8', '#9fbd78', '#b18fc2',
-            '#7db38b', '#c78eaf', '#72ad9a', '#d08e9c'
-        ];
-        const base = colorRing[index % colorRing.length];
-        const ring = Math.floor(index / colorRing.length);
-        if (!ring) return base;
-        const lightMix = 8 + (ring % 3) * 5;
-        return `color-mix(in srgb, ${base} ${100 - lightMix}%, ${ring % 2 ? 'white' : 'var(--text-main)'})`;
+        // 明确的色相步进比随机 RGB 更稳定；跨轮次只轻微调整饱和度和明度。
+        const hues = [6, 32, 52, 138, 186, 214, 258, 330];
+        const ring = Math.floor(index / hues.length);
+        const hue = (hues[index % hues.length] + ring * 11) % 360;
+        const saturation = [68, 62, 72][ring % 3];
+        const lightness = [66, 70, 63][Math.floor(ring / 3) % 3];
+        return `hsl(${hue} ${saturation}% ${lightness}%)`;
     }
 
-    function getAuthorDistribution(recordList) {
+    function isSummaryPieType(type) {
+        return type === 'overall' || type === 'yearly' || type === 'monthly';
+    }
+
+    function mergeSummaryAuthorEntries(entries, maxSlices = 6) {
+        if (entries.length <= maxSlices) return entries;
+        const visible = entries.slice(0, maxSlices - 1);
+        const otherCount = entries.slice(maxSlices - 1).reduce((sum, [, count]) => sum + count, 0);
+        return [...visible, ['__other__', otherCount]];
+    }
+
+    function getAuthorDistribution(recordList, { type = 'daily' } = {}) {
         const counts = new Map();
         recordList.forEach((record) => countMapValue(counts, getAuthorId(record)));
-        const entries = topEntries(counts, Number.MAX_SAFE_INTEGER);
-        const total = entries.reduce((sum, [, count]) => sum + count, 0);
-        let cursor = 0;
-        const segments = entries.map(([id, count], index) => {
-            const start = cursor;
-            cursor += total ? count / total * 100 : 0;
-            return `${getAuthorColor(id)} ${start.toFixed(2)}% ${cursor.toFixed(2)}%`;
-        });
-        return { entries, total, background: segments.length ? `conic-gradient(${segments.join(',')})` : 'var(--theme-surface-strong)' };
+        const allEntries = topEntries(counts, Number.MAX_SAFE_INTEGER);
+        const total = allEntries.reduce((sum, [, count]) => sum + count, 0);
+        const entries = isSummaryPieType(type) ? mergeSummaryAuthorEntries(allEntries) : allEntries;
+        return { entries, allEntries, total };
     }
 
-    function renderAuthorLegend(recordList, className = 'timeline-author-legend', { showValues = true } = {}) {
-        const { entries, total } = getAuthorDistribution(recordList);
+    function getPiePoint(angle, radius = 49) {
+        const radians = (angle - 90) * Math.PI / 180;
+        return {
+            x: 50 + radius * Math.cos(radians),
+            y: 50 + radius * Math.sin(radians)
+        };
+    }
+
+    function getPieSlicePath(startAngle, endAngle) {
+        const start = getPiePoint(startAngle);
+        const end = getPiePoint(endAngle);
+        const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+        return `M 50 50 L ${start.x.toFixed(4)} ${start.y.toFixed(4)} A 49 49 0 ${largeArc} 1 ${end.x.toFixed(4)} ${end.y.toFixed(4)} Z`;
+    }
+
+    function renderAuthorPieSvg(entries, total, { compact = false } = {}) {
+        if (!total) return '';
+        if (entries.length === 1) {
+            return `<svg class="timeline-pie-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="49" fill="${getAuthorColor(entries[0][0])}" stroke="white" stroke-width="${compact ? 0.55 : 1.2}" vector-effect="non-scaling-stroke"></circle></svg>`;
+        }
+        let angle = 0;
+        const paths = entries.map(([id, count], index) => {
+            const start = angle;
+            angle = index === entries.length - 1 ? 360 : angle + count / total * 360;
+            return `<path d="${getPieSlicePath(start, angle)}" fill="${getAuthorColor(id)}" stroke="white" stroke-width="${compact ? 0.55 : 1.2}" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>`;
+        }).join('');
+        return `<svg class="timeline-pie-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">${paths}</svg>`;
+    }
+
+    function renderAuthorLegend(recordList, className = 'timeline-author-legend', { showValues = true, type = 'daily' } = {}) {
+        const { entries, total } = getAuthorDistribution(recordList, { type });
         const legend = entries.map(([id, count]) => `
-            <li><i style="--legend-color:${getAuthorColor(id)}"></i><span>${escapeHtml(getPersonLabel(id))}</span>${showValues ? `<strong>${count} · ${formatPercent(count, total)}</strong>` : ''}</li>
+            <li class="${showValues ? 'has-values' : ''}"><i style="--legend-color:${getAuthorColor(id)}"></i><span class="timeline-author-legend-name">${escapeHtml(getPersonLabel(id))}</span>${showValues ? `<span class="timeline-author-legend-count">${count} 条</span><span class="timeline-author-legend-percent">${formatPercent(count, total)}</span>` : ''}</li>
         `).join('');
         return `<ul class="${className}">${legend || '<li class="is-empty">暂无可统计数据</li>'}</ul>`;
     }
 
-    function renderAuthorPie(recordList, title) {
-        const { entries, total, background } = getAuthorDistribution(recordList);
+    function renderAuthorPie(recordList, title, type) {
+        const { entries, allEntries, total } = getAuthorDistribution(recordList, { type });
         return `
             <section class="timeline-chart-card timeline-pie-card timeline-author-pie-card" aria-label="${escapeHtml(title)}">
-                <header><h3>${escapeHtml(title)}</h3><p>${total ? `${entries.length} 位记录人 · ${total} 条记录` : '暂无记录人数据'}</p></header>
+                <header><h3>${escapeHtml(title)}</h3><p>${total ? `${allEntries.length} 位记录人 · ${total} 条记录` : '暂无记录人数据'}</p></header>
                 <div class="timeline-author-pie-body">
-                    <div class="timeline-pie timeline-author-pie" style="background:${background}"><strong>${total}</strong></div>
-                    ${renderAuthorLegend(recordList)}
+                    <div class="timeline-pie timeline-author-pie">${renderAuthorPieSvg(entries, total)}<strong>${total}</strong></div>
+                    ${renderAuthorLegend(recordList, 'timeline-author-legend', { type })}
                 </div>
             </section>
         `;
@@ -334,7 +367,7 @@
                 <article class="archive-stat-card"><span>术语</span><strong>${glossary.length}</strong></article>
             </div>
             <div class="timeline-chart-grid timeline-chart-grid--overview">
-                ${renderAuthorPie(records, '整体记录人占比')}
+                ${renderAuthorPie(records, '整体记录人占比', 'overall')}
                 ${renderBarChart(monthTrend, { title: '月度记录柱形图', valueSuffix: ' 条', dataKey: 'month' })}
             </div>
         `;
@@ -344,7 +377,7 @@
         yearsWrap.innerHTML = `
             <div class="timeline-period-layout timeline-period-layout--year">
                 <div class="timeline-period-chart">
-                    ${year ? renderAuthorPie(year.records, `${year.key} 年记录人占比`) : ''}
+                    ${year ? renderAuthorPie(year.records, `${year.key} 年记录人占比`, 'yearly') : ''}
                 </div>
                 <div class="timeline-period-controls">
                     <div class="timeline-period-actions">
@@ -374,7 +407,7 @@
         yearOverview.innerHTML = `
             <div class="timeline-period-layout timeline-period-layout--month">
                 <div class="timeline-period-chart">
-                    ${renderAuthorPie(month?.records || [], `${formatMonthTitle(month?.key)}记录人占比`)}
+                    ${renderAuthorPie(month?.records || [], `${formatMonthTitle(month?.key)}记录人占比`, 'monthly')}
                 </div>
                 <div class="timeline-period-controls">
                     <div class="timeline-period-actions">
@@ -429,12 +462,12 @@
         });
         const calendarCells = daySeries.map((day) => {
             const dayRecords = recordsByDay.get(day.day) || [];
-            const pie = getAuthorDistribution(dayRecords);
+            const pie = getAuthorDistribution(dayRecords, { type: 'daily' });
             return `
                 <button type="button" class="timeline-calendar-day${day.value ? '' : ' is-empty'}${day.important ? ' has-important' : ''}"${day.value ? ` data-day="${day.shortLabel}"` : ' disabled aria-disabled="true"'} aria-label="${day.value ? `打开 ${month.key}-${day.shortLabel} 的记录` : `${month.key}-${day.shortLabel} 无记录`}">
                     <span>${day.shortLabel}</span>
                     <strong>${day.value}</strong>
-                    ${day.value ? `<i class="timeline-day-author-pie" style="background:${pie.background}" aria-hidden="true"></i>` : ''}
+                    ${day.value ? `<i class="timeline-day-author-pie" aria-hidden="true">${renderAuthorPieSvg(pie.entries, pie.total, { compact: true })}</i>` : ''}
                     <em>${day.important ? `重要 ${day.important}` : ' '}</em>
                 </button>
             `;
