@@ -7,6 +7,7 @@
     let clientPromise = null;
     const recordPromises = new Map();
     const recordPagePromises = new Map();
+    let pageMessagesPromise = null;
     const assetListPromises = new Map();
     const signedUrlCache = new Map();
     const failedSignCache = new Map();
@@ -103,6 +104,7 @@
                 people: 'class_people',
                 glossary: 'class_glossary',
                 recordPages: 'class_record_pages',
+                pageMessages: 'class_page_messages',
                 quizQuestions: 'class_quiz_questions',
                 ...(config.tables || {})
             }
@@ -285,6 +287,27 @@
                 hidden: truthyHidden(row.hidden ?? raw.hidden)
             };
         });
+    };
+
+    const loadPageMessages = async () => {
+        const config = await getConfig();
+        if (!pageMessagesPromise) {
+            pageMessagesPromise = selectAll(config.tables.pageMessages, '*', 'page')
+                .then((rows) => rows.map((row) => {
+                    const raw = parseRaw(row);
+                    return {
+                        ...raw,
+                        page: String(row.page ?? raw.page ?? '').trim(),
+                        content: row.content || raw.content || '',
+                        author: row.author || raw.author || raw.recorder || ''
+                    };
+                }).filter((item) => item.page && item.content))
+                .catch((error) => {
+                    pageMessagesPromise = null;
+                    throw error;
+                });
+        }
+        return pageMessagesPromise;
     };
 
     const loadQuizQuestions = async (contentKey) => {
@@ -500,6 +523,7 @@
     window.addEventListener('classrecordcacheclearing', () => {
         recordPromises.clear();
         recordPagePromises.clear();
+        pageMessagesPromise = null;
         assetListPromises.clear();
         signedUrlCache.clear();
         failedSignCache.clear();
@@ -516,6 +540,7 @@
         loadQuizQuestions,
         listAssetPaths,
         loadRecordPages,
+        loadPageMessages,
         loadRecords,
         normalizePrivateStoragePath,
         preloadAsset,

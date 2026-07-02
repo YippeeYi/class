@@ -20,6 +20,8 @@ let hiddenSequenceBuffer = "";
 let hiddenRecordPagesPromise = null;
 let pendingRecordJump = null;
 let activeRecordJumpDialog = null;
+let pageMessageMap = new Map();
+let pageMessagesPromise = null;
 const writtenImagePreloadCache = new Map();
 
 function parseInitialRecordCriteria() {
@@ -92,9 +94,15 @@ async function loadRecordPageConfig() {
   try {
     let pages = [];
     if (targetMode === "hidden") {
-      pages = await loadHiddenRecordImagePages();
+      [pages] = await Promise.all([
+        loadHiddenRecordImagePages(),
+        loadPageMessages()
+      ]);
     } else if (window.ClassRecordData?.isEnabled()) {
-      pages = await window.ClassRecordData.loadRecordPages({ hidden: false });
+      [pages] = await Promise.all([
+        window.ClassRecordData.loadRecordPages({ hidden: false }),
+        loadPageMessages()
+      ]);
     }
     if (loadToken !== recordPageLoadToken || targetMode !== (hiddenMode ? "hidden" : "normal")) return;
     let normalizedPages = Array.isArray(pages) ? pages.map(normalizeRecordPage).filter((page) => page.page && page.imagePath) : [];
@@ -106,6 +114,38 @@ async function loadRecordPageConfig() {
     recordPageConfig = [];
     recordPageConfigMode = targetMode;
   }
+}
+
+async function loadPageMessages() {
+  if (!window.ClassRecordData?.isEnabled() || typeof window.ClassRecordData.loadPageMessages !== "function") {
+    pageMessageMap = new Map();
+    return pageMessageMap;
+  }
+  if (!pageMessagesPromise) {
+    pageMessagesPromise = window.ClassRecordData.loadPageMessages()
+      .then((messages) => {
+        pageMessageMap = new Map(messages.map((message) => [String(message.page).trim(), message]));
+        return pageMessageMap;
+      })
+      .catch((error) => {
+        pageMessagesPromise = null;
+        pageMessageMap = new Map();
+        console.warn("书面记录寄语加载失败：", error);
+        return pageMessageMap;
+      });
+  }
+  return pageMessagesPromise;
+}
+
+function renderPageMessage(message) {
+  if (!message?.content) return "";
+  const author = String(message.author || "").trim();
+  return `
+    <article class="record record-written-message">
+      <div class="meta"><span>寄语${author ? ` · ✍ ${parseContent(`[[${author}|${author}]]`)}` : ""}</span></div>
+      <div class="content">${formatContent(message.content)}</div>
+    </article>
+  `;
 }
 function normalizeHiddenPageKey(value) {
   const text = String(value || "").trim().toLowerCase();
@@ -335,12 +375,15 @@ function renderWrittenView(records) {
           ${imagePath ? `<img alt="${hiddenMode ? `${page.page} 隐藏书面记录` : `${page.page} 原始书面记录`}" width="2856" height="4282" loading="eager" decoding="async" fetchpriority="high">` : ""}
           <span class="record-written-image-loading">${imagePath ? '<i aria-hidden="true"></i><b>正在加载书面记录</b>' : "未找到书面文件"}</span>
         </figure>
-        <div class="record-written-records"></div>
+        <div class="record-written-records">
+          ${renderPageMessage(pageMessageMap.get(String(page.page).trim()))}
+          <div class="record-written-record-list"></div>
+        </div>
       </div>
     </section>
   `;
 
-  const recordHost = container.querySelector(".record-written-records");
+  const recordHost = container.querySelector(".record-written-record-list");
   if (hiddenMode && !pageRecords.length && recordHost) {
     recordHost.innerHTML = '<div class="record-empty"><strong>这张隐藏书面页没有匹配记录。</strong><span>已检测到图片，但对应普通页范围内没有 hidden 为 true 的记录。</span></div>';
   } else {
@@ -419,9 +462,22 @@ function renderRecordFilterForCurrentState() {
   });
 }
 
-function closeRecordJumpDialog() {
-  activeRecordJumpDialog?.remove();
+function closeRecordJumpDialog({ immediate = false } = {}) {
+  const dialog = activeRecordJumpDialog;
   activeRecordJumpDialog = null;
+  if (!dialog) return;
+  const target = dialog.closest(".record");
+  const remove = () => {
+    dialog.remove();
+    target?.classList.remove("has-record-jump-dialog");
+  };
+  if (immediate) {
+    remove();
+    return;
+  }
+  dialog.classList.remove("is-visible");
+  dialog.classList.add("is-leaving");
+  window.setTimeout(remove, 220);
 }
 
 async function returnFromRecordJump(origin) {
@@ -443,7 +499,7 @@ async function returnFromRecordJump(origin) {
 }
 
 function showRecordJumpDialog(target, jumpState) {
-  closeRecordJumpDialog();
+  closeRecordJumpDialog({ immediate: true });
   const dialog = document.createElement("aside");
   dialog.className = "record-jump-dialog";
   dialog.setAttribute("role", "dialog");
@@ -460,8 +516,10 @@ function showRecordJumpDialog(target, jumpState) {
     closeRecordJumpDialog();
   });
   dialog.querySelector("[data-jump-return]")?.addEventListener("click", () => returnFromRecordJump(jumpState.origin));
-  target.insertAdjacentElement("afterend", dialog);
+  target.classList.add("has-record-jump-dialog");
+  target.appendChild(dialog);
   activeRecordJumpDialog = dialog;
+  requestAnimationFrame(() => dialog.classList.add("is-visible"));
 }
 
 document.addEventListener("classrecord:record-focused", (event) => {

@@ -165,13 +165,16 @@
     }
 
     function getAuthorColor(id) {
-        return authorColorMap.get(id) || 'hsl(210 74% 56%)';
+        return authorColorMap.get(id) || 'hsl(210 52% 64%)';
     }
 
     function buildAuthorColor(index) {
-        const hue = Math.round((index * 137.508 + 18) % 360);
-        const saturation = 72 + (index % 3) * 5;
-        const lightness = 54 + (Math.floor(index / 3) % 2) * 6;
+        // 十二色相环：相邻记录人跨色相取色，降低饱和度和明度对比以保持柔和。
+        const hueRing = [0, 180, 30, 210, 60, 240, 90, 270, 120, 300, 150, 330];
+        const hue = hueRing[index % hueRing.length];
+        const ring = Math.floor(index / hueRing.length);
+        const saturation = 52 + (ring % 2) * 6;
+        const lightness = 62 + (Math.floor(ring / 2) % 2) * 5;
         return `hsl(${hue} ${saturation}% ${lightness}%)`;
     }
 

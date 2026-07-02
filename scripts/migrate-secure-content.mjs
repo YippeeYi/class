@@ -385,6 +385,34 @@ const importRecordPages = async () => {
     await pruneTable('class_record_pages', 'page', rows.map((row) => row.page));
 };
 
+const importPageMessages = async () => {
+    const files = await listJsonFiles('data/messages');
+    if (!files.length) {
+        console.warn('Skipped page messages: no JSON files found in data/messages/.');
+        return;
+    }
+
+    const rows = [];
+    for (const file of files) {
+        const raw = await readJson(file);
+        const page = fileBaseNameWithoutExt(file);
+        const content = String(raw.content || '').trim();
+        if (!content) {
+            console.warn(`Skipped page message without content: ${file}`);
+            continue;
+        }
+        rows.push({
+            page,
+            content,
+            author: raw.author || raw.recorder || '',
+            raw
+        });
+    }
+
+    await upsert('class_page_messages', rows, 'page');
+    await pruneTable('class_page_messages', 'page', rows.map((row) => row.page));
+};
+
 const importQuiz = async () => {
     if (!(await exists('data/quiz/lamian.json'))) {
         console.warn('Skipped quiz: data/quiz/lamian.json not found.');
@@ -521,6 +549,7 @@ await importRecords();
 await importPeople();
 await importGlossary();
 await importRecordPages();
+await importPageMessages();
 await importQuiz();
 await uploadPrivateFiles();
 

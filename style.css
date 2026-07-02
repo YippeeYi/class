@@ -807,27 +807,48 @@ body>#glossary-list {
 }
 
 .record-jump-dialog {
-  position: relative;
+  position: absolute;
+  top: 14px;
+  right: 14px;
   z-index: 3;
-  width: fit-content;
+  width: min(250px, calc(100% - 28px));
   max-width: min(360px, calc(100vw - 32px));
-  margin: -10px 12px 18px auto;
+  margin: 0;
   padding: 10px 12px;
   border: var(--panel-border);
   border-radius: 12px;
   background: var(--panel-bg);
   box-shadow: var(--panel-shadow);
   backdrop-filter: blur(10px);
+  opacity: 0;
+  transform: translateX(10px);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.record-jump-dialog.is-visible {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.record-jump-dialog.is-leaving {
+  pointer-events: none;
+}
+
+.record.has-record-jump-dialog {
+  min-height: 112px;
+  padding-right: 286px;
 }
 
 .record-jump-dialog::before {
   content: "";
   position: absolute;
-  top: -7px;
-  right: 22px;
+  top: 18px;
+  left: -7px;
   width: 12px;
   height: 12px;
-  border-top: var(--panel-border);
+  border-bottom: var(--panel-border);
   border-left: var(--panel-border);
   background: var(--panel-bg);
   transform: rotate(45deg);
@@ -2280,10 +2301,35 @@ body>#glossary-list {
 }
 
 @media (max-width: 620px) {
+  .record.has-record-jump-dialog {
+    padding-right: 18px;
+  }
+
   .record-jump-dialog {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 100%;
+    max-width: 100%;
+    margin-top: 12px;
     margin-right: 0;
     margin-left: auto;
+    transform: translateY(8px);
   }
+
+  .record-jump-dialog.is-visible {
+    transform: translateY(0);
+  }
+
+  .record-jump-dialog::before {
+    display: none;
+  }
+}
+
+.record-written-message {
+  margin-bottom: 18px;
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 34%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--theme-surface) 94%, white), color-mix(in srgb, var(--theme-accent) 8%, var(--theme-surface-strong)));
 }
 
 .record-written-image.is-loaded .record-written-image-loading,

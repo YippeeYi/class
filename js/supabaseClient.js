@@ -5,6 +5,7 @@
         people: "class_people",
         glossary: "class_glossary",
         recordPages: "class_record_pages",
+        pageMessages: "class_page_messages",
         quizQuestions: "class_quiz_questions"
     };
 
