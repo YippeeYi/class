@@ -4606,16 +4606,20 @@ body>.archive-tool-shell {
 }
 
 .timeline-pie {
+  position: relative;
   width: 132px;
   height: 132px;
   display: grid;
   place-items: center;
   border-radius: 50%;
+  overflow: hidden;
   background: conic-gradient(var(--theme-accent-strong) var(--pie-value), color-mix(in srgb, var(--theme-surface-strong) 70%, transparent) 0);
   box-shadow: inset 0 0 0 12px color-mix(in srgb, var(--theme-surface) 76%, white), var(--panel-shadow);
 }
 
 .timeline-pie strong {
+  position: relative;
+  z-index: 1;
   color: var(--text-strong);
   font-size: 24px;
 }
@@ -4645,6 +4649,17 @@ body>.archive-tool-shell {
   width: 140px;
   height: 140px;
   background-color: hsl(18, 68%, 68%);
+  background-image: none;
+}
+
+.timeline-pie-svg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  shape-rendering: geometricPrecision;
 }
 
 .timeline-author-legend {
@@ -5733,6 +5748,11 @@ body.hidden-record-mode .hidden-record-banner {
   border-radius: 50%;
   box-shadow: 0 2px 6px rgba(var(--theme-rgb), 0.16);
   background-color: hsl(18, 68%, 68%);
+  overflow: hidden;
+}
+
+.timeline-day-author-pie .timeline-pie-svg {
+  position: static;
 }
 
 .timeline-calendar-legend {

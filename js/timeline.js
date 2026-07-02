@@ -20,10 +20,10 @@
     const OTHER_AUTHOR_ID = '__other__';
     const PIE_SEPARATOR_COLOR = 'hsl(36, 32%, 94%)';
     const CLEAN_PIE_COLORS = [
-        'hsl(18, 72%, 66%)', 'hsl(36, 74%, 64%)', 'hsl(48, 72%, 66%)',
-        'hsl(350, 64%, 68%)', 'hsl(155, 60%, 64%)', 'hsl(176, 60%, 63%)',
-        'hsl(202, 68%, 66%)', 'hsl(222, 62%, 68%)', 'hsl(274, 58%, 70%)',
-        'hsl(8, 68%, 69%)', 'hsl(92, 58%, 66%)', 'hsl(326, 62%, 70%)'
+        'hsl(8, 68%, 66%)', 'hsl(18, 70%, 66%)', 'hsl(32, 72%, 64%)',
+        'hsl(46, 70%, 66%)', 'hsl(145, 56%, 64%)', 'hsl(168, 58%, 62%)',
+        'hsl(196, 64%, 66%)', 'hsl(220, 60%, 68%)', 'hsl(265, 56%, 70%)',
+        'hsl(340, 58%, 70%)', 'hsl(350, 62%, 68%)', 'hsl(92, 56%, 66%)'
     ];
     let authorColorMap = new Map();
 
@@ -205,7 +205,7 @@
             92, 142, 156, 172, 188, 204,
             220, 238, 274, 312, 326, 58
         ];
-        const saturations = [62, 68, 74];
+        const saturations = [60, 66, 72];
         const lightnesses = [64, 68, 72];
         const start = hash % cleanHues.length;
         const saturationStart = (hash >>> 8) % saturations.length;
@@ -239,22 +239,41 @@
         return [...retained, [OTHER_AUTHOR_ID, merged.reduce((sum, [, count]) => sum + count, 0)]];
     }
 
-    function buildAuthorPieBackground(entries, total) {
-        if (!entries.length || !total) return 'none';
-        if (entries.length === 1) return `conic-gradient(${getAuthorColor(entries[0][0])} 0deg 360deg)`;
+    function piePoint(angle, radius = 48.6) {
+        const radians = (angle - 90) * Math.PI / 180;
+        return {
+            x: 50 + radius * Math.cos(radians),
+            y: 50 + radius * Math.sin(radians)
+        };
+    }
+
+    function describePieSlice(startAngle, endAngle) {
+        const start = piePoint(startAngle);
+        const end = piePoint(endAngle);
+        const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+        return [
+            'M 50 50',
+            `L ${start.x.toFixed(4)} ${start.y.toFixed(4)}`,
+            `A 48.6 48.6 0 ${largeArc} 1 ${end.x.toFixed(4)} ${end.y.toFixed(4)}`,
+            'Z'
+        ].join(' ');
+    }
+
+    function renderAuthorPieSvg(entries, total) {
+        if (!entries.length || !total) {
+            return '<svg class="timeline-pie-svg" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="48.6" fill="hsl(36, 40%, 88%)" /></svg>';
+        }
+        if (entries.length === 1) {
+            return `<svg class="timeline-pie-svg" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="48.6" fill="${getAuthorColor(entries[0][0])}" /></svg>`;
+        }
         let cursor = 0;
-        const segments = entries.flatMap(([id, count]) => {
+        const slices = entries.map(([id, count]) => {
             const start = cursor;
             const sweep = count / total * 360;
             cursor += sweep;
-            const gap = Math.min(1.4, sweep * 0.12);
-            const colorEnd = Math.max(start, cursor - gap);
-            return [
-                `${getAuthorColor(id)} ${start.toFixed(2)}deg ${colorEnd.toFixed(2)}deg`,
-                `${PIE_SEPARATOR_COLOR} ${colorEnd.toFixed(2)}deg ${cursor.toFixed(2)}deg`
-            ];
-        });
-        return `conic-gradient(${segments.join(',')})`;
+            return `<path d="${describePieSlice(start, cursor)}" fill="${getAuthorColor(id)}" stroke="${PIE_SEPARATOR_COLOR}" stroke-width="0.7" stroke-linejoin="round" vector-effect="non-scaling-stroke" />`;
+        }).join('');
+        return `<svg class="timeline-pie-svg" viewBox="0 0 100 100" aria-hidden="true">${slices}</svg>`;
     }
 
     function getAuthorDistribution(recordList, { mergeSmall = false } = {}) {
@@ -267,8 +286,7 @@
             entries,
             total,
             authorCount: rawEntries.length,
-            baseColor: entries.length ? getAuthorColor(entries[0][0]) : 'hsl(36, 40%, 88%)',
-            background: buildAuthorPieBackground(entries, total)
+            svg: renderAuthorPieSvg(entries, total)
         };
     }
 
@@ -281,12 +299,12 @@
     }
 
     function renderAuthorPie(recordList, title) {
-        const { entries, total, authorCount, baseColor, background } = getAuthorDistribution(recordList, { mergeSmall: true });
+        const { entries, total, authorCount, svg } = getAuthorDistribution(recordList, { mergeSmall: true });
         return `
             <section class="timeline-chart-card timeline-pie-card timeline-author-pie-card" aria-label="${escapeHtml(title)}">
                 <header><h3>${escapeHtml(title)}</h3><p>${total ? `${authorCount} 位记录人 · ${total} 条记录` : '暂无记录人数据'}</p></header>
                 <div class="timeline-author-pie-body">
-                    <div class="timeline-pie timeline-author-pie" style="background-color:${baseColor};background-image:${background}"><strong>${total}</strong></div>
+                    <div class="timeline-pie timeline-author-pie">${svg}<strong>${total}</strong></div>
                     ${renderAuthorLegend(recordList, 'timeline-author-legend', { mergeSmall: true })}
                 </div>
             </section>
@@ -511,7 +529,7 @@
                 <button type="button" class="timeline-calendar-day${day.value ? '' : ' is-empty'}${day.important ? ' has-important' : ''}"${day.value ? ` data-day="${day.shortLabel}"` : ' disabled aria-disabled="true"'} aria-label="${day.value ? `打开 ${month.key}-${day.shortLabel} 的记录` : `${month.key}-${day.shortLabel} 无记录`}">
                     <span>${day.shortLabel}</span>
                     <strong>${day.value}</strong>
-                    ${day.value ? `<i class="timeline-day-author-pie" style="background-color:${pie.baseColor};background-image:${pie.background}" aria-hidden="true"></i>` : ''}
+                    ${day.value ? `<i class="timeline-day-author-pie" aria-hidden="true">${pie.svg}</i>` : ''}
                     <em>${day.important ? `重要 ${day.important}` : ' '}</em>
                 </button>
             `;
