@@ -7,6 +7,16 @@
  * - 主页面 & 详情页面共用
  ************************************************************/
 
+function stableRecordJumpHue(fileName) {
+    const key = `record-jump::${String(fileName || "").trim().toLowerCase().replace(/\.json$/i, "")}`;
+    let hash = 2166136261;
+    for (let index = 0; index < key.length; index += 1) {
+        hash ^= key.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+    return 190 + ((hash >>> 0) % 140);
+}
+
 function parseContent(text) {
     if (!text) return "";
 
@@ -19,7 +29,7 @@ function parseContent(text) {
             return `<span class="record-arrow-note" style="--arrow-note-chars:${width}"><span class="record-arrow-note-text">${top}</span><span class="record-arrow-note-line" aria-hidden="true"></span><span class="record-arrow-note-text">${bottom}</span></span>`;
         })
         // 记录跳转语法：[[record:JSON文件名|显示文字]]，文件名可省略 .json。
-        .replace(/\[\[record:([a-zA-Z0-9_-]+(?:\.json)?)\|(.+?)\]\]/g, (_, fileName, label) => `<button type="button" class="record-jump-link" data-record-jump="${fileName}">${label}</button>`)
+        .replace(/\[\[record:([a-zA-Z0-9_-]+(?:\.json)?)\|(.+?)\]\]/g, (_, fileName, label) => `<button type="button" class="record-jump-link" data-record-jump="${fileName}" style="--record-jump-hue:${stableRecordJumpHue(fileName)}">${label}</button>`)
         .replace(/\{\{([a-zA-Z0-9_-]+)\|(.+?)\}\}/g, (_, id, label) => `<span class="term-tag" data-id="${id}">${label}</span>`)
         .replace(/\[\[([a-zA-Z0-9_-]+)\|(.+?)\]\]/g, (_, id, label) => `<span class="person-tag" data-id="${id}" title="${id}">${label}</span>`)
         .replace(/\(\((.+?)\)\)/g, (_, content) => `<span class="redacted"><span class="redacted-mask"></span><span class="redacted-content">${content}</span></span>`)

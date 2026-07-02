@@ -300,7 +300,9 @@
                 choices: Array.isArray(row.choices) ? row.choices : (Array.isArray(raw.choices) ? raw.choices : []),
                 answer: row.answer || raw.answer || '',
                 explanation: row.explanation || raw.explanation || '',
-                image: normalizePrivateStoragePath(row.image_path || raw.image || raw.imagePath || '')
+                // Quiz JSON is stored in Supabase, but its image field points to
+                // a public frontend-local asset and must never be signed.
+                image: String(row.image_path || raw.image || raw.imagePath || '').trim().replace(/^\/+/, '')
             };
         });
     };

@@ -24,6 +24,7 @@
   let currentQuestion = null;
   let answeredCurrent = false;
   let recentQuestionIds = [];
+  let recentContentKeys = [];
   let secretProgress = [];
   let secretUnlocked = false;
   let secretBuffer = '';
@@ -677,11 +678,13 @@
 
   async function loadSecretQuestions() {
     try {
-      const sourceUrl = new URL('data/quiz/lamian.json', document.baseURI);
-      const response = await fetch(sourceUrl, { cache: 'no-store', credentials: 'same-origin' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const payload = await response.json();
-      const rows = Array.isArray(payload) ? payload : (payload.questions || payload.items || []);
+      if (!window.ClassRecordData?.loadQuizQuestions) {
+        throw new Error('Supabase quiz data loader is unavailable.');
+      }
+      const rows = await window.ClassRecordData.loadQuizQuestions(SECRET_CONTENT);
+      if (!Array.isArray(rows) || !rows.length) {
+        throw new Error('Supabase returned no lamian quiz rows. Check class_quiz_questions and its RLS policy.');
+      }
       const questions = rows.map((item, index) => normalizeQuestion({
         ...item,
         id: item.id || `${SECRET_CONTENT}-${index + 1}`,
@@ -689,6 +692,9 @@
         content: SECRET_CONTENT,
         imagePath: String(item.image || item.imagePath || '').trim().replace(/^\/+/, '')
       }, index)).filter((question) => question.answer && question.content === SECRET_CONTENT);
+      if (!questions.length) {
+        throw new Error('Lamian quiz rows were loaded but none contained a usable answer.');
+      }
       questions.forEach((question) => {
         if (!question.imagePath) return;
         const image = new Image();
@@ -697,7 +703,7 @@
       });
       return questions;
     } catch (error) {
-      console.warn('Local secret questions load failed:', error);
+      console.error('Hidden lamian questions failed to load from Supabase:', error);
       return [];
     }
   }
@@ -742,8 +748,26 @@
     const preferredPool = preferredContentOnce
       ? questionBank.filter((question) => question.content === preferredContentOnce)
       : [];
-    const picked = randomizeQuestion(pickRandom(preferredPool.length ? preferredPool : pool));
+    const candidatePool = preferredPool.length ? preferredPool : pool;
+    // Pick a content group first so a small category (including hidden content)
+    // is not statistically buried by categories generated from every record.
+    const questionsByContent = new Map();
+    candidatePool.forEach((question) => {
+      const group = questionsByContent.get(question.content) || [];
+      group.push(question);
+      questionsByContent.set(question.content, group);
+    });
+    const contentKeys = [...questionsByContent.keys()];
+    const freshContentKeys = contentKeys.filter((key) => !recentContentKeys.includes(key));
+    const pickedContent = preferredContentOnce && questionsByContent.has(preferredContentOnce)
+      ? preferredContentOnce
+      : pickRandom(freshContentKeys.length ? freshContentKeys : contentKeys);
+    const contentPool = questionsByContent.get(pickedContent) || candidatePool;
+    const picked = randomizeQuestion(pickRandom(contentPool));
     preferredContentOnce = '';
+    recentContentKeys = [pickedContent, ...recentContentKeys.filter((key) => key !== pickedContent)]
+      .filter((key) => contentKeys.includes(key))
+      .slice(0, Math.max(0, contentKeys.length - 1));
     const key = questionRecordKey(picked);
     if (key) {
       recentQuestionIds = [key, ...recentQuestionIds.filter((item) => item !== key)].slice(0, 6);

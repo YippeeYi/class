@@ -793,7 +793,7 @@ body>#glossary-list {
   border: 0;
   border-bottom: 2px dashed transparent;
   background: transparent;
-  color: var(--term-accent);
+  color: color-mix(in srgb, hsl(var(--record-jump-hue, 220) 72% 48%) 72%, var(--text-main));
   font: inherit;
   font-weight: 750;
   cursor: pointer;
@@ -801,9 +801,9 @@ body>#glossary-list {
 }
 
 .record-jump-link:hover {
-  border-bottom-color: var(--term-border);
-  background: color-mix(in srgb, var(--term-soft-bg) 76%, transparent);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--theme-accent-strong) 14%, transparent);
+  border-bottom-color: color-mix(in srgb, hsl(var(--record-jump-hue, 220) 72% 48%) 74%, var(--text-main));
+  background: color-mix(in srgb, hsl(var(--record-jump-hue, 220) 78% 72%) 22%, transparent);
+  box-shadow: 0 4px 12px color-mix(in srgb, hsl(var(--record-jump-hue, 220) 72% 48%) 16%, transparent);
 }
 
 .record-jump-dialog {
