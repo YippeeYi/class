@@ -165,47 +165,21 @@
     }
 
     function getAuthorColor(id) {
-        return authorColorMap.get(id) || buildAuthorColor(id, []);
+        return authorColorMap.get(id) || '#7fa8c9';
     }
 
-    function stableColorHash(value) {
-        let hash = 2166136261;
-        const text = String(value || 'unknown').trim().toLowerCase();
-        for (let index = 0; index < text.length; index += 1) {
-            hash ^= text.charCodeAt(index);
-            hash = Math.imul(hash, 16777619);
-        }
-        return hash >>> 0;
-    }
-
-    function circularHueDistance(first, second) {
-        const distance = Math.abs(first - second) % 360;
-        return Math.min(distance, 360 - distance);
-    }
-
-    function buildAuthorColor(id, usedHues) {
-        const hash = stableColorHash(id);
-        const goldenAngle = 137.508;
-        const preferredHue = ((hash % 997) * goldenAngle) % 360;
-        let hue = preferredHue;
-        if (usedHues.length) {
-            let bestDistance = -1;
-            let bestOffset = 360;
-            // 在完整色相环中找离现有颜色最远的位置；与首选色相的距离用于稳定破同分。
-            for (let candidate = 0; candidate < 360; candidate += 1) {
-                const distance = Math.min(...usedHues.map((used) => circularHueDistance(candidate, used)));
-                const offset = circularHueDistance(candidate, preferredHue);
-                if (distance > bestDistance || (distance === bestDistance && offset < bestOffset)) {
-                    hue = candidate;
-                    bestDistance = distance;
-                    bestOffset = offset;
-                }
-            }
-        }
-        usedHues.push(hue);
-        const saturation = 64 + ((hash >>> 8) % 3) * 2;
-        const lightness = 56 + ((hash >>> 12) % 2) * 2;
-        return `hsl(${Math.round(hue)} ${saturation}% ${lightness}%)`;
+    function buildAuthorColor(index) {
+        // 低对比十二色相环。交错取色让列表中相邻记录人保持可辨识度。
+        const colorRing = [
+            '#d88f8f', '#73b5b3', '#d6a078', '#7fa8c9',
+            '#c8b36f', '#9794c8', '#9fbd78', '#b18fc2',
+            '#7db38b', '#c78eaf', '#72ad9a', '#d08e9c'
+        ];
+        const base = colorRing[index % colorRing.length];
+        const ring = Math.floor(index / colorRing.length);
+        if (!ring) return base;
+        const lightMix = 8 + (ring % 3) * 5;
+        return `color-mix(in srgb, ${base} ${100 - lightMix}%, ${ring % 2 ? 'white' : 'var(--text-main)'})`;
     }
 
     function getAuthorDistribution(recordList) {
@@ -269,8 +243,7 @@
 
     function buildTimelineData() {
         const authorIds = [...new Set(records.map(getAuthorId))].sort((a, b) => a.localeCompare(b));
-        const usedHues = [];
-        authorColorMap = new Map(authorIds.map((id) => [id, buildAuthorColor(id, usedHues)]));
+        authorColorMap = new Map(authorIds.map((id, index) => [id, buildAuthorColor(index)]));
         const monthGroups = new Map();
         records.forEach((record) => {
             const date = parseRecordDate(record);
