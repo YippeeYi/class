@@ -5978,6 +5978,29 @@ body.hidden-record-mode .hidden-record-banner {
   transform: translateY(-50%);
 }
 
+.inline-underline,
+.inline-underline * {
+  text-decoration-line: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 84%, transparent);
+  text-decoration-thickness: max(1px, 0.075em);
+  text-decoration-skip-ink: auto;
+  text-underline-offset: 0.16em;
+}
+
+.inline-red {
+  color: var(--danger-strong);
+}
+
+.inline-red .person-tag,
+.inline-red .record-jump-link {
+  color: color-mix(in srgb, var(--danger-strong) 78%, var(--link-accent));
+}
+
+.inline-red .term-tag {
+  color: color-mix(in srgb, var(--danger-strong) 78%, var(--term-accent));
+  border-bottom-color: color-mix(in srgb, var(--danger) 64%, var(--term-border));
+}
+
 .inline-stack--fraction {
   grid-template-rows: auto 0.26em auto;
   width: max-content;

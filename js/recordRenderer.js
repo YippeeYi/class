@@ -100,11 +100,18 @@ function parseInlineStack(top, bottom, kind, context) {
 function renderSquareMarkup(body, raw, context) {
     const render = (value) => parseInlineMarkup(value, context);
     const asText = context.mode === "text";
-    if (body.startsWith("del:")) {
-        const content = body.slice(4);
+    const unaryTypes = {
+        del: { tag: "del", className: "inline-delete" },
+        under: { tag: "span", className: "inline-underline" },
+        red: { tag: "span", className: "inline-red" }
+    };
+    for (const [type, config] of Object.entries(unaryTypes)) {
+        const prefix = `${type}:`;
+        if (!body.startsWith(prefix)) continue;
+        const content = body.slice(prefix.length);
         if (!content) return asText ? raw : escapeRecordText(raw);
         const rendered = render(content);
-        return asText ? rendered : `<del class="inline-delete">${rendered}</del>`;
+        return asText ? rendered : `<${config.tag} class="${config.className}">${rendered}</${config.tag}>`;
     }
 
     for (const type of ["record", "frac", "anno", "illu"]) {
