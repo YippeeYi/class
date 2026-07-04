@@ -18,6 +18,12 @@
 
     const MONTH_LABELS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
     let authorColorMap = new Map();
+    let pieScopeSequence = 0;
+
+    function createPieScope(prefix = 'chart') {
+        pieScopeSequence += 1;
+        return `${prefix}-${pieScopeSequence}`;
+    }
 
     function escapeHtml(text) {
         return String(text || '')
@@ -224,36 +230,40 @@
         return `M 50 50 L ${start.x.toFixed(4)} ${start.y.toFixed(4)} A 49 49 0 ${largeArc} 1 ${end.x.toFixed(4)} ${end.y.toFixed(4)} Z`;
     }
 
-    function renderAuthorPieSvg(entries, total, { compact = false, type = 'daily' } = {}) {
+    function renderAuthorPieSvg(entries, total, { compact = false, type = 'daily', scopeId = '' } = {}) {
         if (!total) return '';
+        const scopeAttribute = scopeId ? ` data-pie-scope="${escapeHtml(scopeId)}"` : '';
+        const highlightStroke = compact ? 1.5 : 2.6;
+        const styleAttribute = ` style="--pie-highlight-stroke:${highlightStroke}"`;
         if (entries.length === 1) {
-            return `<svg class="timeline-pie-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="49" fill="${getPieColor(entries[0][0], 0, type)}" stroke="white" stroke-width="${compact ? 0.55 : 1.2}" vector-effect="non-scaling-stroke"></circle></svg>`;
+            return `<svg class="timeline-pie-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false"${scopeAttribute}${styleAttribute}><circle class="timeline-pie-slice" data-pie-slice data-slice-key="${escapeHtml(entries[0][0])}" cx="50" cy="50" r="49" fill="${getPieColor(entries[0][0], 0, type)}" stroke="white" stroke-width="${compact ? 0.55 : 1.2}" vector-effect="non-scaling-stroke"></circle></svg>`;
         }
         let angle = 0;
         const paths = entries.map(([id, count], index) => {
             const start = angle;
             angle = index === entries.length - 1 ? 360 : angle + count / total * 360;
-            return `<path d="${getPieSlicePath(start, angle)}" fill="${getPieColor(id, index, type)}" stroke="white" stroke-width="${compact ? 0.55 : 1.2}" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>`;
+            return `<path class="timeline-pie-slice" data-pie-slice data-slice-key="${escapeHtml(id)}" d="${getPieSlicePath(start, angle)}" fill="${getPieColor(id, index, type)}" stroke="white" stroke-width="${compact ? 0.55 : 1.2}" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>`;
         }).join('');
-        return `<svg class="timeline-pie-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">${paths}</svg>`;
+        return `<svg class="timeline-pie-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false"${scopeAttribute}${styleAttribute}>${paths}</svg>`;
     }
 
-    function renderAuthorLegend(recordList, className = 'timeline-author-legend', { showValues = true, type = 'daily' } = {}) {
+    function renderAuthorLegend(recordList, className = 'timeline-author-legend', { showValues = true, type = 'daily', scopeId = '' } = {}) {
         const { entries, total } = getAuthorDistribution(recordList, { type });
         const legend = entries.map(([id, count], index) => `
-            <li class="${showValues ? 'has-values' : ''}"><i style="--legend-color:${getPieColor(id, index, type)}"></i><span class="timeline-author-legend-name">${escapeHtml(getPersonLabel(id))}</span>${showValues ? `<span class="timeline-author-legend-count">${count} 条</span><span class="timeline-author-legend-percent">${formatPercent(count, total)}</span>` : ''}</li>
+            <li class="${showValues ? 'has-values' : ''}"${scopeId ? ` data-pie-legend-item data-pie-scope="${escapeHtml(scopeId)}" data-slice-key="${escapeHtml(id)}" tabindex="0"` : ''}><i style="--legend-color:${getPieColor(id, index, type)}"></i><span class="timeline-author-legend-name">${escapeHtml(getPersonLabel(id))}</span>${showValues ? `<span class="timeline-author-legend-count">${count} 条</span><span class="timeline-author-legend-percent">${formatPercent(count, total)}</span>` : ''}</li>
         `).join('');
         return `<ul class="${className}">${legend || '<li class="is-empty">暂无可统计数据</li>'}</ul>`;
     }
 
     function renderAuthorPie(recordList, title, type) {
         const { entries, allEntries, total } = getAuthorDistribution(recordList, { type });
+        const scopeId = createPieScope(type || 'summary');
         return `
-            <section class="timeline-chart-card timeline-pie-card timeline-author-pie-card" aria-label="${escapeHtml(title)}">
+            <section class="timeline-chart-card timeline-pie-card timeline-author-pie-card" data-pie-chart="${scopeId}" aria-label="${escapeHtml(title)}">
                 <header><h3>${escapeHtml(title)}</h3><p>${total ? `${allEntries.length} 位记录人 · ${total} 条记录` : '暂无记录人数据'}</p></header>
                 <div class="timeline-author-pie-body">
-                    <div class="timeline-pie timeline-author-pie">${renderAuthorPieSvg(entries, total, { type })}<strong>${total}</strong></div>
-                    ${renderAuthorLegend(recordList, 'timeline-author-legend', { type })}
+                    <div class="timeline-pie timeline-author-pie">${renderAuthorPieSvg(entries, total, { type, scopeId })}<strong>${total}</strong></div>
+                    ${renderAuthorLegend(recordList, 'timeline-author-legend', { type, scopeId })}
                 </div>
             </section>
         `;
@@ -469,6 +479,7 @@
             const dayRecords = recordsByDay.get(day) || [];
             return { label: `${day} 日`, shortLabel: day, value: dayRecords.length, day, important: dayRecords.filter((record) => record.importance === 'important').length };
         });
+        const dailyPieScope = createPieScope('daily');
         const calendarCells = daySeries.map((day) => {
             const dayRecords = recordsByDay.get(day.day) || [];
             const pie = getAuthorDistribution(dayRecords, { type: 'daily' });
@@ -476,7 +487,7 @@
                 <button type="button" class="timeline-calendar-day${day.value ? '' : ' is-empty'}${day.important ? ' has-important' : ''}"${day.value ? ` data-day="${day.shortLabel}"` : ' disabled aria-disabled="true"'} aria-label="${day.value ? `打开 ${month.key}-${day.shortLabel} 的记录` : `${month.key}-${day.shortLabel} 无记录`}">
                     <span>${day.shortLabel}</span>
                     <strong>${day.value}</strong>
-                    ${day.value ? `<i class="timeline-day-author-pie" aria-hidden="true">${renderAuthorPieSvg(pie.entries, pie.total, { compact: true })}</i>` : ''}
+                    ${day.value ? `<i class="timeline-day-author-pie" aria-hidden="true">${renderAuthorPieSvg(pie.entries, pie.total, { compact: true, scopeId: dailyPieScope })}</i>` : ''}
                     <em>${day.important ? `重要 ${day.important}` : ' '}</em>
                 </button>
             `;
@@ -503,7 +514,7 @@
                 <div class="timeline-calendar-grid">${calendarCells}</div>
                 <div class="timeline-calendar-legend">
                     <span>记录人</span>
-                    ${renderAuthorLegend(month.records, 'timeline-author-legend timeline-author-legend--calendar', { showValues: false })}
+                    ${renderAuthorLegend(month.records, 'timeline-author-legend timeline-author-legend--calendar', { showValues: false, scopeId: dailyPieScope })}
                 </div>
             </section>
             <div class="timeline-insight-grid">
@@ -540,6 +551,46 @@
         renderMonths();
         renderDetail();
     }
+
+    function setPieLegendHighlight(legendItem, active) {
+        const scopeId = legendItem?.dataset.pieScope;
+        const sliceKey = legendItem?.dataset.sliceKey;
+        if (!scopeId || !sliceKey) return;
+
+        document.querySelectorAll('[data-pie-legend-item]').forEach((item) => {
+            if (item.dataset.pieScope === scopeId) {
+                item.classList.toggle('is-active', active && item === legendItem);
+            }
+        });
+        document.querySelectorAll('.timeline-pie-svg[data-pie-scope]').forEach((svg) => {
+            if (svg.dataset.pieScope !== scopeId) return;
+            svg.querySelectorAll('[data-pie-slice]').forEach((slice) => {
+                slice.classList.toggle('is-highlighted', active && slice.dataset.sliceKey === sliceKey);
+            });
+        });
+    }
+
+    document.addEventListener('pointerover', (event) => {
+        const item = event.target.closest('[data-pie-legend-item]');
+        if (!item || (event.relatedTarget?.nodeType && item.contains(event.relatedTarget))) return;
+        setPieLegendHighlight(item, true);
+    });
+
+    document.addEventListener('pointerout', (event) => {
+        const item = event.target.closest('[data-pie-legend-item]');
+        if (!item || (event.relatedTarget?.nodeType && item.contains(event.relatedTarget))) return;
+        setPieLegendHighlight(item, false);
+    });
+
+    document.addEventListener('focusin', (event) => {
+        const item = event.target.closest('[data-pie-legend-item]');
+        if (item) setPieLegendHighlight(item, true);
+    });
+
+    document.addEventListener('focusout', (event) => {
+        const item = event.target.closest('[data-pie-legend-item]');
+        if (item) setPieLegendHighlight(item, false);
+    });
 
     overview.addEventListener('click', (event) => {
         const monthBar = event.target.closest('[data-month]');

@@ -4648,6 +4648,21 @@ body>.archive-tool-shell {
   shape-rendering: geometricPrecision;
 }
 
+.timeline-pie-slice {
+  transform-box: view-box;
+  transform-origin: 50px 50px;
+  transition:
+    transform 210ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    filter 210ms ease-out,
+    stroke-width 190ms ease-out;
+}
+
+.timeline-pie-slice.is-highlighted {
+  transform: scale(1.045);
+  filter: brightness(1.12) saturate(1.08) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.24));
+  stroke-width: var(--pie-highlight-stroke, 2.6px);
+}
+
 .timeline-pie strong {
   position: relative;
   z-index: 2;
@@ -4700,12 +4715,52 @@ body>.archive-tool-shell {
   font-size: 12px;
 }
 
+.timeline-author-legend li[data-pie-legend-item] {
+  margin: -2px -4px;
+  padding: 2px 4px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition:
+    color 180ms ease-out,
+    background-color 180ms ease-out,
+    transform 180ms ease-out;
+}
+
+.timeline-author-legend li[data-pie-legend-item]:hover,
+.timeline-author-legend li[data-pie-legend-item]:focus-visible,
+.timeline-author-legend li[data-pie-legend-item].is-active {
+  color: var(--text-strong);
+  background: color-mix(in srgb, var(--theme-accent) 13%, transparent);
+  outline: none;
+  transform: translateX(1px);
+}
+
 .timeline-author-legend li i {
   align-self: center;
   width: 9px;
   height: 9px;
   border-radius: 50%;
   background: var(--legend-color);
+  transition: transform 180ms ease-out, box-shadow 180ms ease-out;
+}
+
+.timeline-author-legend li[data-pie-legend-item]:hover i,
+.timeline-author-legend li[data-pie-legend-item]:focus-visible i,
+.timeline-author-legend li[data-pie-legend-item].is-active i {
+  transform: scale(1.24);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--legend-color) 22%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeline-pie-slice,
+  .timeline-author-legend li[data-pie-legend-item],
+  .timeline-author-legend li[data-pie-legend-item] i {
+    transition-duration: 0.01ms;
+  }
+
+  .timeline-pie-slice.is-highlighted {
+    transform: none;
+  }
 }
 
 .timeline-author-legend li span {
