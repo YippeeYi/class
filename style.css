@@ -4663,6 +4663,11 @@ body>.archive-tool-shell {
   stroke-width: var(--pie-highlight-stroke, 2.6px);
 }
 
+.timeline-pie-svg--daily .timeline-pie-slice.is-highlighted {
+  transform: scale(1.09);
+  filter: brightness(1.16) saturate(1.12) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.28));
+}
+
 .timeline-pie strong {
   position: relative;
   z-index: 2;
@@ -4701,8 +4706,10 @@ body>.archive-tool-shell {
   gap: 7px;
   max-height: 166px;
   margin: 0;
-  padding: 2px 4px 2px 0;
-  overflow: auto;
+  box-sizing: border-box;
+  padding: 4px 7px;
+  overflow-x: hidden;
+  overflow-y: auto;
   list-style: none;
 }
 
@@ -4716,14 +4723,14 @@ body>.archive-tool-shell {
 }
 
 .timeline-author-legend li[data-pie-legend-item] {
-  margin: -2px -4px;
-  padding: 2px 4px;
+  box-sizing: border-box;
+  padding: 3px 5px;
   border-radius: 7px;
   cursor: pointer;
   transition:
     color 180ms ease-out,
     background-color 180ms ease-out,
-    transform 180ms ease-out;
+    box-shadow 180ms ease-out;
 }
 
 .timeline-author-legend li[data-pie-legend-item]:hover,
@@ -4731,8 +4738,8 @@ body>.archive-tool-shell {
 .timeline-author-legend li[data-pie-legend-item].is-active {
   color: var(--text-strong);
   background: color-mix(in srgb, var(--theme-accent) 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-accent-strong) 14%, transparent);
   outline: none;
-  transform: translateX(1px);
 }
 
 .timeline-author-legend li i {
@@ -4747,7 +4754,7 @@ body>.archive-tool-shell {
 .timeline-author-legend li[data-pie-legend-item]:hover i,
 .timeline-author-legend li[data-pie-legend-item]:focus-visible i,
 .timeline-author-legend li[data-pie-legend-item].is-active i {
-  transform: scale(1.24);
+  transform: scale(1.18);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--legend-color) 22%, transparent);
 }
 
@@ -4759,6 +4766,10 @@ body>.archive-tool-shell {
   }
 
   .timeline-pie-slice.is-highlighted {
+    transform: none;
+  }
+
+  .timeline-pie-svg--daily .timeline-pie-slice.is-highlighted {
     transform: none;
   }
 }
@@ -5830,7 +5841,7 @@ body.hidden-record-mode .hidden-record-banner {
   height: 28px;
   border: 2px solid color-mix(in srgb, var(--theme-surface) 82%, white);
   border-radius: 50%;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 2px 6px rgba(var(--theme-rgb), 0.16);
 }
 
@@ -5856,7 +5867,8 @@ body.hidden-record-mode .hidden-record-banner {
   flex-wrap: wrap;
   max-height: 96px;
   gap: 7px 12px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .timeline-author-legend--calendar li {

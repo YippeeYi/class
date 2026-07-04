@@ -230,13 +230,15 @@
         return `M 50 50 L ${start.x.toFixed(4)} ${start.y.toFixed(4)} A 49 49 0 ${largeArc} 1 ${end.x.toFixed(4)} ${end.y.toFixed(4)} Z`;
     }
 
-    function renderAuthorPieSvg(entries, total, { compact = false, type = 'daily', scopeId = '' } = {}) {
+    function renderAuthorPieSvg(entries, total, { compact = false, type = 'daily', scopeId = '', chartKind = type } = {}) {
         if (!total) return '';
         const scopeAttribute = scopeId ? ` data-pie-scope="${escapeHtml(scopeId)}"` : '';
+        const kindAttribute = ` data-chart-kind="${escapeHtml(chartKind)}"`;
+        const svgClass = `timeline-pie-svg${chartKind === 'daily' ? ' timeline-pie-svg--daily' : ''}`;
         const highlightStroke = compact ? 1.5 : 2.6;
         const styleAttribute = ` style="--pie-highlight-stroke:${highlightStroke}"`;
         if (entries.length === 1) {
-            return `<svg class="timeline-pie-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false"${scopeAttribute}${styleAttribute}><circle class="timeline-pie-slice" data-pie-slice data-slice-key="${escapeHtml(entries[0][0])}" cx="50" cy="50" r="49" fill="${getPieColor(entries[0][0], 0, type)}" stroke="white" stroke-width="${compact ? 0.55 : 1.2}" vector-effect="non-scaling-stroke"></circle></svg>`;
+            return `<svg class="${svgClass}" viewBox="0 0 100 100" aria-hidden="true" focusable="false"${scopeAttribute}${kindAttribute}${styleAttribute}><circle class="timeline-pie-slice" data-pie-slice data-slice-key="${escapeHtml(entries[0][0])}" cx="50" cy="50" r="49" fill="${getPieColor(entries[0][0], 0, type)}" stroke="white" stroke-width="${compact ? 0.55 : 1.2}" vector-effect="non-scaling-stroke"></circle></svg>`;
         }
         let angle = 0;
         const paths = entries.map(([id, count], index) => {
@@ -244,7 +246,7 @@
             angle = index === entries.length - 1 ? 360 : angle + count / total * 360;
             return `<path class="timeline-pie-slice" data-pie-slice data-slice-key="${escapeHtml(id)}" d="${getPieSlicePath(start, angle)}" fill="${getPieColor(id, index, type)}" stroke="white" stroke-width="${compact ? 0.55 : 1.2}" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>`;
         }).join('');
-        return `<svg class="timeline-pie-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false"${scopeAttribute}${styleAttribute}>${paths}</svg>`;
+        return `<svg class="${svgClass}" viewBox="0 0 100 100" aria-hidden="true" focusable="false"${scopeAttribute}${kindAttribute}${styleAttribute}>${paths}</svg>`;
     }
 
     function renderAuthorLegend(recordList, className = 'timeline-author-legend', { showValues = true, type = 'daily', scopeId = '' } = {}) {
