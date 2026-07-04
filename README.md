@@ -60,6 +60,9 @@ http://localhost:8000/index.html
 正文也支持行内分式 `[[frac:上方文字|下方文字]]`，以及悬浮或点击显示说明的注解
 `[[anno:注解内容|被注释文字]]`。格式不完整的标记会安全地按原文显示。
 
+项目内附件插图可使用 `[[illu:data/attachments/example.png|被标记文字]]`。悬浮、键盘聚焦或
+触屏点击被标记文字时会显示图片预览；路径仅允许附件目录中的常见图片格式。
+
 ## Supabase 密钥设置
 
 完整 SQL 见 `docs/supabase-setup.sql`。核心机制：

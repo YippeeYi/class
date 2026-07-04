@@ -34,6 +34,19 @@ function escapeRecordText(value) {
         .replace(/'/g, "&#39;");
 }
 
+const ILLUSTRATION_IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg"]);
+
+function normalizeIllustrationPath(value) {
+    const path = String(value ?? "").trim();
+    if (!path || path.length > 500 || /[\\?#%\u0000-\u001f\u007f]/.test(path)) return "";
+    if (/^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(path)) return "";
+    const segments = path.split("/");
+    if (segments.some((segment) => !segment || segment === "." || segment === "..")) return "";
+    if (!/^(?:data\/attachments|attachments?|attachment)\//i.test(path)) return "";
+    const extension = segments.at(-1)?.split(".").pop()?.toLowerCase();
+    return ILLUSTRATION_IMAGE_EXTENSIONS.has(extension) ? path : "";
+}
+
 function getPersonDisplayNameById(id) {
     const person = window.PeopleStore?.people?.find((item) => item.id === id);
     return stripRecordMarkup(person?.name || person?.alias || id).trim() || id;
@@ -50,7 +63,12 @@ function parseContent(text) {
         ))
         .replace(/\[\[anno:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, (_, note, label) => protect(
             `<span class="annotation" data-note="${escapeRecordAttribute(note)}" tabindex="0" role="button" aria-haspopup="true" aria-expanded="false">${escapeRecordText(label)}</span>`
-        ));
+        ))
+        .replace(/\[\[illu:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, (raw, imagePath, label) => {
+            const safePath = normalizeIllustrationPath(imagePath);
+            if (!safePath) return protect(escapeRecordText(label));
+            return protect(`<span class="inline-illustration" data-image-src="${escapeRecordAttribute(safePath)}" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false">${escapeRecordText(label)}</span>`);
+        });
 
     const parsed = source
         .replace(/!!(.+?)!!/g, (_, content) => `<span class="record-center-line">${content}</span>`)
@@ -80,6 +98,7 @@ function stripRecordMarkup(text) {
         .replace(/->\[(.+?)\|\|(.+?)\]<-/g, "$1 $2")
         .replace(/\[\[frac:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, "$1 $2")
         .replace(/\[\[anno:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, "$2")
+        .replace(/\[\[illu:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, "$2")
         .replace(/\[\[record:([a-zA-Z0-9_-]+(?:\.json)?)\|(.+?)\]\]/g, "$2")
         .replace(/\{\{([a-zA-Z0-9_-]+)\|(.+?)\}\}/g, "$2")
         .replace(/\[\[([a-zA-Z0-9_-]+)\|(.+?)\]\]/g, "$2")
@@ -679,6 +698,114 @@ function removeTooltip(immediate = false) {
 let activeAnnotation = null;
 let activeAnnotationTooltip = null;
 
+let activeIllustration = null;
+let activeIllustrationTooltip = null;
+let illustrationRequestToken = 0;
+
+function removeIllustrationTooltip() {
+    illustrationRequestToken += 1;
+    activeIllustration?.setAttribute("aria-expanded", "false");
+    activeIllustrationTooltip?.remove();
+    activeIllustration = null;
+    activeIllustrationTooltip = null;
+}
+
+function positionIllustrationTooltip(tag, pointerEvent) {
+    if (!activeIllustrationTooltip) return;
+    const tagRect = tag.getBoundingClientRect();
+    const tooltipRect = activeIllustrationTooltip.getBoundingClientRect();
+    const padding = 12;
+    const gap = 10;
+    const pointerX = Number.isFinite(pointerEvent?.clientX) ? pointerEvent.clientX : tagRect.left + tagRect.width / 2;
+    const left = clamp(pointerX - tooltipRect.width / 2, padding, Math.max(padding, window.innerWidth - tooltipRect.width - padding));
+    let top = tagRect.bottom + gap;
+    if (top + tooltipRect.height > window.innerHeight - padding) top = tagRect.top - tooltipRect.height - gap;
+    top = clamp(top, padding, Math.max(padding, window.innerHeight - tooltipRect.height - padding));
+    activeIllustrationTooltip.style.left = `${left}px`;
+    activeIllustrationTooltip.style.top = `${top}px`;
+}
+
+async function resolveIllustrationUrl(path) {
+    if (window.ClassRecordData?.isEnabled?.()) {
+        return window.ClassRecordData.preloadAsset(path, { priority: "high" }).catch(() => null);
+    }
+    return path;
+}
+
+function setIllustrationFailure(tooltip) {
+    tooltip.classList.add("has-error");
+    tooltip.replaceChildren();
+    const message = document.createElement("span");
+    message.className = "illustration-tooltip-status";
+    message.textContent = "图片加载失败";
+    tooltip.appendChild(message);
+}
+
+async function showIllustrationTooltip(tag, event) {
+    if (!tag || (activeIllustration === tag && activeIllustrationTooltip)) return;
+    removeIllustrationTooltip();
+    removeAnnotationTooltip();
+    const requestToken = illustrationRequestToken;
+    const tooltip = document.createElement("div");
+    tooltip.className = "illustration-tooltip";
+    tooltip.setAttribute("role", "dialog");
+    tooltip.setAttribute("aria-label", `${tag.textContent?.trim() || "插图"}预览`);
+    const loading = document.createElement("span");
+    loading.className = "illustration-tooltip-status";
+    loading.textContent = "正在加载插图…";
+    tooltip.appendChild(loading);
+    document.body.appendChild(tooltip);
+    activeIllustration = tag;
+    activeIllustrationTooltip = tooltip;
+    tag.setAttribute("aria-expanded", "true");
+    positionIllustrationTooltip(tag, event);
+    requestAnimationFrame(() => tooltip.classList.add("is-visible"));
+
+    const url = await resolveIllustrationUrl(tag.dataset.imageSrc || "");
+    if (requestToken !== illustrationRequestToken || tooltip !== activeIllustrationTooltip || !tooltip.isConnected) return;
+    if (!url) {
+        setIllustrationFailure(tooltip);
+        positionIllustrationTooltip(tag);
+        return;
+    }
+    const image = document.createElement("img");
+    image.alt = tag.textContent?.trim() || "记录插图";
+    image.decoding = "async";
+    image.onload = () => {
+        if (tooltip !== activeIllustrationTooltip) return;
+        tooltip.classList.remove("is-loading");
+        tooltip.replaceChildren(image);
+        positionIllustrationTooltip(tag);
+    };
+    image.onerror = () => {
+        if (tooltip !== activeIllustrationTooltip) return;
+        setIllustrationFailure(tooltip);
+        positionIllustrationTooltip(tag);
+    };
+    image.src = url;
+}
+
+document.addEventListener("pointerover", (event) => {
+    if (event.pointerType === "touch") return;
+    const tag = event.target.closest(".inline-illustration");
+    if (tag) showIllustrationTooltip(tag, event);
+});
+
+document.addEventListener("pointerout", (event) => {
+    if (event.pointerType === "touch") return;
+    const tag = event.target.closest(".inline-illustration");
+    if (tag && !tag.contains(event.relatedTarget)) removeIllustrationTooltip();
+});
+
+document.addEventListener("focusin", (event) => {
+    const tag = event.target.closest(".inline-illustration");
+    if (tag?.matches(":focus-visible")) showIllustrationTooltip(tag);
+});
+
+document.addEventListener("focusout", (event) => {
+    if (event.target.closest(".inline-illustration")) removeIllustrationTooltip();
+});
+
 function removeAnnotationTooltip() {
     activeAnnotation?.setAttribute("aria-expanded", "false");
     activeAnnotationTooltip?.remove();
@@ -704,6 +831,7 @@ function positionAnnotationTooltip(tag, pointerEvent) {
 function showAnnotationTooltip(tag, event) {
     if (!tag || (activeAnnotation === tag && activeAnnotationTooltip)) return;
     removeAnnotationTooltip();
+    removeIllustrationTooltip();
     const tooltip = document.createElement("div");
     tooltip.className = "annotation-tooltip";
     tooltip.setAttribute("role", "tooltip");
@@ -739,8 +867,19 @@ document.addEventListener("focusout", (event) => {
 
 window.addEventListener("resize", removeAnnotationTooltip);
 window.addEventListener("scroll", removeAnnotationTooltip, true);
+window.addEventListener("resize", removeIllustrationTooltip);
+window.addEventListener("scroll", removeIllustrationTooltip, true);
 
 document.addEventListener("click", (event) => {
+    const illustration = event.target.closest(".inline-illustration");
+    if (illustration) {
+        event.preventDefault();
+        if (activeIllustration === illustration && activeIllustrationTooltip) removeIllustrationTooltip();
+        else showIllustrationTooltip(illustration, event);
+        return;
+    }
+    if (activeIllustrationTooltip) removeIllustrationTooltip();
+
     const annotation = event.target.closest(".annotation");
     if (annotation) {
         event.preventDefault();

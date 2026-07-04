@@ -5929,3 +5929,71 @@ body.hidden-record-mode .hidden-record-banner {
   opacity: 1;
   transform: translateY(0);
 }
+
+.inline-illustration {
+  display: inline;
+  border-bottom: 1.5px dashed color-mix(in srgb, var(--theme-accent-strong) 52%, var(--text-main));
+  background: color-mix(in srgb, var(--theme-accent) 6%, transparent);
+  cursor: zoom-in;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.inline-illustration:hover,
+.inline-illustration:focus-visible,
+.inline-illustration[aria-expanded="true"] {
+  border-bottom-color: var(--theme-accent-strong);
+  background: color-mix(in srgb, var(--theme-accent) 14%, transparent);
+  outline: none;
+}
+
+.illustration-tooltip {
+  position: fixed;
+  z-index: 9998;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: max-content;
+  max-width: min(384px, calc(100vw - 24px));
+  min-width: 112px;
+  min-height: 64px;
+  padding: 10px;
+  overflow: hidden;
+  border: var(--panel-border);
+  border-radius: 12px;
+  background: var(--tooltip-bg);
+  box-shadow: var(--tooltip-shadow);
+  backdrop-filter: blur(10px);
+  color: var(--text-main);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(6px) scale(0.98);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.illustration-tooltip.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.illustration-tooltip img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(360px, 80vw);
+  max-height: min(280px, 60vh);
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+.illustration-tooltip-status {
+  padding: 6px 8px;
+  color: var(--text-soft);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.illustration-tooltip.has-error {
+  min-width: 132px;
+  min-height: 52px;
+}
