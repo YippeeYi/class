@@ -68,15 +68,22 @@ function findBalancedSquareEnd(source, start) {
 }
 
 function findTopLevelSeparator(source, separator = "|") {
-    let depth = 0;
+    let squareDepth = 0;
+    let curlyDepth = 0;
     for (let index = 0; index <= source.length - separator.length; index += 1) {
         if (source.startsWith("[[", index)) {
-            depth += 1;
+            squareDepth += 1;
             index += 1;
-        } else if (source.startsWith("]]", index) && depth > 0) {
-            depth -= 1;
+        } else if (source.startsWith("]]", index) && squareDepth > 0) {
+            squareDepth -= 1;
             index += 1;
-        } else if (depth === 0 && source.startsWith(separator, index)) {
+        } else if (source.startsWith("{{", index)) {
+            curlyDepth += 1;
+            index += 1;
+        } else if (source.startsWith("}}", index) && curlyDepth > 0) {
+            curlyDepth -= 1;
+            index += 1;
+        } else if (squareDepth === 0 && curlyDepth === 0 && source.startsWith(separator, index)) {
             return index;
         }
     }
@@ -128,13 +135,12 @@ function renderSquareMarkup(body, raw, context) {
         if (type === "frac") return parseInlineStack(first, second, "fraction", context);
         if (type === "anno") {
             const label = render(second);
-            if (asText) return label;
-            const note = parseInlineMarkup(first, { ...context, mode: "text" });
-            return `<span class="annotation" data-note="${escapeRecordAttribute(note)}" tabindex="0" role="button" aria-haspopup="true" aria-expanded="false">${label}</span>`;
+            if (asText || context.tooltipContext) return label;
+            return `<span class="annotation" data-note-source="${escapeRecordAttribute(first)}" tabindex="0" role="button" aria-haspopup="true" aria-expanded="false">${label}</span>`;
         }
         const safePath = normalizeIllustrationPath(first);
         const label = render(second);
-        if (asText || !safePath) return label;
+        if (asText || context.tooltipContext || !safePath) return label;
         return `<span class="inline-illustration" data-image-src="${escapeRecordAttribute(safePath)}" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false">${label}</span>`;
     }
 
@@ -148,7 +154,12 @@ function renderSquareMarkup(body, raw, context) {
 
 function parseInlineMarkup(value, options = {}) {
     const source = String(value ?? "");
-    const context = { mode: options.mode || "html", disableRecordLinks: Boolean(options.disableRecordLinks), depth: (options.depth || 0) + 1 };
+    const context = {
+        mode: options.mode || "html",
+        disableRecordLinks: Boolean(options.disableRecordLinks),
+        tooltipContext: Boolean(options.tooltipContext),
+        depth: (options.depth || 0) + 1
+    };
     if (context.depth > 32) return context.mode === "text" ? source : escapeRecordText(source);
     let output = "";
     for (let index = 0; index < source.length;) {
@@ -811,36 +822,6 @@ function removeTooltip(immediate = false) {
     }
 }
 
-let activeAnnotation = null;
-let activeAnnotationTooltip = null;
-
-let activeIllustration = null;
-let activeIllustrationTooltip = null;
-let illustrationRequestToken = 0;
-
-function removeIllustrationTooltip() {
-    illustrationRequestToken += 1;
-    activeIllustration?.setAttribute("aria-expanded", "false");
-    activeIllustrationTooltip?.remove();
-    activeIllustration = null;
-    activeIllustrationTooltip = null;
-}
-
-function positionIllustrationTooltip(tag, pointerEvent) {
-    if (!activeIllustrationTooltip) return;
-    const tagRect = tag.getBoundingClientRect();
-    const tooltipRect = activeIllustrationTooltip.getBoundingClientRect();
-    const padding = 12;
-    const gap = 10;
-    const pointerX = Number.isFinite(pointerEvent?.clientX) ? pointerEvent.clientX : tagRect.left + tagRect.width / 2;
-    const left = clamp(pointerX - tooltipRect.width / 2, padding, Math.max(padding, window.innerWidth - tooltipRect.width - padding));
-    let top = tagRect.bottom + gap;
-    if (top + tooltipRect.height > window.innerHeight - padding) top = tagRect.top - tooltipRect.height - gap;
-    top = clamp(top, padding, Math.max(padding, window.innerHeight - tooltipRect.height - padding));
-    activeIllustrationTooltip.style.left = `${left}px`;
-    activeIllustrationTooltip.style.top = `${top}px`;
-}
-
 async function resolveIllustrationUrl(path) {
     if (window.ClassRecordData?.isEnabled?.()) {
         return window.ClassRecordData.preloadAsset(path, { priority: "high" }).catch(() => null);
@@ -857,153 +838,203 @@ function setIllustrationFailure(tooltip) {
     tooltip.appendChild(message);
 }
 
-async function showIllustrationTooltip(tag, event) {
-    if (!tag || (activeIllustration === tag && activeIllustrationTooltip)) return;
-    removeIllustrationTooltip();
-    removeAnnotationTooltip();
-    const requestToken = illustrationRequestToken;
-    const tooltip = document.createElement("div");
-    tooltip.className = "illustration-tooltip";
-    tooltip.setAttribute("role", "dialog");
-    tooltip.setAttribute("aria-label", `${tag.textContent?.trim() || "插图"}预览`);
-    const loading = document.createElement("span");
-    loading.className = "illustration-tooltip-status";
-    loading.textContent = "正在加载插图…";
-    tooltip.appendChild(loading);
-    document.body.appendChild(tooltip);
-    activeIllustration = tag;
-    activeIllustrationTooltip = tooltip;
-    tag.setAttribute("aria-expanded", "true");
-    positionIllustrationTooltip(tag, event);
-    requestAnimationFrame(() => tooltip.classList.add("is-visible"));
+function createInlineTooltipController({ triggerSelector, tooltipClass, role = "tooltip", populate, beforeShow }) {
+    let activeTag = null;
+    let activeTooltip = null;
+    let showTimer = null;
+    let removeTimer = null;
+    let requestToken = 0;
+    let hoveringTrigger = false;
+    let hoveringTooltip = false;
+    let lastPointerTriggerAt = 0;
 
-    const url = await resolveIllustrationUrl(tag.dataset.imageSrc || "");
-    if (requestToken !== illustrationRequestToken || tooltip !== activeIllustrationTooltip || !tooltip.isConnected) return;
-    if (!url) {
-        setIllustrationFailure(tooltip);
-        positionIllustrationTooltip(tag);
-        return;
+    const cancelRemoval = () => {
+        clearTimeout(removeTimer);
+        removeTimer = null;
+    };
+    const position = (tag = activeTag, pointerEvent) => {
+        if (!tag || !activeTooltip) return;
+        const tagRect = tag.getBoundingClientRect();
+        const tooltipRect = activeTooltip.getBoundingClientRect();
+        const padding = 12;
+        const gap = 10;
+        const pointerX = Number.isFinite(pointerEvent?.clientX) ? pointerEvent.clientX : tagRect.left + tagRect.width / 2;
+        const left = clamp(pointerX - tooltipRect.width / 2, padding, Math.max(padding, window.innerWidth - tooltipRect.width - padding));
+        let top = tagRect.bottom + gap;
+        if (top + tooltipRect.height > window.innerHeight - padding) top = tagRect.top - tooltipRect.height - gap;
+        top = clamp(top, padding, Math.max(padding, window.innerHeight - tooltipRect.height - padding));
+        activeTooltip.style.left = `${left}px`;
+        activeTooltip.style.top = `${top}px`;
+    };
+    const hide = (immediate = false) => {
+        clearTimeout(showTimer);
+        cancelRemoval();
+        requestToken += 1;
+        activeTag?.setAttribute("aria-expanded", "false");
+        const tooltip = activeTooltip;
+        activeTag = null;
+        activeTooltip = null;
+        hoveringTrigger = false;
+        hoveringTooltip = false;
+        if (!tooltip) return;
+        tooltip.classList.remove("show", "is-visible");
+        tooltip.classList.add("is-hiding");
+        if (immediate) tooltip.remove();
+        else setTimeout(() => tooltip.remove(), 150);
+    };
+    const scheduleRemoval = () => {
+        cancelRemoval();
+        removeTimer = setTimeout(() => {
+            if (!hoveringTrigger && !hoveringTooltip) hide();
+        }, TOOLTIP_REMOVE_DELAY);
+    };
+    const show = async (tag, event) => {
+        clearTimeout(showTimer);
+        cancelRemoval();
+        if (!tag) return;
+        if (activeTag === tag && activeTooltip) return;
+        hide(true);
+        beforeShow?.();
+        removeTooltip(true);
+        const token = requestToken;
+        const tooltip = document.createElement("div");
+        tooltip.className = `${tooltipClass} inline-tooltip hidden`;
+        tooltip.setAttribute("role", role);
+        document.body.appendChild(tooltip);
+        activeTag = tag;
+        activeTooltip = tooltip;
+        tag.setAttribute("aria-expanded", "true");
+        tooltip.addEventListener("mouseenter", () => {
+            hoveringTooltip = true;
+            cancelRemoval();
+        });
+        tooltip.addEventListener("mouseleave", () => {
+            hoveringTooltip = false;
+            scheduleRemoval();
+        });
+        const population = populate({
+            tag,
+            tooltip,
+            position: () => position(tag),
+            isCurrent: () => token === requestToken && activeTag === tag && activeTooltip === tooltip && tooltip.isConnected
+        });
+        if (token !== requestToken || activeTooltip !== tooltip) return;
+        position(tag, event);
+        requestAnimationFrame(() => {
+            tooltip.classList.remove("hidden", "is-hiding");
+            tooltip.classList.add("show", "is-visible");
+        });
+        await population;
+        if (token === requestToken && activeTooltip === tooltip) position(tag);
+    };
+    const queueShow = (tag, event) => {
+        clearTimeout(showTimer);
+        cancelRemoval();
+        if (activeTag && activeTag !== tag) hide();
+        showTimer = setTimeout(() => show(tag, event), TOOLTIP_DELAY);
+    };
+
+    document.addEventListener("pointerover", (event) => {
+        if (event.pointerType === "touch") return;
+        const tag = event.target.closest(triggerSelector);
+        if (!tag || (event.relatedTarget?.nodeType && tag.contains(event.relatedTarget))) return;
+        hoveringTrigger = true;
+        queueShow(tag, event);
+    });
+    document.addEventListener("pointerdown", (event) => {
+        if (event.target.closest(triggerSelector)) lastPointerTriggerAt = Date.now();
+    });
+    document.addEventListener("pointerout", (event) => {
+        if (event.pointerType === "touch") return;
+        const tag = event.target.closest(triggerSelector);
+        if (!tag || (event.relatedTarget?.nodeType && tag.contains(event.relatedTarget))) return;
+        hoveringTrigger = false;
+        clearTimeout(showTimer);
+        scheduleRemoval();
+    });
+    document.addEventListener("focusin", (event) => {
+        const tag = event.target.closest(triggerSelector);
+        if (tag?.matches(":focus-visible") && Date.now() - lastPointerTriggerAt > 500) show(tag);
+    });
+    document.addEventListener("focusout", (event) => {
+        if (event.target.closest(triggerSelector)) scheduleRemoval();
+    });
+    window.addEventListener("resize", () => hide(true));
+    window.addEventListener("scroll", () => hide(true), true);
+
+    return {
+        hide,
+        show,
+        toggle(tag, event) {
+            if (activeTag === tag && activeTooltip) hide();
+            else show(tag, event);
+        }
+    };
+}
+
+let illustrationTooltipController;
+const annotationTooltipController = createInlineTooltipController({
+    triggerSelector: ".annotation",
+    tooltipClass: "annotation-tooltip",
+    beforeShow: () => illustrationTooltipController?.hide(true),
+    populate: async ({ tag, tooltip }) => {
+        tooltip.innerHTML = parseInlineMarkup(tag.dataset.noteSource || "", { tooltipContext: true });
     }
-    const image = document.createElement("img");
-    image.alt = tag.textContent?.trim() || "记录插图";
-    image.decoding = "async";
-    image.onload = () => {
-        if (tooltip !== activeIllustrationTooltip) return;
-        tooltip.classList.remove("is-loading");
-        tooltip.replaceChildren(image);
-        positionIllustrationTooltip(tag);
-    };
-    image.onerror = () => {
-        if (tooltip !== activeIllustrationTooltip) return;
-        setIllustrationFailure(tooltip);
-        positionIllustrationTooltip(tag);
-    };
-    image.src = url;
-}
-
-document.addEventListener("pointerover", (event) => {
-    if (event.pointerType === "touch") return;
-    const tag = event.target.closest(".inline-illustration");
-    if (tag) showIllustrationTooltip(tag, event);
 });
 
-document.addEventListener("pointerout", (event) => {
-    if (event.pointerType === "touch") return;
-    const tag = event.target.closest(".inline-illustration");
-    if (tag && !tag.contains(event.relatedTarget)) removeIllustrationTooltip();
+illustrationTooltipController = createInlineTooltipController({
+    triggerSelector: ".inline-illustration",
+    tooltipClass: "illustration-tooltip",
+    role: "dialog",
+    beforeShow: () => annotationTooltipController.hide(true),
+    populate: async ({ tag, tooltip, position, isCurrent }) => {
+        tooltip.setAttribute("aria-label", `${tag.textContent?.trim() || "插图"}预览`);
+        const loading = document.createElement("span");
+        loading.className = "illustration-tooltip-status";
+        loading.textContent = "正在加载插图…";
+        tooltip.appendChild(loading);
+        const url = await resolveIllustrationUrl(tag.dataset.imageSrc || "");
+        if (!isCurrent()) return;
+        if (!url) {
+            setIllustrationFailure(tooltip);
+            position();
+            return;
+        }
+        const image = document.createElement("img");
+        image.alt = tag.textContent?.trim() || "记录插图";
+        image.decoding = "async";
+        image.onload = () => {
+            if (!isCurrent()) return;
+            tooltip.replaceChildren(image);
+            position();
+        };
+        image.onerror = () => {
+            if (!isCurrent()) return;
+            setIllustrationFailure(tooltip);
+            position();
+        };
+        image.src = url;
+    }
 });
-
-document.addEventListener("focusin", (event) => {
-    const tag = event.target.closest(".inline-illustration");
-    if (tag?.matches(":focus-visible")) showIllustrationTooltip(tag);
-});
-
-document.addEventListener("focusout", (event) => {
-    if (event.target.closest(".inline-illustration")) removeIllustrationTooltip();
-});
-
-function removeAnnotationTooltip() {
-    activeAnnotation?.setAttribute("aria-expanded", "false");
-    activeAnnotationTooltip?.remove();
-    activeAnnotation = null;
-    activeAnnotationTooltip = null;
-}
-
-function positionAnnotationTooltip(tag, pointerEvent) {
-    if (!activeAnnotationTooltip) return;
-    const tagRect = tag.getBoundingClientRect();
-    const tooltipRect = activeAnnotationTooltip.getBoundingClientRect();
-    const padding = 12;
-    const gap = 9;
-    const pointerX = Number.isFinite(pointerEvent?.clientX) ? pointerEvent.clientX : tagRect.left + tagRect.width / 2;
-    const left = clamp(pointerX - tooltipRect.width / 2, padding, Math.max(padding, window.innerWidth - tooltipRect.width - padding));
-    let top = tagRect.bottom + gap;
-    if (top + tooltipRect.height > window.innerHeight - padding) top = tagRect.top - tooltipRect.height - gap;
-    top = clamp(top, padding, Math.max(padding, window.innerHeight - tooltipRect.height - padding));
-    activeAnnotationTooltip.style.left = `${left}px`;
-    activeAnnotationTooltip.style.top = `${top}px`;
-}
-
-function showAnnotationTooltip(tag, event) {
-    if (!tag || (activeAnnotation === tag && activeAnnotationTooltip)) return;
-    removeAnnotationTooltip();
-    removeIllustrationTooltip();
-    const tooltip = document.createElement("div");
-    tooltip.className = "annotation-tooltip";
-    tooltip.setAttribute("role", "tooltip");
-    tooltip.textContent = tag.dataset.note || "";
-    document.body.appendChild(tooltip);
-    activeAnnotation = tag;
-    activeAnnotationTooltip = tooltip;
-    tag.setAttribute("aria-expanded", "true");
-    positionAnnotationTooltip(tag, event);
-    requestAnimationFrame(() => tooltip.classList.add("show"));
-}
-
-document.addEventListener("pointerover", (event) => {
-    if (event.pointerType === "touch") return;
-    const tag = event.target.closest(".annotation");
-    if (tag) showAnnotationTooltip(tag, event);
-});
-
-document.addEventListener("pointerout", (event) => {
-    if (event.pointerType === "touch") return;
-    const tag = event.target.closest(".annotation");
-    if (tag && !tag.contains(event.relatedTarget)) removeAnnotationTooltip();
-});
-
-document.addEventListener("focusin", (event) => {
-    const tag = event.target.closest(".annotation");
-    if (tag?.matches(":focus-visible")) showAnnotationTooltip(tag);
-});
-
-document.addEventListener("focusout", (event) => {
-    if (event.target.closest(".annotation")) removeAnnotationTooltip();
-});
-
-window.addEventListener("resize", removeAnnotationTooltip);
-window.addEventListener("scroll", removeAnnotationTooltip, true);
-window.addEventListener("resize", removeIllustrationTooltip);
-window.addEventListener("scroll", removeIllustrationTooltip, true);
 
 document.addEventListener("click", (event) => {
     const illustration = event.target.closest(".inline-illustration");
     if (illustration) {
         event.preventDefault();
-        if (activeIllustration === illustration && activeIllustrationTooltip) removeIllustrationTooltip();
-        else showIllustrationTooltip(illustration, event);
+        illustrationTooltipController.toggle(illustration, event);
         return;
     }
-    if (activeIllustrationTooltip) removeIllustrationTooltip();
 
     const annotation = event.target.closest(".annotation");
     if (annotation) {
         event.preventDefault();
-        if (activeAnnotation === annotation && activeAnnotationTooltip) removeAnnotationTooltip();
-        else showAnnotationTooltip(annotation, event);
+        annotationTooltipController.toggle(annotation, event);
         return;
     }
-    if (activeAnnotationTooltip) removeAnnotationTooltip();
+    if (!event.target.closest(".inline-tooltip")) {
+        illustrationTooltipController.hide(true);
+        annotationTooltipController.hide(true);
+    }
 
     const tooltip = event.target.closest(".term-tooltip");
     if (tooltip && activeTermId) {

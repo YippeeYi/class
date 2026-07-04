@@ -6148,3 +6148,28 @@ body.hidden-record-mode .hidden-record-banner {
   min-width: 132px;
   min-height: 52px;
 }
+
+.inline-tooltip {
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.inline-tooltip.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.inline-tooltip.hidden,
+.inline-tooltip.is-hiding {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .term-tooltip,
+  .inline-tooltip {
+    transition-duration: 0.01ms;
+    transform: none;
+  }
+}
