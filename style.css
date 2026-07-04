@@ -4664,8 +4664,8 @@ body>.archive-tool-shell {
 }
 
 .timeline-pie-svg--daily .timeline-pie-slice.is-highlighted {
-  transform: scale(1.14);
-  filter: brightness(1.18) saturate(1.14) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  transform: scale(1.18);
+  filter: brightness(1.2) saturate(1.16) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.32));
 }
 
 .timeline-pie strong {
@@ -4703,13 +4703,12 @@ body>.archive-tool-shell {
 
 .timeline-author-legend {
   display: grid;
-  gap: 7px;
+  gap: 3px;
   max-height: 166px;
   margin: 0;
   box-sizing: border-box;
   padding: 4px 7px;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: visible;
   list-style: none;
 }
 
@@ -4724,7 +4723,7 @@ body>.archive-tool-shell {
 
 .timeline-author-legend li[data-pie-legend-item] {
   box-sizing: border-box;
-  padding: 3px 5px;
+  padding: 1px 5px;
   border-radius: 7px;
   cursor: pointer;
   transition:
@@ -4778,11 +4777,11 @@ body>.archive-tool-shell {
 }
 
 .timeline-author-legend li span {
-  min-height: 18px;
+  min-height: 16px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 18px;
+  line-height: 16px;
 }
 
 .timeline-author-legend li.has-values {
@@ -5928,16 +5927,17 @@ body.hidden-record-mode .hidden-record-banner {
   display: none;
 }
 
-.inline-fraction {
+.inline-stack {
   display: inline-grid;
-  grid-template-rows: auto 1px auto;
-  min-width: max-content;
-  margin: 0 0.14em;
-  padding: 0 0.12em;
-  vertical-align: -0.34em;
+  grid-template-rows: auto 0.46em auto;
+  justify-items: center;
+  align-items: center;
+  min-width: calc(var(--arrow-note-chars, 2) * 0.94em + 0.85em);
+  margin: 0 0.2em;
+  vertical-align: middle;
   color: inherit;
-  line-height: 1;
   text-align: center;
+  text-indent: 0;
 }
 
 .inline-delete {
@@ -5949,11 +5949,10 @@ body.hidden-record-mode .hidden-record-banner {
   text-decoration-skip-ink: none;
 }
 
-.fraction-top,
-.fraction-bottom {
+.inline-stack-text {
   display: block;
-  padding: 0.06em 0.12em;
-  font-size: 0.72em;
+  padding: 0 0.12em;
+  font-size: 0.82em;
   line-height: 1.05;
   white-space: nowrap;
 }
@@ -5963,6 +5962,7 @@ body.hidden-record-mode .hidden-record-banner {
   width: 100%;
   min-width: 1.1em;
   height: 1px;
+  align-self: center;
   background: currentColor;
   opacity: 0.82;
 }

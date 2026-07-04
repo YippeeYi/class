@@ -42,7 +42,7 @@ function normalizeIllustrationPath(value) {
     if (/^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(path)) return "";
     const segments = path.split("/");
     if (segments.some((segment) => !segment || segment === "." || segment === "..")) return "";
-    if (!/^(?:data\/attachments|attachments?|attachment)\//i.test(path)) return "";
+    if (!/^data\/attachments\//i.test(path)) return "";
     const extension = segments.at(-1)?.split(".").pop()?.toLowerCase();
     return ILLUSTRATION_IMAGE_EXTENSIONS.has(extension) ? path : "";
 }
@@ -52,64 +52,163 @@ function getPersonDisplayNameById(id) {
     return stripRecordMarkup(person?.name || person?.alias || id).trim() || id;
 }
 
-function parseContent(text) {
+function findBalancedSquareEnd(source, start) {
+    let depth = 1;
+    for (let index = start + 2; index < source.length - 1; index += 1) {
+        if (source.startsWith("[[", index)) {
+            depth += 1;
+            index += 1;
+        } else if (source.startsWith("]]", index)) {
+            depth -= 1;
+            if (depth === 0) return index + 2;
+            index += 1;
+        }
+    }
+    return -1;
+}
+
+function findTopLevelSeparator(source, separator = "|") {
+    let depth = 0;
+    for (let index = 0; index <= source.length - separator.length; index += 1) {
+        if (source.startsWith("[[", index)) {
+            depth += 1;
+            index += 1;
+        } else if (source.startsWith("]]", index) && depth > 0) {
+            depth -= 1;
+            index += 1;
+        } else if (depth === 0 && source.startsWith(separator, index)) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+function splitTopLevelOnce(source, separator = "|") {
+    const index = findTopLevelSeparator(source, separator);
+    return index < 0 ? null : [source.slice(0, index), source.slice(index + separator.length)];
+}
+
+function parseInlineStack(top, bottom, kind, context) {
+    const topHtml = parseInlineMarkup(top, context);
+    const bottomHtml = parseInlineMarkup(bottom, context);
+    if (context.mode === "text") return `${topHtml} ${bottomHtml}`;
+    const width = Math.max(Array.from(parseInlineMarkup(top, { ...context, mode: "text" })).length, Array.from(parseInlineMarkup(bottom, { ...context, mode: "text" })).length, 2);
+    const middleClass = kind === "arrow" ? "record-arrow-note-line inline-stack-middle inline-stack-arrow" : "fraction-line inline-stack-middle inline-stack-fraction-line";
+    return `<span class="inline-stack ${kind === "arrow" ? "record-arrow-note inline-stack--arrow" : "inline-fraction inline-stack--fraction"}" style="--arrow-note-chars:${width}"><span class="inline-stack-text inline-stack-top ${kind === "arrow" ? "record-arrow-note-text" : "fraction-top"}">${topHtml}</span><span class="${middleClass}" aria-hidden="true"></span><span class="inline-stack-text inline-stack-bottom ${kind === "arrow" ? "record-arrow-note-text" : "fraction-bottom"}">${bottomHtml}</span></span>`;
+}
+
+function renderSquareMarkup(body, raw, context) {
+    const render = (value) => parseInlineMarkup(value, context);
+    const asText = context.mode === "text";
+    if (body.startsWith("del:")) {
+        const content = body.slice(4);
+        if (!content) return asText ? raw : escapeRecordText(raw);
+        const rendered = render(content);
+        return asText ? rendered : `<del class="inline-delete">${rendered}</del>`;
+    }
+
+    for (const type of ["record", "frac", "anno", "illu"]) {
+        const prefix = `${type}:`;
+        if (!body.startsWith(prefix)) continue;
+        const parts = splitTopLevelOnce(body.slice(prefix.length));
+        if (!parts || !parts[0] || !parts[1]) return asText ? raw : escapeRecordText(raw);
+        const [first, second] = parts;
+        if (type === "record") {
+            if (!/^[a-zA-Z0-9_-]+(?:\.json)?$/.test(first)) return asText ? render(second) : render(second);
+            const label = render(second);
+            return asText || context.disableRecordLinks ? label : `<button type="button" class="record-jump-link" data-record-jump="${first}" style="--record-jump-hue:${stableRecordJumpHue(first)}">${label}</button>`;
+        }
+        if (type === "frac") return parseInlineStack(first, second, "fraction", context);
+        if (type === "anno") {
+            const label = render(second);
+            if (asText) return label;
+            const note = parseInlineMarkup(first, { ...context, mode: "text" });
+            return `<span class="annotation" data-note="${escapeRecordAttribute(note)}" tabindex="0" role="button" aria-haspopup="true" aria-expanded="false">${label}</span>`;
+        }
+        const safePath = normalizeIllustrationPath(first);
+        const label = render(second);
+        if (asText || !safePath) return label;
+        return `<span class="inline-illustration" data-image-src="${escapeRecordAttribute(safePath)}" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false">${label}</span>`;
+    }
+
+    const personParts = splitTopLevelOnce(body);
+    if (personParts && /^[a-zA-Z0-9_-]+$/.test(personParts[0]) && personParts[1]) {
+        const label = render(personParts[1]);
+        return asText ? label : `<span class="person-tag" data-id="${personParts[0]}" title="${escapeRecordAttribute(getPersonDisplayNameById(personParts[0]))}">${label}</span>`;
+    }
+    return asText ? raw : escapeRecordText(raw);
+}
+
+function parseInlineMarkup(value, options = {}) {
+    const source = String(value ?? "");
+    const context = { mode: options.mode || "html", disableRecordLinks: Boolean(options.disableRecordLinks), depth: (options.depth || 0) + 1 };
+    if (context.depth > 32) return context.mode === "text" ? source : escapeRecordText(source);
+    let output = "";
+    for (let index = 0; index < source.length;) {
+        if (source.startsWith("[[", index)) {
+            const end = findBalancedSquareEnd(source, index);
+            if (end > 0) {
+                const raw = source.slice(index, end);
+                output += renderSquareMarkup(raw.slice(2, -2), raw, context);
+                index = end;
+                continue;
+            }
+        }
+        if (source.startsWith("->[", index)) {
+            const end = source.indexOf("]<-", index + 3);
+            if (end >= 0) {
+                const parts = splitTopLevelOnce(source.slice(index + 3, end), "||");
+                if (parts) {
+                    output += parseInlineStack(parts[0], parts[1], "arrow", context);
+                    index = end + 3;
+                    continue;
+                }
+            }
+        }
+        const paired = [
+            ["{{", "}}", "term"], ["((", "))", "redacted"], ["!!", "!!", "center"],
+            [">>", "<<", "right"], ["^", "^", "sup"], ["_", "_", "sub"]
+        ].find(([open]) => source.startsWith(open, index));
+        if (paired) {
+            const [open, close, type] = paired;
+            const end = source.indexOf(close, index + open.length);
+            if (end >= 0) {
+                const inner = source.slice(index + open.length, end);
+                let rendered = parseInlineMarkup(inner, context);
+                if (type === "term") {
+                    const parts = splitTopLevelOnce(inner);
+                    if (parts && /^[a-zA-Z0-9_-]+$/.test(parts[0]) && parts[1]) {
+                        rendered = parseInlineMarkup(parts[1], context);
+                        output += context.mode === "text" ? rendered : `<span class="term-tag" data-id="${parts[0]}">${rendered}</span>`;
+                        index = end + close.length;
+                        continue;
+                    }
+                } else {
+                    if (context.mode === "text") output += rendered;
+                    else if (type === "redacted") output += `<span class="redacted"><span class="redacted-mask"></span><span class="redacted-content">${rendered}</span></span>`;
+                    else if (type === "center") output += `<span class="record-center-line">${rendered}</span>`;
+                    else if (type === "right") output += `<span class="record-align-right">${rendered}</span>`;
+                    else output += `<${type}>${rendered}</${type}>`;
+                    index = end + close.length;
+                    continue;
+                }
+            }
+        }
+        const character = source[index];
+        output += context.mode === "text" ? character : escapeRecordText(character);
+        index += 1;
+    }
+    return output;
+}
+
+function parseContent(text, options = {}) {
     if (!text) return "";
-
-    const protectedMarkup = [];
-    const protect = (html) => `\uE000${protectedMarkup.push(html) - 1}\uE001`;
-    const source = String(text)
-        .replace(/\[\[del:([^\]\r\n]+)\]\]/g, (_, content) => protect(
-            `<del class="inline-delete">${escapeRecordText(content)}</del>`
-        ))
-        .replace(/\[\[frac:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, (_, top, bottom) => protect(
-            `<span class="inline-fraction"><span class="fraction-top">${escapeRecordText(top)}</span><span class="fraction-line" aria-hidden="true"></span><span class="fraction-bottom">${escapeRecordText(bottom)}</span></span>`
-        ))
-        .replace(/\[\[anno:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, (_, note, label) => protect(
-            `<span class="annotation" data-note="${escapeRecordAttribute(note)}" tabindex="0" role="button" aria-haspopup="true" aria-expanded="false">${escapeRecordText(label)}</span>`
-        ))
-        .replace(/\[\[illu:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, (raw, imagePath, label) => {
-            const safePath = normalizeIllustrationPath(imagePath);
-            if (!safePath) return protect(escapeRecordText(label));
-            return protect(`<span class="inline-illustration" data-image-src="${escapeRecordAttribute(safePath)}" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false">${escapeRecordText(label)}</span>`);
-        });
-
-    const parsed = source
-        .replace(/!!(.+?)!!/g, (_, content) => `<span class="record-center-line">${content}</span>`)
-        .replace(/->\[(.+?)\|\|(.+?)\]<-/g, (_, top, bottom) => {
-            // 答题挖空会注入 span；箭头宽度只按可见文字计算，不能把标签字符算进去。
-            const visibleLength = (value) => Array.from(stripRecordMarkup(value).replace(/<[^>]*>/g, "")).length;
-            const width = Math.max(visibleLength(top), visibleLength(bottom), 2);
-            return `<span class="record-arrow-note" style="--arrow-note-chars:${width}"><span class="record-arrow-note-text">${top}</span><span class="record-arrow-note-line" aria-hidden="true"></span><span class="record-arrow-note-text">${bottom}</span></span>`;
-        })
-        // 记录跳转语法：[[record:JSON文件名|显示文字]]，文件名可省略 .json。
-        .replace(/\[\[record:([a-zA-Z0-9_-]+(?:\.json)?)\|(.+?)\]\]/g, (_, fileName, label) => `<button type="button" class="record-jump-link" data-record-jump="${fileName}" style="--record-jump-hue:${stableRecordJumpHue(fileName)}">${label}</button>`)
-        .replace(/\{\{([a-zA-Z0-9_-]+)\|(.+?)\}\}/g, (_, id, label) => `<span class="term-tag" data-id="${id}">${label}</span>`)
-        .replace(/\[\[([a-zA-Z0-9_-]+)\|(.+?)\]\]/g, (_, id, label) => `<span class="person-tag" data-id="${id}" title="${escapeRecordAttribute(getPersonDisplayNameById(id))}">${label}</span>`)
-        .replace(/\(\((.+?)\)\)/g, (_, content) => `<span class="redacted"><span class="redacted-mask"></span><span class="redacted-content">${content}</span></span>`)
-        .replace(/>>(.+?)<</g, (_, value) => `<span class="record-align-right">${value}</span>`)
-        .replace(/\^(.+?)\^/g, (_, value) => `<sup>${value}</sup>`)
-        .replace(/_(.+?)_/g, (_, value) => `<sub>${value}</sub>`);
-
-    return parsed.replace(/\uE000(\d+)\uE001/g, (token, index) => protectedMarkup[Number(index)] ?? token);
+    return parseInlineMarkup(text, options);
 }
 
 function stripRecordMarkup(text) {
     if (!text) return "";
-
-    return text
-        .replace(/!!(.+?)!!/g, "$1")
-        .replace(/->\[(.+?)\|\|(.+?)\]<-/g, "$1 $2")
-        .replace(/\[\[del:([^\]\r\n]+)\]\]/g, "$1")
-        .replace(/\[\[frac:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, "$1 $2")
-        .replace(/\[\[anno:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, "$2")
-        .replace(/\[\[illu:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, "$2")
-        .replace(/\[\[record:([a-zA-Z0-9_-]+(?:\.json)?)\|(.+?)\]\]/g, "$2")
-        .replace(/\{\{([a-zA-Z0-9_-]+)\|(.+?)\}\}/g, "$2")
-        .replace(/\[\[([a-zA-Z0-9_-]+)\|(.+?)\]\]/g, "$2")
-        .replace(/\(\((.+?)\)\)/g, "$1")
-        .replace(/>>(.+?)<</g, "$1")
-        .replace(/\^(.+?)\^/g, "$1")
-        .replace(/_(.+?)_/g, "$1");
+    return parseInlineMarkup(text, { mode: "text" });
 }
 
 window.stripRecordMarkup = stripRecordMarkup;
@@ -152,11 +251,17 @@ function getRecordSearchText(record) {
     return normalizeSearchText(record.content || "");
 }
 
-function formatContent(text) {
+function formatContent(text, options = {}) {
     return String(text || "")
         .split(/\n\s*\n/g)
-        .map((paragraph) => `<span class="record-paragraph">${parseContent(paragraph).replace(/\n/g, "<br>")}</span>`)
+        .map((paragraph) => `<span class="record-paragraph">${parseContent(paragraph, options).replace(/\n/g, "<br>")}</span>`)
         .join("");
+}
+
+function formatTrustedContent(text, options = {}) {
+    const trustedTags = [];
+    const protectedText = String(text || "").replace(/<\/span>|<span>|<span class="quiz-[a-zA-Z0-9 _-]+"(?: style="--blank-chars:\d+")?>/g, (tag) => `\uE100${trustedTags.push(tag) - 1}\uE101`);
+    return formatContent(protectedText, options).replace(/\uE100(\d+)\uE101/g, (token, index) => trustedTags[Number(index)] ?? token);
 }
 
 function sortRecords(records) {

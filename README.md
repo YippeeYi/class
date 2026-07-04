@@ -65,6 +65,9 @@ http://localhost:8000/index.html
 
 删除线使用 `[[del:被删除文字]]`，正文会保留文字并以内联删除线显示。
 
+上述 `[[...]]` 标记使用平衡括号递归解析，参数中的嵌套标记会继续渲染；普通文本默认进行
+HTML 转义。插图路径严格限制在 `data/attachments/` 目录。
+
 ## Supabase 密钥设置
 
 完整 SQL 见 `docs/supabase-setup.sql`。核心机制：

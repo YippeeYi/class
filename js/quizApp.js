@@ -81,10 +81,6 @@
     return `<span class="quiz-answer-blank${revealed ? ' is-revealed' : ''}" style="--blank-chars:${width}"><span>${escapeHtml(answer)}</span></span>`;
   }
 
-  function stripQuizRecordJumpMarkup(text) {
-    return String(text || '').replace(/\[\[record:[a-zA-Z0-9_-]+(?:\.json)?\|(.+?)\]\]/g, '$1');
-  }
-
   function renderRecordWithBlank(recordText, answer, revealed = false) {
     if (recordText.includes(answer)) {
       return recordText.replace(answer, blankHtml(answer, revealed));
@@ -176,7 +172,7 @@
     }
 
     const shouldBlankRecord = (currentQuestion.type === 'choice' || currentQuestion.type === 'fill') && ['person', 'term'].includes(currentQuestion.content);
-    const recordText = stripQuizRecordJumpMarkup(currentQuestion.recordText);
+    const recordText = currentQuestion.recordText;
     let recordHtml = recordText;
     if (shouldBlankRecord) {
       recordHtml = renderRecordWithBlank(recordText, currentQuestion.answer, revealed);
@@ -185,7 +181,7 @@
     }
     questionText.innerHTML = `
       <span class="quiz-question-prompt">${escapeHtml(currentQuestion.prompt)}</span>
-      <span class="quiz-question-record${shouldBlankRecord ? ' has-answer-blank' : ''}">${formatContent(recordHtml)}</span>
+      <span class="quiz-question-record${shouldBlankRecord ? ' has-answer-blank' : ''}">${formatTrustedContent(recordHtml, { disableRecordLinks: true })}</span>
       ${renderSideBox(currentQuestion, revealed)}
     `;
   }
@@ -200,19 +196,11 @@
   }
 
   function buildPlainText(record) {
-    return stripQuizRecordJumpMarkup(record.content)
-      .replace(/\{\{([a-zA-Z0-9_-]+)\|(.+?)\}\}/g, '$2')
-      .replace(/\[\[([a-zA-Z0-9_-]+)\|(.+?)\]\]/g, '$2')
-      .replace(/\(\((.+?)\)\)/g, '$1')
-      .replace(/>>(.+?)<</g, '$1')
-      .replace(/\^(.+?)\^/g, '$1')
-      .replace(/_(.+?)_/g, '$1');
+    return window.stripRecordMarkup(record.content);
   }
 
   function buildDisplayText(record) {
-    return stripQuizRecordJumpMarkup(record.content)
-      .replace(/\{\{([a-zA-Z0-9_-]+)\|(.+?)\}\}/g, '$2')
-      .replace(/\[\[([a-zA-Z0-9_-]+)\|(.+?)\]\]/g, '$2');
+    return window.stripRecordMarkup(record.content);
   }
 
   function extractTokenRefs(text, kind) {
