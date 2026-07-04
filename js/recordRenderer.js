@@ -25,6 +25,15 @@ function escapeRecordAttribute(value) {
         .replace(/>/g, "&gt;");
 }
 
+function escapeRecordText(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
 function getPersonDisplayNameById(id) {
     const person = window.PeopleStore?.people?.find((item) => item.id === id);
     return stripRecordMarkup(person?.name || person?.alias || id).trim() || id;
@@ -33,7 +42,17 @@ function getPersonDisplayNameById(id) {
 function parseContent(text) {
     if (!text) return "";
 
-    return text
+    const protectedMarkup = [];
+    const protect = (html) => `\uE000${protectedMarkup.push(html) - 1}\uE001`;
+    const source = String(text)
+        .replace(/\[\[frac:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, (_, top, bottom) => protect(
+            `<span class="inline-fraction"><span class="fraction-top">${escapeRecordText(top)}</span><span class="fraction-line" aria-hidden="true"></span><span class="fraction-bottom">${escapeRecordText(bottom)}</span></span>`
+        ))
+        .replace(/\[\[anno:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, (_, note, label) => protect(
+            `<span class="annotation" data-note="${escapeRecordAttribute(note)}" tabindex="0" role="button" aria-haspopup="true" aria-expanded="false">${escapeRecordText(label)}</span>`
+        ));
+
+    const parsed = source
         .replace(/!!(.+?)!!/g, (_, content) => `<span class="record-center-line">${content}</span>`)
         .replace(/->\[(.+?)\|\|(.+?)\]<-/g, (_, top, bottom) => {
             // 答题挖空会注入 span；箭头宽度只按可见文字计算，不能把标签字符算进去。
@@ -49,6 +68,8 @@ function parseContent(text) {
         .replace(/>>(.+?)<</g, (_, value) => `<span class="record-align-right">${value}</span>`)
         .replace(/\^(.+?)\^/g, (_, value) => `<sup>${value}</sup>`)
         .replace(/_(.+?)_/g, (_, value) => `<sub>${value}</sub>`);
+
+    return parsed.replace(/\uE000(\d+)\uE001/g, (token, index) => protectedMarkup[Number(index)] ?? token);
 }
 
 function stripRecordMarkup(text) {
@@ -57,6 +78,8 @@ function stripRecordMarkup(text) {
     return text
         .replace(/!!(.+?)!!/g, "$1")
         .replace(/->\[(.+?)\|\|(.+?)\]<-/g, "$1 $2")
+        .replace(/\[\[frac:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, "$1 $2")
+        .replace(/\[\[anno:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, "$2")
         .replace(/\[\[record:([a-zA-Z0-9_-]+(?:\.json)?)\|(.+?)\]\]/g, "$2")
         .replace(/\{\{([a-zA-Z0-9_-]+)\|(.+?)\}\}/g, "$2")
         .replace(/\[\[([a-zA-Z0-9_-]+)\|(.+?)\]\]/g, "$2")
@@ -653,7 +676,80 @@ function removeTooltip(immediate = false) {
     }
 }
 
+let activeAnnotation = null;
+let activeAnnotationTooltip = null;
+
+function removeAnnotationTooltip() {
+    activeAnnotation?.setAttribute("aria-expanded", "false");
+    activeAnnotationTooltip?.remove();
+    activeAnnotation = null;
+    activeAnnotationTooltip = null;
+}
+
+function positionAnnotationTooltip(tag, pointerEvent) {
+    if (!activeAnnotationTooltip) return;
+    const tagRect = tag.getBoundingClientRect();
+    const tooltipRect = activeAnnotationTooltip.getBoundingClientRect();
+    const padding = 12;
+    const gap = 9;
+    const pointerX = Number.isFinite(pointerEvent?.clientX) ? pointerEvent.clientX : tagRect.left + tagRect.width / 2;
+    const left = clamp(pointerX - tooltipRect.width / 2, padding, Math.max(padding, window.innerWidth - tooltipRect.width - padding));
+    let top = tagRect.bottom + gap;
+    if (top + tooltipRect.height > window.innerHeight - padding) top = tagRect.top - tooltipRect.height - gap;
+    top = clamp(top, padding, Math.max(padding, window.innerHeight - tooltipRect.height - padding));
+    activeAnnotationTooltip.style.left = `${left}px`;
+    activeAnnotationTooltip.style.top = `${top}px`;
+}
+
+function showAnnotationTooltip(tag, event) {
+    if (!tag || (activeAnnotation === tag && activeAnnotationTooltip)) return;
+    removeAnnotationTooltip();
+    const tooltip = document.createElement("div");
+    tooltip.className = "annotation-tooltip";
+    tooltip.setAttribute("role", "tooltip");
+    tooltip.textContent = tag.dataset.note || "";
+    document.body.appendChild(tooltip);
+    activeAnnotation = tag;
+    activeAnnotationTooltip = tooltip;
+    tag.setAttribute("aria-expanded", "true");
+    positionAnnotationTooltip(tag, event);
+    requestAnimationFrame(() => tooltip.classList.add("show"));
+}
+
+document.addEventListener("pointerover", (event) => {
+    if (event.pointerType === "touch") return;
+    const tag = event.target.closest(".annotation");
+    if (tag) showAnnotationTooltip(tag, event);
+});
+
+document.addEventListener("pointerout", (event) => {
+    if (event.pointerType === "touch") return;
+    const tag = event.target.closest(".annotation");
+    if (tag && !tag.contains(event.relatedTarget)) removeAnnotationTooltip();
+});
+
+document.addEventListener("focusin", (event) => {
+    const tag = event.target.closest(".annotation");
+    if (tag?.matches(":focus-visible")) showAnnotationTooltip(tag);
+});
+
+document.addEventListener("focusout", (event) => {
+    if (event.target.closest(".annotation")) removeAnnotationTooltip();
+});
+
+window.addEventListener("resize", removeAnnotationTooltip);
+window.addEventListener("scroll", removeAnnotationTooltip, true);
+
 document.addEventListener("click", (event) => {
+    const annotation = event.target.closest(".annotation");
+    if (annotation) {
+        event.preventDefault();
+        if (activeAnnotation === annotation && activeAnnotationTooltip) removeAnnotationTooltip();
+        else showAnnotationTooltip(annotation, event);
+        return;
+    }
+    if (activeAnnotationTooltip) removeAnnotationTooltip();
+
     const tooltip = event.target.closest(".term-tooltip");
     if (tooltip && activeTermId) {
         const href = `term.html?id=${activeTermId}`;

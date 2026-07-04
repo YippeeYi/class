@@ -5857,3 +5857,75 @@ body.hidden-record-mode .hidden-record-banner {
 .timeline-months:empty {
   display: none;
 }
+
+.inline-fraction {
+  display: inline-grid;
+  grid-template-rows: auto 1px auto;
+  min-width: max-content;
+  margin: 0 0.14em;
+  padding: 0 0.12em;
+  vertical-align: -0.34em;
+  color: inherit;
+  line-height: 1;
+  text-align: center;
+}
+
+.fraction-top,
+.fraction-bottom {
+  display: block;
+  padding: 0.06em 0.12em;
+  font-size: 0.72em;
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+.fraction-line {
+  display: block;
+  width: 100%;
+  min-width: 1.1em;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.82;
+}
+
+.annotation {
+  display: inline;
+  border-bottom: 1.5px dotted color-mix(in srgb, var(--theme-accent-strong) 62%, var(--text-main));
+  cursor: help;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.annotation:hover,
+.annotation:focus-visible,
+.annotation[aria-expanded="true"] {
+  border-bottom-color: var(--theme-accent-strong);
+  background: color-mix(in srgb, var(--theme-accent) 13%, transparent);
+  outline: none;
+}
+
+.annotation-tooltip {
+  position: fixed;
+  z-index: 10000;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 24px));
+  padding: 10px 12px;
+  border: var(--panel-border);
+  border-radius: 10px;
+  background: var(--tooltip-bg);
+  box-shadow: var(--tooltip-shadow);
+  backdrop-filter: blur(10px);
+  color: var(--text-main);
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(5px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.annotation-tooltip.show {
+  opacity: 1;
+  transform: translateY(0);
+}

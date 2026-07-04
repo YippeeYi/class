@@ -166,18 +166,27 @@
     }
 
     function getAuthorColor(id) {
-        if (id === '__other__') return 'hsl(326 70% 64%)';
-        return authorColorMap.get(id) || 'hsl(218 70% 62%)';
+        if (id === '__other__') return '#7c8799';
+        return authorColorMap.get(id) || '#3978d4';
     }
 
     function buildAuthorColor(index) {
-        // 基础色相覆盖红、橙、黄、绿、青、蓝、紫、粉，并保持足够间距。
-        const hues = [4, 38, 62, 132, 178, 218, 270, 326];
-        const ring = Math.floor(index / hues.length);
-        const hue = (hues[index % hues.length] + ring * 14) % 360;
-        const saturation = [72, 66, 75][ring % 3];
-        const lightness = [62, 68, 58][Math.floor(ring / 3) % 3];
-        return `hsl(${hue} ${saturation}% ${lightness}%)`;
+        const palette = [
+            '#3978d4', '#e56b36', '#2ca46f', '#d84f91',
+            '#16a6b6', '#d94b4b', '#7b61d1', '#d5a51f',
+            '#2369a8', '#ef8f2f', '#238b57', '#b946a8'
+        ];
+        if (index < palette.length) return palette[index];
+        const generatedIndex = index - palette.length;
+        const hue = (205 + generatedIndex * 137.508) % 360;
+        const saturation = 66 + (generatedIndex % 3) * 5;
+        const lightness = generatedIndex % 2 ? 58 : 52;
+        return `hsl(${hue.toFixed(1)} ${saturation}% ${lightness}%)`;
+    }
+
+    function getPieColor(id, index, type) {
+        if (id === '__other__') return getAuthorColor(id);
+        return isSummaryPieType(type) ? buildAuthorColor(index) : getAuthorColor(id);
     }
 
     function isSummaryPieType(type) {
@@ -215,24 +224,24 @@
         return `M 50 50 L ${start.x.toFixed(4)} ${start.y.toFixed(4)} A 49 49 0 ${largeArc} 1 ${end.x.toFixed(4)} ${end.y.toFixed(4)} Z`;
     }
 
-    function renderAuthorPieSvg(entries, total, { compact = false } = {}) {
+    function renderAuthorPieSvg(entries, total, { compact = false, type = 'daily' } = {}) {
         if (!total) return '';
         if (entries.length === 1) {
-            return `<svg class="timeline-pie-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="49" fill="${getAuthorColor(entries[0][0])}" stroke="white" stroke-width="${compact ? 0.55 : 1.2}" vector-effect="non-scaling-stroke"></circle></svg>`;
+            return `<svg class="timeline-pie-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="49" fill="${getPieColor(entries[0][0], 0, type)}" stroke="white" stroke-width="${compact ? 0.55 : 1.2}" vector-effect="non-scaling-stroke"></circle></svg>`;
         }
         let angle = 0;
         const paths = entries.map(([id, count], index) => {
             const start = angle;
             angle = index === entries.length - 1 ? 360 : angle + count / total * 360;
-            return `<path d="${getPieSlicePath(start, angle)}" fill="${getAuthorColor(id)}" stroke="white" stroke-width="${compact ? 0.55 : 1.2}" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>`;
+            return `<path d="${getPieSlicePath(start, angle)}" fill="${getPieColor(id, index, type)}" stroke="white" stroke-width="${compact ? 0.55 : 1.2}" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>`;
         }).join('');
         return `<svg class="timeline-pie-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">${paths}</svg>`;
     }
 
     function renderAuthorLegend(recordList, className = 'timeline-author-legend', { showValues = true, type = 'daily' } = {}) {
         const { entries, total } = getAuthorDistribution(recordList, { type });
-        const legend = entries.map(([id, count]) => `
-            <li class="${showValues ? 'has-values' : ''}"><i style="--legend-color:${getAuthorColor(id)}"></i><span class="timeline-author-legend-name">${escapeHtml(getPersonLabel(id))}</span>${showValues ? `<span class="timeline-author-legend-count">${count} 条</span><span class="timeline-author-legend-percent">${formatPercent(count, total)}</span>` : ''}</li>
+        const legend = entries.map(([id, count], index) => `
+            <li class="${showValues ? 'has-values' : ''}"><i style="--legend-color:${getPieColor(id, index, type)}"></i><span class="timeline-author-legend-name">${escapeHtml(getPersonLabel(id))}</span>${showValues ? `<span class="timeline-author-legend-count">${count} 条</span><span class="timeline-author-legend-percent">${formatPercent(count, total)}</span>` : ''}</li>
         `).join('');
         return `<ul class="${className}">${legend || '<li class="is-empty">暂无可统计数据</li>'}</ul>`;
     }
@@ -243,7 +252,7 @@
             <section class="timeline-chart-card timeline-pie-card timeline-author-pie-card" aria-label="${escapeHtml(title)}">
                 <header><h3>${escapeHtml(title)}</h3><p>${total ? `${allEntries.length} 位记录人 · ${total} 条记录` : '暂无记录人数据'}</p></header>
                 <div class="timeline-author-pie-body">
-                    <div class="timeline-pie timeline-author-pie">${renderAuthorPieSvg(entries, total)}<strong>${total}</strong></div>
+                    <div class="timeline-pie timeline-author-pie">${renderAuthorPieSvg(entries, total, { type })}<strong>${total}</strong></div>
                     ${renderAuthorLegend(recordList, 'timeline-author-legend', { type })}
                 </div>
             </section>
