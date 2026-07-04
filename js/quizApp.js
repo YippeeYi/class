@@ -148,7 +148,7 @@
       ? renderJudgeCorrection(question.sideText, question.wrongText, question.correctText, revealed)
       : question.sideText;
     const sideClass = question.content === 'author' ? ' quiz-question-side--author' : '';
-    return `<span class="quiz-question-side${sideClass}"><span class="quiz-side-label">${escapeHtml(question.sideLabel || '')}</span><span class="quiz-side-value">${formatContent(valueHtml)}</span></span>`;
+    return `<span class="quiz-question-side${sideClass}"><span class="quiz-side-label">${escapeHtml(question.sideLabel || '')}</span><span class="quiz-side-value">${formatTrustedContent(valueHtml)}</span></span>`;
   }
 
   function renderQuestionBody(revealed = false) {
