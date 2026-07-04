@@ -63,6 +63,8 @@ http://localhost:8000/index.html
 项目内附件插图可使用 `[[illu:data/attachments/example.png|被标记文字]]`。悬浮、键盘聚焦或
 触屏点击被标记文字时会显示图片预览；路径仅允许附件目录中的常见图片格式。
 
+删除线使用 `[[del:被删除文字]]`，正文会保留文字并以内联删除线显示。
+
 ## Supabase 密钥设置
 
 完整 SQL 见 `docs/supabase-setup.sql`。核心机制：

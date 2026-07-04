@@ -58,6 +58,9 @@ function parseContent(text) {
     const protectedMarkup = [];
     const protect = (html) => `\uE000${protectedMarkup.push(html) - 1}\uE001`;
     const source = String(text)
+        .replace(/\[\[del:([^\]\r\n]+)\]\]/g, (_, content) => protect(
+            `<del class="inline-delete">${escapeRecordText(content)}</del>`
+        ))
         .replace(/\[\[frac:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, (_, top, bottom) => protect(
             `<span class="inline-fraction"><span class="fraction-top">${escapeRecordText(top)}</span><span class="fraction-line" aria-hidden="true"></span><span class="fraction-bottom">${escapeRecordText(bottom)}</span></span>`
         ))
@@ -96,6 +99,7 @@ function stripRecordMarkup(text) {
     return text
         .replace(/!!(.+?)!!/g, "$1")
         .replace(/->\[(.+?)\|\|(.+?)\]<-/g, "$1 $2")
+        .replace(/\[\[del:([^\]\r\n]+)\]\]/g, "$1")
         .replace(/\[\[frac:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, "$1 $2")
         .replace(/\[\[anno:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, "$2")
         .replace(/\[\[illu:([^|\]\r\n]+)\|([^\]\r\n]+)\]\]/g, "$2")

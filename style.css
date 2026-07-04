@@ -4664,8 +4664,8 @@ body>.archive-tool-shell {
 }
 
 .timeline-pie-svg--daily .timeline-pie-slice.is-highlighted {
-  transform: scale(1.09);
-  filter: brightness(1.16) saturate(1.12) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.28));
+  transform: scale(1.14);
+  filter: brightness(1.18) saturate(1.14) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
 
 .timeline-pie strong {
@@ -4748,14 +4748,17 @@ body>.archive-tool-shell {
   height: 9px;
   border-radius: 50%;
   background: var(--legend-color);
-  transition: transform 180ms ease-out, box-shadow 180ms ease-out;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, white 24%, transparent);
+  transition: filter 180ms ease-out, box-shadow 180ms ease-out;
 }
 
 .timeline-author-legend li[data-pie-legend-item]:hover i,
 .timeline-author-legend li[data-pie-legend-item]:focus-visible i,
 .timeline-author-legend li[data-pie-legend-item].is-active i {
-  transform: scale(1.18);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--legend-color) 22%, transparent);
+  filter: brightness(1.18) saturate(1.12);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, white 46%, transparent),
+    inset 0 0 0 3px color-mix(in srgb, var(--legend-color) 72%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -5935,6 +5938,15 @@ body.hidden-record-mode .hidden-record-banner {
   color: inherit;
   line-height: 1;
   text-align: center;
+}
+
+.inline-delete {
+  display: inline;
+  color: inherit;
+  text-decoration-line: line-through;
+  text-decoration-color: color-mix(in srgb, currentColor 82%, transparent);
+  text-decoration-thickness: 0.08em;
+  text-decoration-skip-ink: none;
 }
 
 .fraction-top,
