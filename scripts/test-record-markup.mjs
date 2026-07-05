@@ -44,7 +44,7 @@ const peopleContext = vm.createContext({
     window: { cacheReadyPromise: new Promise(() => {}) }
 });
 const peopleSource = await readFile(new URL('../js/people.js', import.meta.url), 'utf8');
-vm.runInContext(`${peopleSource}\nthis.sortPeopleForTest = sortPeople;`, peopleContext);
+vm.runInContext(`${peopleSource}\nthis.sortPeopleForTest = sortPeople; this.getPeopleColumnsForTest = getPeopleTableColumns;`, peopleContext);
 
 const cases = [
     ['[[del:[[record:file-name|显示文字]]]]', ['inline-delete', 'record-jump-link']],
@@ -116,5 +116,8 @@ assert.equal(
     ], { key: 'subject', order: 'desc', mainFirst: true }, 'teacher').map((item) => item.id).join(','),
     'main-math,main-chinese,normal-chem,normal-physics'
 );
+assert.equal(peopleContext.getPeopleColumnsForTest('student').map((column) => column.label).join(','), '序号,姓名,别名,参与,记录');
+assert.equal(peopleContext.getPeopleColumnsForTest('teacher').map((column) => column.label).join(','), '序号,姓名,别名,参与,学科');
+assert.equal(peopleContext.getPeopleColumnsForTest('other').map((column) => column.label).join(','), '序号,姓名,别名,参与');
 
-console.log(`Passed ${cases.length + 29} markup, people, and timeline checks.`);
+console.log(`Passed ${cases.length + 32} markup, people, and timeline checks.`);

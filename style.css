@@ -1196,14 +1196,18 @@ body>#glossary-list {
   transition: background-color 0.18s ease, transform 0.18s ease;
 }
 
-.people-table tbody tr::before {
+.people-table tbody tr>td {
+  position: relative;
+}
+
+.people-table tbody tr>td::before {
   content: "";
   position: absolute;
   z-index: 3;
   top: 0;
   right: 0;
   left: 0;
-  height: 3px;
+  height: 2px;
   pointer-events: none;
   background: var(--table-row-hover-edge);
   opacity: 0;
@@ -1218,7 +1222,7 @@ body>#glossary-list {
   transform: translateY(-1px);
 }
 
-.people-table tbody tr:hover::before {
+.people-table tbody tr:hover>td::before {
   opacity: 1;
   transform: scaleY(1);
 }

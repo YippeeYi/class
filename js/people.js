@@ -63,6 +63,18 @@ function getPersonDisplayName(person) {
     return String(person?.name || person?.alias || person?.id || "").trim();
 }
 
+function getPeopleTableColumns(role) {
+    const columns = [
+        { label: "序号", render: (_person, index) => String(index + 1) },
+        { label: "姓名", render: (person) => parseContent(getPersonDisplayName(person)) || "-" },
+        { label: "别名", render: (person) => parseContent(person.alias) || "-" },
+        { label: "参与", render: (person) => String(countAsParticipant(person.id)) }
+    ];
+    if (role === "student") columns.push({ label: "记录", render: (person) => String(countAsAuthor(person.id)) });
+    if (role === "teacher") columns.push({ label: "学科", render: (person) => parseContent(person.subject || "") || "—" });
+    return columns;
+}
+
 /* ===============================
    按角色分组渲染
    =============================== */
@@ -87,9 +99,7 @@ function renderPeopleSection(role, { initial = false } = {}) {
         const section = document.createElement("section");
         section.className = "people-section";
         section.dataset.role = role;
-        const roleSpecificHeader = role === "student"
-            ? "<th>记录</th>"
-            : role === "teacher" ? "<th>学科</th>" : "";
+        const columns = getPeopleTableColumns(role);
         const sortButtons = roleSortOptions[role].map(([key, label]) => `
             <button type="button" class="btn-action sort-option people-sort-option${state.key === key ? " is-active" : ""}" data-role="${role}" data-sort-key="${key}">${label}</button>
         `).join("");
@@ -114,22 +124,13 @@ function renderPeopleSection(role, { initial = false } = {}) {
       <table class="people-table">
         <thead>
           <tr>
-            <th>序号</th>
-            <th>姓名</th>
-            <th>别名</th>
-            <th>参与</th>
-            ${roleSpecificHeader}
+            ${columns.map((column) => `<th>${column.label}</th>`).join("")}
           </tr>
         </thead>
         <tbody>
           ${list.map((p, i) => `
             <tr data-id="${p.id}" class="${role === "teacher" && p.main === true ? "people-row-main-teacher" : ""}">
-              <td>${i + 1}</td>
-              <td>${parseContent(getPersonDisplayName(p)) || "-"}</td>
-              <td>${parseContent(p.alias) || "-"}</td>
-              <td>${countAsParticipant(p.id)}</td>
-              ${role === "student" ? `<td>${countAsAuthor(p.id)}</td>` : ""}
-              ${role === "teacher" ? `<td>${parseContent(p.subject || "") || "—"}</td>` : ""}
+              ${columns.map((column) => `<td>${column.render(p, i)}</td>`).join("")}
             </tr>
           `).join("")}
         </tbody>
