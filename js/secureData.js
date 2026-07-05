@@ -238,6 +238,9 @@
                 id: row.person_id || raw.id || raw.name || `person-${index + 1}`,
                 name: row.name || raw.name || raw.displayName || raw.display_name || '',
                 aliases: Array.isArray(row.aliases) ? row.aliases : (Array.isArray(raw.aliases) ? raw.aliases : []),
+                alias: row.alias || raw.alias || '',
+                role: row.role || raw.role || 'student',
+                subject: row.subject ?? raw.subject ?? '',
                 bio: row.bio || raw.bio || '',
                 avatarUrl: row.avatar_url || raw.avatarUrl || raw.avatar || '',
             };

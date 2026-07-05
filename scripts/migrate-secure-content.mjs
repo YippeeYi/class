@@ -307,6 +307,7 @@ const importPeople = async () => {
             alias: raw.alias || aliases.join(', '),
             aliases,
             role: raw.role || 'student',
+            subject: raw.subject == null || raw.subject === '' ? null : String(raw.subject),
             bio: raw.bio || '',
             sort_order: index,
             raw

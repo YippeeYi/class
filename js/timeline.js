@@ -1,3 +1,13 @@
+function buildFixedTimelineChartScale(maxValue, baseMax, step) {
+    const safeStep = Math.max(1, Number(step) || 1);
+    const safeBaseMax = Math.max(safeStep, Number(baseMax) || safeStep);
+    const dataMax = Math.max(0, Number(maxValue) || 0);
+    const scaleMax = dataMax > safeBaseMax ? Math.ceil(dataMax / safeStep) * safeStep : safeBaseMax;
+    return Array.from({ length: Math.round(scaleMax / safeStep) + 1 }, (_, index) => scaleMax - safeStep * index);
+}
+
+window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
+
 (() => {
     const overview = document.getElementById('timeline-overview');
     const yearsWrap = document.getElementById('timeline-years');
@@ -76,13 +86,14 @@
     }
 
     function extractPeople(record) {
-        const ids = new Set(extractIds(record, /\[\[([a-zA-Z0-9_-]+)\|.+?\]\]/g));
-        if (record.author) ids.add(record.author);
-        return [...ids].filter(isKnownPersonId);
+        return extractMentionedPersonIds(record.content || '').filter(isKnownPersonId);
     }
 
     function extractTerms(record) {
-        return extractIds(record, /\{\{([a-zA-Z0-9_-]+)\|.+?\}\}/g);
+        return [...new Set([
+            ...extractIds(record, /\[\[term:([a-zA-Z0-9_-]+)\|/g),
+            ...extractIds(record, /\{\{([a-zA-Z0-9_-]+)\|.+?\}\}/g)
+        ])];
     }
 
     function getPersonLabel(id) {
@@ -137,13 +148,14 @@
         const niceMax = Math.max(niceStep * safeSteps, Math.ceil(rawMax / (niceStep * safeSteps)) * niceStep * safeSteps);
         return Array.from({ length: safeSteps + 1 }, (_, index) => Math.round((niceMax - niceStep * index) * 100) / 100);
     }
-    function renderChartScale(maxValue) {
-        return `<div class="timeline-chart-scale" aria-hidden="true">${chartScale(maxValue).map((value) => `<span>${Math.round(value)}</span>`).join('')}</div>`;
+    function renderChartScale(values) {
+        return `<div class="timeline-chart-scale" aria-hidden="true">${values.map((value) => `<span>${Math.round(value)}</span>`).join('')}</div>`;
     }
 
-    function renderBarChart(items, { title, label = '', valueSuffix = '', full = false, dataKey = '' } = {}) {
+    function renderBarChart(items, { title, label = '', valueSuffix = '', full = false, dataKey = '', fixedMax = 0, fixedStep = 0 } = {}) {
         const maxValue = Math.max(0, ...items.map((item) => Number(item.value) || 0));
-        const scaleMax = chartScale(maxValue)[0] || 1;
+        const scaleValues = fixedMax && fixedStep ? buildFixedTimelineChartScale(maxValue, fixedMax, fixedStep) : chartScale(maxValue);
+        const scaleMax = scaleValues[0] || 1;
         const bars = items.map((item) => {
             const value = Number(item.value) || 0;
             const height = Math.max(value ? 8 : 2, Math.round(value / scaleMax * 100));
@@ -160,7 +172,7 @@
             <section class="timeline-chart-card timeline-bar-card${full ? ' timeline-chart-card--full' : ''}" aria-label="${escapeHtml(title || '柱形图')}">
                 <header><h3>${escapeHtml(title || '柱形图')}</h3>${label ? `<p>${escapeHtml(label)}</p>` : ''}</header>
                 <div class="timeline-chart-plot">
-                    ${renderChartScale(maxValue)}
+                    ${renderChartScale(scaleValues)}
                     <div class="timeline-chart-bars">${bars}</div>
                 </div>
             </section>
@@ -389,7 +401,7 @@
             </div>
             <div class="timeline-chart-grid timeline-chart-grid--overview">
                 ${renderAuthorPie(records, '整体记录人占比', 'overall')}
-                ${renderBarChart(monthTrend, { title: '月度记录柱形图', valueSuffix: ' 条', dataKey: 'month' })}
+                ${renderBarChart(monthTrend, { title: '月度记录柱形图', valueSuffix: ' 条', dataKey: 'month', fixedMax: 100, fixedStep: 25 })}
             </div>
         `;
     }
@@ -507,7 +519,7 @@
                 <article><span>平均正文</span><strong>${avgLength} 字</strong></article>
             </section>
             <div class="timeline-chart-grid">
-                ${renderBarChart(daySeries, { title: '每日记录柱形图', valueSuffix: ' 条', full: true, dataKey: 'day' })}
+                ${renderBarChart(daySeries, { title: '每日记录柱形图', valueSuffix: ' 条', full: true, dataKey: 'day', fixedMax: 12, fixedStep: 3 })}
             </div>
             <section class="timeline-insight-card timeline-calendar-card">
                 <header class="timeline-calendar-head">

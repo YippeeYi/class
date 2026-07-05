@@ -103,6 +103,60 @@ function splitTopLevelOnce(source, separator = "|") {
     return index < 0 ? null : [source.slice(0, index), source.slice(index + separator.length)];
 }
 
+function extractMentionedPersonIds(value) {
+    const ids = new Set();
+    const binaryTypes = new Set(["person", "term", "record", "frac", "anno", "illu", "arrow"]);
+    const unaryTypes = new Set(["del", "under", "red", "hide", "sup", "sub", "center", "right"]);
+
+    const visit = (input, depth = 0) => {
+        if (depth > 32) return;
+        const source = String(input ?? "");
+        for (let index = 0; index < source.length;) {
+            if (isEscapedMarkupCharacter(source, index) || !source.startsWith("[[", index)) {
+                index += 1;
+                continue;
+            }
+            const end = findBalancedSquareEnd(source, index);
+            if (end < 0) {
+                index += 2;
+                continue;
+            }
+            const body = source.slice(index + 2, end - 2);
+            const colon = body.indexOf(":");
+            const type = colon > 0 ? body.slice(0, colon) : "";
+
+            if (type === "person") {
+                const parts = splitTopLevelOnce(body.slice(colon + 1));
+                if (parts && /^[a-zA-Z0-9_-]+$/.test(parts[0]) && parts[1]) {
+                    ids.add(parts[0]);
+                    visit(parts[1], depth + 1);
+                }
+            } else if (unaryTypes.has(type)) {
+                const content = body.slice(colon + 1);
+                if (content) visit(content, depth + 1);
+            } else if (binaryTypes.has(type)) {
+                const parts = splitTopLevelOnce(body.slice(colon + 1));
+                if (parts && parts[0] && parts[1]) {
+                    if (type === "frac" || type === "arrow" || type === "anno") visit(parts[0], depth + 1);
+                    visit(parts[1], depth + 1);
+                }
+            } else {
+                const legacyPerson = splitTopLevelOnce(body);
+                if (legacyPerson && /^[a-zA-Z0-9_-]+$/.test(legacyPerson[0]) && legacyPerson[1]) {
+                    ids.add(legacyPerson[0]);
+                    visit(legacyPerson[1], depth + 1);
+                }
+            }
+            index = end;
+        }
+    };
+
+    visit(value);
+    return [...ids];
+}
+
+window.extractMentionedPersonIds = extractMentionedPersonIds;
+
 function parseInlineStack(top, bottom, kind, context) {
     const topHtml = parseInlineMarkup(top, context);
     const bottomHtml = parseInlineMarkup(bottom, context);

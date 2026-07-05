@@ -22,10 +22,6 @@ const escapeHtml = (value) => String(value || "")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-function escapeRegExp(value) {
-    return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function getActiveRecords() {
     const active = document.querySelector(".switch-btn.active");
     return active?.dataset.type === "authored" ? authoredRecords : participatedRecords;
@@ -96,9 +92,13 @@ cacheReady.then(() => Promise.all([loadAllPeople({ force: true }), loadAllRecord
         if (recordSwitch) recordSwitch.hidden = true;
     }
 
-    const personRefPattern = new RegExp(`\\[\\[${escapeRegExp(personId)}\\|.+?\\]\\]`);
-    participatedRecords = records.filter((record) => record.content && personRefPattern.test(record.content));
+    participatedRecords = records.filter((record) => extractMentionedPersonIds(record.content || "").includes(personId));
     authoredRecords = records.filter((record) => record.author === personId);
+
+    document.getElementById("person-participated-count").textContent = String(participatedRecords.length);
+    document.getElementById("person-authored-count").textContent = String(authoredRecords.length);
+    document.querySelector('[data-type="participated"] .switch-count').textContent = String(participatedRecords.length);
+    document.querySelector('[data-type="authored"] .switch-count').textContent = String(authoredRecords.length);
 
     sortRecords(participatedRecords);
     sortRecords(authoredRecords);

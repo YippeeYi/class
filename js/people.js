@@ -54,10 +54,13 @@ function renderByRole(sortKey = "id", sortOrder = "asc") {
     });
 
     Object.keys(groups).forEach(role => {
-        const list = sortPeople(groups[role], sortKey, sortOrder);
+        const list = sortPeople(groups[role], sortKey, sortOrder, role);
         if (!list.length) return;
 
         const section = document.createElement("section");
+        const roleSpecificHeader = role === "student"
+            ? "<th>记录</th>"
+            : role === "teacher" ? "<th>学科</th>" : "";
         section.innerHTML = `
       <h2>${roleNameMap[role]}</h2>
       <table class="people-table">
@@ -67,7 +70,7 @@ function renderByRole(sortKey = "id", sortOrder = "asc") {
             <th>姓名</th>
             <th>别名</th>
             <th>参与</th>
-            <th>记录</th>
+            ${roleSpecificHeader}
           </tr>
         </thead>
         <tbody>
@@ -77,7 +80,8 @@ function renderByRole(sortKey = "id", sortOrder = "asc") {
               <td>${parseContent(getPersonDisplayName(p)) || "-"}</td>
               <td>${parseContent(p.alias) || "-"}</td>
               <td>${countAsParticipant(p.id)}</td>
-              <td>${p.role === "student" ? countAsAuthor(p.id) : "-"}</td>
+              ${role === "student" ? `<td>${countAsAuthor(p.id)}</td>` : ""}
+              ${role === "teacher" ? `<td>${parseContent(p.subject || "") || "—"}</td>` : ""}
             </tr>
           `).join("")}
         </tbody>
@@ -119,20 +123,13 @@ function countAsParticipant(id) {
 function buildPeopleStats(recordList) {
     const participantCounts = new Map();
     const authorCounts = new Map();
-    const personPattern = /\[\[([a-zA-Z0-9_-]+)\|.+?\]\]/g;
 
     recordList.forEach((record) => {
         if (record.author) {
             authorCounts.set(record.author, (authorCounts.get(record.author) || 0) + 1);
         }
 
-        const ids = new Set();
-        let match = personPattern.exec(record.content || "");
-        while (match) {
-            ids.add(match[1]);
-            match = personPattern.exec(record.content || "");
-        }
-        ids.forEach((id) => {
+        extractMentionedPersonIds(record.content || "").forEach((id) => {
             participantCounts.set(id, (participantCounts.get(id) || 0) + 1);
         });
     });
@@ -143,19 +140,20 @@ function buildPeopleStats(recordList) {
 /* ===============================
    排序
    =============================== */
-function sortPeople(list, key, order) {
+function sortPeople(list, key, order, role) {
+    const effectiveKey = key === "record" && role !== "student" ? "id" : key;
     return [...list].sort((a, b) => {
         const get = p => ({
-            id: p[key] || "",
+            id: p.id || "",
             participation: countAsParticipant(p.id),
             record: p.role === "student" ? countAsAuthor(p.id) : 0
-        }[key]);
+        }[effectiveKey]);
 
         let A = get(a);
         let B = get(b);
 
         // id 用字符串比较
-        if (key === "id") {
+        if (effectiveKey === "id") {
             return order === "asc"
                 ? A.localeCompare(B)
                 : B.localeCompare(A);
@@ -178,7 +176,7 @@ const orderToggle = sortControls.querySelector(".sort-order-toggle");
 const sortKeyText = {
     id: "按 id",
     participation: "按参与事件数",
-    record: "按记录事件数"
+    record: "按学生记录事件数"
 };
 
 function updateSortControls() {

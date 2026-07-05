@@ -80,10 +80,15 @@ create table if not exists public.class_people (
     aliases jsonb not null default '[]'::jsonb,
     alias text,
     role text,
+    subject text,
     bio text,
     avatar_url text,
     raw jsonb not null default '{}'::jsonb
 );
+
+-- Keep existing installations compatible when this setup script is rerun.
+alter table public.class_people
+add column if not exists subject text;
 
 create table if not exists public.class_glossary (
     id text primary key,
