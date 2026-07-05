@@ -71,29 +71,16 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
         map.set(key, (map.get(key) || 0) + amount);
     }
 
-    function extractIds(record, pattern) {
-        const ids = new Set();
-        let match = pattern.exec(record.content || '');
-        while (match) {
-            ids.add(match[1]);
-            match = pattern.exec(record.content || '');
-        }
-        return [...ids];
-    }
-
     function isKnownPersonId(id) {
         return Boolean(id) && (!knownPeopleIds.size || knownPeopleIds.has(id));
     }
 
     function extractPeople(record) {
-        return extractMentionedPersonIds(record.content || '').filter(isKnownPersonId);
+        return getRecordParticipantIds(record).filter(isKnownPersonId);
     }
 
     function extractTerms(record) {
-        return [...new Set([
-            ...extractIds(record, /\[\[term:([a-zA-Z0-9_-]+)\|/g),
-            ...extractIds(record, /\{\{([a-zA-Z0-9_-]+)\|.+?\}\}/g)
-        ])];
+        return extractMentionedTermIds(record.content || '');
     }
 
     function getPersonLabel(id) {

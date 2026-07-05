@@ -103,15 +103,29 @@ function splitTopLevelOnce(source, separator = "|") {
     return index < 0 ? null : [source.slice(0, index), source.slice(index + separator.length)];
 }
 
-function extractMentionedPersonIds(value) {
-    const ids = new Set();
-    const binaryTypes = new Set(["person", "term", "record", "frac", "anno", "illu", "arrow"]);
+function extractRecordMarkupReferences(value) {
+    const participantIds = new Set();
+    const extraAuthorIds = new Set();
+    const termIds = new Set();
+    const binaryTypes = new Set(["person", "author", "term", "record", "frac", "anno", "illu", "arrow"]);
     const unaryTypes = new Set(["del", "under", "red", "hide", "sup", "sub", "center", "right"]);
 
     const visit = (input, depth = 0) => {
         if (depth > 32) return;
         const source = String(input ?? "");
         for (let index = 0; index < source.length;) {
+            if (!isEscapedMarkupCharacter(source, index) && source.startsWith("{{", index)) {
+                const end = source.indexOf("}}", index + 2);
+                if (end >= 0) {
+                    const parts = splitTopLevelOnce(source.slice(index + 2, end));
+                    if (parts && /^[a-zA-Z0-9_-]+$/.test(parts[0]) && parts[1]) {
+                        termIds.add(parts[0]);
+                        visit(parts[1], depth + 1);
+                        index = end + 2;
+                        continue;
+                    }
+                }
+            }
             if (isEscapedMarkupCharacter(source, index) || !source.startsWith("[[", index)) {
                 index += 1;
                 continue;
@@ -125,10 +139,12 @@ function extractMentionedPersonIds(value) {
             const colon = body.indexOf(":");
             const type = colon > 0 ? body.slice(0, colon) : "";
 
-            if (type === "person") {
+            if (type === "person" || type === "author" || type === "term") {
                 const parts = splitTopLevelOnce(body.slice(colon + 1));
                 if (parts && /^[a-zA-Z0-9_-]+$/.test(parts[0]) && parts[1]) {
-                    ids.add(parts[0]);
+                    if (type === "person") participantIds.add(parts[0]);
+                    else if (type === "author") extraAuthorIds.add(parts[0]);
+                    else termIds.add(parts[0]);
                     visit(parts[1], depth + 1);
                 }
             } else if (unaryTypes.has(type)) {
@@ -143,7 +159,7 @@ function extractMentionedPersonIds(value) {
             } else {
                 const legacyPerson = splitTopLevelOnce(body);
                 if (legacyPerson && /^[a-zA-Z0-9_-]+$/.test(legacyPerson[0]) && legacyPerson[1]) {
-                    ids.add(legacyPerson[0]);
+                    participantIds.add(legacyPerson[0]);
                     visit(legacyPerson[1], depth + 1);
                 }
             }
@@ -152,10 +168,43 @@ function extractMentionedPersonIds(value) {
     };
 
     visit(value);
+    return {
+        participantIds: [...participantIds],
+        extraAuthorIds: [...extraAuthorIds],
+        termIds: [...termIds]
+    };
+}
+
+function extractParticipantPersonIds(value) {
+    return extractRecordMarkupReferences(value).participantIds;
+}
+
+function extractExtraAuthorIds(value) {
+    return extractRecordMarkupReferences(value).extraAuthorIds;
+}
+
+function extractMentionedTermIds(value) {
+    return extractRecordMarkupReferences(value).termIds;
+}
+
+function getRecordParticipantIds(record) {
+    return extractParticipantPersonIds(record?.content || "");
+}
+
+function getRecordAuthorIds(record) {
+    const ids = new Set(extractExtraAuthorIds(record?.content || ""));
+    const primaryAuthor = String(record?.author || "").trim();
+    if (primaryAuthor) ids.add(primaryAuthor);
     return [...ids];
 }
 
-window.extractMentionedPersonIds = extractMentionedPersonIds;
+window.extractRecordMarkupReferences = extractRecordMarkupReferences;
+window.extractParticipantPersonIds = extractParticipantPersonIds;
+window.extractMentionedPersonIds = extractParticipantPersonIds;
+window.extractExtraAuthorIds = extractExtraAuthorIds;
+window.extractMentionedTermIds = extractMentionedTermIds;
+window.getRecordParticipantIds = getRecordParticipantIds;
+window.getRecordAuthorIds = getRecordAuthorIds;
 
 function parseInlineStack(top, bottom, kind, context) {
     const topHtml = parseInlineMarkup(top, context);
@@ -191,13 +240,13 @@ function renderSquareMarkup(body, raw, context) {
         return `<${config.tag}${classAttribute}>${rendered}</${config.tag}>`;
     }
 
-    for (const type of ["person", "term", "record", "frac", "anno", "illu", "arrow"]) {
+    for (const type of ["person", "author", "term", "record", "frac", "anno", "illu", "arrow"]) {
         const prefix = `${type}:`;
         if (!body.startsWith(prefix)) continue;
         const parts = splitTopLevelOnce(body.slice(prefix.length));
         if (!parts || !parts[0] || !parts[1]) return asText ? raw : escapeRecordText(raw);
         const [first, second] = parts;
-        if (type === "person") {
+        if (type === "person" || type === "author") {
             if (!/^[a-zA-Z0-9_-]+$/.test(first)) return asText ? raw : escapeRecordText(raw);
             const label = render(second);
             return asText ? label : `<span class="person-tag" data-id="${first}" title="${escapeRecordAttribute(getPersonDisplayNameById(first))}">${label}</span>`;

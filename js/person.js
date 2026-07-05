@@ -8,7 +8,6 @@ if (!personId) {
 
 const recordContainer = document.getElementById("record-list");
 const filterContainer = document.getElementById("record-filter");
-const recordSwitch = document.querySelector(".record-switch");
 const switchButtons = document.querySelectorAll(".switch-btn");
 
 let participatedRecords = [];
@@ -88,17 +87,8 @@ cacheReady.then(() => Promise.all([loadAllPeople({ force: true }), loadAllRecord
     document.getElementById("person-bio").innerHTML = `<strong>${formatContent(person.bio || "-")}</strong>`;
     renderPersonAvatar(person);
 
-    if (person.role === "teacher" || person.role === "other") {
-        if (recordSwitch) recordSwitch.hidden = true;
-    }
-
-    participatedRecords = records.filter((record) => extractMentionedPersonIds(record.content || "").includes(personId));
-    authoredRecords = records.filter((record) => record.author === personId);
-
-    document.getElementById("person-participated-count").textContent = String(participatedRecords.length);
-    document.getElementById("person-authored-count").textContent = String(authoredRecords.length);
-    document.querySelector('[data-type="participated"] .switch-count').textContent = String(participatedRecords.length);
-    document.querySelector('[data-type="authored"] .switch-count').textContent = String(authoredRecords.length);
+    participatedRecords = records.filter((record) => getRecordParticipantIds(record).includes(personId));
+    authoredRecords = records.filter((record) => getRecordAuthorIds(record).includes(personId));
 
     sortRecords(participatedRecords);
     sortRecords(authoredRecords);

@@ -308,6 +308,7 @@ const importPeople = async () => {
             aliases,
             role: raw.role || 'student',
             subject: raw.subject == null || raw.subject === '' ? null : String(raw.subject),
+            main: raw.main === true,
             bio: raw.bio || '',
             sort_order: index,
             raw

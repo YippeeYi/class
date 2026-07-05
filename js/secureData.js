@@ -241,6 +241,7 @@
                 alias: row.alias || raw.alias || '',
                 role: row.role || raw.role || 'student',
                 subject: row.subject ?? raw.subject ?? '',
+                main: row.main === true || raw.main === true,
                 bio: row.bio || raw.bio || '',
                 avatarUrl: row.avatar_url || raw.avatarUrl || raw.avatar || '',
             };

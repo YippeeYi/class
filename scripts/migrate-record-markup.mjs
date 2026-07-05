@@ -6,7 +6,7 @@ import path from 'node:path';
 const root = process.cwd();
 const dataRoot = path.join(root, 'data');
 const checkOnly = process.argv.includes('--check');
-const typedBinary = new Set(['person', 'term', 'record', 'frac', 'anno', 'illu', 'arrow']);
+const typedBinary = new Set(['person', 'author', 'term', 'record', 'frac', 'anno', 'illu', 'arrow']);
 const typedUnary = new Set(['del', 'under', 'red', 'hide', 'sup', 'sub', 'center', 'right']);
 
 function isEscaped(source, index) {
