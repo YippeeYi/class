@@ -1182,13 +1182,45 @@ body>#glossary-list {
   }
 }
 
-.people-table tbody tr:hover,
 .glossary-table tbody tr:hover {
   background: var(--table-row-hover-bg);
   box-shadow:
     inset 0 2px 0 0 var(--table-row-hover-edge),
     0 10px 20px rgba(var(--theme-rgb), 0.22);
   transform: translateY(-1px);
+}
+
+.people-table tbody tr {
+  position: relative;
+  box-shadow: none;
+  transition: background-color 0.18s ease, transform 0.18s ease;
+}
+
+.people-table tbody tr::before {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  pointer-events: none;
+  background: var(--table-row-hover-edge);
+  opacity: 0;
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.people-table tbody tr:hover {
+  background: var(--table-row-hover-bg);
+  box-shadow: none;
+  transform: translateY(-1px);
+}
+
+.people-table tbody tr:hover::before {
+  opacity: 1;
+  transform: scaleY(1);
 }
 
 .people-table tbody tr:hover td,
@@ -6202,13 +6234,15 @@ body.hidden-record-mode .hidden-record-banner {
 
 .people-table tbody tr.people-row-main-teacher td {
   background: color-mix(in srgb, var(--theme-accent) 14%, var(--theme-surface));
-  box-shadow: inset 0 1px color-mix(in srgb, var(--theme-accent-strong) 22%, transparent), inset 0 -1px color-mix(in srgb, var(--theme-accent-strong) 18%, transparent);
+  box-shadow: none;
 }
 
 .people-table tbody tr.people-row-main-teacher td:first-child {
-  box-shadow: inset 4px 0 var(--theme-accent-strong), inset 0 1px color-mix(in srgb, var(--theme-accent-strong) 22%, transparent), inset 0 -1px color-mix(in srgb, var(--theme-accent-strong) 18%, transparent);
+  border-left: 4px solid var(--theme-accent-strong);
+  box-shadow: none;
 }
 
 .people-table tbody tr.people-row-main-teacher:hover td {
   background: color-mix(in srgb, var(--theme-accent) 22%, var(--theme-surface-strong));
+  box-shadow: none;
 }

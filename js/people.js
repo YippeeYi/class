@@ -67,21 +67,26 @@ function getPersonDisplayName(person) {
    按角色分组渲染
    =============================== */
 function renderByRole() {
-    container.innerHTML = "";
+    container.replaceChildren();
+    Object.keys(roleSortState).forEach((role) => renderPeopleSection(role, { initial: true }));
+}
 
-    const groups = { student: [], teacher: [], other: [] };
-
-    peopleList.forEach(p => {
-        if (groups[p.role]) groups[p.role].push(p);
-        else groups.other.push(p);
+function getPeopleByRole(role) {
+    return peopleList.filter((person) => {
+        const normalizedRole = roleSortState[person.role] ? person.role : "other";
+        return normalizedRole === role;
     });
+}
 
-    Object.keys(groups).forEach(role => {
+function renderPeopleSection(role, { initial = false } = {}) {
         const state = roleSortState[role];
-        const list = sortPeople(groups[role], state, role);
+        if (!state) return;
+        const list = sortPeople(getPeopleByRole(role), state, role);
         if (!list.length) return;
 
         const section = document.createElement("section");
+        section.className = "people-section";
+        section.dataset.role = role;
         const roleSpecificHeader = role === "student"
             ? "<th>记录</th>"
             : role === "teacher" ? "<th>学科</th>" : "";
@@ -130,15 +135,15 @@ function renderByRole() {
         </tbody>
       </table>
     `;
-        container.appendChild(section);
-    });
+        if (initial) container.appendChild(section);
+        else container.querySelector(`.people-section[data-role="${role}"]`)?.replaceWith(section);
 
-    bindRowClick();
-    bindRoleSortDropdowns();
+        bindRowClick(section);
+        bindRoleSortDropdowns(section);
 }
 
-function bindRoleSortDropdowns() {
-    container.querySelectorAll(".sort-dropdown").forEach((dropdown) => {
+function bindRoleSortDropdowns(section) {
+    section.querySelectorAll(".sort-dropdown").forEach((dropdown) => {
         let closeTimer = null;
         const open = () => {
             clearTimeout(closeTimer);
@@ -158,8 +163,8 @@ function bindRoleSortDropdowns() {
 /* ===============================
    行点击跳转
    =============================== */
-function bindRowClick() {
-    document.querySelectorAll(".people-table tbody tr").forEach(tr => {
+function bindRowClick(section) {
+    section.querySelectorAll(".people-table tbody tr").forEach(tr => {
         tr.onclick = () => {
             const href = `person.html?id=${tr.dataset.id}`;
             if (typeof window.navigateTo === 'function') {
@@ -240,7 +245,7 @@ container.addEventListener("click", event => {
         const key = option.dataset.sortKey;
         if (!roleSortState[role] || !roleSortOptions[role].some(([allowed]) => allowed === key)) return;
         roleSortState[role].key = key;
-        renderByRole();
+        renderPeopleSection(role);
         return;
     }
     const orderButton = event.target.closest(".people-sort-order");
@@ -248,12 +253,12 @@ container.addEventListener("click", event => {
         const role = orderButton.dataset.role;
         if (!roleSortState[role]) return;
         roleSortState[role].order = roleSortState[role].order === "asc" ? "desc" : "asc";
-        renderByRole();
+        renderPeopleSection(role);
         return;
     }
     const mainButton = event.target.closest(".people-main-toggle");
     if (mainButton) {
         roleSortState.teacher.mainFirst = !roleSortState.teacher.mainFirst;
-        renderByRole();
+        renderPeopleSection("teacher");
     }
 });
