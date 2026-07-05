@@ -37,14 +37,15 @@ function escapeRecordText(value) {
 const ILLUSTRATION_IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg"]);
 
 function normalizeIllustrationPath(value) {
-    const path = String(value ?? "").trim();
-    if (!path || path.length > 500 || /[\\?#%\u0000-\u001f\u007f]/.test(path)) return "";
-    if (/^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(path)) return "";
-    const segments = path.split("/");
-    if (segments.some((segment) => !segment || segment === "." || segment === "..")) return "";
-    if (!/^data\/attachments\//i.test(path)) return "";
-    const extension = segments.at(-1)?.split(".").pop()?.toLowerCase();
-    return ILLUSTRATION_IMAGE_EXTENSIONS.has(extension) ? path : "";
+    const raw = String(value ?? "").trim();
+    if (!raw || raw.length > 500 || /[\\?#%\u0000-\u001f\u007f]/.test(raw)) return "";
+    if (/^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(raw)) return "";
+    // Full paths remain accepted for remote records written before the
+    // filename-only syntax was introduced.
+    const fileName = raw.replace(/^data\/attachments\//i, "");
+    if (!fileName || fileName.includes("/") || fileName === "." || fileName === "..") return "";
+    const extension = fileName.split(".").pop()?.toLowerCase();
+    return ILLUSTRATION_IMAGE_EXTENSIONS.has(extension) ? `data/attachments/${fileName}` : "";
 }
 
 function getPersonDisplayNameById(id) {
@@ -52,13 +53,19 @@ function getPersonDisplayNameById(id) {
     return stripRecordMarkup(person?.name || person?.alias || id).trim() || id;
 }
 
+function isEscapedMarkupCharacter(source, index) {
+    let slashCount = 0;
+    for (let cursor = index - 1; cursor >= 0 && source[cursor] === "\\"; cursor -= 1) slashCount += 1;
+    return slashCount % 2 === 1;
+}
+
 function findBalancedSquareEnd(source, start) {
     let depth = 1;
     for (let index = start + 2; index < source.length - 1; index += 1) {
-        if (source.startsWith("[[", index)) {
+        if (!isEscapedMarkupCharacter(source, index) && source.startsWith("[[", index)) {
             depth += 1;
             index += 1;
-        } else if (source.startsWith("]]", index)) {
+        } else if (!isEscapedMarkupCharacter(source, index) && source.startsWith("]]", index)) {
             depth -= 1;
             if (depth === 0) return index + 2;
             index += 1;
@@ -71,6 +78,7 @@ function findTopLevelSeparator(source, separator = "|") {
     let squareDepth = 0;
     let curlyDepth = 0;
     for (let index = 0; index <= source.length - separator.length; index += 1) {
+        if (isEscapedMarkupCharacter(source, index)) continue;
         if (source.startsWith("[[", index)) {
             squareDepth += 1;
             index += 1;
@@ -110,7 +118,12 @@ function renderSquareMarkup(body, raw, context) {
     const unaryTypes = {
         del: { tag: "del", className: "inline-delete" },
         under: { tag: "span", className: "inline-underline" },
-        red: { tag: "span", className: "inline-red" }
+        red: { tag: "span", className: "inline-red" },
+        hide: { className: "redacted" },
+        sup: { tag: "sup" },
+        sub: { tag: "sub" },
+        center: { tag: "span", className: "record-center-line" },
+        right: { tag: "span", className: "record-align-right" }
     };
     for (const [type, config] of Object.entries(unaryTypes)) {
         const prefix = `${type}:`;
@@ -118,21 +131,34 @@ function renderSquareMarkup(body, raw, context) {
         const content = body.slice(prefix.length);
         if (!content) return asText ? raw : escapeRecordText(raw);
         const rendered = render(content);
-        return asText ? rendered : `<${config.tag} class="${config.className}">${rendered}</${config.tag}>`;
+        if (asText) return rendered;
+        if (type === "hide") return `<span class="redacted"><span class="redacted-mask"></span><span class="redacted-content">${rendered}</span></span>`;
+        const classAttribute = config.className ? ` class="${config.className}"` : "";
+        return `<${config.tag}${classAttribute}>${rendered}</${config.tag}>`;
     }
 
-    for (const type of ["record", "frac", "anno", "illu"]) {
+    for (const type of ["person", "term", "record", "frac", "anno", "illu", "arrow"]) {
         const prefix = `${type}:`;
         if (!body.startsWith(prefix)) continue;
         const parts = splitTopLevelOnce(body.slice(prefix.length));
         if (!parts || !parts[0] || !parts[1]) return asText ? raw : escapeRecordText(raw);
         const [first, second] = parts;
+        if (type === "person") {
+            if (!/^[a-zA-Z0-9_-]+$/.test(first)) return asText ? raw : escapeRecordText(raw);
+            const label = render(second);
+            return asText ? label : `<span class="person-tag" data-id="${first}" title="${escapeRecordAttribute(getPersonDisplayNameById(first))}">${label}</span>`;
+        }
+        if (type === "term") {
+            if (!/^[a-zA-Z0-9_-]+$/.test(first)) return asText ? raw : escapeRecordText(raw);
+            const label = render(second);
+            return asText ? label : `<span class="term-tag" data-id="${first}">${label}</span>`;
+        }
         if (type === "record") {
             if (!/^[a-zA-Z0-9_-]+(?:\.json)?$/.test(first)) return asText ? render(second) : render(second);
             const label = render(second);
             return asText || context.disableRecordLinks ? label : `<button type="button" class="record-jump-link" data-record-jump="${first}" style="--record-jump-hue:${stableRecordJumpHue(first)}">${label}</button>`;
         }
-        if (type === "frac") return parseInlineStack(first, second, "fraction", context);
+        if (type === "frac" || type === "arrow") return parseInlineStack(first, second, type === "arrow" ? "arrow" : "fraction", context);
         if (type === "anno") {
             const label = render(second);
             if (asText || context.tooltipContext) return label;
@@ -163,6 +189,12 @@ function parseInlineMarkup(value, options = {}) {
     if (context.depth > 32) return context.mode === "text" ? source : escapeRecordText(source);
     let output = "";
     for (let index = 0; index < source.length;) {
+        if (source[index] === "\\" && index + 1 < source.length && "\\|[]".includes(source[index + 1])) {
+            const literal = source[index + 1];
+            output += context.mode === "text" ? literal : escapeRecordText(literal);
+            index += 2;
+            continue;
+        }
         if (source.startsWith("[[", index)) {
             const end = findBalancedSquareEnd(source, index);
             if (end > 0) {
