@@ -104,8 +104,17 @@ assert.equal(
         { id: 'former', main: false },
         { id: 'main-b', main: true },
         { id: 'main-a', main: true }
-    ], { key: 'main', order: 'asc' }, 'teacher').map((item) => item.id).join(','),
+    ], { key: 'id', order: 'asc', mainFirst: true }, 'teacher').map((item) => item.id).join(','),
     'main-a,main-b,former'
 );
+assert.equal(
+    peopleContext.sortPeopleForTest([
+        { id: 'main-math', main: true, subject: '数学' },
+        { id: 'main-chinese', main: true, subject: '语文' },
+        { id: 'normal-chem', main: false, subject: '化学' },
+        { id: 'normal-physics', main: false, subject: '物理' }
+    ], { key: 'subject', order: 'desc', mainFirst: true }, 'teacher').map((item) => item.id).join(','),
+    'main-math,main-chinese,normal-chem,normal-physics'
+);
 
-console.log(`Passed ${cases.length + 28} markup, people, and timeline checks.`);
+console.log(`Passed ${cases.length + 29} markup, people, and timeline checks.`);

@@ -31,7 +31,6 @@ cacheReady.then(() => Promise.all([loadAllGlossary(), loadAllPeople(), loadAllRe
     document.getElementById("term-related").innerHTML = relatedNames.length ? relatedNames.join(", ") : "-";
 
     relatedRecords = records.filter((record) => extractMentionedTermIds(record.content || "").includes(termId));
-    document.getElementById("term-related-count").textContent = String(relatedRecords.length);
     sortRecords(relatedRecords);
 
     const filterHost = document.createElement("div");

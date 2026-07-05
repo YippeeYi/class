@@ -6189,12 +6189,10 @@ body.hidden-record-mode .hidden-record-banner {
 }
 
 .people-role-sort {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
+  margin: 0;
 }
 
-.people-role-sort .people-sort-option.is-active {
+.people-role-sort .people-main-toggle.is-active {
   color: var(--control-active-text);
   border-color: transparent;
   background-color: var(--accent-dark);

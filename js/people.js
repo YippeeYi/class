@@ -12,7 +12,7 @@ let authorCountMap = new Map();
 
 const roleSortState = {
     student: { key: "id", order: "asc" },
-    teacher: { key: "id", order: "asc" },
+    teacher: { key: "id", order: "asc", mainFirst: false },
     other: { key: "id", order: "asc" }
 };
 
@@ -25,8 +25,7 @@ const roleSortOptions = {
     teacher: [
         ["id", "id"],
         ["participation", "参与事件数"],
-        ["subject", "学科"],
-        ["main", "主要"]
+        ["subject", "学科"]
     ],
     other: [
         ["id", "id"],
@@ -87,14 +86,24 @@ function renderByRole() {
             ? "<th>记录</th>"
             : role === "teacher" ? "<th>学科</th>" : "";
         const sortButtons = roleSortOptions[role].map(([key, label]) => `
-            <button type="button" class="btn-action people-sort-option${state.key === key ? " is-active" : ""}" data-role="${role}" data-sort-key="${key}">${label}</button>
+            <button type="button" class="btn-action sort-option people-sort-option${state.key === key ? " is-active" : ""}" data-role="${role}" data-sort-key="${key}">${label}</button>
         `).join("");
+        const activeSortLabel = roleSortOptions[role].find(([key]) => key === state.key)?.[1] || "id";
         section.innerHTML = `
       <div class="people-section-heading">
         <h2>${roleNameMap[role]}</h2>
-        <div class="people-role-sort" role="group" aria-label="${roleNameMap[role]}排序">
-          ${sortButtons}
+        <div class="sort-controls people-role-sort" role="group" aria-label="${roleNameMap[role]}排序">
+          <div class="sort-dropdown" data-role="${role}">
+            <button type="button" class="btn-select dropdown-trigger" data-value="${state.key}">
+              <span class="dropdown-label">按 ${activeSortLabel}</span>
+              <span class="dropdown-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div class="select-menu" role="menu" aria-label="${roleNameMap[role]}排序依据">
+              ${sortButtons}
+            </div>
+          </div>
           <button type="button" class="btn-action people-sort-order" data-role="${role}">${state.order === "asc" ? "升序" : "降序"}</button>
+          ${role === "teacher" ? `<button type="button" class="btn-action people-main-toggle${state.mainFirst ? " is-active" : ""}" data-role="teacher" aria-pressed="${state.mainFirst}">主要</button>` : ""}
         </div>
       </div>
       <table class="people-table">
@@ -125,6 +134,25 @@ function renderByRole() {
     });
 
     bindRowClick();
+    bindRoleSortDropdowns();
+}
+
+function bindRoleSortDropdowns() {
+    container.querySelectorAll(".sort-dropdown").forEach((dropdown) => {
+        let closeTimer = null;
+        const open = () => {
+            clearTimeout(closeTimer);
+            dropdown.classList.add("is-open");
+        };
+        const close = () => {
+            clearTimeout(closeTimer);
+            closeTimer = setTimeout(() => dropdown.classList.remove("is-open"), 140);
+        };
+        dropdown.addEventListener("mouseenter", open);
+        dropdown.addEventListener("mouseleave", close);
+        dropdown.addEventListener("focusin", open);
+        dropdown.addEventListener("focusout", close);
+    });
 }
 
 /* ===============================
@@ -178,6 +206,9 @@ function sortPeople(list, state, role) {
     const direction = order === "desc" ? -1 : 1;
     const compareId = (a, b) => String(a.id || "").localeCompare(String(b.id || "")) * direction;
     return [...list].sort((a, b) => {
+        if (role === "teacher" && state.mainFirst && (a.main === true) !== (b.main === true)) {
+            return Number(b.main === true) - Number(a.main === true);
+        }
         if (key === "id") return compareId(a, b);
         if (key === "participation" || key === "record") {
             const getCount = key === "record" ? countAsAuthor : countAsParticipant;
@@ -194,9 +225,6 @@ function sortPeople(list, state, role) {
                 if (aRank !== bRank) return aRank === Number.MAX_SAFE_INTEGER ? 1 : -1;
             }
             return (aRank - bRank) * direction || compareId(a, b);
-        }
-        if (role === "teacher" && key === "main") {
-            return Number(b.main === true) - Number(a.main === true) || compareId(a, b);
         }
         return compareId(a, b);
     });
@@ -220,6 +248,12 @@ container.addEventListener("click", event => {
         const role = orderButton.dataset.role;
         if (!roleSortState[role]) return;
         roleSortState[role].order = roleSortState[role].order === "asc" ? "desc" : "asc";
+        renderByRole();
+        return;
+    }
+    const mainButton = event.target.closest(".people-main-toggle");
+    if (mainButton) {
+        roleSortState.teacher.mainFirst = !roleSortState.teacher.mainFirst;
         renderByRole();
     }
 });
