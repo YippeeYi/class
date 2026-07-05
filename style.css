@@ -4761,6 +4761,7 @@ body>.archive-tool-shell {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .timeline-pie-slice,
   .timeline-author-legend li[data-pie-legend-item],
   .timeline-author-legend li[data-pie-legend-item] i {
@@ -6167,6 +6168,7 @@ body.hidden-record-mode .hidden-record-banner {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .term-tooltip,
   .inline-tooltip {
     transition-duration: 0.01ms;
