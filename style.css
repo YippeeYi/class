@@ -64,6 +64,7 @@
   --danger: color-mix(in srgb, var(--theme-accent) 55%, #df4f62);
   --danger-strong: color-mix(in srgb, var(--theme-accent-strong) 48%, #c3314c);
   --danger-glow: color-mix(in srgb, var(--danger) 38%, transparent);
+  --inline-red-color: #f0183a;
   --link-accent: color-mix(in srgb, var(--theme-accent-strong) 62%, #9b4d8b);
   --link-accent-hover: color-mix(in srgb, var(--theme-accent) 70%, #bf5da8);
   --link-soft-bg: color-mix(in srgb, var(--theme-surface-strong) 68%, #f4c4e9);
@@ -5981,15 +5982,15 @@ body.hidden-record-mode .hidden-record-banner {
   display: inline;
   color: inherit;
   text-decoration-line: line-through;
-  text-decoration-color: color-mix(in srgb, currentColor 82%, transparent);
-  text-decoration-thickness: max(1px, 0.08em);
+  text-decoration-color: #000 !important;
+  text-decoration-thickness: max(1.5px, 0.09em);
   text-decoration-skip-ink: none;
 }
 
 .inline-delete * {
   text-decoration-line: line-through;
-  text-decoration-color: color-mix(in srgb, currentColor 82%, transparent);
-  text-decoration-thickness: max(1px, 0.08em);
+  text-decoration-color: #000 !important;
+  text-decoration-thickness: max(1.5px, 0.09em);
   text-decoration-skip-ink: none;
 }
 
@@ -6007,10 +6008,10 @@ body.hidden-record-mode .hidden-record-banner {
   left: 0;
   right: 0;
   top: 50%;
-  z-index: 4;
-  height: max(1px, 0.08em);
-  background: currentColor;
-  opacity: 0.86;
+  z-index: 20;
+  height: max(1.5px, 0.09em);
+  background: #000;
+  opacity: 1;
   pointer-events: none;
   transform: translateY(-50%);
 }
@@ -6025,17 +6026,17 @@ body.hidden-record-mode .hidden-record-banner {
 }
 
 .inline-red {
-  color: var(--danger-strong);
+  color: var(--inline-red-color);
 }
 
 .inline-red .person-tag,
 .inline-red .record-jump-link {
-  color: color-mix(in srgb, var(--danger-strong) 78%, var(--link-accent));
+  color: color-mix(in srgb, var(--inline-red-color) 92%, var(--link-accent));
 }
 
 .inline-red .term-tag {
-  color: color-mix(in srgb, var(--danger-strong) 78%, var(--term-accent));
-  border-bottom-color: color-mix(in srgb, var(--danger) 64%, var(--term-border));
+  color: color-mix(in srgb, var(--inline-red-color) 92%, var(--term-accent));
+  border-bottom-color: color-mix(in srgb, var(--inline-red-color) 76%, var(--term-border));
 }
 
 .inline-stack--fraction {

@@ -52,6 +52,8 @@ const cases = [
     ['[[illu:example.png|带有 [[red:红色文字]] 的文字]]', ['data-image-src="data/attachments/example.png"', 'inline-illustration', 'inline-red']],
     ['[[frac:[[del:上方文字]]|[[under:下方文字]]]]', ['inline-fraction', 'inline-delete', 'inline-underline']],
     ['[[red:包含 [[term:termId|术语]] 的文字]]', ['inline-red', 'term-tag']],
+    ['[[del:[[red:红色删除文字]]]]', ['inline-delete', 'inline-red']],
+    ['[[red:[[del:删除红色文字]]]]', ['inline-red', 'inline-delete']],
     ['[[author:writer|记录人]]', ['person-tag', 'data-id="writer"']]
 ];
 
