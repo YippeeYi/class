@@ -843,10 +843,18 @@ function clamp(value, min, max) {
     return Math.max(min, Math.min(value, max));
 }
 
+function getInlineMarkerRects(tag) {
+    if (!tag) return [];
+    const rects = typeof tag.getClientRects === "function"
+        ? Array.from(tag.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0)
+        : [];
+    return rects.length ? rects : [tag.getBoundingClientRect()];
+}
+
 function positionTermTooltip() {
     if (!activeTooltip || !activeTermTag) return;
     const { left, top } = calculateInlineTooltipPosition({
-        tagRect: activeTermTag.getBoundingClientRect(),
+        tagRects: getInlineMarkerRects(activeTermTag),
         tooltipRect: activeTooltip.getBoundingClientRect(),
         viewportWidth: window.innerWidth,
         viewportHeight: window.innerHeight,
@@ -876,6 +884,8 @@ document.addEventListener("mouseover", (event) => {
     const tag = event.target.closest(".term-tag");
     if (!tag) return;
 
+    lastMouseX = event.clientX;
+    lastMouseY = event.clientY;
     const termId = tag.dataset.id;
     isHoveringTerm = true;
     clearTimeout(tooltipTimer);
@@ -982,24 +992,28 @@ function setIllustrationFailure(tooltip) {
     tooltip.appendChild(message);
 }
 
-function calculateInlineTooltipPosition({ tagRect, tooltipRect, viewportWidth, viewportHeight, pointer, multiline = false, padding = 12, gap = 10 }) {
-    const pointerX = Number.isFinite(pointer?.x) ? pointer.x : tagRect.left + tagRect.width / 2;
+// The upward clearance includes the lower reach of --tooltip-shadow (0 20px 40px).
+function calculateInlineTooltipPosition({ tagRects, tagRect, tooltipRect, viewportWidth, viewportHeight, pointer, padding = 12, aboveClearance = 42, belowClearance = 12 }) {
+    const rects = Array.isArray(tagRects) && tagRects.length ? tagRects : [tagRect];
+    const markerTop = Math.min(...rects.map((rect) => rect.top));
+    const markerBottom = Math.max(...rects.map((rect) => rect.bottom));
+    const markerLeft = Math.min(...rects.map((rect) => rect.left));
+    const markerRight = Math.max(...rects.map((rect) => rect.right));
+    const pointerX = Number.isFinite(pointer?.x) ? pointer.x : (markerLeft + markerRight) / 2;
     const left = clamp(pointerX - tooltipRect.width / 2, padding, Math.max(padding, viewportWidth - tooltipRect.width - padding));
-    let top;
-    if (multiline && Number.isFinite(pointer?.y)) {
-        const above = pointer.y - gap - tooltipRect.height;
-        const below = pointer.y + gap;
-        if (above >= padding) top = above;
-        else if (below + tooltipRect.height <= viewportHeight - padding) top = below;
-        else {
-            const preferred = pointer.y >= viewportHeight / 2 ? above : below;
-            top = clamp(preferred, padding, Math.max(padding, viewportHeight - tooltipRect.height - padding));
-        }
-    } else {
-        top = tagRect.bottom + gap;
-        if (top + tooltipRect.height > viewportHeight - padding) top = tagRect.top - tooltipRect.height - gap;
-        top = clamp(top, padding, Math.max(padding, viewportHeight - tooltipRect.height - padding));
+    const above = markerTop - aboveClearance - tooltipRect.height;
+    const below = markerBottom + belowClearance;
+    const aboveFits = above >= padding;
+    const belowFits = below + tooltipRect.height <= viewportHeight - padding;
+    let top = above;
+    if (!aboveFits && belowFits) {
+        top = below;
+    } else if (!aboveFits && !belowFits) {
+        const spaceAbove = markerTop - aboveClearance - padding;
+        const spaceBelow = viewportHeight - padding - markerBottom - belowClearance;
+        top = spaceAbove >= spaceBelow ? above : below;
     }
+    top = clamp(top, padding, Math.max(padding, viewportHeight - tooltipRect.height - padding));
     return { left, top };
 }
 
@@ -1022,15 +1036,13 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
     };
     const position = (tag = activeTag) => {
         if (!tag || !activeTooltip) return;
-        const tagRect = tag.getBoundingClientRect();
         const tooltipRect = activeTooltip.getBoundingClientRect();
         const { left, top } = calculateInlineTooltipPosition({
-            tagRect,
+            tagRects: getInlineMarkerRects(tag),
             tooltipRect,
             viewportWidth: window.innerWidth,
             viewportHeight: window.innerHeight,
-            pointer: lastPointerPosition,
-            multiline: pointerAnchor && Number.isFinite(lastPointerPosition?.y)
+            pointer: pointerAnchor ? lastPointerPosition : null
         });
         activeTooltip.style.left = `${left}px`;
         activeTooltip.style.top = `${top}px`;
@@ -1115,6 +1127,10 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
         if (!tag || (event.relatedTarget?.nodeType && tag.contains(event.relatedTarget))) return;
         hoveringTrigger = true;
         queueShow(tag, event);
+    });
+    document.addEventListener("pointermove", (event) => {
+        if (event.pointerType === "touch" || !event.target.closest(triggerSelector)) return;
+        lastPointerPosition = { x: event.clientX, y: event.clientY };
     });
     document.addEventListener("pointerdown", (event) => {
         if (event.target.closest(triggerSelector)) lastPointerTriggerAt = Date.now();

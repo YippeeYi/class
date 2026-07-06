@@ -91,9 +91,10 @@ assert.equal([...getAuthors({ author: 'alice', content: '[[author:alice|重复]]
 assert.equal([...extractTerms('[[term:t1|术语]][[del:{{t2|旧术语}}]][[anno:提到 [[term:t3|术语]]|[[term:t1|重复]]]]')].sort().join(','), 't1,t2,t3');
 assert.equal(extractTerms('普通文本 t1；[[person:t2|不是术语]][[record:t3|不是术语]]').length, 0);
 assert.equal(countTextCharacters('甲[[person:a|乙]][[red:丙]]'), 3);
-assert.equal(calculateTooltipPosition({ tagRect: { left: 20, top: 40, right: 120, bottom: 80, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 150, y: 100 }, multiline: true }).top, 50);
-assert.equal(calculateTooltipPosition({ tagRect: { left: 20, top: 5, right: 120, bottom: 45, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 150, y: 20 }, multiline: true }).top, 30);
-assert.equal(calculateTooltipPosition({ tagRect: { left: 0, top: 40, right: 100, bottom: 80, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 5, y: 100 }, multiline: true }).left, 12);
+assert.equal(calculateTooltipPosition({ tagRect: { left: 20, top: 40, right: 120, bottom: 80, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 150, y: 60 } }).top, 92);
+assert.equal(calculateTooltipPosition({ tagRect: { left: 20, top: 120, right: 120, bottom: 140, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 150, y: 130 } }).top, 38);
+assert.equal(calculateTooltipPosition({ tagRect: { left: 0, top: 40, right: 100, bottom: 80, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 5, y: 60 } }).left, 12);
+assert.equal(calculateTooltipPosition({ tagRects: [{ left: 20, right: 180, top: 40, bottom: 60 }, { left: 20, right: 90, top: 64, bottom: 84 }], tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 65, y: 72 } }).top, 96);
 assert.equal([...fixedScale(8, 12, 3)].join(','), '12,9,6,3,0');
 assert.equal([...fixedScale(72, 100, 25)].join(','), '100,75,50,25,0');
 assert.equal([...fixedScale(13, 12, 3)].join(','), '15,12,9,6,3,0');
