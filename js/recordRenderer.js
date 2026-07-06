@@ -1029,15 +1029,8 @@ function resolveIllustrationUrl(path) {
     if (!sourcePath) return Promise.resolve(null);
     if (illustrationPreloadCache.has(sourcePath)) return illustrationPreloadCache.get(sourcePath);
     const promise = window.ClassRecordData?.isEnabled?.()
-        ? window.ClassRecordData.preloadAsset(sourcePath, { priority: "high" }).catch(() => null)
-        : new Promise((resolve) => {
-            const image = new Image();
-            image.decoding = "async";
-            image.fetchPriority = "high";
-            image.onload = () => resolve(sourcePath);
-            image.onerror = () => resolve(null);
-            image.src = sourcePath;
-        });
+        ? window.ClassRecordData.signAssetUrl(sourcePath, { quiet: true }).catch(() => null)
+        : Promise.resolve(sourcePath);
     const reusable = promise.then((url) => {
         if (!url) illustrationPreloadCache.delete(sourcePath);
         return url;
@@ -1053,6 +1046,23 @@ function setIllustrationFailure(tooltip) {
     message.className = "illustration-tooltip-status";
     message.textContent = "图片加载失败";
     tooltip.appendChild(message);
+}
+
+function setIllustrationFrameSize(tooltip, image, naturalWidth, naturalHeight) {
+    const maxWidth = Math.min(360, window.innerWidth * 0.8);
+    const maxHeight = Math.min(280, window.innerHeight * 0.6);
+    const scale = Math.min(1, maxWidth / naturalWidth, maxHeight / naturalHeight);
+    const width = Math.max(1, Math.round(naturalWidth * scale));
+    const height = Math.max(1, Math.round(naturalHeight * scale));
+    const style = getComputedStyle(tooltip);
+    const horizontalChrome = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
+        + parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
+    const verticalChrome = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
+        + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+    tooltip.style.width = `${width + horizontalChrome}px`;
+    tooltip.style.height = `${height + verticalChrome}px`;
+    image.style.width = `${width}px`;
+    image.style.height = `${height}px`;
 }
 
 function calculateInlineTooltipPosition({ tagRects, tagRect, tooltipRect, viewportWidth, viewportHeight, pointer, padding = 12, gap = 8 }) {
@@ -1188,29 +1198,30 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
             hoveringTooltip = false;
             scheduleRemoval();
         });
-        const population = populate({
-            tag,
-            tooltip,
-            position: () => position(tag),
-            isCurrent: () => token === requestToken && activeTag === tag && activeTooltip === tooltip && tooltip.isConnected
-        });
-        if (showBeforePopulate) {
+        let revealed = false;
+        const reveal = () => {
+            if (revealed || token !== requestToken || activeTooltip !== tooltip) return;
+            revealed = true;
             position(tag);
             requestAnimationFrame(() => {
                 if (token !== requestToken || activeTooltip !== tooltip) return;
                 tooltip.classList.remove("hidden", "is-hiding");
                 tooltip.classList.add("show", "is-visible");
             });
+        };
+        const population = populate({
+            tag,
+            tooltip,
+            position: () => position(tag),
+            reveal,
+            isCurrent: () => token === requestToken && activeTag === tag && activeTooltip === tooltip && tooltip.isConnected
+        });
+        if (showBeforePopulate) {
+            reveal();
         }
         await population;
         if (token !== requestToken || activeTooltip !== tooltip) return;
-        position(tag);
-        if (!showBeforePopulate) {
-            requestAnimationFrame(() => {
-                tooltip.classList.remove("hidden", "is-hiding");
-                tooltip.classList.add("show", "is-visible");
-            });
-        }
+        if (!revealed) reveal();
     };
     const queueShow = (tag, event) => {
         clearTimeout(showTimer);
@@ -1306,11 +1317,9 @@ illustrationTooltipController = createInlineTooltipController({
     role: "dialog",
     pointerAnchor: true,
     showDelay: 0,
-    showBeforePopulate: true,
     beforeShow: () => annotationTooltipController.hide(true),
-    populate: async ({ tag, tooltip, position, isCurrent }) => {
+    populate: async ({ tag, tooltip, reveal, isCurrent }) => {
         tooltip.setAttribute("aria-label", `${tag.textContent?.trim() || "插图"}预览`);
-        tooltip.classList.add("has-fixed-frame");
         const sourcePath = String(tag.dataset.imageSrc || "").trim();
         let readyImage = illustrationReadyCache.get(sourcePath)
             || window.ClassRecordData?.getPreloadedAsset?.(sourcePath);
@@ -1333,34 +1342,57 @@ illustrationTooltipController = createInlineTooltipController({
             image.width = readyImage.width;
             image.height = readyImage.height;
             image.src = readyImage.url;
+            setIllustrationFrameSize(tooltip, image, readyImage.width, readyImage.height);
             image.addEventListener("error", () => {
                 illustrationReadyCache.delete(sourcePath);
                 if (isCurrent()) setIllustrationFailure(tooltip);
             }, { once: true });
             tooltip.replaceChildren(image);
+            reveal();
             return;
         }
-        const loading = document.createElement("span");
-        loading.className = "record-written-image-loading illustration-tooltip-loading";
-        loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
-        tooltip.appendChild(loading);
         const url = await resolveIllustrationUrl(sourcePath);
         if (!isCurrent()) return;
         if (!url) {
             setIllustrationFailure(tooltip);
+            reveal();
             return;
         }
         const image = document.createElement("img");
         image.alt = tag.textContent?.trim() || "记录插图";
         image.decoding = "async";
+        image.fetchPriority = "high";
+        let placeholderShown = false;
+        let dimensionFrame = null;
         const loaded = await new Promise((resolve) => {
-            image.onload = () => resolve(true);
-            image.onerror = () => resolve(false);
+            const inspectDimensions = () => {
+                if (!image.complete && !placeholderShown && image.naturalWidth > 0 && image.naturalHeight > 0) {
+                    placeholderShown = true;
+                    setIllustrationFrameSize(tooltip, image, image.naturalWidth, image.naturalHeight);
+                    image.classList.add("is-pending");
+                    const loading = document.createElement("span");
+                    loading.className = "record-written-image-loading illustration-tooltip-loading";
+                    loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
+                    tooltip.replaceChildren(image, loading);
+                    reveal();
+                }
+                if (!image.complete) dimensionFrame = requestAnimationFrame(inspectDimensions);
+            };
+            image.onload = () => {
+                cancelAnimationFrame(dimensionFrame);
+                resolve(true);
+            };
+            image.onerror = () => {
+                cancelAnimationFrame(dimensionFrame);
+                resolve(false);
+            };
             image.src = url;
+            inspectDimensions();
         });
         if (!isCurrent()) return;
         if (!loaded) {
             setIllustrationFailure(tooltip);
+            reveal();
             return;
         }
         illustrationReadyCache.set(sourcePath, {
@@ -1368,23 +1400,14 @@ illustrationTooltipController = createInlineTooltipController({
             width: image.naturalWidth,
             height: image.naturalHeight
         });
-        image.classList.add("is-pending");
-        tooltip.replaceChildren(image, loading);
-        position();
-        const revealImage = async () => {
-            const minimumPlaceholderTime = new Promise((resolve) => setTimeout(resolve, 160));
-            try {
-                await Promise.all([image.decode(), minimumPlaceholderTime]);
-            } catch (_) {
-                // The load event already confirmed that the image is usable.
-                await minimumPlaceholderTime;
-            }
-            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-            if (!isCurrent()) return;
-            image.classList.remove("is-pending");
-            loading.remove();
-        };
-        revealImage();
+        if (!placeholderShown) {
+            setIllustrationFrameSize(tooltip, image, image.naturalWidth, image.naturalHeight);
+            tooltip.replaceChildren(image);
+            reveal();
+            return;
+        }
+        image.classList.remove("is-pending");
+        tooltip.querySelector(".illustration-tooltip-loading")?.remove();
     }
 });
 
