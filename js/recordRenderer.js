@@ -1049,7 +1049,7 @@ function calculateInlineTooltipPosition({ tagRects, tagRect, tooltipRect, viewpo
 
 window.calculateInlineTooltipPosition = calculateInlineTooltipPosition;
 
-function createInlineTooltipController({ triggerSelector, tooltipClass, role = "tooltip", populate, beforeShow, pointerAnchor = false, showWhilePopulating = false }) {
+function createInlineTooltipController({ triggerSelector, tooltipClass, role = "tooltip", populate, beforeShow, pointerAnchor = false }) {
     let activeTag = null;
     let activeTooltip = null;
     let showTimer = null;
@@ -1134,14 +1134,13 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
             position: () => position(tag),
             isCurrent: () => token === requestToken && activeTag === tag && activeTooltip === tooltip && tooltip.isConnected
         });
-        if (!showWhilePopulating) await population;
+        await population;
         if (token !== requestToken || activeTooltip !== tooltip) return;
         position(tag);
         requestAnimationFrame(() => {
             tooltip.classList.remove("hidden", "is-hiding");
             tooltip.classList.add("show", "is-visible");
         });
-        if (showWhilePopulating) await population;
     };
     const queueShow = (tag, event) => {
         clearTimeout(showTimer);
@@ -1211,14 +1210,9 @@ illustrationTooltipController = createInlineTooltipController({
     tooltipClass: "illustration-tooltip",
     role: "dialog",
     pointerAnchor: true,
-    showWhilePopulating: true,
     beforeShow: () => annotationTooltipController.hide(true),
     populate: async ({ tag, tooltip, isCurrent }) => {
         tooltip.setAttribute("aria-label", `${tag.textContent?.trim() || "插图"}预览`);
-        const loading = document.createElement("span");
-        loading.className = "record-written-image-loading illustration-tooltip-loading";
-        loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
-        tooltip.appendChild(loading);
         const url = await resolveIllustrationUrl(tag.dataset.imageSrc || "");
         if (!isCurrent()) return;
         if (!url) {

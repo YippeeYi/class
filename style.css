@@ -6144,8 +6144,7 @@ body.hidden-record-mode .hidden-record-banner {
   box-sizing: border-box;
   display: grid;
   place-items: center;
-  width: min(380px, calc(100vw - 24px));
-  aspect-ratio: 19 / 15;
+  width: max-content;
   max-width: min(384px, calc(100vw - 24px));
   min-width: 0;
   min-height: 0;
@@ -6170,10 +6169,10 @@ body.hidden-record-mode .hidden-record-banner {
 
 .illustration-tooltip img {
   display: block;
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
+  width: auto;
+  height: auto;
+  max-width: min(360px, 80vw);
+  max-height: min(280px, 60vh);
   border-radius: 8px;
   object-fit: contain;
 }
@@ -6254,8 +6253,4 @@ body.hidden-record-mode .hidden-record-banner {
 .people-table tbody tr.people-row-main-teacher:hover td {
   background: color-mix(in srgb, var(--theme-accent) 22%, var(--theme-surface-strong));
   box-shadow: none;
-}
-
-.illustration-tooltip-loading {
-  border-radius: inherit;
 }
