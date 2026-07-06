@@ -688,6 +688,7 @@ async function enterHiddenRecordMode() {
     const records = await window.loadHiddenRecords();
     allRecords = records;
     sortRecords(allRecords);
+    await window.preloadRecordIllustrationMetadata?.(allRecords);
     renderHiddenModeBanner(`隐藏记录查看已开启，共 ${allRecords.length} 条。刷新后自动恢复普通记录。`, "success");
     renderViewControls();
     renderRecordFilter({
@@ -727,10 +728,12 @@ const cacheReady = window.cacheReadyPromise || Promise.resolve();
 bindHiddenRecordShortcut();
 
 cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
-  .then(([records]) => {
+  .then(async ([records]) => {
     if (hiddenMode) return;
     allRecords = records;
     sortRecords(allRecords);
+    await window.preloadRecordIllustrationMetadata?.(allRecords);
+    if (hiddenMode) return;
     try {
       const storedJump = JSON.parse(sessionStorage.getItem("classrecord:pending-record-jump") || "null");
       sessionStorage.removeItem("classrecord:pending-record-jump");

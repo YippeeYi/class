@@ -32,6 +32,7 @@ const extractTerms = context.window.extractMentionedTermIds;
 const getAuthors = context.window.getRecordAuthorIds;
 const countTextCharacters = context.window.countRecordTextCharacters;
 const calculateTooltipPosition = context.window.calculateInlineTooltipPosition;
+const extractIllustrations = context.window.extractIllustrationPaths;
 const timelineSource = await readFile(new URL('../js/timeline.js', import.meta.url), 'utf8');
 vm.runInContext(timelineSource, context);
 const fixedScale = context.window.ClassRecordFixedChartScale;
@@ -91,6 +92,7 @@ assert.equal([...getAuthors({ author: 'alice', content: '[[author:alice|重复]]
 assert.equal([...extractTerms('[[term:t1|术语]][[del:{{t2|旧术语}}]][[anno:提到 [[term:t3|术语]]|[[term:t1|重复]]]]')].sort().join(','), 't1,t2,t3');
 assert.equal(extractTerms('普通文本 t1；[[person:t2|不是术语]][[record:t3|不是术语]]').length, 0);
 assert.equal(countTextCharacters('甲[[person:a|乙]][[red:丙]]'), 3);
+assert.equal(extractIllustrations('[[illu:example.jpeg|插图]]').join(','), 'data/attachments/example.jpeg');
 assert.equal(calculateTooltipPosition({ tagRect: { left: 20, top: 40, right: 120, bottom: 80, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 150, y: 60 } }).top, 88);
 assert.equal(calculateTooltipPosition({ tagRect: { left: 20, top: 120, right: 120, bottom: 140, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 150, y: 130 } }).top, 72);
 assert.equal(calculateTooltipPosition({ tagRect: { left: 0, top: 40, right: 100, bottom: 80, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 5, y: 60 } }).left, 12);
@@ -131,4 +133,4 @@ assert.equal(peopleContext.getPeopleColumnsForTest('student').map((column) => co
 assert.equal(peopleContext.getPeopleColumnsForTest('teacher').map((column) => column.label).join(','), '序号,姓名,别名,参与,学科');
 assert.equal(peopleContext.getPeopleColumnsForTest('other').map((column) => column.label).join(','), '序号,姓名,别名,参与');
 
-console.log(`Passed ${cases.length + 38} markup, people, and timeline checks.`);
+console.log(`Passed ${cases.length + 39} markup, people, and timeline checks.`);

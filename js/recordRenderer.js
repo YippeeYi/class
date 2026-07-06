@@ -107,6 +107,7 @@ function extractRecordMarkupReferences(value) {
     const participantIds = new Set();
     const extraAuthorIds = new Set();
     const termIds = new Set();
+    const illustrationPaths = new Set();
     const binaryTypes = new Set(["person", "author", "term", "record", "frac", "anno", "illu", "arrow"]);
     const unaryTypes = new Set(["del", "under", "red", "hide", "sup", "sub", "center", "right"]);
 
@@ -153,6 +154,10 @@ function extractRecordMarkupReferences(value) {
             } else if (binaryTypes.has(type)) {
                 const parts = splitTopLevelOnce(body.slice(colon + 1));
                 if (parts && parts[0] && parts[1]) {
+                    if (type === "illu") {
+                        const path = normalizeIllustrationPath(parts[0]);
+                        if (path) illustrationPaths.add(path);
+                    }
                     if (type === "frac" || type === "arrow" || type === "anno") visit(parts[0], depth + 1);
                     visit(parts[1], depth + 1);
                 }
@@ -171,7 +176,8 @@ function extractRecordMarkupReferences(value) {
     return {
         participantIds: [...participantIds],
         extraAuthorIds: [...extraAuthorIds],
-        termIds: [...termIds]
+        termIds: [...termIds],
+        illustrationPaths: [...illustrationPaths]
     };
 }
 
@@ -185,6 +191,10 @@ function extractExtraAuthorIds(value) {
 
 function extractMentionedTermIds(value) {
     return extractRecordMarkupReferences(value).termIds;
+}
+
+function extractIllustrationPaths(value) {
+    return extractRecordMarkupReferences(value).illustrationPaths;
 }
 
 function getRecordParticipantIds(record) {
@@ -203,6 +213,7 @@ window.extractParticipantPersonIds = extractParticipantPersonIds;
 window.extractMentionedPersonIds = extractParticipantPersonIds;
 window.extractExtraAuthorIds = extractExtraAuthorIds;
 window.extractMentionedTermIds = extractMentionedTermIds;
+window.extractIllustrationPaths = extractIllustrationPaths;
 window.getRecordParticipantIds = getRecordParticipantIds;
 window.getRecordAuthorIds = getRecordAuthorIds;
 
@@ -1018,10 +1029,20 @@ function removeTooltip(immediate = false) {
 
 const illustrationPreloadCache = new Map();
 const illustrationReadyCache = new Map();
+const illustrationDimensionCache = new Map();
+const illustrationDimensionPromises = new Map();
+
+function getIllustrationSourceDimensions(path) {
+    return illustrationDimensionCache.get(String(path || "").trim()) || null;
+}
+
+window.getIllustrationSourceDimensions = getIllustrationSourceDimensions;
 
 window.addEventListener("classrecordcacheclearing", () => {
     illustrationPreloadCache.clear();
     illustrationReadyCache.clear();
+    illustrationDimensionCache.clear();
+    illustrationDimensionPromises.clear();
 });
 
 function resolveIllustrationUrl(path) {
@@ -1038,6 +1059,73 @@ function resolveIllustrationUrl(path) {
     illustrationPreloadCache.set(sourcePath, reusable);
     return reusable;
 }
+
+function preloadIllustrationDimensions(path) {
+    const sourcePath = String(path || "").trim();
+    if (!sourcePath) return Promise.resolve(null);
+    if (illustrationDimensionCache.has(sourcePath)) return Promise.resolve(illustrationDimensionCache.get(sourcePath));
+    if (illustrationDimensionPromises.has(sourcePath)) return illustrationDimensionPromises.get(sourcePath);
+    const promise = (async () => {
+        const preloaded = window.ClassRecordData?.getPreloadedAsset?.(sourcePath);
+        if (preloaded?.width > 0 && preloaded?.height > 0) {
+            illustrationReadyCache.set(sourcePath, preloaded);
+            const dimensions = { width: preloaded.width, height: preloaded.height };
+            illustrationDimensionCache.set(sourcePath, dimensions);
+            return dimensions;
+        }
+        const url = await resolveIllustrationUrl(sourcePath);
+        if (!url) return null;
+        return new Promise((resolve) => {
+            const image = new Image();
+            image.decoding = "async";
+            image.fetchPriority = "high";
+            let dimensionFrame = null;
+            let dimensionsResolved = false;
+            const resolveDimensions = () => {
+                if (dimensionsResolved || image.naturalWidth <= 0 || image.naturalHeight <= 0) return false;
+                dimensionsResolved = true;
+                const dimensions = { width: image.naturalWidth, height: image.naturalHeight };
+                illustrationDimensionCache.set(sourcePath, dimensions);
+                resolve(dimensions);
+                return true;
+            };
+            const inspectDimensions = () => {
+                if (!resolveDimensions() && !image.complete) dimensionFrame = requestAnimationFrame(inspectDimensions);
+            };
+            image.onload = () => {
+                cancelAnimationFrame(dimensionFrame);
+                resolveDimensions();
+                illustrationReadyCache.set(sourcePath, {
+                    url,
+                    width: image.naturalWidth,
+                    height: image.naturalHeight
+                });
+            };
+            image.onerror = () => {
+                cancelAnimationFrame(dimensionFrame);
+                if (!dimensionsResolved) resolve(null);
+            };
+            image.src = url;
+            inspectDimensions();
+        });
+    })();
+    const reusable = promise.then((dimensions) => {
+        if (!dimensions) illustrationDimensionPromises.delete(sourcePath);
+        return dimensions;
+    });
+    illustrationDimensionPromises.set(sourcePath, reusable);
+    return reusable;
+}
+
+async function preloadRecordIllustrationMetadata(records) {
+    const paths = new Set();
+    (Array.isArray(records) ? records : []).forEach((record) => {
+        extractIllustrationPaths(record?.content || "").forEach((path) => paths.add(path));
+    });
+    await Promise.all([...paths].map((path) => preloadIllustrationDimensions(path)));
+}
+
+window.preloadRecordIllustrationMetadata = preloadRecordIllustrationMetadata;
 
 function setIllustrationFailure(tooltip) {
     tooltip.classList.add("has-error");
@@ -1351,6 +1439,23 @@ illustrationTooltipController = createInlineTooltipController({
             reveal();
             return;
         }
+        const image = document.createElement("img");
+        image.alt = tag.textContent?.trim() || "记录插图";
+        image.decoding = "async";
+        image.fetchPriority = "high";
+        let placeholderShown = false;
+        let dimensionFrame = null;
+        const sourceDimensions = getIllustrationSourceDimensions(sourcePath);
+        if (sourceDimensions) {
+            placeholderShown = true;
+            setIllustrationFrameSize(tooltip, image, sourceDimensions.width, sourceDimensions.height);
+            image.classList.add("is-pending");
+            const loading = document.createElement("span");
+            loading.className = "record-written-image-loading illustration-tooltip-loading";
+            loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
+            tooltip.replaceChildren(image, loading);
+            reveal();
+        }
         const url = await resolveIllustrationUrl(sourcePath);
         if (!isCurrent()) return;
         if (!url) {
@@ -1358,12 +1463,6 @@ illustrationTooltipController = createInlineTooltipController({
             reveal();
             return;
         }
-        const image = document.createElement("img");
-        image.alt = tag.textContent?.trim() || "记录插图";
-        image.decoding = "async";
-        image.fetchPriority = "high";
-        let placeholderShown = false;
-        let dimensionFrame = null;
         const loaded = await new Promise((resolve) => {
             const inspectDimensions = () => {
                 if (!image.complete && !placeholderShown && image.naturalWidth > 0 && image.naturalHeight > 0) {
