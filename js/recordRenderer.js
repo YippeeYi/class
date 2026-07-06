@@ -1049,7 +1049,7 @@ function calculateInlineTooltipPosition({ tagRects, tagRect, tooltipRect, viewpo
 
 window.calculateInlineTooltipPosition = calculateInlineTooltipPosition;
 
-function createInlineTooltipController({ triggerSelector, tooltipClass, role = "tooltip", populate, beforeShow, pointerAnchor = false }) {
+function createInlineTooltipController({ triggerSelector, tooltipClass, role = "tooltip", populate, beforeShow, pointerAnchor = false, showDelay = TOOLTIP_DELAY, showBeforePopulate = false }) {
     let activeTag = null;
     let activeTooltip = null;
     let showTimer = null;
@@ -1134,13 +1134,23 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
             position: () => position(tag),
             isCurrent: () => token === requestToken && activeTag === tag && activeTooltip === tooltip && tooltip.isConnected
         });
+        if (showBeforePopulate) {
+            position(tag);
+            requestAnimationFrame(() => {
+                if (token !== requestToken || activeTooltip !== tooltip) return;
+                tooltip.classList.remove("hidden", "is-hiding");
+                tooltip.classList.add("show", "is-visible");
+            });
+        }
         await population;
         if (token !== requestToken || activeTooltip !== tooltip) return;
         position(tag);
-        requestAnimationFrame(() => {
-            tooltip.classList.remove("hidden", "is-hiding");
-            tooltip.classList.add("show", "is-visible");
-        });
+        if (!showBeforePopulate) {
+            requestAnimationFrame(() => {
+                tooltip.classList.remove("hidden", "is-hiding");
+                tooltip.classList.add("show", "is-visible");
+            });
+        }
     };
     const queueShow = (tag, event) => {
         clearTimeout(showTimer);
@@ -1149,7 +1159,8 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
         if (Number.isFinite(event?.clientX) && Number.isFinite(event?.clientY)) {
             lastPointerPosition = { x: event.clientX, y: event.clientY };
         }
-        showTimer = setTimeout(() => show(tag), TOOLTIP_DELAY);
+        if (showDelay <= 0) show(tag);
+        else showTimer = setTimeout(() => show(tag), showDelay);
     };
 
     document.addEventListener("pointerover", (event) => {
@@ -1210,9 +1221,16 @@ illustrationTooltipController = createInlineTooltipController({
     tooltipClass: "illustration-tooltip",
     role: "dialog",
     pointerAnchor: true,
+    showDelay: 0,
+    showBeforePopulate: true,
     beforeShow: () => annotationTooltipController.hide(true),
-    populate: async ({ tag, tooltip, isCurrent }) => {
+    populate: async ({ tag, tooltip, position, isCurrent }) => {
         tooltip.setAttribute("aria-label", `${tag.textContent?.trim() || "插图"}预览`);
+        tooltip.classList.add("is-loading");
+        const loading = document.createElement("span");
+        loading.className = "record-written-image-loading illustration-tooltip-loading";
+        loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
+        tooltip.appendChild(loading);
         const url = await resolveIllustrationUrl(tag.dataset.imageSrc || "");
         if (!isCurrent()) return;
         if (!url) {
@@ -1233,10 +1251,9 @@ illustrationTooltipController = createInlineTooltipController({
             return;
         }
         image.classList.add("is-pending");
-        const loading = document.createElement("span");
-        loading.className = "record-written-image-loading illustration-tooltip-loading";
-        loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
         tooltip.replaceChildren(image, loading);
+        tooltip.classList.remove("is-loading");
+        position();
         const revealImage = async () => {
             const minimumPlaceholderTime = new Promise((resolve) => setTimeout(resolve, 160));
             try {

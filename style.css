@@ -6177,6 +6177,11 @@ body.hidden-record-mode .hidden-record-banner {
   object-fit: contain;
 }
 
+.illustration-tooltip.is-loading {
+  width: min(380px, calc(100vw - 24px));
+  aspect-ratio: 19 / 15;
+}
+
 .illustration-tooltip img.is-pending {
   visibility: hidden;
 }
