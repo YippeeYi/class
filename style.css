@@ -5988,14 +5988,15 @@ body.hidden-record-mode .hidden-record-banner {
 }
 
 .inline-delete .person-tag,
-.inline-delete .term-tag,
+.inline-delete .term-tag {
+  display: inline;
+}
+
 .inline-delete .record-jump-link {
   position: relative;
   text-decoration: none;
 }
 
-.inline-delete .person-tag::after,
-.inline-delete .term-tag::after,
 .inline-delete .record-jump-link::after {
   content: "";
   position: absolute;
