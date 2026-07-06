@@ -6177,6 +6177,14 @@ body.hidden-record-mode .hidden-record-banner {
   object-fit: contain;
 }
 
+.illustration-tooltip img.is-pending {
+  visibility: hidden;
+}
+
+.illustration-tooltip-loading {
+  border-radius: inherit;
+}
+
 .illustration-tooltip-status {
   padding: 6px 8px;
   color: var(--text-soft);

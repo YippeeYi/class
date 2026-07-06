@@ -1228,8 +1228,29 @@ illustrationTooltipController = createInlineTooltipController({
             image.src = url;
         });
         if (!isCurrent()) return;
-        if (loaded) tooltip.replaceChildren(image);
-        else setIllustrationFailure(tooltip);
+        if (!loaded) {
+            setIllustrationFailure(tooltip);
+            return;
+        }
+        image.classList.add("is-pending");
+        const loading = document.createElement("span");
+        loading.className = "record-written-image-loading illustration-tooltip-loading";
+        loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
+        tooltip.replaceChildren(image, loading);
+        const revealImage = async () => {
+            const minimumPlaceholderTime = new Promise((resolve) => setTimeout(resolve, 160));
+            try {
+                await Promise.all([image.decode(), minimumPlaceholderTime]);
+            } catch (_) {
+                // The load event already confirmed that the image is usable.
+                await minimumPlaceholderTime;
+            }
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            if (!isCurrent()) return;
+            image.classList.remove("is-pending");
+            loading.remove();
+        };
+        revealImage();
     }
 });
 
