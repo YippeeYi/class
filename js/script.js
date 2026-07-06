@@ -455,12 +455,28 @@ function renderRecordFilterForCurrentState() {
     container: filterContainer,
     getRecords: () => allRecords,
     initial: currentCriteria,
+    onClear: clearRecordNavigationState,
     onFilterChange: criteria => {
       currentCriteria = { ...criteria };
       currentPageIndex = 0;
       renderCurrentViewAsync();
     }
   });
+}
+
+function clearRecordNavigationState() {
+  window.ClassRecordCancelFocus?.();
+  closeRecordJumpDialog({ immediate: true });
+  pendingRecordJump = null;
+  try {
+    sessionStorage.removeItem("classrecord:pending-record-jump");
+  } catch (error) {
+    // Storage may be unavailable in privacy modes; in-memory state is already cleared.
+  }
+  document.querySelectorAll(".record-anchor-highlight").forEach((record) => record.classList.remove("record-anchor-highlight"));
+  const params = new URLSearchParams(location.search);
+  ["year", "month", "day", "important", "excludeDaily", "q"].forEach((key) => params.delete(key));
+  history.replaceState(null, "", `${location.pathname}${params.toString() ? `?${params}` : ""}`);
 }
 
 function closeRecordJumpDialog({ immediate = false } = {}) {
@@ -678,6 +694,7 @@ async function enterHiddenRecordMode() {
       container: filterContainer,
       getRecords: () => allRecords,
       initial: currentCriteria,
+      onClear: clearRecordNavigationState,
       onFilterChange: criteria => {
         currentCriteria = { ...criteria };
         currentPageIndex = 0;
@@ -743,6 +760,7 @@ cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
       container: filterContainer,
       getRecords: () => allRecords,
       initial: currentCriteria,
+      onClear: clearRecordNavigationState,
       onFilterChange: criteria => {
         currentCriteria = criteria;
         currentPageIndex = 0;

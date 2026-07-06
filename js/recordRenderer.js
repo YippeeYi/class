@@ -491,12 +491,21 @@ function afterScrollSettles(target, callback, { timeout = 2600, quiet = 220 } = 
     requestAnimationFrame(tick);
 }
 
+let recordFocusGeneration = 0;
+
+function cancelRecordFocus() {
+    recordFocusGeneration += 1;
+}
+
 function focusRecordAnchor(anchorId, { behavior = "smooth" } = {}) {
     const target = document.getElementById(String(anchorId || "").replace(/^#/, ""));
     if (!target) return false;
+    const generation = ++recordFocusGeneration;
     requestAnimationFrame(() => {
+        if (generation !== recordFocusGeneration) return;
         target.scrollIntoView({ behavior, block: "center" });
         afterScrollSettles(target, () => {
+            if (generation !== recordFocusGeneration) return;
             target.classList.remove("record-anchor-highlight");
             void target.offsetWidth;
             target.classList.add("record-anchor-highlight");
@@ -510,6 +519,7 @@ function focusRecordAnchor(anchorId, { behavior = "smooth" } = {}) {
 }
 
 window.ClassRecordFocusAnchor = focusRecordAnchor;
+window.ClassRecordCancelFocus = cancelRecordFocus;
 
 function renderRecordList(records, container) {
     records.forEach((record) => {
@@ -603,7 +613,7 @@ function buildOptions(records, criteria) {
     };
 }
 
-function renderRecordFilter({ container, onFilterChange, getRecords, initial = {} }) {
+function renderRecordFilter({ container, onFilterChange, onClear, getRecords, initial = {} }) {
     if (!container) return;
 
     container.innerHTML = "";
@@ -782,7 +792,10 @@ function renderRecordFilter({ container, onFilterChange, getRecords, initial = {
     dayOptions.addEventListener("click", handleOptionClick);
     importantButton?.addEventListener("click", () => applyCriteria({ ...currentCriteria, important: !currentCriteria.important }));
     excludeDailyButton?.addEventListener("click", () => applyCriteria({ ...currentCriteria, excludeDaily: !currentCriteria.excludeDaily }));
-    clearButton.addEventListener("click", () => applyCriteria({ year: "", month: "", day: "", important: false, excludeDaily: false, query: "" }));
+    clearButton.addEventListener("click", () => {
+        onClear?.();
+        applyCriteria({ year: "", month: "", day: "", important: false, excludeDaily: false, query: "" });
+    });
     searchInput?.addEventListener("input", () => {
         window.clearTimeout(searchInput._recordSearchTimer);
         searchInput._recordSearchTimer = window.setTimeout(() => {
