@@ -1310,6 +1310,7 @@ illustrationTooltipController = createInlineTooltipController({
     beforeShow: () => annotationTooltipController.hide(true),
     populate: async ({ tag, tooltip, position, isCurrent }) => {
         tooltip.setAttribute("aria-label", `${tag.textContent?.trim() || "插图"}预览`);
+        tooltip.classList.add("has-fixed-frame");
         const sourcePath = String(tag.dataset.imageSrc || "").trim();
         let readyImage = illustrationReadyCache.get(sourcePath)
             || window.ClassRecordData?.getPreloadedAsset?.(sourcePath);
@@ -1339,7 +1340,6 @@ illustrationTooltipController = createInlineTooltipController({
             tooltip.replaceChildren(image);
             return;
         }
-        tooltip.classList.add("is-loading");
         const loading = document.createElement("span");
         loading.className = "record-written-image-loading illustration-tooltip-loading";
         loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
@@ -1370,7 +1370,6 @@ illustrationTooltipController = createInlineTooltipController({
         });
         image.classList.add("is-pending");
         tooltip.replaceChildren(image, loading);
-        tooltip.classList.remove("is-loading");
         position();
         const revealImage = async () => {
             const minimumPlaceholderTime = new Promise((resolve) => setTimeout(resolve, 160));
