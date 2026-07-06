@@ -5979,13 +5979,24 @@ body.hidden-record-mode .hidden-record-banner {
 }
 
 .inline-delete {
-  position: relative;
   display: inline;
   color: inherit;
+  text-decoration-line: line-through;
+  text-decoration-color: #000 !important;
+  text-decoration-thickness: max(1.5px, 0.09em);
+  text-decoration-skip-ink: none;
+}
+
+.inline-delete .person-tag,
+.inline-delete .term-tag,
+.inline-delete .record-jump-link {
+  position: relative;
   text-decoration: none;
 }
 
-.inline-delete::after {
+.inline-delete .person-tag::after,
+.inline-delete .term-tag::after,
+.inline-delete .record-jump-link::after {
   content: "";
   position: absolute;
   z-index: 2147483647;
