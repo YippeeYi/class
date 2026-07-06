@@ -12,6 +12,7 @@
     const signedUrlCache = new Map();
     const failedSignCache = new Map();
     const imagePreloadCache = new Map();
+    const imagePreloadResults = new Map();
     const FAILED_SIGN_TTL = 5 * 60 * 1000;
     const SIGNED_URL_REFRESH_BUFFER = 60 * 1000;
     const FAILED_ASSET_SESSION_KEY = 'classRecordMissingAssets.v1';
@@ -438,7 +439,14 @@
                 const image = new Image();
                 image.decoding = 'async';
                 image.fetchPriority = priority;
-                image.onload = () => resolve(url);
+                image.onload = () => {
+                    imagePreloadResults.set(safePath, {
+                        url,
+                        width: image.naturalWidth,
+                        height: image.naturalHeight
+                    });
+                    resolve(url);
+                };
                 image.onerror = () => resolve(null);
                 image.src = url;
             });
@@ -449,6 +457,11 @@
         });
         imagePreloadCache.set(safePath, reusablePromise);
         return reusablePromise;
+    };
+
+    const getPreloadedAsset = (path) => {
+        const safePath = normalizePrivateStoragePath(path);
+        return safePath ? imagePreloadResults.get(safePath) || null : null;
     };
 
     const listAssetPaths = async (directory, { search = '', limit = 100 } = {}) => {
@@ -532,12 +545,14 @@
         signedUrlCache.clear();
         failedSignCache.clear();
         imagePreloadCache.clear();
+        imagePreloadResults.clear();
     });
 
     window.ClassRecordData = {
         resolveAssetElements,
         getClient,
         getConfig,
+        getPreloadedAsset,
         isEnabled,
         loadGlossary,
         loadPeople,

@@ -836,7 +836,7 @@ let isHoveringTooltip = false;
 let isHoveringTerm = false;
 let activeTermTag = null;
 let activeTermPointerOffset = null;
-let tooltipScrollGraceUntil = 0;
+let termDismissedByScroll = false;
 
 const TOOLTIP_DELAY = 200;
 const TOOLTIP_REMOVE_DELAY = 300;
@@ -884,27 +884,22 @@ async function ensureGlossary() {
 document.addEventListener("mousemove", (event) => {
     lastMouseX = event.clientX;
     lastMouseY = event.clientY;
+    const hoveredTerm = event.target.closest(".term-tag");
+    if (termDismissedByScroll && hoveredTerm) {
+        termDismissedByScroll = false;
+        queueTermTooltip(hoveredTerm, event);
+        return;
+    }
     if (activeTermTag && event.target.closest(".term-tag") === activeTermTag) {
         const bounds = activeTermTag.getBoundingClientRect();
         activeTermPointerOffset = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
-    } else if (activeTermTag && Date.now() >= tooltipScrollGraceUntil) {
+    } else if (activeTermTag) {
         isHoveringTerm = false;
         scheduleTooltipRemoval();
     }
 });
 
-window.addEventListener("wheel", () => {
-    tooltipScrollGraceUntil = Date.now() + 180;
-}, { passive: true, capture: true });
-window.addEventListener("scroll", () => {
-    tooltipScrollGraceUntil = Date.now() + 180;
-    if (activeTooltip && activeTermTag) requestAnimationFrame(positionTermTooltip);
-}, true);
-
-document.addEventListener("mouseover", (event) => {
-    const tag = event.target.closest(".term-tag");
-    if (!tag) return;
-
+function queueTermTooltip(tag, event) {
     lastMouseX = event.clientX;
     lastMouseY = event.clientY;
     const termId = tag.dataset.id;
@@ -947,11 +942,31 @@ document.addEventListener("mouseover", (event) => {
             activeTooltip.classList.add("show");
         });
     }, TOOLTIP_DELAY);
+}
+
+function dismissTermTooltipForScroll() {
+    if (!activeTooltip && !activeTermTag && !tooltipTimer) return;
+    termDismissedByScroll = true;
+    clearTimeout(tooltipTimer);
+    tooltipTimer = null;
+    clearTimeout(tooltipRemoveTimer);
+    tooltipRemoveTimer = null;
+    isHoveringTerm = false;
+    isHoveringTooltip = false;
+    removeTooltip();
+}
+
+window.addEventListener("wheel", dismissTermTooltipForScroll, { passive: true, capture: true });
+window.addEventListener("scroll", dismissTermTooltipForScroll, true);
+
+document.addEventListener("mouseover", (event) => {
+    const tag = event.target.closest(".term-tag");
+    if (!tag || termDismissedByScroll) return;
+    queueTermTooltip(tag, event);
 });
 
 document.addEventListener("mouseout", (event) => {
     if (event.target.closest(".term-tag")) {
-        if (Date.now() < tooltipScrollGraceUntil) return;
         isHoveringTerm = false;
     }
 
@@ -1091,7 +1106,7 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
     let lastPointerTriggerAt = 0;
     let lastPointerPosition = null;
     let pointerTagOffset = null;
-    let scrollFrame = null;
+    let dismissedByScroll = false;
 
     const cancelRemoval = () => {
         clearTimeout(removeTimer);
@@ -1116,6 +1131,7 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
     };
     const hide = (immediate = false) => {
         clearTimeout(showTimer);
+        showTimer = null;
         cancelRemoval();
         requestToken += 1;
         activeTag?.setAttribute("aria-expanded", "false");
@@ -1140,6 +1156,7 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
     };
     const show = async (tag, event) => {
         clearTimeout(showTimer);
+        showTimer = null;
         cancelRemoval();
         if (!tag) return;
         const pointerPosition = Number.isFinite(event?.clientX) && Number.isFinite(event?.clientY)
@@ -1211,15 +1228,21 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
     document.addEventListener("pointerover", (event) => {
         if (event.pointerType === "touch") return;
         const tag = event.target.closest(triggerSelector);
-        if (!tag || (event.relatedTarget?.nodeType && tag.contains(event.relatedTarget))) return;
+        if (!tag || dismissedByScroll || (event.relatedTarget?.nodeType && tag.contains(event.relatedTarget))) return;
         hoveringTrigger = true;
         queueShow(tag, event);
     });
     document.addEventListener("pointermove", (event) => {
         const tag = event.target.closest(triggerSelector);
         if (event.pointerType === "touch") return;
+        if (dismissedByScroll && tag) {
+            dismissedByScroll = false;
+            hoveringTrigger = true;
+            queueShow(tag, event);
+            return;
+        }
         if (!tag) {
-            if (activeTag && Date.now() >= tooltipScrollGraceUntil) {
+            if (activeTag) {
                 hoveringTrigger = false;
                 scheduleRemoval();
             }
@@ -1236,7 +1259,6 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
         if (event.pointerType === "touch") return;
         const tag = event.target.closest(triggerSelector);
         if (!tag || (event.relatedTarget?.nodeType && tag.contains(event.relatedTarget))) return;
-        if (Date.now() < tooltipScrollGraceUntil) return;
         hoveringTrigger = false;
         clearTimeout(showTimer);
         scheduleRemoval();
@@ -1249,11 +1271,13 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
         if (event.target.closest(triggerSelector)) scheduleRemoval();
     });
     window.addEventListener("resize", () => hide(true));
-    window.addEventListener("scroll", () => {
-        if (!activeTag || !activeTooltip) return;
-        cancelAnimationFrame(scrollFrame);
-        scrollFrame = requestAnimationFrame(() => position(activeTag));
-    }, true);
+    const dismissForScroll = () => {
+        if (!activeTag && !activeTooltip && !showTimer) return;
+        dismissedByScroll = true;
+        hide();
+    };
+    window.addEventListener("wheel", dismissForScroll, { passive: true, capture: true });
+    window.addEventListener("scroll", dismissForScroll, true);
 
     return {
         hide,
@@ -1287,8 +1311,21 @@ illustrationTooltipController = createInlineTooltipController({
     populate: async ({ tag, tooltip, position, isCurrent }) => {
         tooltip.setAttribute("aria-label", `${tag.textContent?.trim() || "插图"}预览`);
         const sourcePath = String(tag.dataset.imageSrc || "").trim();
-        const readyImage = illustrationReadyCache.get(sourcePath);
+        let readyImage = illustrationReadyCache.get(sourcePath)
+            || window.ClassRecordData?.getPreloadedAsset?.(sourcePath);
+        if (!readyImage && sourcePath && !window.ClassRecordData?.isEnabled?.()) {
+            const cachedImage = new Image();
+            cachedImage.src = sourcePath;
+            if (cachedImage.complete && cachedImage.naturalWidth > 0) {
+                readyImage = {
+                    url: sourcePath,
+                    width: cachedImage.naturalWidth,
+                    height: cachedImage.naturalHeight
+                };
+            }
+        }
         if (readyImage) {
+            illustrationReadyCache.set(sourcePath, readyImage);
             const image = document.createElement("img");
             image.alt = tag.textContent?.trim() || "记录插图";
             image.decoding = "async";
