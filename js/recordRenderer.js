@@ -835,6 +835,8 @@ let lastMouseY = 0;
 let isHoveringTooltip = false;
 let isHoveringTerm = false;
 let activeTermTag = null;
+let activeTermPointerOffset = null;
+let tooltipScrollGraceUntil = 0;
 
 const TOOLTIP_DELAY = 200;
 const TOOLTIP_REMOVE_DELAY = 300;
@@ -853,12 +855,16 @@ function getInlineMarkerRects(tag) {
 
 function positionTermTooltip() {
     if (!activeTooltip || !activeTermTag) return;
+    const tagBounds = activeTermTag.getBoundingClientRect();
+    const pointer = activeTermPointerOffset
+        ? { x: tagBounds.left + activeTermPointerOffset.x, y: tagBounds.top + activeTermPointerOffset.y }
+        : { x: lastMouseX, y: lastMouseY };
     const { left, top } = calculateInlineTooltipPosition({
         tagRects: getInlineMarkerRects(activeTermTag),
         tooltipRect: activeTooltip.getBoundingClientRect(),
         viewportWidth: window.innerWidth,
         viewportHeight: window.innerHeight,
-        pointer: { x: lastMouseX, y: lastMouseY },
+        pointer,
         multiline: true
     });
     activeTooltip.style.left = `${left}px`;
@@ -878,7 +884,22 @@ async function ensureGlossary() {
 document.addEventListener("mousemove", (event) => {
     lastMouseX = event.clientX;
     lastMouseY = event.clientY;
+    if (activeTermTag && event.target.closest(".term-tag") === activeTermTag) {
+        const bounds = activeTermTag.getBoundingClientRect();
+        activeTermPointerOffset = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+    } else if (activeTermTag && Date.now() >= tooltipScrollGraceUntil) {
+        isHoveringTerm = false;
+        scheduleTooltipRemoval();
+    }
 });
+
+window.addEventListener("wheel", () => {
+    tooltipScrollGraceUntil = Date.now() + 180;
+}, { passive: true, capture: true });
+window.addEventListener("scroll", () => {
+    tooltipScrollGraceUntil = Date.now() + 180;
+    if (activeTooltip && activeTermTag) requestAnimationFrame(positionTermTooltip);
+}, true);
 
 document.addEventListener("mouseover", (event) => {
     const tag = event.target.closest(".term-tag");
@@ -899,6 +920,8 @@ document.addEventListener("mouseover", (event) => {
         removeTooltip(true);
         activeTermId = termId;
         activeTermTag = tag;
+        const tagBounds = tag.getBoundingClientRect();
+        activeTermPointerOffset = { x: lastMouseX - tagBounds.left, y: lastMouseY - tagBounds.top };
         activeTooltip = document.createElement("div");
         activeTooltip.className = "term-tooltip hidden";
         activeTooltip.innerHTML = `
@@ -928,6 +951,7 @@ document.addEventListener("mouseover", (event) => {
 
 document.addEventListener("mouseout", (event) => {
     if (event.target.closest(".term-tag")) {
+        if (Date.now() < tooltipScrollGraceUntil) return;
         isHoveringTerm = false;
     }
 
@@ -966,6 +990,7 @@ function removeTooltip(immediate = false) {
     activeTooltip = null;
     activeTermId = null;
     activeTermTag = null;
+    activeTermPointerOffset = null;
     isHoveringTooltip = false;
     isHoveringTerm = false;
 
@@ -977,6 +1002,12 @@ function removeTooltip(immediate = false) {
 }
 
 const illustrationPreloadCache = new Map();
+const illustrationReadyCache = new Map();
+
+window.addEventListener("classrecordcacheclearing", () => {
+    illustrationPreloadCache.clear();
+    illustrationReadyCache.clear();
+});
 
 function resolveIllustrationUrl(path) {
     const sourcePath = String(path || "").trim();
@@ -1059,6 +1090,8 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
     let hoveringTooltip = false;
     let lastPointerTriggerAt = 0;
     let lastPointerPosition = null;
+    let pointerTagOffset = null;
+    let scrollFrame = null;
 
     const cancelRemoval = () => {
         clearTimeout(removeTimer);
@@ -1066,13 +1099,17 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
     };
     const position = (tag = activeTag) => {
         if (!tag || !activeTooltip) return;
+        const tagBounds = tag.getBoundingClientRect();
+        const anchoredPointer = pointerAnchor && pointerTagOffset
+            ? { x: tagBounds.left + pointerTagOffset.x, y: tagBounds.top + pointerTagOffset.y }
+            : lastPointerPosition;
         const tooltipRect = activeTooltip.getBoundingClientRect();
         const { left, top } = calculateInlineTooltipPosition({
             tagRects: getInlineMarkerRects(tag),
             tooltipRect,
             viewportWidth: window.innerWidth,
             viewportHeight: window.innerHeight,
-            pointer: pointerAnchor ? lastPointerPosition : null
+            pointer: pointerAnchor ? anchoredPointer : null
         });
         activeTooltip.style.left = `${left}px`;
         activeTooltip.style.top = `${top}px`;
@@ -1088,6 +1125,7 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
         hoveringTrigger = false;
         hoveringTooltip = false;
         lastPointerPosition = null;
+        pointerTagOffset = null;
         if (!tooltip) return;
         tooltip.classList.remove("show", "is-visible");
         tooltip.classList.add("is-hiding");
@@ -1107,9 +1145,14 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
         const pointerPosition = Number.isFinite(event?.clientX) && Number.isFinite(event?.clientY)
             ? { x: event.clientX, y: event.clientY }
             : lastPointerPosition;
+        const tagBounds = tag.getBoundingClientRect();
+        const pointerOffset = pointerPosition
+            ? { x: pointerPosition.x - tagBounds.left, y: pointerPosition.y - tagBounds.top }
+            : pointerTagOffset;
         if (activeTag === tag && activeTooltip) return;
         hide(true);
         lastPointerPosition = pointerPosition;
+        pointerTagOffset = pointerOffset;
         beforeShow?.();
         removeTooltip(true);
         const token = requestToken;
@@ -1158,6 +1201,8 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
         if (activeTag && activeTag !== tag) hide();
         if (Number.isFinite(event?.clientX) && Number.isFinite(event?.clientY)) {
             lastPointerPosition = { x: event.clientX, y: event.clientY };
+            const bounds = tag.getBoundingClientRect();
+            pointerTagOffset = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
         }
         if (showDelay <= 0) show(tag);
         else showTimer = setTimeout(() => show(tag), showDelay);
@@ -1171,8 +1216,18 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
         queueShow(tag, event);
     });
     document.addEventListener("pointermove", (event) => {
-        if (event.pointerType === "touch" || !event.target.closest(triggerSelector)) return;
+        const tag = event.target.closest(triggerSelector);
+        if (event.pointerType === "touch") return;
+        if (!tag) {
+            if (activeTag && Date.now() >= tooltipScrollGraceUntil) {
+                hoveringTrigger = false;
+                scheduleRemoval();
+            }
+            return;
+        }
         lastPointerPosition = { x: event.clientX, y: event.clientY };
+        const bounds = tag.getBoundingClientRect();
+        pointerTagOffset = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
     });
     document.addEventListener("pointerdown", (event) => {
         if (event.target.closest(triggerSelector)) lastPointerTriggerAt = Date.now();
@@ -1181,6 +1236,7 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
         if (event.pointerType === "touch") return;
         const tag = event.target.closest(triggerSelector);
         if (!tag || (event.relatedTarget?.nodeType && tag.contains(event.relatedTarget))) return;
+        if (Date.now() < tooltipScrollGraceUntil) return;
         hoveringTrigger = false;
         clearTimeout(showTimer);
         scheduleRemoval();
@@ -1193,7 +1249,11 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
         if (event.target.closest(triggerSelector)) scheduleRemoval();
     });
     window.addEventListener("resize", () => hide(true));
-    window.addEventListener("scroll", () => hide(true), true);
+    window.addEventListener("scroll", () => {
+        if (!activeTag || !activeTooltip) return;
+        cancelAnimationFrame(scrollFrame);
+        scrollFrame = requestAnimationFrame(() => position(activeTag));
+    }, true);
 
     return {
         hide,
@@ -1226,12 +1286,28 @@ illustrationTooltipController = createInlineTooltipController({
     beforeShow: () => annotationTooltipController.hide(true),
     populate: async ({ tag, tooltip, position, isCurrent }) => {
         tooltip.setAttribute("aria-label", `${tag.textContent?.trim() || "插图"}预览`);
+        const sourcePath = String(tag.dataset.imageSrc || "").trim();
+        const readyImage = illustrationReadyCache.get(sourcePath);
+        if (readyImage) {
+            const image = document.createElement("img");
+            image.alt = tag.textContent?.trim() || "记录插图";
+            image.decoding = "async";
+            image.width = readyImage.width;
+            image.height = readyImage.height;
+            image.src = readyImage.url;
+            image.addEventListener("error", () => {
+                illustrationReadyCache.delete(sourcePath);
+                if (isCurrent()) setIllustrationFailure(tooltip);
+            }, { once: true });
+            tooltip.replaceChildren(image);
+            return;
+        }
         tooltip.classList.add("is-loading");
         const loading = document.createElement("span");
         loading.className = "record-written-image-loading illustration-tooltip-loading";
         loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
         tooltip.appendChild(loading);
-        const url = await resolveIllustrationUrl(tag.dataset.imageSrc || "");
+        const url = await resolveIllustrationUrl(sourcePath);
         if (!isCurrent()) return;
         if (!url) {
             setIllustrationFailure(tooltip);
@@ -1250,6 +1326,11 @@ illustrationTooltipController = createInlineTooltipController({
             setIllustrationFailure(tooltip);
             return;
         }
+        illustrationReadyCache.set(sourcePath, {
+            url,
+            width: image.naturalWidth,
+            height: image.naturalHeight
+        });
         image.classList.add("is-pending");
         tooltip.replaceChildren(image, loading);
         tooltip.classList.remove("is-loading");
