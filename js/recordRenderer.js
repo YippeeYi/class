@@ -976,11 +976,28 @@ function removeTooltip(immediate = false) {
     }
 }
 
-async function resolveIllustrationUrl(path) {
-    if (window.ClassRecordData?.isEnabled?.()) {
-        return window.ClassRecordData.preloadAsset(path, { priority: "high" }).catch(() => null);
-    }
-    return path;
+const illustrationPreloadCache = new Map();
+
+function resolveIllustrationUrl(path) {
+    const sourcePath = String(path || "").trim();
+    if (!sourcePath) return Promise.resolve(null);
+    if (illustrationPreloadCache.has(sourcePath)) return illustrationPreloadCache.get(sourcePath);
+    const promise = window.ClassRecordData?.isEnabled?.()
+        ? window.ClassRecordData.preloadAsset(sourcePath, { priority: "high" }).catch(() => null)
+        : new Promise((resolve) => {
+            const image = new Image();
+            image.decoding = "async";
+            image.fetchPriority = "high";
+            image.onload = () => resolve(sourcePath);
+            image.onerror = () => resolve(null);
+            image.src = sourcePath;
+        });
+    const reusable = promise.then((url) => {
+        if (!url) illustrationPreloadCache.delete(sourcePath);
+        return url;
+    });
+    illustrationPreloadCache.set(sourcePath, reusable);
+    return reusable;
 }
 
 function setIllustrationFailure(tooltip) {
@@ -992,8 +1009,7 @@ function setIllustrationFailure(tooltip) {
     tooltip.appendChild(message);
 }
 
-// The upward clearance includes the lower reach of --tooltip-shadow (0 20px 40px).
-function calculateInlineTooltipPosition({ tagRects, tagRect, tooltipRect, viewportWidth, viewportHeight, pointer, padding = 12, aboveClearance = 42, belowClearance = 12 }) {
+function calculateInlineTooltipPosition({ tagRects, tagRect, tooltipRect, viewportWidth, viewportHeight, pointer, padding = 12, gap = 8 }) {
     const rects = Array.isArray(tagRects) && tagRects.length ? tagRects : [tagRect];
     const markerTop = Math.min(...rects.map((rect) => rect.top));
     const markerBottom = Math.max(...rects.map((rect) => rect.bottom));
@@ -1001,17 +1017,31 @@ function calculateInlineTooltipPosition({ tagRects, tagRect, tooltipRect, viewpo
     const markerRight = Math.max(...rects.map((rect) => rect.right));
     const pointerX = Number.isFinite(pointer?.x) ? pointer.x : (markerLeft + markerRight) / 2;
     const left = clamp(pointerX - tooltipRect.width / 2, padding, Math.max(padding, viewportWidth - tooltipRect.width - padding));
-    const above = markerTop - aboveClearance - tooltipRect.height;
-    const below = markerBottom + belowClearance;
-    const aboveFits = above >= padding;
-    const belowFits = below + tooltipRect.height <= viewportHeight - padding;
-    let top = above;
-    if (!aboveFits && belowFits) {
-        top = below;
-    } else if (!aboveFits && !belowFits) {
-        const spaceAbove = markerTop - aboveClearance - padding;
-        const spaceBelow = viewportHeight - padding - markerBottom - belowClearance;
-        top = spaceAbove >= spaceBelow ? above : below;
+    const pointerY = Number.isFinite(pointer?.y) ? pointer.y : (markerTop + markerBottom) / 2;
+    const distanceToRect = (rect) => {
+        const dx = pointerX < rect.left ? rect.left - pointerX : pointerX > rect.right ? pointerX - rect.right : 0;
+        const dy = pointerY < rect.top ? rect.top - pointerY : pointerY > rect.bottom ? pointerY - rect.bottom : 0;
+        return dx * dx + dy * dy;
+    };
+    const activeRect = rects.reduce((nearest, rect) => distanceToRect(rect) < distanceToRect(nearest) ? rect : nearest, rects[0]);
+    const overlapsMarker = (top) => rects.some((rect) => (
+        left < rect.right && left + tooltipRect.width > rect.left &&
+        top < rect.bottom + gap && top + tooltipRect.height > rect.top - gap
+    ));
+    const fitsViewport = (top) => top >= padding && top + tooltipRect.height <= viewportHeight - padding;
+    const candidates = [
+        activeRect.top - gap - tooltipRect.height,
+        activeRect.bottom + gap,
+        markerTop - gap - tooltipRect.height,
+        markerBottom + gap
+    ];
+    let top = candidates.find((candidate) => fitsViewport(candidate) && !overlapsMarker(candidate));
+    if (!Number.isFinite(top)) {
+        const globalAbove = markerTop - gap - tooltipRect.height;
+        const globalBelow = markerBottom + gap;
+        const spaceAbove = markerTop - gap - padding;
+        const spaceBelow = viewportHeight - padding - markerBottom - gap;
+        top = spaceAbove >= spaceBelow ? globalAbove : globalBelow;
     }
     top = clamp(top, padding, Math.max(padding, viewportHeight - tooltipRect.height - padding));
     return { left, top };
@@ -1019,7 +1049,7 @@ function calculateInlineTooltipPosition({ tagRects, tagRect, tooltipRect, viewpo
 
 window.calculateInlineTooltipPosition = calculateInlineTooltipPosition;
 
-function createInlineTooltipController({ triggerSelector, tooltipClass, role = "tooltip", populate, beforeShow, pointerAnchor = false }) {
+function createInlineTooltipController({ triggerSelector, tooltipClass, role = "tooltip", populate, beforeShow, pointerAnchor = false, showWhilePopulating = false }) {
     let activeTag = null;
     let activeTooltip = null;
     let showTimer = null;
@@ -1098,18 +1128,20 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
             hoveringTooltip = false;
             scheduleRemoval();
         });
-        await populate({
+        const population = populate({
             tag,
             tooltip,
             position: () => position(tag),
             isCurrent: () => token === requestToken && activeTag === tag && activeTooltip === tooltip && tooltip.isConnected
         });
+        if (!showWhilePopulating) await population;
         if (token !== requestToken || activeTooltip !== tooltip) return;
         position(tag);
         requestAnimationFrame(() => {
             tooltip.classList.remove("hidden", "is-hiding");
             tooltip.classList.add("show", "is-visible");
         });
+        if (showWhilePopulating) await population;
     };
     const queueShow = (tag, event) => {
         clearTimeout(showTimer);
@@ -1179,9 +1211,14 @@ illustrationTooltipController = createInlineTooltipController({
     tooltipClass: "illustration-tooltip",
     role: "dialog",
     pointerAnchor: true,
+    showWhilePopulating: true,
     beforeShow: () => annotationTooltipController.hide(true),
     populate: async ({ tag, tooltip, isCurrent }) => {
         tooltip.setAttribute("aria-label", `${tag.textContent?.trim() || "插图"}预览`);
+        const loading = document.createElement("span");
+        loading.className = "record-written-image-loading illustration-tooltip-loading";
+        loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
+        tooltip.appendChild(loading);
         const url = await resolveIllustrationUrl(tag.dataset.imageSrc || "");
         if (!isCurrent()) return;
         if (!url) {
