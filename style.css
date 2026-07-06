@@ -5987,35 +5987,6 @@ body.hidden-record-mode .hidden-record-banner {
   text-decoration-skip-ink: none;
 }
 
-.inline-delete * {
-  text-decoration-line: line-through;
-  text-decoration-color: #000 !important;
-  text-decoration-thickness: max(1.5px, 0.09em);
-  text-decoration-skip-ink: none;
-}
-
-.inline-delete .person-tag,
-.inline-delete .term-tag,
-.inline-delete .record-jump-link {
-  position: relative;
-}
-
-.inline-delete .person-tag::after,
-.inline-delete .term-tag::after,
-.inline-delete .record-jump-link::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  z-index: 20;
-  height: max(1.5px, 0.09em);
-  background: #000;
-  opacity: 1;
-  pointer-events: none;
-  transform: translateY(-50%);
-}
-
 .inline-underline,
 .inline-underline * {
   text-decoration-line: underline;
