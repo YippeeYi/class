@@ -5979,12 +5979,23 @@ body.hidden-record-mode .hidden-record-banner {
 }
 
 .inline-delete {
+  position: relative;
   display: inline;
   color: inherit;
-  text-decoration-line: line-through;
-  text-decoration-color: #000 !important;
-  text-decoration-thickness: max(1.5px, 0.09em);
-  text-decoration-skip-ink: none;
+  text-decoration: none;
+}
+
+.inline-delete::after {
+  content: "";
+  position: absolute;
+  z-index: 2147483647;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: max(1.5px, 0.09em);
+  pointer-events: none;
+  background: #000;
+  transform: translateY(-50%);
 }
 
 .inline-underline,
