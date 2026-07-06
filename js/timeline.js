@@ -463,7 +463,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
         const peopleChips = topEntries(month.people, 10).map(([id, count]) => `<button type="button" class="timeline-chip" data-person="${escapeHtml(id)}">${escapeHtml(getPersonLabel(id))}<span>${count}</span></button>`).join('');
         const authorChips = topEntries(month.authors, 8).map(([id, count]) => `<button type="button" class="timeline-chip" data-person="${escapeHtml(id)}">${escapeHtml(getPersonLabel(id))}<span>${count}</span></button>`).join('');
         const termChips = topEntries(month.terms, 8).map(([id, count]) => `<button type="button" class="timeline-chip" data-term="${escapeHtml(id)}">${escapeHtml(getTermLabel(id))}<span>${count}</span></button>`).join('');
-        const plainLengths = month.records.map((record) => stripRecordMarkup(record.content || '').length);
+        const plainLengths = month.records.map((record) => countRecordTextCharacters(record.content || ''));
         const avgLength = plainLengths.length ? Math.round(plainLengths.reduce((sum, item) => sum + item, 0) / plainLengths.length) : 0;
         const recordsByDay = new Map();
         month.records.forEach((record) => {

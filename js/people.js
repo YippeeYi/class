@@ -9,6 +9,7 @@ let peopleList = [];
 let records = [];
 let participantCountMap = new Map();
 let authorCountMap = new Map();
+let authorCharacterCountMap = new Map();
 
 const roleSortState = {
     student: { key: "id", order: "asc" },
@@ -20,7 +21,8 @@ const roleSortOptions = {
     student: [
         ["id", "id"],
         ["participation", "参与事件数"],
-        ["record", "记录事件数"]
+        ["record", "记录事件数"],
+        ["characters", "记录字数"]
     ],
     teacher: [
         ["id", "id"],
@@ -46,7 +48,7 @@ cacheReady.then(() => Promise.all([
 ])).then(([people, allRecords]) => {
     peopleList = people;
     records = allRecords;
-    ({ participantCountMap, authorCountMap } = buildPeopleStats(records));
+    ({ participantCountMap, authorCountMap, authorCharacterCountMap } = buildPeopleStats(records));
     renderByRole();
 });
 
@@ -70,7 +72,10 @@ function getPeopleTableColumns(role) {
         { label: "别名", render: (person) => parseContent(person.alias) || "-" },
         { label: "参与", render: (person) => String(countAsParticipant(person.id)) }
     ];
-    if (role === "student") columns.push({ label: "记录", render: (person) => String(countAsAuthor(person.id)) });
+    if (role === "student") {
+        columns.push({ label: "记录", render: (person) => String(countAsAuthor(person.id)) });
+        columns.push({ label: "记录字数", render: (person) => String(countAsAuthorCharacters(person.id)) });
+    }
     if (role === "teacher") columns.push({ label: "学科", render: (person) => parseContent(person.subject || "") || "—" });
     return columns;
 }
@@ -188,9 +193,14 @@ function countAsParticipant(id) {
     return participantCountMap.get(id) || 0;
 }
 
+function countAsAuthorCharacters(id) {
+    return authorCharacterCountMap.get(id) || 0;
+}
+
 function buildPeopleStats(recordList) {
     const participantCounts = new Map();
     const authorCounts = new Map();
+    const authorCharacterCounts = new Map();
 
     recordList.forEach((record) => {
         getRecordAuthorIds(record).forEach((id) => {
@@ -199,9 +209,13 @@ function buildPeopleStats(recordList) {
         getRecordParticipantIds(record).forEach((id) => {
             participantCounts.set(id, (participantCounts.get(id) || 0) + 1);
         });
+        const primaryAuthor = String(record.author || "").trim();
+        if (primaryAuthor) {
+            authorCharacterCounts.set(primaryAuthor, (authorCharacterCounts.get(primaryAuthor) || 0) + countRecordTextCharacters(record.content || ""));
+        }
     });
 
-    return { participantCountMap: participantCounts, authorCountMap: authorCounts };
+    return { participantCountMap: participantCounts, authorCountMap: authorCounts, authorCharacterCountMap: authorCharacterCounts };
 }
 
 /* ===============================
@@ -216,8 +230,8 @@ function sortPeople(list, state, role) {
             return Number(b.main === true) - Number(a.main === true);
         }
         if (key === "id") return compareId(a, b);
-        if (key === "participation" || key === "record") {
-            const getCount = key === "record" ? countAsAuthor : countAsParticipant;
+        if (key === "participation" || key === "record" || key === "characters") {
+            const getCount = key === "record" ? countAsAuthor : key === "characters" ? countAsAuthorCharacters : countAsParticipant;
             return (getCount(a.id) - getCount(b.id)) * direction || compareId(a, b);
         }
         if (role === "teacher" && key === "subject") {

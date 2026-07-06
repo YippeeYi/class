@@ -999,6 +999,7 @@ body>#glossary-list {
 /* Tooltip */
 
 .term-tooltip {
+  position: fixed;
   cursor: pointer;
   max-width: 340px;
   background: var(--tooltip-bg);
@@ -1097,6 +1098,10 @@ body>#glossary-list {
   background: rgba(255, 252, 246, 0.44);
   backdrop-filter: blur(16px) saturate(145%);
   -webkit-backdrop-filter: blur(16px) saturate(145%);
+}
+
+.people-section[data-role="student"] .people-table {
+  max-width: 720px;
 }
 
 .people-table th,
@@ -5673,6 +5678,10 @@ body>.archive-tool-shell {
   .people-table,
   .glossary-table {
     min-width: 620px;
+  }
+
+  .people-section[data-role="student"] .people-table {
+    min-width: 720px;
   }
 
   body>#people-list,

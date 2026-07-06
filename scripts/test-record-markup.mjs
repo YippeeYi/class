@@ -30,6 +30,8 @@ const extractPeople = context.window.extractMentionedPersonIds;
 const extractAuthors = context.window.extractExtraAuthorIds;
 const extractTerms = context.window.extractMentionedTermIds;
 const getAuthors = context.window.getRecordAuthorIds;
+const countTextCharacters = context.window.countRecordTextCharacters;
+const calculateTooltipPosition = context.window.calculateInlineTooltipPosition;
 const timelineSource = await readFile(new URL('../js/timeline.js', import.meta.url), 'utf8');
 vm.runInContext(timelineSource, context);
 const fixedScale = context.window.ClassRecordFixedChartScale;
@@ -88,6 +90,10 @@ assert.equal([...extractAuthors('[[author:alice|甲]][[red:[[author:bob|乙]]]][
 assert.equal([...getAuthors({ author: 'alice', content: '[[author:alice|重复]][[author:bob|乙]]' })].sort().join(','), 'alice,bob');
 assert.equal([...extractTerms('[[term:t1|术语]][[del:{{t2|旧术语}}]][[anno:提到 [[term:t3|术语]]|[[term:t1|重复]]]]')].sort().join(','), 't1,t2,t3');
 assert.equal(extractTerms('普通文本 t1；[[person:t2|不是术语]][[record:t3|不是术语]]').length, 0);
+assert.equal(countTextCharacters('甲[[person:a|乙]][[red:丙]]'), 3);
+assert.equal(calculateTooltipPosition({ tagRect: { left: 20, top: 40, right: 120, bottom: 80, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 150, y: 100 }, multiline: true }).top, 50);
+assert.equal(calculateTooltipPosition({ tagRect: { left: 20, top: 5, right: 120, bottom: 45, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 150, y: 20 }, multiline: true }).top, 30);
+assert.equal(calculateTooltipPosition({ tagRect: { left: 0, top: 40, right: 100, bottom: 80, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 5, y: 100 }, multiline: true }).left, 12);
 assert.equal([...fixedScale(8, 12, 3)].join(','), '12,9,6,3,0');
 assert.equal([...fixedScale(72, 100, 25)].join(','), '100,75,50,25,0');
 assert.equal([...fixedScale(13, 12, 3)].join(','), '15,12,9,6,3,0');
@@ -118,8 +124,8 @@ assert.equal(
     ], { key: 'subject', order: 'desc', mainFirst: true }, 'teacher').map((item) => item.id).join(','),
     'main-math,main-chinese,normal-chem,normal-physics'
 );
-assert.equal(peopleContext.getPeopleColumnsForTest('student').map((column) => column.label).join(','), '序号,姓名,别名,参与,记录');
+assert.equal(peopleContext.getPeopleColumnsForTest('student').map((column) => column.label).join(','), '序号,姓名,别名,参与,记录,记录字数');
 assert.equal(peopleContext.getPeopleColumnsForTest('teacher').map((column) => column.label).join(','), '序号,姓名,别名,参与,学科');
 assert.equal(peopleContext.getPeopleColumnsForTest('other').map((column) => column.label).join(','), '序号,姓名,别名,参与');
 
-console.log(`Passed ${cases.length + 32} markup, people, and timeline checks.`);
+console.log(`Passed ${cases.length + 36} markup, people, and timeline checks.`);

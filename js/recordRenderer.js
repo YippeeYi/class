@@ -364,7 +364,12 @@ function stripRecordMarkup(text) {
     return parseInlineMarkup(text, { mode: "text" });
 }
 
+function countRecordTextCharacters(text) {
+    return Array.from(stripRecordMarkup(text)).length;
+}
+
 window.stripRecordMarkup = stripRecordMarkup;
+window.countRecordTextCharacters = countRecordTextCharacters;
 
 document.addEventListener("click", (event) => {
     const jump = event.target.closest(".record-jump-link[data-record-jump]");
@@ -829,6 +834,7 @@ let lastMouseX = 0;
 let lastMouseY = 0;
 let isHoveringTooltip = false;
 let isHoveringTerm = false;
+let activeTermTag = null;
 
 const TOOLTIP_DELAY = 200;
 const TOOLTIP_REMOVE_DELAY = 300;
@@ -837,18 +843,18 @@ function clamp(value, min, max) {
     return Math.max(min, Math.min(value, max));
 }
 
-function updateTooltipHorizontalPosition() {
-    if (!activeTooltip) return;
-
-    const tooltipRect = activeTooltip.getBoundingClientRect();
-    const padding = 12;
-    const left = clamp(
-        lastMouseX - tooltipRect.width / 2,
-        padding,
-        window.innerWidth - tooltipRect.width - padding
-    );
-
-    activeTooltip.style.left = `${left + window.scrollX}px`;
+function positionTermTooltip() {
+    if (!activeTooltip || !activeTermTag) return;
+    const { left, top } = calculateInlineTooltipPosition({
+        tagRect: activeTermTag.getBoundingClientRect(),
+        tooltipRect: activeTooltip.getBoundingClientRect(),
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        pointer: { x: lastMouseX, y: lastMouseY },
+        multiline: true
+    });
+    activeTooltip.style.left = `${left}px`;
+    activeTooltip.style.top = `${top}px`;
 }
 
 async function ensureGlossary() {
@@ -882,6 +888,7 @@ document.addEventListener("mouseover", (event) => {
 
         removeTooltip(true);
         activeTermId = termId;
+        activeTermTag = tag;
         activeTooltip = document.createElement("div");
         activeTooltip.className = "term-tooltip hidden";
         activeTooltip.innerHTML = `
@@ -899,20 +906,8 @@ document.addEventListener("mouseover", (event) => {
             scheduleTooltipRemoval();
         });
 
-        const tooltipRect = activeTooltip.getBoundingClientRect();
-        const tagRect = tag.getBoundingClientRect();
-        const padding = 12;
-        const verticalGap = 10;
-        let top = tagRect.bottom + verticalGap;
-
-        if (top + tooltipRect.height > window.innerHeight - padding) {
-            top = tagRect.top - tooltipRect.height - verticalGap;
-        }
-
-        top = clamp(Number.isFinite(top) ? top : lastMouseY + verticalGap, padding, window.innerHeight - tooltipRect.height - padding);
-        activeTooltip.style.position = "absolute";
-        activeTooltip.style.top = `${top + window.scrollY}px`;
-        updateTooltipHorizontalPosition();
+        activeTooltip.style.position = "fixed";
+        positionTermTooltip();
 
         requestAnimationFrame(() => {
             activeTooltip.classList.remove("hidden");
@@ -960,6 +955,7 @@ function removeTooltip(immediate = false) {
     const element = activeTooltip;
     activeTooltip = null;
     activeTermId = null;
+    activeTermTag = null;
     isHoveringTooltip = false;
     isHoveringTerm = false;
 
@@ -986,7 +982,30 @@ function setIllustrationFailure(tooltip) {
     tooltip.appendChild(message);
 }
 
-function createInlineTooltipController({ triggerSelector, tooltipClass, role = "tooltip", populate, beforeShow }) {
+function calculateInlineTooltipPosition({ tagRect, tooltipRect, viewportWidth, viewportHeight, pointer, multiline = false, padding = 12, gap = 10 }) {
+    const pointerX = Number.isFinite(pointer?.x) ? pointer.x : tagRect.left + tagRect.width / 2;
+    const left = clamp(pointerX - tooltipRect.width / 2, padding, Math.max(padding, viewportWidth - tooltipRect.width - padding));
+    let top;
+    if (multiline && Number.isFinite(pointer?.y)) {
+        const above = pointer.y - gap - tooltipRect.height;
+        const below = pointer.y + gap;
+        if (above >= padding) top = above;
+        else if (below + tooltipRect.height <= viewportHeight - padding) top = below;
+        else {
+            const preferred = pointer.y >= viewportHeight / 2 ? above : below;
+            top = clamp(preferred, padding, Math.max(padding, viewportHeight - tooltipRect.height - padding));
+        }
+    } else {
+        top = tagRect.bottom + gap;
+        if (top + tooltipRect.height > viewportHeight - padding) top = tagRect.top - tooltipRect.height - gap;
+        top = clamp(top, padding, Math.max(padding, viewportHeight - tooltipRect.height - padding));
+    }
+    return { left, top };
+}
+
+window.calculateInlineTooltipPosition = calculateInlineTooltipPosition;
+
+function createInlineTooltipController({ triggerSelector, tooltipClass, role = "tooltip", populate, beforeShow, pointerAnchor = false }) {
     let activeTag = null;
     let activeTooltip = null;
     let showTimer = null;
@@ -995,22 +1014,24 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
     let hoveringTrigger = false;
     let hoveringTooltip = false;
     let lastPointerTriggerAt = 0;
+    let lastPointerPosition = null;
 
     const cancelRemoval = () => {
         clearTimeout(removeTimer);
         removeTimer = null;
     };
-    const position = (tag = activeTag, pointerEvent) => {
+    const position = (tag = activeTag) => {
         if (!tag || !activeTooltip) return;
         const tagRect = tag.getBoundingClientRect();
         const tooltipRect = activeTooltip.getBoundingClientRect();
-        const padding = 12;
-        const gap = 10;
-        const pointerX = Number.isFinite(pointerEvent?.clientX) ? pointerEvent.clientX : tagRect.left + tagRect.width / 2;
-        const left = clamp(pointerX - tooltipRect.width / 2, padding, Math.max(padding, window.innerWidth - tooltipRect.width - padding));
-        let top = tagRect.bottom + gap;
-        if (top + tooltipRect.height > window.innerHeight - padding) top = tagRect.top - tooltipRect.height - gap;
-        top = clamp(top, padding, Math.max(padding, window.innerHeight - tooltipRect.height - padding));
+        const { left, top } = calculateInlineTooltipPosition({
+            tagRect,
+            tooltipRect,
+            viewportWidth: window.innerWidth,
+            viewportHeight: window.innerHeight,
+            pointer: lastPointerPosition,
+            multiline: pointerAnchor && Number.isFinite(lastPointerPosition?.y)
+        });
         activeTooltip.style.left = `${left}px`;
         activeTooltip.style.top = `${top}px`;
     };
@@ -1024,6 +1045,7 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
         activeTooltip = null;
         hoveringTrigger = false;
         hoveringTooltip = false;
+        lastPointerPosition = null;
         if (!tooltip) return;
         tooltip.classList.remove("show", "is-visible");
         tooltip.classList.add("is-hiding");
@@ -1040,8 +1062,12 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
         clearTimeout(showTimer);
         cancelRemoval();
         if (!tag) return;
+        const pointerPosition = Number.isFinite(event?.clientX) && Number.isFinite(event?.clientY)
+            ? { x: event.clientX, y: event.clientY }
+            : lastPointerPosition;
         if (activeTag === tag && activeTooltip) return;
         hide(true);
+        lastPointerPosition = pointerPosition;
         beforeShow?.();
         removeTooltip(true);
         const token = requestToken;
@@ -1060,26 +1086,27 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
             hoveringTooltip = false;
             scheduleRemoval();
         });
-        const population = populate({
+        await populate({
             tag,
             tooltip,
             position: () => position(tag),
             isCurrent: () => token === requestToken && activeTag === tag && activeTooltip === tooltip && tooltip.isConnected
         });
         if (token !== requestToken || activeTooltip !== tooltip) return;
-        position(tag, event);
+        position(tag);
         requestAnimationFrame(() => {
             tooltip.classList.remove("hidden", "is-hiding");
             tooltip.classList.add("show", "is-visible");
         });
-        await population;
-        if (token === requestToken && activeTooltip === tooltip) position(tag);
     };
     const queueShow = (tag, event) => {
         clearTimeout(showTimer);
         cancelRemoval();
         if (activeTag && activeTag !== tag) hide();
-        showTimer = setTimeout(() => show(tag, event), TOOLTIP_DELAY);
+        if (Number.isFinite(event?.clientX) && Number.isFinite(event?.clientY)) {
+            lastPointerPosition = { x: event.clientX, y: event.clientY };
+        }
+        showTimer = setTimeout(() => show(tag), TOOLTIP_DELAY);
     };
 
     document.addEventListener("pointerover", (event) => {
@@ -1124,6 +1151,7 @@ let illustrationTooltipController;
 const annotationTooltipController = createInlineTooltipController({
     triggerSelector: ".annotation",
     tooltipClass: "annotation-tooltip",
+    pointerAnchor: true,
     beforeShow: () => illustrationTooltipController?.hide(true),
     populate: async ({ tag, tooltip }) => {
         tooltip.innerHTML = parseInlineMarkup(tag.dataset.noteSource || "", { tooltipContext: true });
@@ -1134,34 +1162,27 @@ illustrationTooltipController = createInlineTooltipController({
     triggerSelector: ".inline-illustration",
     tooltipClass: "illustration-tooltip",
     role: "dialog",
+    pointerAnchor: true,
     beforeShow: () => annotationTooltipController.hide(true),
-    populate: async ({ tag, tooltip, position, isCurrent }) => {
+    populate: async ({ tag, tooltip, isCurrent }) => {
         tooltip.setAttribute("aria-label", `${tag.textContent?.trim() || "插图"}预览`);
-        const loading = document.createElement("span");
-        loading.className = "illustration-tooltip-status";
-        loading.textContent = "正在加载插图…";
-        tooltip.appendChild(loading);
         const url = await resolveIllustrationUrl(tag.dataset.imageSrc || "");
         if (!isCurrent()) return;
         if (!url) {
             setIllustrationFailure(tooltip);
-            position();
             return;
         }
         const image = document.createElement("img");
         image.alt = tag.textContent?.trim() || "记录插图";
         image.decoding = "async";
-        image.onload = () => {
-            if (!isCurrent()) return;
-            tooltip.replaceChildren(image);
-            position();
-        };
-        image.onerror = () => {
-            if (!isCurrent()) return;
-            setIllustrationFailure(tooltip);
-            position();
-        };
-        image.src = url;
+        const loaded = await new Promise((resolve) => {
+            image.onload = () => resolve(true);
+            image.onerror = () => resolve(false);
+            image.src = url;
+        });
+        if (!isCurrent()) return;
+        if (loaded) tooltip.replaceChildren(image);
+        else setIllustrationFailure(tooltip);
     }
 });
 
