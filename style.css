@@ -6099,7 +6099,7 @@ body.hidden-record-mode .hidden-record-banner {
   box-shadow: var(--tooltip-shadow);
   backdrop-filter: blur(10px);
   color: var(--text-main);
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1.6;
   overflow-wrap: anywhere;
   pointer-events: none;
