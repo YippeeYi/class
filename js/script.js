@@ -24,6 +24,12 @@ let activeRecordJumpCleanup = null;
 let pageMessageMap = new Map();
 let pageMessagesPromise = null;
 const writtenImagePreloadCache = new Map();
+const writtenImageReadyCache = new Map();
+
+window.addEventListener("classrecordcacheclearing", () => {
+  writtenImagePreloadCache.clear();
+  writtenImageReadyCache.clear();
+});
 
 function parseInitialRecordCriteria() {
   const params = new URLSearchParams(location.search);
@@ -301,16 +307,54 @@ function preloadBrowserImage(src, priority = "low") {
   });
 }
 
+function escapeWrittenAttribute(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function getDirectWrittenImageUrl(path) {
+  const sourcePath = String(path || "").trim();
+  if (!sourcePath) return "";
+  if (/^(?:https?:|data:|blob:)/i.test(sourcePath)) return sourcePath;
+  if (/^(?:\.\/|\/)?images\//i.test(sourcePath)) {
+    return new URL(sourcePath.replace(/^\//, ""), document.baseURI).href;
+  }
+  return "";
+}
+
+function getCachedWrittenImageSource(path) {
+  const sourcePath = String(path || "").trim();
+  if (!sourcePath) return "";
+  const readySource = writtenImageReadyCache.get(sourcePath);
+  if (readySource) return readySource;
+  const preloaded = window.ClassRecordData?.getPreloadedAsset?.(sourcePath);
+  if (preloaded?.url) {
+    writtenImageReadyCache.set(sourcePath, preloaded.url);
+    return preloaded.url;
+  }
+  const directUrl = getDirectWrittenImageUrl(sourcePath);
+  if (directUrl) {
+    const image = new Image();
+    image.src = directUrl;
+    if (image.complete && image.naturalWidth > 0) {
+      writtenImageReadyCache.set(sourcePath, directUrl);
+      return directUrl;
+    }
+  }
+  return "";
+}
+
 function preloadWrittenImage(path, { priority = "low" } = {}) {
   const sourcePath = String(path || "").trim();
   if (!sourcePath) return Promise.resolve("");
   if (writtenImagePreloadCache.has(sourcePath)) return writtenImagePreloadCache.get(sourcePath);
-  const isDirectSource = /^(?:https?:|data:|blob:)/i.test(sourcePath) || /^(?:\.\/|\/)?images\//i.test(sourcePath);
   const promise = (async () => {
-    if (isDirectSource) {
-      const directUrl = /^(?:https?:|data:|blob:)/i.test(sourcePath)
-        ? sourcePath
-        : new URL(sourcePath.replace(/^\//, ""), document.baseURI).href;
+    const directUrl = getDirectWrittenImageUrl(sourcePath);
+    if (directUrl) {
       const directResult = await preloadBrowserImage(directUrl, priority);
       if (directResult) return directResult;
     }
@@ -320,6 +364,7 @@ function preloadWrittenImage(path, { priority = "low" } = {}) {
   })();
   const reusable = promise.then((result) => {
     if (!result) writtenImagePreloadCache.delete(sourcePath);
+    else writtenImageReadyCache.set(sourcePath, result);
     return result;
   });
   writtenImagePreloadCache.set(sourcePath, reusable);
@@ -351,6 +396,8 @@ function renderWrittenView(records) {
   const pageRecords = page.records || [];
   pageRecords.sort((a, b) => (a.recordIndex ?? 0) - (b.recordIndex ?? 0));
   const imagePath = getPageImagePath(page, pageRecords);
+  const cachedImageSrc = imagePath ? getCachedWrittenImageSource(imagePath) : "";
+  const imageState = imagePath ? (cachedImageSrc ? "loaded" : "loading") : "missing";
   const pageOptions = pages.map((item, index) => `
     <button type="button" class="btn-action filter-option${index === currentPageIndex ? ' is-active' : ''}" data-page-index="${index}">
       ${item.page}
@@ -372,8 +419,8 @@ function renderWrittenView(records) {
         </div>
       </div>
       <div class="record-written-layout">
-        <figure class="record-written-image${imagePath ? ' is-loading' : ' is-missing'}${hiddenMode ? ' is-hidden-image' : ''}" data-render-token="${token}" data-image-state="${imagePath ? 'loading' : 'missing'}">
-          ${imagePath ? `<img alt="${hiddenMode ? `${page.page} 隐藏书面记录` : `${page.page} 原始书面记录`}" width="2856" height="4282" loading="eager" decoding="async" fetchpriority="high">` : ""}
+        <figure class="record-written-image is-${imageState}${hiddenMode ? ' is-hidden-image' : ''}" data-render-token="${token}" data-image-state="${imageState}">
+          ${imagePath ? `<img alt="${hiddenMode ? `${page.page} 隐藏书面记录` : `${page.page} 原始书面记录`}" width="2856" height="4282" loading="eager" decoding="async" fetchpriority="high"${cachedImageSrc ? ` src="${escapeWrittenAttribute(cachedImageSrc)}"` : ""}>` : ""}
           <span class="record-written-image-loading">${imagePath ? '<i aria-hidden="true"></i><b>正在加载书面记录</b>' : "未找到书面文件"}</span>
         </figure>
         <div class="record-written-records">
@@ -398,7 +445,7 @@ function renderWrittenView(records) {
   writtenImage?.addEventListener("error", (event) => {
     setWrittenImageState(event.currentTarget.closest(".record-written-image"), "error", token);
   }, { once: true });
-  if (imagePath && writtenImage) {
+  if (imagePath && writtenImage && !cachedImageSrc) {
     preloadWrittenImage(imagePath, { priority: "high" }).then((src) => {
       if (!writtenImage.isConnected || String(writtenFigure?.dataset.renderToken) !== String(token)) return;
       if (!src) {
