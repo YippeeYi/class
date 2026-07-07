@@ -850,7 +850,7 @@ let activeTermPointerOffset = null;
 let termDismissedByScroll = false;
 
 const TOOLTIP_DELAY = 200;
-const TOOLTIP_REMOVE_DELAY = 300;
+const TOOLTIP_REMOVE_DELAY = 120;
 
 function clamp(value, min, max) {
     return Math.max(min, Math.min(value, max));
