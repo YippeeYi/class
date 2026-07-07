@@ -527,9 +527,13 @@ function afterScrollSettles(target, callback, { timeout = 2600, quiet = 220 } = 
 }
 
 let recordFocusGeneration = 0;
+let recordScrollAnimation = null;
+let lastAutoFocusedHash = "";
 
 function cancelRecordFocus() {
     recordFocusGeneration += 1;
+    if (recordScrollAnimation?.cancel) recordScrollAnimation.cancel();
+    recordScrollAnimation = null;
 }
 
 function easeRecordScroll(t) {
@@ -537,32 +541,54 @@ function easeRecordScroll(t) {
 }
 
 function animateRecordScrollTo(targetY, { behavior = "smooth" } = {}) {
+    if (recordScrollAnimation?.cancel) recordScrollAnimation.cancel();
     const startY = window.scrollY;
     const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
     const endY = Math.max(0, Math.min(maxY, Number(targetY) || 0));
     if (behavior === "auto" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         window.scrollTo(0, endY);
-        return Promise.resolve();
+        return Promise.resolve(true);
     }
     const distance = endY - startY;
     if (Math.abs(distance) < 2) {
         window.scrollTo(0, endY);
-        return Promise.resolve();
+        return Promise.resolve(true);
     }
     const duration = Math.max(420, Math.min(980, 420 + Math.abs(distance) * 0.22));
     const start = performance.now();
     return new Promise((resolve) => {
+        let frame = 0;
+        let cancelled = false;
+        const cleanup = () => {
+            window.removeEventListener("wheel", cancel, true);
+            window.removeEventListener("touchstart", cancel, true);
+            window.removeEventListener("keydown", cancel, true);
+            if (recordScrollAnimation?.cancel === cancel) recordScrollAnimation = null;
+        };
+        const cancel = () => {
+            if (cancelled) return;
+            cancelled = true;
+            cancelAnimationFrame(frame);
+            cleanup();
+            resolve(false);
+        };
+        recordScrollAnimation = { cancel };
+        window.addEventListener("wheel", cancel, { passive: true, capture: true });
+        window.addEventListener("touchstart", cancel, { passive: true, capture: true });
+        window.addEventListener("keydown", cancel, true);
         const step = (now) => {
+            if (cancelled) return;
             const progress = Math.min(1, (now - start) / duration);
             window.scrollTo(0, startY + distance * easeRecordScroll(progress));
             if (progress < 1) {
-                requestAnimationFrame(step);
+                frame = requestAnimationFrame(step);
             } else {
                 window.scrollTo(0, endY);
-                resolve();
+                cleanup();
+                resolve(true);
             }
         };
-        requestAnimationFrame(step);
+        frame = requestAnimationFrame(step);
     });
 }
 
@@ -574,7 +600,8 @@ function focusRecordAnchor(anchorId, { behavior = "smooth" } = {}) {
         if (generation !== recordFocusGeneration) return;
         const rect = target.getBoundingClientRect();
         const targetY = window.scrollY + rect.top - Math.max(16, (window.innerHeight - Math.min(rect.height, window.innerHeight * 0.72)) / 2);
-        await animateRecordScrollTo(targetY, { behavior });
+        const completed = await animateRecordScrollTo(targetY, { behavior });
+        if (!completed || generation !== recordFocusGeneration) return;
         afterScrollSettles(target, () => {
             if (generation !== recordFocusGeneration) return;
             target.classList.remove("record-anchor-highlight");
@@ -593,6 +620,9 @@ window.ClassRecordFocusAnchor = focusRecordAnchor;
 window.ClassRecordCancelFocus = cancelRecordFocus;
 window.ClassRecordScrollToRecord = focusRecordAnchor;
 window.ClassRecordAnimateScrollTo = animateRecordScrollTo;
+window.ClassRecordResetAutoFocus = () => {
+    lastAutoFocusedHash = "";
+};
 
 function renderRecordList(records, container) {
     records.forEach((record) => {
@@ -629,8 +659,10 @@ function renderRecordList(records, container) {
         });
     }
 
-    if (location.hash) {
-        focusRecordAnchor(location.hash.slice(1));
+    if (location.hash && location.hash !== lastAutoFocusedHash) {
+        if (focusRecordAnchor(location.hash.slice(1))) {
+            lastAutoFocusedHash = location.hash;
+        }
     }
 }
 

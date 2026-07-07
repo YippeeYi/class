@@ -774,6 +774,7 @@ window.ClassRecordNavigateToRecord = async (recordKey, { sourceElement } = {}) =
   renderRecordFilterForCurrentState();
   const anchor = getRecordAnchorId(target);
   pendingRecordJump = { targetAnchorId: anchor, origin };
+  window.ClassRecordResetAutoFocus?.();
   history.replaceState(null, "", `${location.pathname}${location.search}#${anchor}`);
   if (currentView === "written") {
     if (recordPageConfigMode !== (hiddenMode ? "hidden" : "normal")) await loadRecordPageConfig();
@@ -880,6 +881,7 @@ cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
           targetAnchorId: storedJump.targetAnchorId,
           origin: { externalHref: storedJump.originHref }
         };
+        window.ClassRecordResetAutoFocus?.();
       } else if (isFresh) {
         window.alert("未找到要跳转的记录。");
       }
