@@ -533,7 +533,7 @@ function cancelRecordFocus() {
 }
 
 function easeRecordScroll(t) {
-    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    return 1 - Math.pow(1 - t, 3);
 }
 
 function animateRecordScrollTo(targetY, { behavior = "smooth" } = {}) {
@@ -592,6 +592,7 @@ function focusRecordAnchor(anchorId, { behavior = "smooth" } = {}) {
 window.ClassRecordFocusAnchor = focusRecordAnchor;
 window.ClassRecordCancelFocus = cancelRecordFocus;
 window.ClassRecordScrollToRecord = focusRecordAnchor;
+window.ClassRecordAnimateScrollTo = animateRecordScrollTo;
 
 function renderRecordList(records, container) {
     records.forEach((record) => {

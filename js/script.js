@@ -206,6 +206,24 @@ function renderPageSupplements(items = []) {
     </section>
   `;
 }
+
+function getPageKey(page) {
+  return String(page?.page || "").trim();
+}
+
+function getPageMessage(page) {
+  return pageMessageMap.get(getPageKey(page));
+}
+
+function getPageSupplements(page) {
+  const items = pageSupplementMap.get(getPageKey(page));
+  return Array.isArray(items) ? items.filter((item) => item?.content) : [];
+}
+
+function hasPageWrittenExtras(page) {
+  return Boolean(getPageMessage(page)?.content) || getPageSupplements(page).length > 0;
+}
+
 function normalizeHiddenPageKey(value) {
   const text = String(value || "").trim().toLowerCase();
   if (!text) return "";
@@ -332,7 +350,7 @@ function getWrittenPages(records) {
   return recordPageConfig
     .map((page) => ({ ...page, records: getPageRecords(page, records) }))
     .filter((page) => Boolean(getPageImagePath(page, page.records)))
-    .filter((page) => !filtering || page.records.length > 0);
+    .filter((page) => !filtering || page.records.length > 0 || hasPageWrittenExtras(page));
 }
 function getPageImagePath(page, pageRecords) {
   if (hiddenMode) return page.imagePath || "";
@@ -446,6 +464,9 @@ function renderWrittenView(records) {
   currentPageIndex = Math.max(0, Math.min(currentPageIndex, pages.length - 1));
   const page = pages[currentPageIndex];
   const pageRecords = page.records || [];
+  const pageMessage = getPageMessage(page);
+  const pageSupplements = getPageSupplements(page);
+  const pageHasExtras = Boolean(pageMessage?.content) || pageSupplements.length > 0;
   pageRecords.sort((a, b) => (a.recordIndex ?? 0) - (b.recordIndex ?? 0));
   const imagePath = getPageImagePath(page, pageRecords);
   const cachedImageSrc = imagePath ? getCachedWrittenImageSource(imagePath) : "";
@@ -476,8 +497,8 @@ function renderWrittenView(records) {
           <span class="record-written-image-loading">${imagePath ? '<i aria-hidden="true"></i><b>正在加载书面记录</b>' : "未找到书面文件"}</span>
         </figure>
         <div class="record-written-records">
-          ${renderPageMessage(pageMessageMap.get(String(page.page).trim()))}
-          ${renderPageSupplements(pageSupplementMap.get(String(page.page).trim()))}
+          ${renderPageMessage(pageMessage)}
+          ${renderPageSupplements(pageSupplements)}
           <div class="record-written-record-list"></div>
         </div>
       </div>
@@ -485,7 +506,9 @@ function renderWrittenView(records) {
   `;
 
   const recordHost = container.querySelector(".record-written-record-list");
-  if (hiddenMode && !pageRecords.length && recordHost) {
+  if (!pageRecords.length && pageHasExtras && recordHost) {
+    recordHost.innerHTML = "";
+  } else if (hiddenMode && !pageRecords.length && recordHost) {
     recordHost.innerHTML = '<div class="record-empty"><strong>这张隐藏书面页没有匹配记录。</strong><span>已检测到图片，但对应普通页范围内没有 hidden 为 true 的记录。</span></div>';
   } else {
     renderRecordList(pageRecords, recordHost);
@@ -509,6 +532,11 @@ function renderWrittenView(records) {
     }).catch((error) => {
       console.warn("书面记录图片加载失败：", error);
       setWrittenImageState(writtenFigure, "error", token);
+    });
+  }
+  if (window.ClassRecordData?.isEnabled()) {
+    window.ClassRecordData.resolveAssetElements(container.querySelector(".record-written-records") || container).catch((error) => {
+      console.warn("书面记录页内附件链接加载失败：", error);
     });
   }
   preloadAdjacentWrittenPages(pages, currentPageIndex);
@@ -557,6 +585,7 @@ function renderRecordFilterForCurrentState() {
     initial: currentCriteria,
     onClear: clearRecordNavigationState,
     onFilterChange: criteria => {
+      clearPendingRecordJumpState();
       currentCriteria = { ...criteria };
       currentPageIndex = 0;
       renderCurrentViewAsync();
@@ -564,9 +593,9 @@ function renderRecordFilterForCurrentState() {
   });
 }
 
-function clearRecordNavigationState() {
+function clearPendingRecordJumpState({ closeDialog = true, clearHash = true } = {}) {
   window.ClassRecordCancelFocus?.();
-  closeRecordJumpDialog({ immediate: true });
+  if (closeDialog) closeRecordJumpDialog({ immediate: true });
   pendingRecordJump = null;
   try {
     sessionStorage.removeItem("classrecord:pending-record-jump");
@@ -574,6 +603,13 @@ function clearRecordNavigationState() {
     // Storage may be unavailable in privacy modes; in-memory state is already cleared.
   }
   document.querySelectorAll(".record-anchor-highlight").forEach((record) => record.classList.remove("record-anchor-highlight"));
+  if (clearHash && location.hash) {
+    history.replaceState(null, "", `${location.pathname}${location.search}`);
+  }
+}
+
+function clearRecordNavigationState() {
+  clearPendingRecordJumpState();
   const params = new URLSearchParams(location.search);
   ["year", "month", "day", "important", "excludeDaily", "q"].forEach((key) => params.delete(key));
   history.replaceState(null, "", `${location.pathname}${params.toString() ? `?${params}` : ""}`);
@@ -610,11 +646,21 @@ async function returnFromRecordJump(origin) {
   renderViewControls();
   renderRecordFilterForCurrentState();
   await renderCurrentViewAsync();
-  if (!origin.anchorId) window.scrollTo({ top: origin.scrollY, behavior: "smooth" });
+  if (!origin.anchorId) {
+    if (typeof window.ClassRecordAnimateScrollTo === "function") {
+      await window.ClassRecordAnimateScrollTo(origin.scrollY, { behavior: "smooth" });
+    } else {
+      window.scrollTo({ top: origin.scrollY, behavior: "smooth" });
+    }
+  }
 }
 
 function showRecordJumpDialog(target, jumpState) {
   closeRecordJumpDialog({ immediate: true });
+  pendingRecordJump = null;
+  if (location.hash.replace(/^#/, "") === jumpState.targetAnchorId) {
+    history.replaceState(null, "", `${location.pathname}${location.search}`);
+  }
   const dialog = document.createElement("aside");
   dialog.className = "record-jump-dialog";
   dialog.setAttribute("role", "dialog");
@@ -627,7 +673,6 @@ function showRecordJumpDialog(target, jumpState) {
     </div>
   `;
   dialog.querySelector("[data-jump-stay]")?.addEventListener("click", () => {
-    pendingRecordJump = null;
     closeRecordJumpDialog();
   });
   dialog.querySelector("[data-jump-return]")?.addEventListener("click", () => returnFromRecordJump(jumpState.origin));
@@ -640,19 +685,9 @@ function showRecordJumpDialog(target, jumpState) {
     const targetRect = target.getBoundingClientRect();
     const width = Math.min(260, window.innerWidth - viewportPadding * 2);
     dialog.style.width = `${width}px`;
-    const height = dialog.offsetHeight;
-    const fitsRight = window.innerWidth - targetRect.right - gap >= width;
-    dialog.classList.toggle("is-below", !fitsRight);
-    if (fitsRight) {
-      dialog.style.left = `${targetRect.right + gap}px`;
-      dialog.style.top = `${Math.min(Math.max(targetRect.top + (targetRect.height - height) / 2, viewportPadding), window.innerHeight - height - viewportPadding)}px`;
-      return;
-    }
     const left = Math.min(Math.max(targetRect.left + (targetRect.width - width) / 2, viewportPadding), window.innerWidth - width - viewportPadding);
-    const below = targetRect.bottom + gap;
-    const top = below + height <= window.innerHeight - viewportPadding
-      ? below
-      : Math.max(viewportPadding, targetRect.top - height - gap);
+    const top = targetRect.bottom + gap;
+    dialog.classList.add("is-below");
     dialog.style.left = `${left}px`;
     dialog.style.top = `${top}px`;
   };
@@ -797,6 +832,7 @@ async function enterHiddenRecordMode() {
       initial: currentCriteria,
       onClear: clearRecordNavigationState,
       onFilterChange: criteria => {
+        clearPendingRecordJumpState();
         currentCriteria = { ...criteria };
         currentPageIndex = 0;
         renderCurrentViewAsync();
@@ -865,6 +901,7 @@ cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
       initial: currentCriteria,
       onClear: clearRecordNavigationState,
       onFilterChange: criteria => {
+        clearPendingRecordJumpState();
         currentCriteria = criteria;
         currentPageIndex = 0;
         renderCurrentViewAsync();

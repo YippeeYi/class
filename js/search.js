@@ -96,7 +96,7 @@
         return `${escapeHtml(head + slice.slice(0, localIndex))}<mark>${escapeHtml(slice.slice(localIndex, localIndex + key.length))}</mark>${escapeHtml(slice.slice(localIndex + key.length) + tail)}`;
     }
 
-    function quoteHref(quote) {
+    function quoteHref(quote, records) {
         const recordFile = String(quote?.recordFile || "").replace(/\.json$/i, "");
         if (recordFile) {
             const direct = records.find((record) => String(record.fileName || record.id || "").replace(/\.json$/i, "") === recordFile);
@@ -135,7 +135,7 @@
                 richTitle: formatContent(quote.quote || quote.id),
                 meta: quote.sourceDate ? `来源 ${quote.sourceDate}` : "名言条目",
                 text: [quote.id, quote.quote, quote.content, quote.sourceDate, ...(quote.relatedPeople || [])].filter(Boolean).join(" "),
-                href: quoteHref(quote),
+                href: quoteHref(quote, records),
                 sortKey: quote.sourceDate || quote.id || ""
             }))
         ].map((item) => ({ ...item, normalized: normalize(item.text) }));
