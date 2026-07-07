@@ -154,3 +154,31 @@ where label = 'main key';
 ```
 
 上传脚本会把这些文件导入 `class_page_supplements`，前端只会在书面记录模式的对应页码中显示；它们不会进入普通记录列表、搜索、人物页、名言跳转或统计。
+
+## 资料数据
+
+资料文件单独放在 `data/materials/`。
+
+文件名建议使用稳定的英文、数字、短横线或下划线，例如：
+
+```text
+school-map.json
+exam-rules.json
+chemistry-notes.json
+```
+
+上传脚本会使用文件名去掉 `.json` 后的部分作为默认资料 ID。每个 JSON 至少包含：
+
+```json
+{
+  "title": "资料标题",
+  "content": "资料解释内容"
+}
+```
+
+可选字段：
+
+- `id`：资料唯一标识；不填时使用文件名。
+- `sortOrder`：排序序号；不填时按文件名扫描顺序。
+
+`content` 支持现有记录正文标记语法，例如人物、名言、插图、注释、黑幕、上下标、删除线和标红。
