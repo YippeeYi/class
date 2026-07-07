@@ -384,7 +384,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
                 <article class="archive-stat-card"><span>月份</span><strong>${months.length}</strong></article>
                 <article class="archive-stat-card"><span>重要</span><strong>${totalImportant}</strong></article>
                 <article class="archive-stat-card"><span>人物</span><strong>${activePeople}</strong></article>
-                <article class="archive-stat-card"><span>术语</span><strong>${glossary.length}</strong></article>
+                <article class="archive-stat-card"><span>名言</span><strong>${glossary.length}</strong></article>
             </div>
             <div class="timeline-chart-grid timeline-chart-grid--overview">
                 ${renderAuthorPie(records, '整体记录人占比', 'overall')}
@@ -435,15 +435,15 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
                     </div>
                     <div class="timeline-month-picker">
                         ${MONTH_LABELS.map((monthNumber) => {
-                            const item = byMonth.get(monthNumber);
-                            const key = item?.key || `${year.key}-${monthNumber}`;
-                            return `
+            const item = byMonth.get(monthNumber);
+            const key = item?.key || `${year.key}-${monthNumber}`;
+            return `
                                 <button type="button" class="timeline-month-pill${key === activeMonth ? ' is-active' : ''}${item ? '' : ' is-empty'}" data-month="${key}"${item ? '' : ' disabled aria-disabled="true"'}>
                                     <strong>${monthNumber}</strong>
                                     <span>${item ? `${item.records.length} 条` : '0 条'}</span>
                                 </button>
                             `;
-                        }).join('')}
+        }).join('')}
                     </div>
                 </div>
             </div>
@@ -502,7 +502,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
                 <article><span>全月天数</span><strong>${dayCount}</strong></article>
                 <article><span>活跃人物</span><strong>${month.people.size}</strong></article>
                 <article><span>记录人</span><strong>${month.authors.size}</strong></article>
-                <article><span>高频术语</span><strong>${month.terms.size}</strong></article>
+                <article><span>高频名言</span><strong>${month.terms.size}</strong></article>
                 <article><span>平均正文</span><strong>${avgLength} 字</strong></article>
             </section>
             <div class="timeline-chart-grid">
@@ -528,8 +528,8 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
                     <div class="timeline-chip-list">${authorChips || '<span class="timeline-muted">暂无记录人</span>'}</div>
                 </section>
                 <section class="timeline-insight-card">
-                    <h3>高频术语</h3>
-                    <div class="timeline-chip-list">${termChips || '<span class="timeline-muted">暂无术语标记</span>'}</div>
+                    <h3>高频名言</h3>
+                    <div class="timeline-chip-list">${termChips || '<span class="timeline-muted">暂无名言标记</span>'}</div>
                 </section>
             </div>
 

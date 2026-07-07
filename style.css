@@ -983,7 +983,7 @@ body>#glossary-list {
   border-bottom-color: var(--link-accent-hover);
 }
 
-/* 术语标签 */
+/* 名言标签 */
 .term-tag {
   display: inline-block;
   color: var(--term-accent);
