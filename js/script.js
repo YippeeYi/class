@@ -131,7 +131,7 @@ async function loadPageMessages() {
       .catch((error) => {
         pageMessagesPromise = null;
         pageMessageMap = new Map();
-        console.warn("书面记录寄语加载失败：", error);
+        console.warn("书面记录箴言加载失败：", error);
         return pageMessageMap;
       });
   }
@@ -143,7 +143,7 @@ function renderPageMessage(message) {
   const author = String(message.author || "").trim();
   return `
     <article class="record record-written-message">
-      <div class="meta"><span>寄语${author ? ` · ✍ ${parseContent(`[[${author}|${author}]]`)}` : ""}</span></div>
+      <div class="meta"><span>箴言${author ? ` · ✍ ${parseContent(`[[${author}|${author}]]`)}` : ""}</span></div>
       <div class="content">${formatContent(message.content)}</div>
     </article>
   `;
