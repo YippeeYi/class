@@ -2283,6 +2283,10 @@ body>#glossary-list {
   visibility: visible;
 }
 
+.record-written-image.is-cache-hit img {
+  transition: none;
+}
+
 .record-written-image.is-missing::before,
 .record-written-image.is-error::before {
   content: "未找到书面记录图片";

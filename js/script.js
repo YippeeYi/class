@@ -419,7 +419,7 @@ function renderWrittenView(records) {
         </div>
       </div>
       <div class="record-written-layout">
-        <figure class="record-written-image is-${imageState}${hiddenMode ? ' is-hidden-image' : ''}" data-render-token="${token}" data-image-state="${imageState}">
+        <figure class="record-written-image is-${imageState}${cachedImageSrc ? ' is-cache-hit' : ''}${hiddenMode ? ' is-hidden-image' : ''}" data-render-token="${token}" data-image-state="${imageState}">
           ${imagePath ? `<img alt="${hiddenMode ? `${page.page} 隐藏书面记录` : `${page.page} 原始书面记录`}" width="2856" height="4282" loading="eager" decoding="async" fetchpriority="high"${cachedImageSrc ? ` src="${escapeWrittenAttribute(cachedImageSrc)}"` : ""}>` : ""}
           <span class="record-written-image-loading">${imagePath ? '<i aria-hidden="true"></i><b>正在加载书面记录</b>' : "未找到书面文件"}</span>
         </figure>
