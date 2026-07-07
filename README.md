@@ -19,7 +19,7 @@
 | 导览 | `index.html` | 站点入口和统计卡片 |
 | 记录 | `record.html` | 普通记录和书面记录展示 |
 | 人物 | `people.html`, `person.html` | 人物列表和详情 |
-| 名言 | `glossary.html`, `term.html` | 名言列表和详情 |
+| 名言 | `glossary.html`, `saying.html` | 名言列表和详情 |
 | 搜索 | `search.html` | 记录、人物、名言搜索 |
 | 时间线 | `timeline.html` | 档案统计视图 |
 | 答题 | `quiz.html` | 本地判题，不上传答题结果 |

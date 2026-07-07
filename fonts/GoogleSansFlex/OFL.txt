@@ -75,7 +75,7 @@ distributed under any other license. The requirement for fonts to
 remain under this license does not apply to any document created
 using the Font Software.
 
-TERMINATION
+sayingINATION
 This license becomes null and void if any of the above conditions are
 not met.
 

@@ -11,12 +11,12 @@
   const filterWrap = document.getElementById('quiz-filter');
   const quizCard = document.querySelector('.quiz-card');
   const typeLabels = { choice: '\u9009\u62e9\u9898', fill: '\u586b\u7a7a\u9898', judge: '\u5224\u65ad\u9898' };
-  const contentLabels = { person: '\u4eba\u540d', term: '\u672f\u8bed', author: '\u8bb0\u5f55\u4eba', date: '\u8bb0\u5f55\u65f6\u95f4' };
+  const contentLabels = { person: '\u4eba\u540d', saying: '\u672f\u8bed', author: '\u8bb0\u5f55\u4eba', date: '\u8bb0\u5f55\u65f6\u95f4' };
   const secretContentLabels = { [SECRET_CONTENT]: '???' };
   const contentByType = {
-    choice: ['person', 'term', 'author', 'date'],
-    fill: ['person', 'term', 'author', SECRET_CONTENT],
-    judge: ['person', 'term', 'author']
+    choice: ['person', 'saying', 'author', 'date'],
+    fill: ['person', 'saying', 'author', SECRET_CONTENT],
+    judge: ['person', 'saying', 'author']
   };
 
   let allQuestions = [];
@@ -171,7 +171,7 @@
       return;
     }
 
-    const shouldBlankRecord = (currentQuestion.type === 'choice' || currentQuestion.type === 'fill') && ['person', 'term'].includes(currentQuestion.content);
+    const shouldBlankRecord = (currentQuestion.type === 'choice' || currentQuestion.type === 'fill') && ['person', 'saying'].includes(currentQuestion.content);
     const recordText = currentQuestion.recordText;
     let recordHtml = recordText;
     if (shouldBlankRecord) {
@@ -343,7 +343,7 @@
       ? getPersonChoiceOptions(base, pools)
       : shuffle(uniqueValues([
         base.answer,
-        ...shuffle(pools.termOptions.filter((item) => item !== base.answer && !base.plainText.includes(item))).slice(0, 3)
+        ...shuffle(pools.sayingOptions.filter((item) => item !== base.answer && !base.plainText.includes(item))).slice(0, 3)
       ]));
     const finalOptions = uniqueOptionsWithAnswer(base.answer, options);
     if (finalOptions.length < 4) return null;
@@ -379,7 +379,7 @@
 
     const replacementPool = kind === 'person'
       ? [...pools.personLabels.entries()].flatMap(([, labels]) => labels)
-      : pools.termOptions;
+      : pools.sayingOptions;
     const replacementPeople = kind === 'person'
       ? [...pools.personLabels.entries()]
         .map(([id, labels]) => ({ id, labels: uniqueOptions(labels) }))
@@ -987,12 +987,12 @@
       const pools = {
         personLabels: buildLabelMap(records, people),
         personOptions: [],
-        termOptions: uniqueValues(glossary.map((term) => stripOptionMarkup(term.term)))
+        sayingOptions: uniqueValues(glossary.map((saying) => stripOptionMarkup(saying.saying)))
       };
       pools.personOptions = uniqueValues([...pools.personLabels.values()].flat());
-      pools.termOptions = uniqueValues([
-        ...pools.termOptions,
-        ...quizRecords.flatMap((record) => extractTokenRefs(record.content || '', 'term').map((ref) => ref.label))
+      pools.sayingOptions = uniqueValues([
+        ...pools.sayingOptions,
+        ...quizRecords.flatMap((record) => extractTokenRefs(record.content || '', 'saying').map((ref) => ref.label))
       ]);
 
       const authorPool = uniqueValues(quizRecords.map((record) => record.author));
@@ -1000,11 +1000,11 @@
       const questions = [];
       quizRecords.forEach((record) => {
         questions.push(buildChoiceQuestion(record, 'person', pools));
-        questions.push(buildChoiceQuestion(record, 'term', pools));
+        questions.push(buildChoiceQuestion(record, 'saying', pools));
         questions.push(buildFillQuestion(record, 'person'));
-        questions.push(buildFillQuestion(record, 'term'));
+        questions.push(buildFillQuestion(record, 'saying'));
         questions.push(buildJudgeQuestion(record, 'person', pools));
-        questions.push(buildJudgeQuestion(record, 'term', pools));
+        questions.push(buildJudgeQuestion(record, 'saying', pools));
         questions.push(buildAuthorChoiceQuestion(record, authorPool));
         questions.push(buildAuthorFillQuestion(record));
         questions.push(buildAuthorJudgeQuestion(record, authorPool));

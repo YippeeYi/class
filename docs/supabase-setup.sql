@@ -96,8 +96,8 @@ add column if not exists main boolean not null default false;
 
 create table if not exists public.class_glossary (
     id text primary key,
-    term_id text,
-    term text,
+    saying_id text,
+    saying text,
     aliases jsonb not null default '[]'::jsonb,
     definition text,
     since text,

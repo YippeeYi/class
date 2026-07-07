@@ -40,7 +40,7 @@ function detectCriticalLoaders() {
         loaders.push(window.loadAllRecords);
     }
 
-    if (document.getElementById('term-id')) {
+    if (document.getElementById('saying-id')) {
         loaders.push(window.loadAllGlossary);
         loaders.push(window.loadAllPeople);
         loaders.push(window.loadAllRecords);
@@ -62,7 +62,7 @@ function prewarmBackground(loaders) {
 
     const run = () => {
         loaders.forEach((loader) => {
-            Promise.resolve(loader()).catch(() => {});
+            Promise.resolve(loader()).catch(() => { });
         });
     };
 

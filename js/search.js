@@ -13,7 +13,7 @@
     const typeLabels = {
         record: "记录",
         person: "人物",
-        term: "名言"
+        saying: "名言"
     };
     const activeTypes = new Set(Object.keys(typeLabels));
     let searchIndex = [];
@@ -97,15 +97,15 @@
                 href: `person.html?id=${encodeURIComponent(person.id)}`,
                 sortKey: person.id || ""
             })),
-            ...glossary.map((term) => ({
-                type: "term",
-                id: term.id,
-                title: stripRecordMarkup(term.term || term.id),
-                richTitle: formatContent(term.term || term.id),
-                meta: term.since ? `起源 ${term.since}` : "名言条目",
-                text: [term.id, term.term, term.definition, term.since, ...(term.relatedPeople || [])].filter(Boolean).join(" "),
-                href: `term.html?id=${encodeURIComponent(term.id)}`,
-                sortKey: term.since || term.id || ""
+            ...glossary.map((saying) => ({
+                type: "saying",
+                id: saying.id,
+                title: stripRecordMarkup(saying.saying || saying.id),
+                richTitle: formatContent(saying.saying || saying.id),
+                meta: saying.since ? `起源 ${saying.since}` : "名言条目",
+                text: [saying.id, saying.saying, saying.definition, saying.since, ...(saying.relatedPeople || [])].filter(Boolean).join(" "),
+                href: `saying.html?id=${encodeURIComponent(saying.id)}`,
+                sortKey: saying.since || saying.id || ""
             }))
         ].map((item) => ({ ...item, normalized: normalize(item.text) }));
     }

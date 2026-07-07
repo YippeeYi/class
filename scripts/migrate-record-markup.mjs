@@ -6,7 +6,7 @@ import path from 'node:path';
 const root = process.cwd();
 const dataRoot = path.join(root, 'data');
 const checkOnly = process.argv.includes('--check');
-const typedBinary = new Set(['person', 'author', 'term', 'record', 'frac', 'anno', 'illu', 'arrow']);
+const typedBinary = new Set(['person', 'author', 'saying', 'record', 'frac', 'anno', 'illu', 'arrow']);
 const typedUnary = new Set(['del', 'under', 'red', 'hide', 'sup', 'sub', 'center', 'right']);
 
 function isEscaped(source, index) {
@@ -109,7 +109,7 @@ function migrateMarkup(value) {
             }
         }
         const paired = [
-            ['{{', '}}', 'term'],
+            ['{{', '}}', 'saying'],
             ['((', '))', 'hide'],
             ['!!', '!!', 'center'],
             ['>>', '<<', 'right'],
@@ -121,10 +121,10 @@ function migrateMarkup(value) {
             const end = source.indexOf(close, index + open.length);
             if (end >= 0) {
                 const inner = source.slice(index + open.length, end);
-                if (type === 'term') {
+                if (type === 'saying') {
                     const parts = splitTopLevelOnce(inner);
                     if (parts && /^[a-zA-Z0-9_-]+$/.test(parts[0]) && parts[1]) {
-                        output += `[[term:${parts[0]}|${migrateMarkup(parts[1])}]]`;
+                        output += `[[saying:${parts[0]}|${migrateMarkup(parts[1])}]]`;
                         index = end + close.length;
                         continue;
                     }

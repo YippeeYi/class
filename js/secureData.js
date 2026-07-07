@@ -258,8 +258,8 @@
             const raw = parseRaw(row);
             const item = {
                 ...raw,
-                id: row.term_id || raw.id || raw.term || `term-${index + 1}`,
-                term: row.term || raw.term || '',
+                id: row.saying_id || raw.id || raw.saying || `saying-${index + 1}`,
+                saying: row.saying || raw.saying || '',
                 aliases: Array.isArray(row.aliases) ? row.aliases : (Array.isArray(raw.aliases) ? raw.aliases : []),
                 definition: row.definition || raw.definition || raw.description || '',
             };

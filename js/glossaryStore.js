@@ -4,13 +4,13 @@
  ************************************************************/
 
 window.GlossaryStore = {
-    terms: [],
+    sayings: [],
     loaded: false
 };
 
 window.loadAllGlossary = async function ({ onProgressStep } = {}) {
     if (GlossaryStore.loaded) {
-        return GlossaryStore.terms;
+        return GlossaryStore.sayings;
     }
     if (!window.ClassRecordData?.isEnabled()) {
         throw new Error("名言数据必须从 Supabase 读取。");
@@ -22,7 +22,7 @@ window.loadAllGlossary = async function ({ onProgressStep } = {}) {
         loader: () => window.ClassRecordData.loadGlossary({ onProgressStep })
     });
 
-    GlossaryStore.terms = list.filter(Boolean);
+    GlossaryStore.sayings = list.filter(Boolean);
     GlossaryStore.loaded = true;
-    return GlossaryStore.terms;
+    return GlossaryStore.sayings;
 };

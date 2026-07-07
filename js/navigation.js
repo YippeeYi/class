@@ -55,7 +55,7 @@
     const restoreFullscreen = () => {
         try {
             if (sessionStorage.getItem(FULLSCREEN_STORAGE_KEY) === '1' && !document.fullscreenElement && document.fullscreenEnabled) {
-                document.documentElement.requestFullscreen().catch(() => {});
+                document.documentElement.requestFullscreen().catch(() => { });
             }
         } catch (error) {
             // Ignore fullscreen restore failures.
@@ -113,7 +113,7 @@
             loaders.push(window.loadAllPeople, window.loadAllRecords);
         } else if (['glossary.html'].includes(path)) {
             loaders.push(window.loadAllGlossary);
-        } else if (['term.html', 'quiz.html'].includes(path)) {
+        } else if (['saying.html', 'quiz.html'].includes(path)) {
             loaders.push(window.loadAllGlossary, window.loadAllPeople, window.loadAllRecords);
         } else if (['search.html'].includes(path)) {
             loaders.push(window.loadAllGlossary, window.loadAllPeople, window.loadAllRecords);
@@ -121,7 +121,7 @@
 
         const run = () => {
             loaders.filter(Boolean).forEach((loader) => {
-                Promise.resolve(loader()).catch(() => {});
+                Promise.resolve(loader()).catch(() => { });
             });
         };
         if ('requestIdleCallback' in window) {
@@ -150,7 +150,7 @@
     const warmCoreData = () => {
         [window.loadAllRecords, window.loadAllPeople, window.loadAllGlossary]
             .filter(Boolean)
-            .forEach((loader) => Promise.resolve(loader()).catch(() => {}));
+            .forEach((loader) => Promise.resolve(loader()).catch(() => { }));
     };
 
     document.addEventListener('pointerover', prefetchTargetFromEvent, { passive: true });
