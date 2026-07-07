@@ -1,6 +1,6 @@
 /************************************************************
  * search.js
- * 全站搜索：记录 / 人物 / 名言
+ * 全站搜索：记录 / 人物 / 术语
  ************************************************************/
 
 (() => {
@@ -13,7 +13,7 @@
     const typeLabels = {
         record: "记录",
         person: "人物",
-        term: "名言"
+        term: "术语"
     };
     const activeTypes = new Set(Object.keys(typeLabels));
     let searchIndex = [];
@@ -102,7 +102,7 @@
                 id: term.id,
                 title: stripRecordMarkup(term.term || term.id),
                 richTitle: formatContent(term.term || term.id),
-                meta: term.since ? `起源 ${term.since}` : "名言条目",
+                meta: term.since ? `起源 ${term.since}` : "术语条目",
                 text: [term.id, term.term, term.definition, term.since, ...(term.relatedPeople || [])].filter(Boolean).join(" "),
                 href: `term.html?id=${encodeURIComponent(term.id)}`,
                 sortKey: term.since || term.id || ""
@@ -143,7 +143,7 @@
 
         if (!query) {
             if (summary) summary.textContent = `已索引 ${searchIndex.length} 个条目。`;
-            renderEmpty("输入关键词开始搜索。", "支持记录正文、人物别名、名言定义、日期和作者。");
+            renderEmpty("输入关键词开始搜索。", "支持记录正文、人物别名、术语定义、日期和作者。");
             return;
         }
 

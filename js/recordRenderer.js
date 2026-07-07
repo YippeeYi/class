@@ -932,7 +932,7 @@ function queueTermTooltip(tag, event) {
         activeTooltip.className = "term-tooltip hidden";
         activeTooltip.innerHTML = `
             <div class="term-tooltip-content">${formatContent(term.definition)}</div>
-            <div class="term-tooltip-hint">点击此处查看完整名言页面</div>
+            <div class="term-tooltip-hint">点击此处查看完整术语页面</div>
         `;
         document.body.appendChild(activeTooltip);
 

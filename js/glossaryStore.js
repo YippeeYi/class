@@ -1,6 +1,6 @@
 ﻿/************************************************************
  * glossaryStore.js
- * 全局名言仓库，运行时只从 Supabase 读取
+ * 全局术语仓库，运行时只从 Supabase 读取
  ************************************************************/
 
 window.GlossaryStore = {
@@ -13,7 +13,7 @@ window.loadAllGlossary = async function ({ onProgressStep } = {}) {
         return GlossaryStore.terms;
     }
     if (!window.ClassRecordData?.isEnabled()) {
-        throw new Error("名言数据必须从 Supabase 读取。");
+        throw new Error("术语数据必须从 Supabase 读取。");
     }
 
     const list = await loadWithCache({

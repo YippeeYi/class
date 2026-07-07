@@ -8,17 +8,17 @@ const context = vm.createContext({
     console,
     URL,
     performance,
-    requestAnimationFrame: () => { },
+    requestAnimationFrame: () => {},
     setTimeout,
     clearTimeout,
     location: { href: 'https://example.test/record.html' },
-    sessionStorage: { setItem() { } },
+    sessionStorage: { setItem() {} },
     document: {
-        addEventListener() { },
+        addEventListener() {},
         getElementById() { return null; }
     },
     window: {
-        addEventListener() { },
+        addEventListener() {},
         PeopleStore: { people: [] }
     }
 });
@@ -36,7 +36,7 @@ const extractIllustrations = context.window.extractIllustrationPaths;
 const timelineSource = await readFile(new URL('../js/timeline.js', import.meta.url), 'utf8');
 vm.runInContext(timelineSource, context);
 const fixedScale = context.window.ClassRecordFixedChartScale;
-const peopleContainer = { innerHTML: '', addEventListener() { } };
+const peopleContainer = { innerHTML: '', addEventListener() {} };
 const peopleContext = vm.createContext({
     console,
     location: { href: '' },
@@ -44,7 +44,7 @@ const peopleContext = vm.createContext({
         getElementById() { return peopleContainer; },
         querySelectorAll() { return []; }
     },
-    window: { cacheReadyPromise: new Promise(() => { }) }
+    window: { cacheReadyPromise: new Promise(() => {}) }
 });
 const peopleSource = await readFile(new URL('../js/people.js', import.meta.url), 'utf8');
 vm.runInContext(`${peopleSource}\nthis.sortPeopleForTest = sortPeople; this.getPeopleColumnsForTest = getPeopleTableColumns;`, peopleContext);
@@ -54,7 +54,7 @@ const cases = [
     ['[[anno:注解中包含 [[person:personId|显示名]]|被注释文字]]', ['annotation', '被注释文字']],
     ['[[illu:example.png|带有 [[red:红色文字]] 的文字]]', ['data-image-src="data/attachments/example.png"', 'inline-illustration', 'inline-red']],
     ['[[frac:[[del:上方文字]]|[[under:下方文字]]]]', ['inline-fraction', 'inline-delete', 'inline-underline']],
-    ['[[red:包含 [[term:termId|名言]] 的文字]]', ['inline-red', 'term-tag']],
+    ['[[red:包含 [[term:termId|术语]] 的文字]]', ['inline-red', 'term-tag']],
     ['[[del:[[red:红色删除文字]]]]', ['inline-delete', 'inline-red']],
     ['[[red:[[del:删除红色文字]]]]', ['inline-red', 'inline-delete']],
     ['[[author:writer|记录人]]', ['person-tag', 'data-id="writer"']]
@@ -76,7 +76,7 @@ assert.ok(render('普通 \\[[ 文本').includes('普通 [[ 文本'));
 
 // The compatibility layer remains available for remote data not migrated yet.
 assert.match(render('[[legacy-id|旧人物]]'), /person-tag/);
-assert.match(render('{{legacy-term|旧名言}}'), /term-tag/);
+assert.match(render('{{legacy-term|旧术语}}'), /term-tag/);
 assert.match(render('((旧黑幕))'), /redacted/);
 
 assert.equal(render('<script>alert(1)</script>'), '&lt;script&gt;alert(1)&lt;/script&gt;');
@@ -89,8 +89,8 @@ assert.equal(extractPeople('作者 alice；[[record:file|alice]][[illu:image.png
 assert.equal(extractPeople('[[author:alice|甲]][[red:[[author:bob|乙]]]]').length, 0);
 assert.equal([...extractAuthors('[[author:alice|甲]][[red:[[author:bob|乙]]]][[author:alice|重复]]')].sort().join(','), 'alice,bob');
 assert.equal([...getAuthors({ author: 'alice', content: '[[author:alice|重复]][[author:bob|乙]]' })].sort().join(','), 'alice,bob');
-assert.equal([...extractTerms('[[term:t1|名言]][[del:{{t2|旧名言}}]][[anno:提到 [[term:t3|名言]]|[[term:t1|重复]]]]')].sort().join(','), 't1,t2,t3');
-assert.equal(extractTerms('普通文本 t1；[[person:t2|不是名言]][[record:t3|不是名言]]').length, 0);
+assert.equal([...extractTerms('[[term:t1|术语]][[del:{{t2|旧术语}}]][[anno:提到 [[term:t3|术语]]|[[term:t1|重复]]]]')].sort().join(','), 't1,t2,t3');
+assert.equal(extractTerms('普通文本 t1；[[person:t2|不是术语]][[record:t3|不是术语]]').length, 0);
 assert.equal(countTextCharacters('甲[[person:a|乙]][[red:丙]]'), 3);
 assert.equal(extractIllustrations('[[illu:example.jpeg|插图]]').join(','), 'data/attachments/example.jpeg');
 assert.equal(calculateTooltipPosition({ tagRect: { left: 20, top: 40, right: 120, bottom: 80, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 150, y: 60 } }).top, 88);
