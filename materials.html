@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>编日史 · 记录</title>
+    <title>编日史 · 资料</title>
     <script src="js/themeBootstrap.js"></script>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="favicon.ico">
@@ -15,34 +15,31 @@
     <script src="js/navigation.js"></script>
 </head>
 
-<body>
+<body class="feature-page materials-page">
     <div class="page-header">
-        <button class="back-to-guide-btn" aria-label="返回导览页面" title="返回导览页面" data-nav-target="index.html">🏠</button>
+        <button class="back-to-guide-btn" aria-label="返回导航页面" title="返回导航页面" data-nav-target="index.html">返回导航页面</button>
     </div>
 
-    <h1>📌 编日史</h1>
-    <p class="notice">⚠ 本页面仅供本班内部查看，请勿外传。</p>
-
-    <div id="record-filter"></div>
-    <div id="record-list"></div>
+    <main class="materials-shell">
+        <h1>资料</h1>
+        <section class="materials-panel" aria-label="资料">
+            <aside id="materials-list" class="materials-list" aria-label="资料列表"></aside>
+            <div id="materials-content" class="materials-content" aria-live="polite">
+                <div class="materials-placeholder">正在加载资料</div>
+            </div>
+        </section>
+    </main>
 
     <script src="js/cacheLoader.js"></script>
     <script src="js/recordStore.js"></script>
     <script src="js/peopleStore.js"></script>
     <script src="js/quoteStore.js"></script>
+    <script src="js/materialStore.js"></script>
     <script src="js/bootstrap.js"></script>
     <script src="js/backgroundOptions.js"></script>
     <script src="js/backgroundSwitcher.js"></script>
     <script src="js/recordRenderer.js"></script>
-    <script src="js/script.js"></script>
-
-    <footer class="footer">
-        本站使用匿名访问统计，仅用于了解页面使用情况，不收集任何个人信息。
-    </footer>
-
-    <!-- Cloudflare Web Analytics -->
-    <script defer src='https://static.cloudflareinsights.com/beacon.min.js'
-        data-cf-beacon='{"token": "1111e0403f354ef6a4e0ef29b62e3e2e"}'></script><!-- End Cloudflare Web Analytics -->
+    <script src="js/materials.js"></script>
 </body>
 
 </html>

@@ -37,9 +37,9 @@
         const tips = [
             '💡 小提示：人物页支持多维排序，适合快速找人。',
             '📝 小提示：记录页可按时间和重要性筛选。',
-            '📚 小提示：术语页可以快速补齐班级“黑话”背景。',
-            '🔎 小提示：记录详情里的人名和术语都可点击跳转查看。',
-            '🧠 小提示：核心入口优先看记录、人物和术语。',
+            '📚 小提示：名言页可以快速补齐班级“黑话”背景。',
+            '🔎 小提示：记录详情里的人名和名言都可点击跳转查看。',
+            '🧠 小提示：核心入口优先看记录、人物和名言。',
             '🗓️ 小提示：时间线页面适合按月份复盘重要事件。',
             '🎹 小提示：背景页可以直接切换全站背景。'
         ];
@@ -118,13 +118,13 @@
             startTipRotation(tipEl);
         }
 
-        const [recordsResult, peopleResult, glossaryResult] = await Promise.allSettled([
+        const [recordsResult, peopleResult, quotesResult] = await Promise.allSettled([
             typeof window.loadAllRecords === 'function' ? window.loadAllRecords() : [],
             typeof window.loadAllPeople === 'function' ? window.loadAllPeople() : [],
-            typeof window.loadAllGlossary === 'function' ? window.loadAllGlossary() : []
+            typeof window.loadAllQuotes === 'function' ? window.loadAllQuotes() : []
         ]);
 
-        [recordsResult, peopleResult, glossaryResult]
+        [recordsResult, peopleResult, quotesResult]
             .filter((result) => result.status === 'rejected')
             .forEach((result) => console.warn('导览统计加载失败：', result.reason));
 
@@ -138,7 +138,7 @@
 
         setText('guide-record-count', valueOrEmpty(recordsResult).length);
         setText('guide-people-count', valueOrEmpty(peopleResult).length);
-        setText('guide-term-count', valueOrEmpty(glossaryResult).length);
+        setText('guide-quote-count', valueOrEmpty(quotesResult).length);
 
         const records = valueOrEmpty(recordsResult).filter((record) => {
             const hidden = record?.hidden === true || String(record?.hidden || '').trim().toLowerCase() === 'true';

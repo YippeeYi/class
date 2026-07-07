@@ -7,12 +7,14 @@
  * This version does NOT require:
  *   - data/record/records_index.json
  *   - data/people/people_index.json
- *   - data/glossary/glossary_index.json
+ *   - data/quotes/quotes_index.json
  *
  * It imports structured rows by scanning:
  *   - data/record/*.json
  *   - data/people/*.json
- *   - data/glossary/*.json
+ *   - data/quotes/*.json
+ *   - data/page-supplements/*.json
+ *   - data/materials/*.json
  *
  * It still uploads files under:
  *   - data/
@@ -109,6 +111,16 @@ const fileBaseNameWithoutExt = (file) => {
         .split('/')
         .pop()
         .replace(/\.json$/i, '');
+};
+
+const parsePageSupplementFileName = (file) => {
+    const baseName = fileBaseNameWithoutExt(file);
+    const match = /^(\d{2,3})-(\d{2,3})$/.exec(baseName);
+    if (!match) return null;
+    return {
+        page: match[1],
+        supplementIndex: Number(match[2])
+    };
 };
 
 const isMarkdownFile = (file) => {
@@ -242,9 +254,9 @@ const pruneTable = async (table, keyColumn, keepValues) => {
 };
 
 const importRecords = async () => {
-    const files = await listJsonFiles('data/record', [
+    const files = (await listJsonFiles('data/record', [
         'data/record/record_pages.json'
-    ]);
+    ])).filter((file) => !parsePageSupplementFileName(file));
 
     if (!files.length) {
         console.warn('Skipped records: no record JSON files found in data/record/.');
@@ -319,11 +331,11 @@ const importPeople = async () => {
     await pruneTable('class_people', 'id', rows.map((row) => row.id));
 };
 
-const importGlossary = async () => {
-    const files = await listJsonFiles('data/glossary');
+const importQuotes = async () => {
+    const files = await listJsonFiles('data/quotes');
 
     if (!files.length) {
-        console.warn('Skipped glossary: no glossary JSON files found in data/glossary/.');
+        console.warn('Skipped quotes: no quotes JSON files found in data/quotes/.');
         return;
     }
 
@@ -331,20 +343,91 @@ const importGlossary = async () => {
 
     for (const [index, file] of files.entries()) {
         const raw = await readJson(file);
-        const fileName = relativeFromDir('data/glossary', file);
+        const fileName = relativeFromDir('data/quotes', file);
         const fallbackId = fileBaseNameWithoutExt(fileName);
 
         rows.push({
             id: raw.id || fallbackId,
-            label: raw.label || raw.name || raw.title || raw.term || fallbackId,
-            definition: raw.definition || raw.content || raw.description || '',
+            quote_id: raw.id || fallbackId,
+            quote: raw.quote || raw.label || raw.name || raw.title || fallbackId,
+            aliases: Array.isArray(raw.aliases) ? raw.aliases : [],
+            content: raw.content || raw.description || '',
+            source_date: raw.sourceDate || raw.source_date || null,
+            related_people: Array.isArray(raw.relatedPeople) ? raw.relatedPeople : [],
+            record_file: raw.recordFile || raw.record_file || null,
             sort_order: index,
             raw
         });
     }
 
-    await upsert('class_glossary', rows, 'id');
-    await pruneTable('class_glossary', 'id', rows.map((row) => row.id));
+    await upsert('class_quotes', rows, 'id');
+    await pruneTable('class_quotes', 'id', rows.map((row) => row.id));
+};
+
+const importPageSupplements = async () => {
+    const files = (await listJsonFiles('data/page-supplements'))
+        .filter(parsePageSupplementFileName);
+
+    if (!files.length) {
+        console.warn('Skipped page supplements: no page-number supplement JSON files found in data/page-supplements/.');
+        return;
+    }
+
+    const rows = [];
+    for (const file of files) {
+        const parsed = parsePageSupplementFileName(file);
+        const raw = await readJson(file);
+        const content = String(raw.content || raw.text || '').trim();
+        if (!content) {
+            console.warn(`Skipped page supplement without content: ${file}`);
+            continue;
+        }
+        rows.push({
+            file_name: relativeFromDir('data/page-supplements', file),
+            page: parsed.page,
+            supplement_index: parsed.supplementIndex,
+            author: raw.author || raw.recorder || '',
+            content,
+            hidden: raw.hidden === true,
+            sort_order: parsed.supplementIndex,
+            raw
+        });
+    }
+
+    await upsert('class_page_supplements', rows, 'file_name');
+    await pruneTable('class_page_supplements', 'file_name', rows.map((row) => row.file_name));
+};
+
+const importMaterials = async () => {
+    const files = await listJsonFiles('data/materials');
+    if (!files.length) {
+        console.warn('Skipped materials: no material JSON files found in data/materials/.');
+        return;
+    }
+
+    const rows = [];
+    for (const [index, file] of files.entries()) {
+        const raw = await readJson(file);
+        const fileName = relativeFromDir('data/materials', file);
+        const fallbackId = fileBaseNameWithoutExt(fileName);
+        const title = String(raw.title || raw.name || fallbackId).trim();
+        const content = String(raw.content || raw.description || '').trim();
+        if (!title || !content) {
+            console.warn(`Skipped material without title/content: ${file}`);
+            continue;
+        }
+        rows.push({
+            id: fallbackId,
+            material_id: raw.id || fallbackId,
+            title,
+            content,
+            sort_order: Number.isFinite(Number(raw.sortOrder)) ? Number(raw.sortOrder) : index,
+            raw
+        });
+    }
+
+    await upsert('class_materials', rows, 'id');
+    await pruneTable('class_materials', 'id', rows.map((row) => row.id));
 };
 
 const importRecordPages = async () => {
@@ -549,9 +632,11 @@ const uploadPrivateFiles = async () => {
 
 await importRecords();
 await importPeople();
-await importGlossary();
+await importQuotes();
 await importRecordPages();
 await importPageMessages();
+await importPageSupplements();
+await importMaterials();
 await importQuiz();
 await uploadPrivateFiles();
 

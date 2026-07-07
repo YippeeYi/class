@@ -106,9 +106,9 @@ function splitTopLevelOnce(source, separator = "|") {
 function extractRecordMarkupReferences(value) {
     const participantIds = new Set();
     const extraAuthorIds = new Set();
-    const termIds = new Set();
+    const quoteIds = new Set();
     const illustrationPaths = new Set();
-    const binaryTypes = new Set(["person", "author", "term", "record", "frac", "anno", "illu", "arrow"]);
+    const binaryTypes = new Set(["person", "author", "quote", "term", "record", "frac", "anno", "illu", "arrow"]);
     const unaryTypes = new Set(["del", "under", "red", "hide", "sup", "sub", "center", "right"]);
 
     const visit = (input, depth = 0) => {
@@ -120,7 +120,7 @@ function extractRecordMarkupReferences(value) {
                 if (end >= 0) {
                     const parts = splitTopLevelOnce(source.slice(index + 2, end));
                     if (parts && /^[a-zA-Z0-9_-]+$/.test(parts[0]) && parts[1]) {
-                        termIds.add(parts[0]);
+                        quoteIds.add(parts[0]);
                         visit(parts[1], depth + 1);
                         index = end + 2;
                         continue;
@@ -140,12 +140,12 @@ function extractRecordMarkupReferences(value) {
             const colon = body.indexOf(":");
             const type = colon > 0 ? body.slice(0, colon) : "";
 
-            if (type === "person" || type === "author" || type === "term") {
+            if (type === "person" || type === "author" || type === "quote" || type === "term") {
                 const parts = splitTopLevelOnce(body.slice(colon + 1));
                 if (parts && /^[a-zA-Z0-9_-]+$/.test(parts[0]) && parts[1]) {
                     if (type === "person") participantIds.add(parts[0]);
                     else if (type === "author") extraAuthorIds.add(parts[0]);
-                    else termIds.add(parts[0]);
+                    else quoteIds.add(parts[0]);
                     visit(parts[1], depth + 1);
                 }
             } else if (unaryTypes.has(type)) {
@@ -176,7 +176,7 @@ function extractRecordMarkupReferences(value) {
     return {
         participantIds: [...participantIds],
         extraAuthorIds: [...extraAuthorIds],
-        termIds: [...termIds],
+        quoteIds: [...quoteIds],
         illustrationPaths: [...illustrationPaths]
     };
 }
@@ -189,8 +189,8 @@ function extractExtraAuthorIds(value) {
     return extractRecordMarkupReferences(value).extraAuthorIds;
 }
 
-function extractMentionedTermIds(value) {
-    return extractRecordMarkupReferences(value).termIds;
+function extractMentionedQuoteIds(value) {
+    return extractRecordMarkupReferences(value).quoteIds;
 }
 
 function extractIllustrationPaths(value) {
@@ -212,7 +212,9 @@ window.extractRecordMarkupReferences = extractRecordMarkupReferences;
 window.extractParticipantPersonIds = extractParticipantPersonIds;
 window.extractMentionedPersonIds = extractParticipantPersonIds;
 window.extractExtraAuthorIds = extractExtraAuthorIds;
-window.extractMentionedTermIds = extractMentionedTermIds;
+window.extractMentionedQuoteIds = extractMentionedQuoteIds;
+// Transitional compatibility for legacy integrations; new code uses quotes.
+window.extractMentionedTermIds = extractMentionedQuoteIds;
 window.extractIllustrationPaths = extractIllustrationPaths;
 window.getRecordParticipantIds = getRecordParticipantIds;
 window.getRecordAuthorIds = getRecordAuthorIds;
@@ -251,7 +253,7 @@ function renderSquareMarkup(body, raw, context) {
         return `<${config.tag}${classAttribute}>${rendered}</${config.tag}>`;
     }
 
-    for (const type of ["person", "author", "term", "record", "frac", "anno", "illu", "arrow"]) {
+    for (const type of ["person", "author", "quote", "term", "record", "frac", "anno", "illu", "arrow"]) {
         const prefix = `${type}:`;
         if (!body.startsWith(prefix)) continue;
         const parts = splitTopLevelOnce(body.slice(prefix.length));
@@ -262,10 +264,10 @@ function renderSquareMarkup(body, raw, context) {
             const label = render(second);
             return asText ? label : `<span class="person-tag" data-id="${first}" title="${escapeRecordAttribute(getPersonDisplayNameById(first))}">${label}</span>`;
         }
-        if (type === "term") {
+        if (type === "quote" || type === "term") {
             if (!/^[a-zA-Z0-9_-]+$/.test(first)) return asText ? raw : escapeRecordText(raw);
             const label = render(second);
-            return asText ? label : `<span class="term-tag" data-id="${first}">${label}</span>`;
+            return asText ? label : `<span class="quote-tag" data-id="${first}">${label}</span>`;
         }
         if (type === "record") {
             if (!/^[a-zA-Z0-9_-]+(?:\.json)?$/.test(first)) return asText ? render(second) : render(second);
@@ -330,7 +332,7 @@ function parseInlineMarkup(value, options = {}) {
             }
         }
         const paired = [
-            ["{{", "}}", "term"], ["((", "))", "redacted"], ["!!", "!!", "center"],
+            ["{{", "}}", "quote"], ["((", "))", "redacted"], ["!!", "!!", "center"],
             [">>", "<<", "right"], ["^", "^", "sup"], ["_", "_", "sub"]
         ].find(([open]) => source.startsWith(open, index));
         if (paired) {
@@ -339,11 +341,11 @@ function parseInlineMarkup(value, options = {}) {
             if (end >= 0) {
                 const inner = source.slice(index + open.length, end);
                 let rendered = parseInlineMarkup(inner, context);
-                if (type === "term") {
+                if (type === "quote") {
                     const parts = splitTopLevelOnce(inner);
                     if (parts && /^[a-zA-Z0-9_-]+$/.test(parts[0]) && parts[1]) {
                         rendered = parseInlineMarkup(parts[1], context);
-                        output += context.mode === "text" ? rendered : `<span class="term-tag" data-id="${parts[0]}">${rendered}</span>`;
+                        output += context.mode === "text" ? rendered : `<span class="quote-tag" data-id="${parts[0]}">${rendered}</span>`;
                         index = end + close.length;
                         continue;
                     }
@@ -440,6 +442,8 @@ function sortRecords(records) {
 function getRecordAnchorId(record) {
     return `record-${String(record.fileName || record.id || "").replace(/\.json$/i, "").replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
+
+window.getRecordAnchorId = getRecordAnchorId;
 
 function getRecordKey(record) {
     return String(record?.fileName || record?.id || "").trim();
@@ -836,18 +840,18 @@ function bindToggle(recordDiv) {
     }
 }
 
-let glossaryCache = null;
+let quoteCache = null;
 let activeTooltip = null;
-let activeTermId = null;
+let activeQuoteId = null;
 let tooltipTimer = null;
 let tooltipRemoveTimer = null;
 let lastMouseX = 0;
 let lastMouseY = 0;
 let isHoveringTooltip = false;
-let isHoveringTerm = false;
-let activeTermTag = null;
-let activeTermPointerOffset = null;
-let termDismissedByScroll = false;
+let isHoveringQuote = false;
+let activeQuoteTag = null;
+let activeQuotePointerOffset = null;
+let quoteDismissedByScroll = false;
 
 const TOOLTIP_DELAY = 200;
 const TOOLTIP_REMOVE_DELAY = 120;
@@ -864,14 +868,14 @@ function getInlineMarkerRects(tag) {
     return rects.length ? rects : [tag.getBoundingClientRect()];
 }
 
-function positionTermTooltip() {
-    if (!activeTooltip || !activeTermTag) return;
-    const tagBounds = activeTermTag.getBoundingClientRect();
-    const pointer = activeTermPointerOffset
-        ? { x: tagBounds.left + activeTermPointerOffset.x, y: tagBounds.top + activeTermPointerOffset.y }
+function positionQuoteTooltip() {
+    if (!activeTooltip || !activeQuoteTag) return;
+    const tagBounds = activeQuoteTag.getBoundingClientRect();
+    const pointer = activeQuotePointerOffset
+        ? { x: tagBounds.left + activeQuotePointerOffset.x, y: tagBounds.top + activeQuotePointerOffset.y }
         : { x: lastMouseX, y: lastMouseY };
     const { left, top } = calculateInlineTooltipPosition({
-        tagRects: getInlineMarkerRects(activeTermTag),
+        tagRects: getInlineMarkerRects(activeQuoteTag),
         tooltipRect: activeTooltip.getBoundingClientRect(),
         viewportWidth: window.innerWidth,
         viewportHeight: window.innerHeight,
@@ -882,12 +886,12 @@ function positionTermTooltip() {
     activeTooltip.style.top = `${top}px`;
 }
 
-async function ensureGlossary() {
-    if (!glossaryCache) {
-        const list = await loadAllGlossary();
-        glossaryCache = {};
-        list.forEach((term) => {
-            glossaryCache[term.id] = term;
+async function ensureQuotes() {
+    if (!quoteCache) {
+        const list = await loadAllQuotes();
+        quoteCache = {};
+        list.forEach((quote) => {
+            quoteCache[quote.id] = quote;
         });
     }
 }
@@ -895,44 +899,44 @@ async function ensureGlossary() {
 document.addEventListener("mousemove", (event) => {
     lastMouseX = event.clientX;
     lastMouseY = event.clientY;
-    const hoveredTerm = event.target.closest(".term-tag");
-    if (termDismissedByScroll && hoveredTerm) {
-        termDismissedByScroll = false;
-        queueTermTooltip(hoveredTerm, event);
+    const hoveredQuote = event.target.closest(".quote-tag");
+    if (quoteDismissedByScroll && hoveredQuote) {
+        quoteDismissedByScroll = false;
+        queueQuoteTooltip(hoveredQuote, event);
         return;
     }
-    if (activeTermTag && event.target.closest(".term-tag") === activeTermTag) {
-        const bounds = activeTermTag.getBoundingClientRect();
-        activeTermPointerOffset = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
-    } else if (activeTermTag) {
-        isHoveringTerm = false;
+    if (activeQuoteTag && event.target.closest(".quote-tag") === activeQuoteTag) {
+        const bounds = activeQuoteTag.getBoundingClientRect();
+        activeQuotePointerOffset = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+    } else if (activeQuoteTag) {
+        isHoveringQuote = false;
         scheduleTooltipRemoval();
     }
 });
 
-function queueTermTooltip(tag, event) {
+function queueQuoteTooltip(tag, event) {
     lastMouseX = event.clientX;
     lastMouseY = event.clientY;
-    const termId = tag.dataset.id;
-    isHoveringTerm = true;
+    const quoteId = tag.dataset.id;
+    isHoveringQuote = true;
     clearTimeout(tooltipTimer);
 
     tooltipTimer = setTimeout(async () => {
-        await ensureGlossary();
-        const term = glossaryCache[termId];
-        if (!term) return;
-        if (activeTooltip && activeTermId === termId) return;
+        await ensureQuotes();
+        const quote = quoteCache[quoteId];
+        if (!quote) return;
+        if (activeTooltip && activeQuoteId === quoteId) return;
 
         removeTooltip(true);
-        activeTermId = termId;
-        activeTermTag = tag;
+        activeQuoteId = quoteId;
+        activeQuoteTag = tag;
         const tagBounds = tag.getBoundingClientRect();
-        activeTermPointerOffset = { x: lastMouseX - tagBounds.left, y: lastMouseY - tagBounds.top };
+        activeQuotePointerOffset = { x: lastMouseX - tagBounds.left, y: lastMouseY - tagBounds.top };
         activeTooltip = document.createElement("div");
-        activeTooltip.className = "term-tooltip hidden";
+        activeTooltip.className = "quote-tooltip hidden";
         activeTooltip.innerHTML = `
-            <div class="term-tooltip-content">${formatContent(term.definition)}</div>
-            <div class="term-tooltip-hint">点击此处查看完整术语页面</div>
+            <div class="quote-tooltip-content">${formatContent(quote.content || quote.description || "")}</div>
+            <div class="quote-tooltip-hint">点击定位到对应记录</div>
         `;
         document.body.appendChild(activeTooltip);
 
@@ -946,7 +950,7 @@ function queueTermTooltip(tag, event) {
         });
 
         activeTooltip.style.position = "fixed";
-        positionTermTooltip();
+        positionQuoteTooltip();
 
         requestAnimationFrame(() => {
             activeTooltip.classList.remove("hidden");
@@ -955,30 +959,30 @@ function queueTermTooltip(tag, event) {
     }, TOOLTIP_DELAY);
 }
 
-function dismissTermTooltipForScroll() {
-    if (!activeTooltip && !activeTermTag && !tooltipTimer) return;
-    termDismissedByScroll = true;
+function dismissQuoteTooltipForScroll() {
+    if (!activeTooltip && !activeQuoteTag && !tooltipTimer) return;
+    quoteDismissedByScroll = true;
     clearTimeout(tooltipTimer);
     tooltipTimer = null;
     clearTimeout(tooltipRemoveTimer);
     tooltipRemoveTimer = null;
-    isHoveringTerm = false;
+    isHoveringQuote = false;
     isHoveringTooltip = false;
     removeTooltip();
 }
 
-window.addEventListener("wheel", dismissTermTooltipForScroll, { passive: true, capture: true });
-window.addEventListener("scroll", dismissTermTooltipForScroll, true);
+window.addEventListener("wheel", dismissQuoteTooltipForScroll, { passive: true, capture: true });
+window.addEventListener("scroll", dismissQuoteTooltipForScroll, true);
 
 document.addEventListener("mouseover", (event) => {
-    const tag = event.target.closest(".term-tag");
-    if (!tag || termDismissedByScroll) return;
-    queueTermTooltip(tag, event);
+    const tag = event.target.closest(".quote-tag");
+    if (!tag || quoteDismissedByScroll) return;
+    queueQuoteTooltip(tag, event);
 });
 
 document.addEventListener("mouseout", (event) => {
-    if (event.target.closest(".term-tag")) {
-        isHoveringTerm = false;
+    if (event.target.closest(".quote-tag")) {
+        isHoveringQuote = false;
     }
 
     clearTimeout(tooltipTimer);
@@ -986,7 +990,7 @@ document.addEventListener("mouseout", (event) => {
     if (!activeTooltip) return;
 
     const to = event.relatedTarget;
-    if (to && (to.closest(".term-tag") || to.closest(".term-tooltip"))) {
+    if (to && (to.closest(".quote-tag") || to.closest(".quote-tooltip"))) {
         return;
     }
 
@@ -998,9 +1002,9 @@ function scheduleTooltipRemoval() {
 
     tooltipRemoveTimer = setTimeout(() => {
         const element = document.elementFromPoint(lastMouseX, lastMouseY);
-        const hovering = isHoveringTerm ||
+        const hovering = isHoveringQuote ||
             isHoveringTooltip ||
-            (element && (element.closest(".term-tag") || element.closest(".term-tooltip")));
+            (element && (element.closest(".quote-tag") || element.closest(".quote-tooltip")));
 
         if (!hovering) {
             removeTooltip();
@@ -1014,11 +1018,11 @@ function removeTooltip(immediate = false) {
     activeTooltip.classList.remove("show");
     const element = activeTooltip;
     activeTooltip = null;
-    activeTermId = null;
-    activeTermTag = null;
-    activeTermPointerOffset = null;
+    activeQuoteId = null;
+    activeQuoteTag = null;
+    activeQuotePointerOffset = null;
     isHoveringTooltip = false;
-    isHoveringTerm = false;
+    isHoveringQuote = false;
 
     if (immediate) {
         element.remove();
@@ -1331,7 +1335,7 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
         hoveringTrigger = true;
         queueShow(tag, event);
     });
-    document.addEventListener("pointermove", (event) => {
+    document.addEventListener("pointerove", (event) => {
         const tag = event.target.closest(triggerSelector);
         if (event.pointerType === "touch") return;
         if (dismissedByScroll && tag) {
@@ -1528,26 +1532,50 @@ document.addEventListener("click", (event) => {
         annotationTooltipController.hide(true);
     }
 
-    const tooltip = event.target.closest(".term-tooltip");
-    if (tooltip && activeTermId) {
-        const href = `term.html?id=${activeTermId}`;
-        if (typeof window.navigateTo === "function") {
-            window.navigateTo(href);
-        } else {
-            location.href = href;
+    const navigateQuote = async (quoteId) => {
+        const records = typeof window.loadAllRecords === "function" ? await window.loadAllRecords() : [];
+        const quotes = typeof window.loadAllQuotes === "function" ? await window.loadAllQuotes().catch(() => []) : [];
+        const quote = quotes.find((item) => item.id === quoteId);
+        const recordFile = String(quote?.recordFile || "").replace(/\.json$/i, "");
+        const matches = recordFile
+            ? records.filter((record) => String(record.fileName || record.id || "").replace(/\.json$/i, "") === recordFile)
+            : records.filter((record) => extractMentionedQuoteIds(record.content || "").includes(quoteId));
+        if (matches.length !== 1) {
+            const message = matches.length === 0 ? "没有找到这条名言对应的记录。" : "这条名言匹配到多条记录，请检查数据标记。";
+            window.alert(message);
+            console.warn(message, { quoteId, matches });
+            return;
         }
+        const target = matches[0];
+        if (typeof window.ClassRecordNavigateToRecord === "function") {
+            await window.ClassRecordNavigateToRecord(target.fileName || target.id, {});
+            return;
+        }
+        const anchor = getRecordAnchorId(target);
+        try {
+            sessionStorage.setItem("classrecord:pending-record-jump", JSON.stringify({
+                targetAnchorId: anchor,
+                originHref: location.href,
+                createdAt: Date.now()
+            }));
+        } catch (error) {
+            // Storage may be unavailable; the hash jump still works.
+        }
+        const href = `record.html?view=list#${anchor}`;
+        if (typeof window.navigateTo === "function") window.navigateTo(href);
+        else location.href = href;
+    };
+
+    const tooltip = event.target.closest(".quote-tooltip");
+    if (tooltip && activeQuoteId) {
+        navigateQuote(activeQuoteId);
         removeTooltip(true);
         return;
     }
 
-    const termTag = event.target.closest(".term-tag");
-    if (termTag && (event.pointerType === "touch" || window.matchMedia("(hover: none)").matches)) {
-        const href = `term.html?id=${termTag.dataset.id}`;
-        if (typeof window.navigateTo === "function") {
-            window.navigateTo(href);
-        } else {
-            location.href = href;
-        }
+    const quoteTag = event.target.closest(".quote-tag");
+    if (quoteTag && (event.pointerType === "touch" || window.matchMedia("(hover: none)").matches)) {
+        navigateQuote(quoteTag.dataset.id);
         removeTooltip(true);
         return;
     }

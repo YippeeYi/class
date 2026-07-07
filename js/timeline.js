@@ -19,7 +19,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
 
     let records = [];
     let people = [];
-    let glossary = [];
+    let quotes = [];
     let months = [];
     let years = [];
     let activeYear = '';
@@ -79,8 +79,8 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
         return getRecordParticipantIds(record).filter(isKnownPersonId);
     }
 
-    function extractTerms(record) {
-        return extractMentionedTermIds(record.content || '');
+    function extractQuotes(record) {
+        return extractMentionedQuoteIds(record.content || '');
     }
 
     function getPersonLabel(id) {
@@ -90,9 +90,20 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
         return stripRecordMarkup(person?.name || person?.alias || id);
     }
 
-    function getTermLabel(id) {
-        const term = glossary.find((item) => item.id === id);
-        return stripRecordMarkup(term?.term || term?.title || id);
+    function getQuoteLabel(id) {
+        const quote = quotes.find((item) => item.id === id);
+        return stripRecordMarkup(quote?.quote || quote?.title || id);
+    }
+
+    function quoteRecordHref(id) {
+        const quote = quotes.find((item) => item.id === id);
+        const recordFile = String(quote?.recordFile || '').replace(/\.json$/i, '');
+        if (recordFile) {
+            const direct = records.find((record) => String(record.fileName || record.id || '').replace(/\.json$/i, '') === recordFile);
+            if (direct) return recordHref(direct);
+        }
+        const matches = records.filter((record) => extractMentionedQuoteIds(record.content || '').includes(id));
+        return matches.length === 1 ? recordHref(matches[0]) : '';
     }
 
     function topEntries(map, count = 3) {
@@ -273,7 +284,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
     function getTopLabel(map, type) {
         const top = topEntries(map, 1)[0];
         if (!top) return '--';
-        const label = type === 'term' ? getTermLabel(top[0]) : getPersonLabel(top[0]);
+        const label = type === 'quote' ? getQuoteLabel(top[0]) : getPersonLabel(top[0]);
         return `${escapeHtml(label)} · ${top[1]}`;
     }
 
@@ -283,13 +294,13 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
             important: [],
             authors: new Map(),
             people: new Map(),
-            terms: new Map()
+            quotes: new Map()
         };
         recordList.forEach((record) => {
             if (record.importance === 'important') summary.important.push(record);
             countMapValue(summary.authors, String(record.author || '').trim() || 'unknown');
             extractPeople(record).forEach((id) => countMapValue(summary.people, id));
-            extractTerms(record).forEach((id) => countMapValue(summary.terms, id));
+            extractQuotes(record).forEach((id) => countMapValue(summary.quotes, id));
         });
         return summary;
     }
@@ -358,7 +369,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
             important: [],
             authors: new Map(),
             people: new Map(),
-            terms: new Map()
+            quotes: new Map()
         };
     }
 
@@ -384,7 +395,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
                 <article class="archive-stat-card"><span>月份</span><strong>${months.length}</strong></article>
                 <article class="archive-stat-card"><span>重要</span><strong>${totalImportant}</strong></article>
                 <article class="archive-stat-card"><span>人物</span><strong>${activePeople}</strong></article>
-                <article class="archive-stat-card"><span>术语</span><strong>${glossary.length}</strong></article>
+                <article class="archive-stat-card"><span>名言</span><strong>${quotes.length}</strong></article>
             </div>
             <div class="timeline-chart-grid timeline-chart-grid--overview">
                 ${renderAuthorPie(records, '整体记录人占比', 'overall')}
@@ -462,7 +473,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
         activeYear = month.year;
         const peopleChips = topEntries(month.people, 10).map(([id, count]) => `<button type="button" class="timeline-chip" data-person="${escapeHtml(id)}">${escapeHtml(getPersonLabel(id))}<span>${count}</span></button>`).join('');
         const authorChips = topEntries(month.authors, 8).map(([id, count]) => `<button type="button" class="timeline-chip" data-person="${escapeHtml(id)}">${escapeHtml(getPersonLabel(id))}<span>${count}</span></button>`).join('');
-        const termChips = topEntries(month.terms, 8).map(([id, count]) => `<button type="button" class="timeline-chip" data-term="${escapeHtml(id)}">${escapeHtml(getTermLabel(id))}<span>${count}</span></button>`).join('');
+        const quoteChips = topEntries(month.quotes, 8).map(([id, count]) => `<button type="button" class="timeline-chip" data-quote="${escapeHtml(id)}">${escapeHtml(getQuoteLabel(id))}<span>${count}</span></button>`).join('');
         const plainLengths = month.records.map((record) => countRecordTextCharacters(record.content || ''));
         const avgLength = plainLengths.length ? Math.round(plainLengths.reduce((sum, item) => sum + item, 0) / plainLengths.length) : 0;
         const recordsByDay = new Map();
@@ -502,7 +513,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
                 <article><span>全月天数</span><strong>${dayCount}</strong></article>
                 <article><span>活跃人物</span><strong>${month.people.size}</strong></article>
                 <article><span>记录人</span><strong>${month.authors.size}</strong></article>
-                <article><span>高频术语</span><strong>${month.terms.size}</strong></article>
+                <article><span>高频名言</span><strong>${month.quotes.size}</strong></article>
                 <article><span>平均正文</span><strong>${avgLength} 字</strong></article>
             </section>
             <div class="timeline-chart-grid">
@@ -528,8 +539,8 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
                     <div class="timeline-chip-list">${authorChips || '<span class="timeline-muted">暂无记录人</span>'}</div>
                 </section>
                 <section class="timeline-insight-card">
-                    <h3>高频术语</h3>
-                    <div class="timeline-chip-list">${termChips || '<span class="timeline-muted">暂无术语标记</span>'}</div>
+                    <h3>高频名言</h3>
+                    <div class="timeline-chip-list">${quoteChips || '<span class="timeline-muted">暂无名言标记</span>'}</div>
                 </section>
             </div>
 
@@ -629,8 +640,12 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
         }
         const personButton = event.target.closest('[data-person]');
         if (personButton) navigate(`person.html?id=${encodeURIComponent(personButton.dataset.person)}`);
-        const termButton = event.target.closest('[data-term]');
-        if (termButton) navigate(`term.html?id=${encodeURIComponent(termButton.dataset.term)}`);
+        const quoteButton = event.target.closest('[data-quote]');
+        if (quoteButton) {
+            const href = quoteRecordHref(quoteButton.dataset.quote);
+            if (href) navigate(href);
+            else window.alert('没有找到这条名言对应的记录。');
+        }
     });
 
     monthsWrap.addEventListener('click', (event) => {
@@ -659,9 +674,11 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
             navigate(`person.html?id=${encodeURIComponent(personButton.dataset.person)}`);
             return;
         }
-        const termButton = event.target.closest('[data-term]');
-        if (termButton) {
-            navigate(`term.html?id=${encodeURIComponent(termButton.dataset.term)}`);
+        const quoteButton = event.target.closest('[data-quote]');
+        if (quoteButton) {
+            const href = quoteRecordHref(quoteButton.dataset.quote);
+            if (href) navigate(href);
+            else window.alert('没有找到这条名言对应的记录。');
             return;
         }
         const card = event.target.closest('[data-href]');
@@ -669,12 +686,12 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
     });
 
     (window.cacheReadyPromise || Promise.resolve())
-        .then(() => Promise.all([window.loadAllRecords(), window.loadAllPeople(), window.loadAllGlossary()]))
-        .then(([recordList, peopleList, glossaryList]) => {
+        .then(() => Promise.all([window.loadAllRecords(), window.loadAllPeople(), window.loadAllQuotes()]))
+        .then(([recordList, peopleList, quotesList]) => {
             records = [...recordList];
             people = [...peopleList];
             knownPeopleIds = new Set(people.map((person) => person.id).filter(Boolean));
-            glossary = [...glossaryList];
+            quotes = [...quotesList];
             buildTimelineData();
             const params = new URLSearchParams(location.search);
             activeYear = params.get('year') || years[0]?.key || '';

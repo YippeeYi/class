@@ -1,6 +1,6 @@
 /************************************************************
  * search.js
- * 全站搜索：记录 / 人物 / 术语
+ * 全站搜索：记录 / 人物 / 名言
  ************************************************************/
 
 (() => {
@@ -13,7 +13,7 @@
     const typeLabels = {
         record: "记录",
         person: "人物",
-        term: "术语"
+        quote: "名言"
     };
     const activeTypes = new Set(Object.keys(typeLabels));
     let searchIndex = [];
@@ -76,7 +76,18 @@
         return `${escapeHtml(head + slice.slice(0, localIndex))}<mark>${escapeHtml(slice.slice(localIndex, localIndex + key.length))}</mark>${escapeHtml(slice.slice(localIndex + key.length) + tail)}`;
     }
 
-    function buildIndex(records, people, glossary) {
+    function quoteHref(quote) {
+        const recordFile = String(quote?.recordFile || "").replace(/\.json$/i, "");
+        if (recordFile) {
+            const direct = records.find((record) => String(record.fileName || record.id || "").replace(/\.json$/i, "") === recordFile);
+            if (direct) return recordHref(direct);
+        }
+        const matches = records.filter((record) => extractMentionedQuoteIds(record.content || "").includes(quote.id));
+        if (matches.length !== 1) return "";
+        return recordHref(matches[0]);
+    }
+
+    function buildIndex(records, people, quotes) {
         return [
             ...records.map((record) => ({
                 type: "record",
@@ -97,15 +108,15 @@
                 href: `person.html?id=${encodeURIComponent(person.id)}`,
                 sortKey: person.id || ""
             })),
-            ...glossary.map((term) => ({
-                type: "term",
-                id: term.id,
-                title: stripRecordMarkup(term.term || term.id),
-                richTitle: formatContent(term.term || term.id),
-                meta: term.since ? `起源 ${term.since}` : "术语条目",
-                text: [term.id, term.term, term.definition, term.since, ...(term.relatedPeople || [])].filter(Boolean).join(" "),
-                href: `term.html?id=${encodeURIComponent(term.id)}`,
-                sortKey: term.since || term.id || ""
+            ...quotes.map((quote) => ({
+                type: "quote",
+                id: quote.id,
+                title: stripRecordMarkup(quote.quote || quote.id),
+                richTitle: formatContent(quote.quote || quote.id),
+                meta: quote.sourceDate ? `来源 ${quote.sourceDate}` : "名言条目",
+                text: [quote.id, quote.quote, quote.content, quote.sourceDate, ...(quote.relatedPeople || [])].filter(Boolean).join(" "),
+                href: quoteHref(quote),
+                sortKey: quote.sourceDate || quote.id || ""
             }))
         ].map((item) => ({ ...item, normalized: normalize(item.text) }));
     }
@@ -143,7 +154,7 @@
 
         if (!query) {
             if (summary) summary.textContent = `已索引 ${searchIndex.length} 个条目。`;
-            renderEmpty("输入关键词开始搜索。", "支持记录正文、人物别名、术语定义、日期和作者。");
+            renderEmpty("输入关键词开始搜索。", "支持记录正文、人物别名、名言内容、日期和作者。");
             return;
         }
 
@@ -211,13 +222,17 @@
     resultsWrap.addEventListener("click", (event) => {
         const card = event.target.closest(".search-result-card[data-href]");
         if (!card) return;
+        if (!card.dataset.href) {
+            window.alert("没有找到这条名言对应的记录。");
+            return;
+        }
         navigate(card.dataset.href);
     });
 
     (window.cacheReadyPromise || Promise.resolve())
-        .then(() => Promise.all([window.loadAllRecords(), window.loadAllPeople(), window.loadAllGlossary()]))
-        .then(([records, people, glossary]) => {
-            searchIndex = buildIndex(records, people, glossary);
+        .then(() => Promise.all([window.loadAllRecords(), window.loadAllPeople(), window.loadAllQuotes()]))
+        .then(([records, people, quotes]) => {
+            searchIndex = buildIndex(records, people, quotes);
             const initialQuery = new URLSearchParams(location.search).get("q") || "";
             input.value = initialQuery;
             renderResults();

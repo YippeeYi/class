@@ -27,7 +27,7 @@ window.addEventListener("classrecordcacheclearing", () => {
 });
 
 window.needsCacheLoad = function ({ expire = 24 * 60 * 60 * 1000 } = {}) {
-    return !isCacheValid("records:visible", expire) || !isCacheValid("people", expire) || !isCacheValid("glossary", expire);
+    return !isCacheValid("records:visible", expire) || !isCacheValid("people", expire) || !isCacheValid("quotes", expire);
 };
 
 function isCacheValid(key, expire) {
@@ -63,10 +63,10 @@ window.ensureAllCachesLoaded = async function ({ expire = 24 * 60 * 60 * 1000, s
             onProgress(0.45);
             await loadAllPeople();
             onProgress(0.72);
-            await loadAllGlossary();
+            await loadAllQuotes();
             onProgress(1);
         } else {
-            await Promise.all([loadAllRecords(), loadAllPeople(), loadAllGlossary()]);
+            await Promise.all([loadAllRecords(), loadAllPeople(), loadAllQuotes()]);
         }
     } finally {
         if (showOverlay) hideLoadingOverlay();

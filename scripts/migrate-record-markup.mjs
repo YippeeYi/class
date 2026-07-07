@@ -6,7 +6,7 @@ import path from 'node:path';
 const root = process.cwd();
 const dataRoot = path.join(root, 'data');
 const checkOnly = process.argv.includes('--check');
-const typedBinary = new Set(['person', 'author', 'term', 'record', 'frac', 'anno', 'illu', 'arrow']);
+const typedBinary = new Set(['person', 'author', 'quote', 'term', 'record', 'frac', 'anno', 'illu', 'arrow']);
 const typedUnary = new Set(['del', 'under', 'red', 'hide', 'sup', 'sub', 'center', 'right']);
 
 function isEscaped(source, index) {
@@ -69,8 +69,9 @@ function migrateSquare(body, raw) {
     if (typedBinary.has(type)) {
         const parts = splitTopLevelOnce(body.slice(colon + 1));
         if (!parts || !parts[0] || !parts[1]) return raw;
+        const normalizedType = type === 'term' ? 'quote' : type;
         const first = type === 'illu' ? parts[0].replace(/^data\/attachments\//i, '') : migrateMarkup(parts[0]);
-        return `[[${type}:${first}|${migrateMarkup(parts[1])}]]`;
+        return `[[${normalizedType}:${first}|${migrateMarkup(parts[1])}]]`;
     }
     const person = splitTopLevelOnce(body);
     if (person && /^[a-zA-Z0-9_-]+$/.test(person[0]) && person[1]) {
@@ -109,7 +110,7 @@ function migrateMarkup(value) {
             }
         }
         const paired = [
-            ['{{', '}}', 'term'],
+            ['{{', '}}', 'quote'],
             ['((', '))', 'hide'],
             ['!!', '!!', 'center'],
             ['>>', '<<', 'right'],
@@ -121,10 +122,10 @@ function migrateMarkup(value) {
             const end = source.indexOf(close, index + open.length);
             if (end >= 0) {
                 const inner = source.slice(index + open.length, end);
-                if (type === 'term') {
+                if (type === 'quote') {
                     const parts = splitTopLevelOnce(inner);
                     if (parts && /^[a-zA-Z0-9_-]+$/.test(parts[0]) && parts[1]) {
-                        output += `[[term:${parts[0]}|${migrateMarkup(parts[1])}]]`;
+                        output += `[[quote:${parts[0]}|${migrateMarkup(parts[1])}]]`;
                         index = end + close.length;
                         continue;
                     }

@@ -125,7 +125,7 @@
             "--shadow-soft", "--field-border", "--overlay-backdrop", "--overlay-card-bg", "--overlay-card-shadow",
             "--bg-card", "--guide-panel-bg", "--guide-card-bg", "--progress-track-bg", "--table-header-bg",
             "--table-row-hover-bg", "--table-row-hover-edge", "--table-row-hover-border", "--important-border", "--important-bg",
-            "--attachment-bg", "--attachment-border", "--tooltip-bg", "--link-soft-bg", "--term-soft-bg"
+            "--attachment-bg", "--attachment-border", "--tooltip-bg", "--link-soft-bg", "--quote-soft-bg"
         ].forEach((name) => root.style.removeProperty(name));
     };
 
@@ -236,7 +236,7 @@
             "--attachment-border": `rgba(${toRgbString(accentStrong)}, 0.36)`,
             "--tooltip-bg": `rgba(${toRgbString(surface)}, 0.94)`,
             "--link-soft-bg": `rgba(${toRgbString(surfaceStrong)}, 0.68)`,
-            "--term-soft-bg": `rgba(${toRgbString(surface)}, 0.7)`
+            "--quote-soft-bg": `rgba(${toRgbString(surface)}, 0.7)`
         };
     };
 

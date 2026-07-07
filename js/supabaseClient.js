@@ -3,9 +3,11 @@
     const DEFAULT_TABLES = {
         records: "class_records",
         people: "class_people",
-        glossary: "class_glossary",
+        quotes: "class_quotes",
         recordPages: "class_record_pages",
         pageMessages: "class_page_messages",
+        pageSupplements: "class_page_supplements",
+        materials: "class_materials",
         quizQuestions: "class_quiz_questions"
     };
 

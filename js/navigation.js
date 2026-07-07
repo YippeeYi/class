@@ -111,12 +111,14 @@
             loaders.push(window.loadAllRecords, window.loadAllPeople);
         } else if (['people.html', 'person.html'].includes(path)) {
             loaders.push(window.loadAllPeople, window.loadAllRecords);
-        } else if (['glossary.html'].includes(path)) {
-            loaders.push(window.loadAllGlossary);
-        } else if (['term.html', 'quiz.html'].includes(path)) {
-            loaders.push(window.loadAllGlossary, window.loadAllPeople, window.loadAllRecords);
+        } else if (['quotes.html'].includes(path)) {
+            loaders.push(window.loadAllQuotes);
+        } else if (['quiz.html'].includes(path)) {
+            loaders.push(window.loadAllQuotes, window.loadAllPeople, window.loadAllRecords);
         } else if (['search.html'].includes(path)) {
-            loaders.push(window.loadAllGlossary, window.loadAllPeople, window.loadAllRecords);
+            loaders.push(window.loadAllQuotes, window.loadAllPeople, window.loadAllRecords);
+        } else if (['materials.html'].includes(path)) {
+            loaders.push(window.loadAllMaterials);
         }
 
         const run = () => {
@@ -148,7 +150,7 @@
     };
 
     const warmCoreData = () => {
-        [window.loadAllRecords, window.loadAllPeople, window.loadAllGlossary]
+        [window.loadAllRecords, window.loadAllPeople, window.loadAllQuotes, window.loadAllMaterials]
             .filter(Boolean)
             .forEach((loader) => Promise.resolve(loader()).catch(() => {}));
     };
@@ -161,12 +163,13 @@
         const run = () => {
             prefetchPage('record.html');
             prefetchPage('people.html');
-            prefetchPage('glossary.html');
+            prefetchPage('quotes.html');
             prefetchPage('quiz.html');
             prefetchPage('search.html');
             prefetchPage('timeline.html');
             prefetchPage('shop.html');
             prefetchPage('credits.html');
+            prefetchPage('materials.html');
             warmCoreData();
         };
 

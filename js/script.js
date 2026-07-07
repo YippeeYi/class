@@ -22,7 +22,9 @@ let pendingRecordJump = null;
 let activeRecordJumpDialog = null;
 let activeRecordJumpCleanup = null;
 let pageMessageMap = new Map();
+let pageSupplementMap = new Map();
 let pageMessagesPromise = null;
+let pageSupplementsPromise = null;
 const writtenImagePreloadCache = new Map();
 const writtenImageReadyCache = new Map();
 
@@ -103,12 +105,14 @@ async function loadRecordPageConfig() {
     if (targetMode === "hidden") {
       [pages] = await Promise.all([
         loadHiddenRecordImagePages(),
-        loadPageMessages()
+        loadPageMessages(),
+        loadPageSupplements()
       ]);
     } else if (window.ClassRecordData?.isEnabled()) {
       [pages] = await Promise.all([
         window.ClassRecordData.loadRecordPages({ hidden: false }),
-        loadPageMessages()
+        loadPageMessages(),
+        loadPageSupplements()
       ]);
     }
     if (loadToken !== recordPageLoadToken || targetMode !== (hiddenMode ? "hidden" : "normal")) return;
@@ -144,6 +148,36 @@ async function loadPageMessages() {
   return pageMessagesPromise;
 }
 
+async function loadPageSupplements() {
+  if (!window.ClassRecordData?.isEnabled() || typeof window.ClassRecordData.loadPageSupplements !== "function") {
+    pageSupplementMap = new Map();
+    return pageSupplementMap;
+  }
+  if (!pageSupplementsPromise) {
+    pageSupplementsPromise = window.ClassRecordData.loadPageSupplements({ hidden: false })
+      .then((items) => {
+        const grouped = new Map();
+        items.forEach((item) => {
+          const page = String(item.page || "").trim();
+          if (!page) return;
+          const list = grouped.get(page) || [];
+          list.push(item);
+          grouped.set(page, list);
+        });
+        grouped.forEach((list) => list.sort((a, b) => (a.supplementIndex || 0) - (b.supplementIndex || 0)));
+        pageSupplementMap = grouped;
+        return pageSupplementMap;
+      })
+      .catch((error) => {
+        pageSupplementsPromise = null;
+        pageSupplementMap = new Map();
+        console.warn("书面记录补充记录加载失败：", error);
+        return pageSupplementMap;
+      });
+  }
+  return pageSupplementsPromise;
+}
+
 function renderPageMessage(message) {
   if (!message?.content) return "";
   const author = String(message.author || "").trim();
@@ -152,6 +186,25 @@ function renderPageMessage(message) {
       <div class="meta"><span>箴言${author ? ` · ✍ ${parseContent(`[[${author}|${author}]]`)}` : ""}</span></div>
       <div class="content">${formatContent(message.content)}</div>
     </article>
+  `;
+}
+
+function renderPageSupplements(items = []) {
+  const supplements = Array.isArray(items) ? items.filter((item) => item?.content) : [];
+  if (!supplements.length) return "";
+  return `
+    <section class="record-written-supplements" aria-label="补充记录">
+      <h2>补充记录</h2>
+      ${supplements.map((item) => {
+        const author = String(item.author || "").trim();
+        return `
+          <article class="record record-written-supplement">
+            <div class="meta"><span>补充记录${author ? ` · ✍ ${parseContent(`[[author:${author}|${author}]]`)}` : ""}</span></div>
+            <div class="content">${formatContent(item.content)}</div>
+          </article>
+        `;
+      }).join("")}
+    </section>
   `;
 }
 function normalizeHiddenPageKey(value) {
@@ -425,6 +478,7 @@ function renderWrittenView(records) {
         </figure>
         <div class="record-written-records">
           ${renderPageMessage(pageMessageMap.get(String(page.page).trim()))}
+          ${renderPageSupplements(pageSupplementMap.get(String(page.page).trim()))}
           <div class="record-written-record-list"></div>
         </div>
       </div>

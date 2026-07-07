@@ -31,8 +31,8 @@ function detectCriticalLoaders() {
         loaders.push(window.loadAllRecords);
     }
 
-    if (document.getElementById('glossary-list')) {
-        loaders.push(window.loadAllGlossary);
+    if (document.getElementById('quotes-list')) {
+        loaders.push(window.loadAllQuotes);
     }
 
     if (document.getElementById('person-name')) {
@@ -40,16 +40,14 @@ function detectCriticalLoaders() {
         loaders.push(window.loadAllRecords);
     }
 
-    if (document.getElementById('term-id')) {
-        loaders.push(window.loadAllGlossary);
-        loaders.push(window.loadAllPeople);
-        loaders.push(window.loadAllRecords);
-    }
-
     if (document.getElementById('quiz-question-text')) {
         loaders.push(window.loadAllRecords);
         loaders.push(window.loadAllPeople);
-        loaders.push(window.loadAllGlossary);
+        loaders.push(window.loadAllQuotes);
+    }
+
+    if (document.getElementById('materials-list')) {
+        loaders.push(window.loadAllMaterials);
     }
 
     return Array.from(new Set(loaders.filter(Boolean)));
@@ -83,7 +81,7 @@ window.cacheReadyPromise = (async () => {
 
     await Promise.all(criticalLoaders.map((loader) => loader()));
 
-    const allLoaders = [window.loadAllRecords, window.loadAllPeople, window.loadAllGlossary].filter(Boolean);
+    const allLoaders = [window.loadAllRecords, window.loadAllPeople, window.loadAllQuotes, window.loadAllMaterials].filter(Boolean);
     const backgroundLoaders = allLoaders.filter((loader) => !criticalLoaders.includes(loader));
     prewarmBackground(backgroundLoaders);
 })();

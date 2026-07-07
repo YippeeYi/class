@@ -3,7 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>班级辞典</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>??? ? ??</title>
     <script src="js/themeBootstrap.js"></script>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="favicon.ico">
@@ -16,49 +17,45 @@
 
 <body>
     <div class="page-header">
-        <button class="back-to-guide-btn" aria-label="返回导览页面" title="返回导览页面" data-nav-target="index.html">🏠</button>
+        <button class="back-to-guide-btn" aria-label="??????" title="??????" data-nav-target="index.html">??????</button>
     </div>
 
-    <h1>班级辞典</h1>
+    <h1>??</h1>
 
     <div class="sort-controls">
         <div class="sort-dropdown" data-field="sort-key">
-            <button type="button" class="btn-select dropdown-trigger" data-value="since">
-                <span class="dropdown-label">按起源时间</span>
-                <span class="dropdown-arrow" aria-hidden="true">▾</span>
+            <button type="button" class="btn-select dropdown-trigger" data-value="sourceDate">
+                <span class="dropdown-label">?????</span>
+                <span class="dropdown-arrow" aria-hidden="true">?</span>
             </button>
-            <div class="select-menu" role="menu" aria-label="排序依据">
+            <div class="select-menu" role="menu" aria-label="????">
                 <button type="button" class="btn-action sort-option is-active" data-field="sort-key"
-                    data-value="since">起源时间</button>
-                <button type="button" class="btn-action sort-option" data-field="sort-key" data-value="id">词条名称</button>
+                    data-value="sourceDate">????</button>
+                <button type="button" class="btn-action sort-option" data-field="sort-key" data-value="id">????</button>
             </div>
         </div>
 
-        <button type="button" class="btn-action sort-order-toggle" data-value="asc">升序</button>
+        <button type="button" class="btn-action sort-order-toggle" data-value="asc">??</button>
     </div>
 
-    <div id="glossary-list"></div>
+    <div id="quotes-list"></div>
 
-    <!-- Cache + Store -->
     <script src="js/cacheLoader.js"></script>
     <script src="js/recordStore.js"></script>
     <script src="js/peopleStore.js"></script>
-    <script src="js/glossaryStore.js"></script>
+    <script src="js/quoteStore.js"></script>
     <script src="js/bootstrap.js"></script>
     <script src="js/backgroundOptions.js"></script>
     <script src="js/backgroundSwitcher.js"></script>
-
-    <!-- 渲染和页面逻辑 -->
     <script src="js/recordRenderer.js"></script>
-    <script src="js/glossary.js"></script>
+    <script src="js/quotes.js"></script>
 
     <footer class="footer">
-        本站使用匿名访问统计，仅用于了解页面使用情况，不收集任何个人信息。
+        ?????????????????????????????????
     </footer>
 
-    <!-- Cloudflare Web Analytics -->
     <script defer src='https://static.cloudflareinsights.com/beacon.min.js'
-        data-cf-beacon='{"token": "1111e0403f354ef6a4e0ef29b62e3e2e"}'></script><!-- End Cloudflare Web Analytics -->
+        data-cf-beacon='{"token": "1111e0403f354ef6a4e0ef29b62e3e2e"}'></script>
 </body>
 
 </html>

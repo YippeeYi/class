@@ -7,7 +7,10 @@
     let clientPromise = null;
     const recordPromises = new Map();
     const recordPagePromises = new Map();
+    const pageSupplementPromises = new Map();
     let pageMessagesPromise = null;
+    let quotesPromise = null;
+    let materialsPromise = null;
     const assetListPromises = new Map();
     const signedUrlCache = new Map();
     const failedSignCache = new Map();
@@ -103,9 +106,11 @@
             tables: {
                 records: 'class_records',
                 people: 'class_people',
-                glossary: 'class_glossary',
+                quotes: 'class_quotes',
                 recordPages: 'class_record_pages',
                 pageMessages: 'class_page_messages',
+                pageSupplements: 'class_page_supplements',
+                materials: 'class_materials',
                 quizQuestions: 'class_quiz_questions',
                 ...(config.tables || {})
             }
@@ -229,6 +234,40 @@
         });
     };
 
+    const normalizeQuote = (row, index = 0) => {
+        const raw = parseRaw(row);
+        const quote = row.quote || raw.quote || raw.term || raw.title || '';
+        return {
+            ...raw,
+            id: row.quote_id || raw.id || quote || `quote-${index + 1}`,
+            quote,
+            aliases: Array.isArray(row.aliases) ? row.aliases : (Array.isArray(raw.aliases) ? raw.aliases : []),
+            content: row.content || raw.content || raw.definition || raw.description || '',
+            sourceDate: row.source_date || raw.sourceDate || raw.since || '',
+            relatedPeople: Array.isArray(row.related_people) ? row.related_people : (Array.isArray(raw.relatedPeople) ? raw.relatedPeople : []),
+            recordFile: row.record_file || raw.recordFile || raw.record || ''
+        };
+    };
+
+    const loadQuotes = async ({ onProgressStep } = {}) => {
+        const config = await getConfig();
+        if (!quotesPromise) {
+            quotesPromise = selectAll(config.tables.quotes, '*', 'id')
+                .then((rows) => rows.map((row, index) => {
+                    const item = normalizeQuote(row, index);
+                    if (typeof onProgressStep === 'function') onProgressStep(item.id);
+                    return item;
+                }))
+                .catch(async (error) => {
+                    // Transitional compatibility for projects that have not run
+                    // the class_glossary -> class_quotes migration yet.
+                    const rows = await selectAll(config.tables.glossary || 'class_glossary', '*', 'id');
+                    return rows.map((row, index) => normalizeQuote(row, index));
+                });
+        }
+        return quotesPromise;
+    };
+
     const loadPeople = async ({ onProgressStep } = {}) => {
         const config = await getConfig();
         const rows = await selectAll(config.tables.people, '*', 'id');
@@ -251,21 +290,54 @@
         });
     };
 
-    const loadGlossary = async ({ onProgressStep } = {}) => {
+    const loadPageSupplements = async ({ hidden = false } = {}) => {
         const config = await getConfig();
-        const rows = await selectAll(config.tables.glossary, '*', 'id');
+        const cacheKey = String(Boolean(hidden));
+        if (!pageSupplementPromises.has(cacheKey)) {
+            const promise = selectAll(config.tables.pageSupplements, '*', 'sort_order', { hidden: Boolean(hidden) })
+                .catch((error) => {
+                    pageSupplementPromises.delete(cacheKey);
+                    throw error;
+                });
+            pageSupplementPromises.set(cacheKey, promise);
+        }
+        const rows = await pageSupplementPromises.get(cacheKey);
         return rows.map((row, index) => {
             const raw = parseRaw(row);
-            const item = {
+            return {
                 ...raw,
-                id: row.term_id || raw.id || raw.term || `term-${index + 1}`,
-                term: row.term || raw.term || '',
-                aliases: Array.isArray(row.aliases) ? row.aliases : (Array.isArray(raw.aliases) ? raw.aliases : []),
-                definition: row.definition || raw.definition || raw.description || '',
+                id: row.file_name || raw.id || `${row.page || raw.page}-${row.supplement_index || index + 1}`,
+                fileName: row.file_name || raw.fileName || '',
+                page: String(row.page ?? raw.page ?? '').trim(),
+                supplementIndex: Number(row.supplement_index ?? raw.supplementIndex ?? index + 1),
+                author: row.author || raw.author || raw.recorder || '',
+                content: row.content || raw.content || raw.text || '',
+                hidden: truthyHidden(row.hidden ?? raw.hidden)
             };
-            if (typeof onProgressStep === 'function') onProgressStep(item.id);
-            return item;
-        });
+        }).filter((item) => item.page && item.content);
+    };
+
+    const loadMaterials = async ({ onProgressStep } = {}) => {
+        const config = await getConfig();
+        if (!materialsPromise) {
+            materialsPromise = selectAll(config.tables.materials, '*', 'sort_order')
+                .then((rows) => rows.map((row, index) => {
+                    const raw = parseRaw(row);
+                    const item = {
+                        ...raw,
+                        id: row.material_id || raw.id || `material-${index + 1}`,
+                        title: row.title || raw.title || raw.name || '',
+                        content: row.content || raw.content || raw.description || ''
+                    };
+                    if (typeof onProgressStep === 'function') onProgressStep(item.id);
+                    return item;
+                }).filter((item) => item.id && item.title))
+                .catch((error) => {
+                    materialsPromise = null;
+                    throw error;
+                });
+        }
+        return materialsPromise;
     };
 
     const loadRecordPages = async ({ hidden = false } = {}) => {
@@ -540,7 +612,10 @@
     window.addEventListener('classrecordcacheclearing', () => {
         recordPromises.clear();
         recordPagePromises.clear();
+        pageSupplementPromises.clear();
         pageMessagesPromise = null;
+        quotesPromise = null;
+        materialsPromise = null;
         assetListPromises.clear();
         signedUrlCache.clear();
         failedSignCache.clear();
@@ -554,7 +629,10 @@
         getConfig,
         getPreloadedAsset,
         isEnabled,
-        loadGlossary,
+        loadMaterials,
+        loadPageSupplements,
+        loadQuotes,
+        loadGlossary: loadQuotes,
         loadPeople,
         loadQuizQuestions,
         listAssetPaths,

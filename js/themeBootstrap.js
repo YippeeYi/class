@@ -70,7 +70,7 @@
             "--attachment-border": `rgba(${rgbText(strong)}, .34)`,
             "--tooltip-bg": `rgba(${rgbText(surface)}, .96)`,
             "--link-soft-bg": `rgba(${rgbText(surfaceStrong)}, .72)`,
-            "--term-soft-bg": `rgba(${rgbText(surface)}, .74)`
+            "--quote-soft-bg": `rgba(${rgbText(surface)}, .74)`
         };
     };
     window.ClassRecordThemePresets = Object.fromEntries(

@@ -1,6 +1,6 @@
 # Class Record
 
-一个接入 Supabase 的班级档案前端。敏感记录、人物、术语、答题数据和图片资源都从 Supabase 读取；访问者必须先通过统一密钥验证，前端才会加载站点内容。
+一个接入 Supabase 的班级档案前端。敏感记录、人物、名言、答题数据和图片资源都从 Supabase 读取；访问者必须先通过统一密钥验证，前端才会加载站点内容。
 
 ## 当前安全模型
 
@@ -19,8 +19,8 @@
 | 导览 | `index.html` | 站点入口和统计卡片 |
 | 记录 | `record.html` | 普通记录和书面记录展示 |
 | 人物 | `people.html`, `person.html` | 人物列表和详情 |
-| 术语 | `glossary.html`, `term.html` | 术语列表和详情 |
-| 搜索 | `search.html` | 记录、人物、术语搜索 |
+| 名言 | `quotes.html` | 名言列表，点击后定位到对应记录 |
+| 搜索 | `search.html` | 记录、人物、名言搜索 |
 | 时间线 | `timeline.html` | 档案统计视图 |
 | 答题 | `quiz.html` | 本地判题，不上传答题结果 |
 | 背景 | `shop.html` | 本地背景切换，不写入服务器 |
@@ -30,9 +30,9 @@
 - `js/authGate.js`：统一密钥门禁和本地验证状态管理。
 - `js/authPage.js`：密钥输入页逻辑。
 - `js/supabaseClient.js`：Supabase 客户端与 `verify_site_key` RPC。
-- `js/secureData.js`：记录、人物、术语、答题、书面页和 Storage 签名 URL 读取。
-- `js/recordStore.js`、`js/peopleStore.js`、`js/glossaryStore.js`：运行时只读数据仓库。
-- `js/recordRenderer.js`：记录正文、人物链接、术语链接、隐藏内容、上下标和附件展示。
+- `js/secureData.js`：记录、人物、名言、答题、书面页和 Storage 签名 URL 读取。
+- `js/recordStore.js`、`js/peopleStore.js`、`js/quoteStore.js`：运行时只读数据仓库。
+- `js/recordRenderer.js`：记录正文、人物链接、名言链接、隐藏内容、上下标和附件展示。
 - `docs/supabase-setup.sql`：当前无账号方案的 Supabase SQL。
 
 ## 本地运行
@@ -70,7 +70,7 @@ http://localhost:8000/index.html
 上述 `[[...]]` 标记使用平衡括号递归解析，参数中的嵌套标记会继续渲染；普通文本默认进行
 HTML 转义。插图路径严格限制在 `data/attachments/` 目录。
 
-注解内容同样支持人物、术语、跳转及文字样式标记；注解或插图的二次悬浮标记会在浮层中
+注解内容同样支持人物、名言、跳转及文字样式标记；注解或插图的二次悬浮标记会在浮层中
 安全降级为标签文字。注解与插图浮层均支持移入停留，并在离开触发文字和浮层后延迟关闭。
 
 ## Supabase 密钥设置
@@ -138,4 +138,19 @@ where label = 'main key';
 
 ## 数据与图片
 
-前端不依赖本地 `data/` 或 `images/record-pages/`。记录、人物、术语、答题和书面记录页来自 Supabase 表；图片和附件通过 Supabase Storage 签名 URL 加载。
+前端不依赖本地 `data/` 或 `images/record-pages/`。记录、人物、名言、答题和书面记录页来自 Supabase 表；图片和附件通过 Supabase Storage 签名 URL 加载。
+
+## 书面记录页内补充记录
+
+补充记录文件单独放在 `data/page-supplements/`，不要放进 `data/record/`。
+
+文件命名保持 `页面-编号.json`，例如 `08-02.json`。字段只需要：
+
+```json
+{
+  "author": "记录人ID",
+  "content": "补充记录内容"
+}
+```
+
+上传脚本会把这些文件导入 `class_page_supplements`，前端只会在书面记录模式的对应页码中显示；它们不会进入普通记录列表、搜索、人物页、名言跳转或统计。

@@ -11,12 +11,12 @@
   const filterWrap = document.getElementById('quiz-filter');
   const quizCard = document.querySelector('.quiz-card');
   const typeLabels = { choice: '\u9009\u62e9\u9898', fill: '\u586b\u7a7a\u9898', judge: '\u5224\u65ad\u9898' };
-  const contentLabels = { person: '\u4eba\u540d', term: '\u672f\u8bed', author: '\u8bb0\u5f55\u4eba', date: '\u8bb0\u5f55\u65f6\u95f4' };
+  const contentLabels = { person: '\u4eba\u540d', quote: '\u672f\u8bed', author: '\u8bb0\u5f55\u4eba', date: '\u8bb0\u5f55\u65f6\u95f4' };
   const secretContentLabels = { [SECRET_CONTENT]: '???' };
   const contentByType = {
-    choice: ['person', 'term', 'author', 'date'],
-    fill: ['person', 'term', 'author', SECRET_CONTENT],
-    judge: ['person', 'term', 'author']
+    choice: ['person', 'quote', 'author', 'date'],
+    fill: ['person', 'quote', 'author', SECRET_CONTENT],
+    judge: ['person', 'quote', 'author']
   };
 
   let allQuestions = [];
@@ -171,7 +171,7 @@
       return;
     }
 
-    const shouldBlankRecord = (currentQuestion.type === 'choice' || currentQuestion.type === 'fill') && ['person', 'term'].includes(currentQuestion.content);
+    const shouldBlankRecord = (currentQuestion.type === 'choice' || currentQuestion.type === 'fill') && ['person', 'quote'].includes(currentQuestion.content);
     const recordText = currentQuestion.recordText;
     let recordHtml = recordText;
     if (shouldBlankRecord) {
@@ -343,7 +343,7 @@
       ? getPersonChoiceOptions(base, pools)
       : shuffle(uniqueValues([
         base.answer,
-        ...shuffle(pools.termOptions.filter((item) => item !== base.answer && !base.plainText.includes(item))).slice(0, 3)
+        ...shuffle(pools.quoteOptions.filter((item) => item !== base.answer && !base.plainText.includes(item))).slice(0, 3)
       ]));
     const finalOptions = uniqueOptionsWithAnswer(base.answer, options);
     if (finalOptions.length < 4) return null;
@@ -379,7 +379,7 @@
 
     const replacementPool = kind === 'person'
       ? [...pools.personLabels.entries()].flatMap(([, labels]) => labels)
-      : pools.termOptions;
+      : pools.quoteOptions;
     const replacementPeople = kind === 'person'
       ? [...pools.personLabels.entries()]
         .map(([id, labels]) => ({ id, labels: uniqueOptions(labels) }))
@@ -981,18 +981,18 @@
   });
 
   (window.cacheReadyPromise || Promise.resolve())
-    .then(() => Promise.all([window.loadAllRecords(), window.loadAllPeople(), window.loadAllGlossary(), loadSecretQuestions()]))
-    .then(([records, people, glossary, secretQuestions]) => {
+    .then(() => Promise.all([window.loadAllRecords(), window.loadAllPeople(), window.loadAllQuotes(), loadSecretQuestions()]))
+    .then(([records, people, quotes, secretQuestions]) => {
       const quizRecords = records.filter((record) => !String(record.fileName || record.id || '').replace(/\.json$/i, '').endsWith('-00'));
       const pools = {
         personLabels: buildLabelMap(records, people),
         personOptions: [],
-        termOptions: uniqueValues(glossary.map((term) => stripOptionMarkup(term.term)))
+        quoteOptions: uniqueValues(quotes.map((quote) => stripOptionMarkup(quote.quote)))
       };
       pools.personOptions = uniqueValues([...pools.personLabels.values()].flat());
-      pools.termOptions = uniqueValues([
-        ...pools.termOptions,
-        ...quizRecords.flatMap((record) => extractTokenRefs(record.content || '', 'term').map((ref) => ref.label))
+      pools.quoteOptions = uniqueValues([
+        ...pools.quoteOptions,
+        ...quizRecords.flatMap((record) => extractTokenRefs(record.content || '', 'quote').map((ref) => ref.label))
       ]);
 
       const authorPool = uniqueValues(quizRecords.map((record) => record.author));
@@ -1000,11 +1000,11 @@
       const questions = [];
       quizRecords.forEach((record) => {
         questions.push(buildChoiceQuestion(record, 'person', pools));
-        questions.push(buildChoiceQuestion(record, 'term', pools));
+        questions.push(buildChoiceQuestion(record, 'quote', pools));
         questions.push(buildFillQuestion(record, 'person'));
-        questions.push(buildFillQuestion(record, 'term'));
+        questions.push(buildFillQuestion(record, 'quote'));
         questions.push(buildJudgeQuestion(record, 'person', pools));
-        questions.push(buildJudgeQuestion(record, 'term', pools));
+        questions.push(buildJudgeQuestion(record, 'quote', pools));
         questions.push(buildAuthorChoiceQuestion(record, authorPool));
         questions.push(buildAuthorFillQuestion(record));
         questions.push(buildAuthorJudgeQuestion(record, authorPool));
