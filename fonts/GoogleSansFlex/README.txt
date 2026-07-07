@@ -14,7 +14,7 @@ Google Sans Flex is a variable font with these axes:
 This means all the styles are contained in a single file:
   GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf
 
-If your app fully supports variable fonts, you can now pick insayingediate styles
+If your app fully supports variable fonts, you can now pick intermediate styles
 that aren’t available as static fonts. Not all apps support variable fonts, and
 in those cases you can use the static font files for Google Sans Flex:
   static/GoogleSansFlex_9pt-Thin.ttf

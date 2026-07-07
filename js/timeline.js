@@ -79,8 +79,8 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
         return getRecordParticipantIds(record).filter(isKnownPersonId);
     }
 
-    function extractsayings(record) {
-        return extractMentionedsayingIds(record.content || '');
+    function extractTerms(record) {
+        return extractMentionedTermIds(record.content || '');
     }
 
     function getPersonLabel(id) {
@@ -90,9 +90,9 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
         return stripRecordMarkup(person?.name || person?.alias || id);
     }
 
-    function getsayingLabel(id) {
-        const saying = glossary.find((item) => item.id === id);
-        return stripRecordMarkup(saying?.saying || saying?.title || id);
+    function getTermLabel(id) {
+        const term = glossary.find((item) => item.id === id);
+        return stripRecordMarkup(term?.term || term?.title || id);
     }
 
     function topEntries(map, count = 3) {
@@ -273,7 +273,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
     function getTopLabel(map, type) {
         const top = topEntries(map, 1)[0];
         if (!top) return '--';
-        const label = type === 'saying' ? getsayingLabel(top[0]) : getPersonLabel(top[0]);
+        const label = type === 'term' ? getTermLabel(top[0]) : getPersonLabel(top[0]);
         return `${escapeHtml(label)} · ${top[1]}`;
     }
 
@@ -283,13 +283,13 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
             important: [],
             authors: new Map(),
             people: new Map(),
-            sayings: new Map()
+            terms: new Map()
         };
         recordList.forEach((record) => {
             if (record.importance === 'important') summary.important.push(record);
             countMapValue(summary.authors, String(record.author || '').trim() || 'unknown');
             extractPeople(record).forEach((id) => countMapValue(summary.people, id));
-            extractsayings(record).forEach((id) => countMapValue(summary.sayings, id));
+            extractTerms(record).forEach((id) => countMapValue(summary.terms, id));
         });
         return summary;
     }
@@ -358,7 +358,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
             important: [],
             authors: new Map(),
             people: new Map(),
-            sayings: new Map()
+            terms: new Map()
         };
     }
 
@@ -462,7 +462,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
         activeYear = month.year;
         const peopleChips = topEntries(month.people, 10).map(([id, count]) => `<button type="button" class="timeline-chip" data-person="${escapeHtml(id)}">${escapeHtml(getPersonLabel(id))}<span>${count}</span></button>`).join('');
         const authorChips = topEntries(month.authors, 8).map(([id, count]) => `<button type="button" class="timeline-chip" data-person="${escapeHtml(id)}">${escapeHtml(getPersonLabel(id))}<span>${count}</span></button>`).join('');
-        const sayingChips = topEntries(month.sayings, 8).map(([id, count]) => `<button type="button" class="timeline-chip" data-saying="${escapeHtml(id)}">${escapeHtml(getsayingLabel(id))}<span>${count}</span></button>`).join('');
+        const termChips = topEntries(month.terms, 8).map(([id, count]) => `<button type="button" class="timeline-chip" data-term="${escapeHtml(id)}">${escapeHtml(getTermLabel(id))}<span>${count}</span></button>`).join('');
         const plainLengths = month.records.map((record) => countRecordTextCharacters(record.content || ''));
         const avgLength = plainLengths.length ? Math.round(plainLengths.reduce((sum, item) => sum + item, 0) / plainLengths.length) : 0;
         const recordsByDay = new Map();
@@ -502,7 +502,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
                 <article><span>全月天数</span><strong>${dayCount}</strong></article>
                 <article><span>活跃人物</span><strong>${month.people.size}</strong></article>
                 <article><span>记录人</span><strong>${month.authors.size}</strong></article>
-                <article><span>高频名言</span><strong>${month.sayings.size}</strong></article>
+                <article><span>高频名言</span><strong>${month.terms.size}</strong></article>
                 <article><span>平均正文</span><strong>${avgLength} 字</strong></article>
             </section>
             <div class="timeline-chart-grid">
@@ -529,7 +529,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
                 </section>
                 <section class="timeline-insight-card">
                     <h3>高频名言</h3>
-                    <div class="timeline-chip-list">${sayingChips || '<span class="timeline-muted">暂无名言标记</span>'}</div>
+                    <div class="timeline-chip-list">${termChips || '<span class="timeline-muted">暂无名言标记</span>'}</div>
                 </section>
             </div>
 
@@ -629,8 +629,8 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
         }
         const personButton = event.target.closest('[data-person]');
         if (personButton) navigate(`person.html?id=${encodeURIComponent(personButton.dataset.person)}`);
-        const sayingButton = event.target.closest('[data-saying]');
-        if (sayingButton) navigate(`saying.html?id=${encodeURIComponent(sayingButton.dataset.saying)}`);
+        const termButton = event.target.closest('[data-term]');
+        if (termButton) navigate(`term.html?id=${encodeURIComponent(termButton.dataset.term)}`);
     });
 
     monthsWrap.addEventListener('click', (event) => {
@@ -659,9 +659,9 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
             navigate(`person.html?id=${encodeURIComponent(personButton.dataset.person)}`);
             return;
         }
-        const sayingButton = event.target.closest('[data-saying]');
-        if (sayingButton) {
-            navigate(`saying.html?id=${encodeURIComponent(sayingButton.dataset.saying)}`);
+        const termButton = event.target.closest('[data-term]');
+        if (termButton) {
+            navigate(`term.html?id=${encodeURIComponent(termButton.dataset.term)}`);
             return;
         }
         const card = event.target.closest('[data-href]');

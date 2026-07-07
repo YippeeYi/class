@@ -43,7 +43,7 @@ function renderGlossary(sortKey = "since", sortOrder = "asc") {
         <tr data-id="${g.id}">
           <td>${i + 1}</td>
           <td>${g.id}</td>
-          <td>${formatContent(g.saying)}</td>
+          <td>${formatContent(g.term)}</td>
           <td>${g.since || "-"}</td>
         </tr>
       `).join("")}
@@ -59,7 +59,7 @@ function renderGlossary(sortKey = "since", sortOrder = "asc") {
 function bindRowClick() {
   document.querySelectorAll(".glossary-table tbody tr").forEach(tr => {
     tr.onclick = () => {
-      const href = `saying.html?id=${tr.dataset.id}`;
+      const href = `term.html?id=${tr.dataset.id}`;
       if (typeof window.navigateTo === 'function') {
         window.navigateTo(href);
       } else {

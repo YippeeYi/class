@@ -68,9 +68,9 @@
   --link-accent: color-mix(in srgb, var(--theme-accent-strong) 62%, #9b4d8b);
   --link-accent-hover: color-mix(in srgb, var(--theme-accent) 70%, #bf5da8);
   --link-soft-bg: color-mix(in srgb, var(--theme-surface-strong) 68%, #f4c4e9);
-  --saying-accent: color-mix(in srgb, var(--theme-accent-strong) 40%, #8d6508);
-  --saying-border: color-mix(in srgb, var(--theme-accent) 48%, #cfaf3d);
-  --saying-soft-bg: color-mix(in srgb, var(--theme-surface) 62%, #fff2b6);
+  --term-accent: color-mix(in srgb, var(--theme-accent-strong) 40%, #8d6508);
+  --term-border: color-mix(in srgb, var(--theme-accent) 48%, #cfaf3d);
+  --term-soft-bg: color-mix(in srgb, var(--theme-surface) 62%, #fff2b6);
   --attachment-bg: color-mix(in srgb, var(--theme-surface) 82%, #f3e8dc);
   --attachment-border: color-mix(in srgb, var(--theme-accent-strong) 38%, #d6c0a3);
   --tooltip-bg: color-mix(in srgb, var(--theme-surface) 94%, white);
@@ -984,21 +984,21 @@ body>#glossary-list {
 }
 
 /* 名言标签 */
-.saying-tag {
+.term-tag {
   display: inline-block;
-  color: var(--saying-accent);
+  color: var(--term-accent);
   cursor: help;
-  border-bottom: 2px dashed var(--saying-border);
+  border-bottom: 2px dashed var(--term-border);
   transition: background-color 0.15s ease;
 }
 
-.saying-tag:hover {
-  background-color: var(--saying-soft-bg);
+.term-tag:hover {
+  background-color: var(--term-soft-bg);
 }
 
 /* Tooltip */
 
-.saying-tooltip {
+.term-tooltip {
   position: fixed;
   cursor: pointer;
   max-width: 340px;
@@ -1017,16 +1017,16 @@ body>#glossary-list {
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
-.saying-tooltip.show {
+.term-tooltip.show {
   opacity: 1;
   transform: translateY(0);
 }
 
-.saying-tooltip.hidden {
+.term-tooltip.hidden {
   pointer-events: none;
 }
 
-.saying-tooltip-hint {
+.term-tooltip-hint {
   margin-top: 6px;
   font-size: 12px;
   color: var(--text-muted);
@@ -5575,7 +5575,7 @@ body>.archive-tool-shell {
     pointer-events: auto;
   }
 
-  .saying-tag,
+  .term-tag,
   .person-tag,
   .attach-toggle,
   .guide-stat-link,
@@ -5694,7 +5694,7 @@ body>.archive-tool-shell {
     -webkit-overflow-scrolling: touch;
   }
 
-  .saying-tooltip {
+  .term-tooltip {
     display: none !important;
   }
 }
@@ -6001,7 +6001,7 @@ body.hidden-record-mode .hidden-record-banner {
 }
 
 .inline-delete .person-tag,
-.inline-delete .saying-tag {
+.inline-delete .term-tag {
   display: inline;
 }
 
@@ -6041,9 +6041,9 @@ body.hidden-record-mode .hidden-record-banner {
   color: color-mix(in srgb, var(--inline-red-color) 92%, var(--link-accent));
 }
 
-.inline-red .saying-tag {
-  color: color-mix(in srgb, var(--inline-red-color) 92%, var(--saying-accent));
-  border-bottom-color: color-mix(in srgb, var(--inline-red-color) 76%, var(--saying-border));
+.inline-red .term-tag {
+  color: color-mix(in srgb, var(--inline-red-color) 92%, var(--term-accent));
+  border-bottom-color: color-mix(in srgb, var(--inline-red-color) 76%, var(--term-border));
 }
 
 .inline-stack--fraction {
@@ -6221,7 +6221,7 @@ body.hidden-record-mode .hidden-record-banner {
 
 @media (prefers-reduced-motion: reduce) {
 
-  .saying-tooltip,
+  .term-tooltip,
   .inline-tooltip {
     transition-duration: 0.01ms;
     transform: none;

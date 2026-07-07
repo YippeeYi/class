@@ -336,7 +336,7 @@ const importGlossary = async () => {
 
         rows.push({
             id: raw.id || fallbackId,
-            label: raw.label || raw.name || raw.title || raw.saying || fallbackId,
+            label: raw.label || raw.name || raw.title || raw.term || fallbackId,
             definition: raw.definition || raw.content || raw.description || '',
             sort_order: index,
             raw

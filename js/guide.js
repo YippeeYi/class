@@ -138,7 +138,7 @@
 
         setText('guide-record-count', valueOrEmpty(recordsResult).length);
         setText('guide-people-count', valueOrEmpty(peopleResult).length);
-        setText('guide-saying-count', valueOrEmpty(glossaryResult).length);
+        setText('guide-term-count', valueOrEmpty(glossaryResult).length);
 
         const records = valueOrEmpty(recordsResult).filter((record) => {
             const hidden = record?.hidden === true || String(record?.hidden || '').trim().toLowerCase() === 'true';
