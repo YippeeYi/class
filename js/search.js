@@ -45,7 +45,27 @@
     }
 
     function recordHref(record) {
-        return `record.html#${getRecordAnchorId(record)}`;
+        return `record.html?view=list#${getRecordAnchorId(record)}`;
+    }
+
+    function prepareRecordNavigation(href) {
+        const url = new URL(href, location.href);
+        if (!url.pathname.endsWith("/record.html") && !url.pathname.endsWith("record.html")) return;
+        const anchor = url.hash.replace(/^#/, "");
+        if (!anchor) return;
+        if (typeof window.ClassRecordPrepareRecordJump === "function") {
+            window.ClassRecordPrepareRecordJump(anchor, location.href);
+            return;
+        }
+        try {
+            sessionStorage.setItem("classrecord:pending-record-jump", JSON.stringify({
+                targetAnchorId: anchor,
+                originHref: location.href,
+                createdAt: Date.now()
+            }));
+        } catch (error) {
+            // Storage may be unavailable; the hash jump still works.
+        }
     }
 
     function buildRecordText(record) {
@@ -226,11 +246,16 @@
             window.alert("没有找到这条名言对应的记录。");
             return;
         }
+        prepareRecordNavigation(card.dataset.href);
         navigate(card.dataset.href);
     });
 
     (window.cacheReadyPromise || Promise.resolve())
-        .then(() => Promise.all([window.loadAllRecords(), window.loadAllPeople(), window.loadAllQuotes()]))
+        .then(async () => {
+            const [records, people] = await Promise.all([window.loadAllRecords(), window.loadAllPeople()]);
+            const quotes = await window.loadAllQuotes({ records });
+            return [records, people, quotes];
+        })
         .then(([records, people, quotes]) => {
             searchIndex = buildIndex(records, people, quotes);
             const initialQuery = new URLSearchParams(location.search).get("q") || "";

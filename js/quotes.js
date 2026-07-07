@@ -11,7 +11,11 @@ let currentSortOrder = "asc";
 
 const cacheReady = window.cacheReadyPromise || Promise.resolve();
 
-cacheReady.then(() => Promise.all([loadAllQuotes(), loadAllRecords()]))
+cacheReady.then(async () => {
+    const records = await loadAllRecords();
+    const quotes = await loadAllQuotes({ records });
+    return [quotes, records];
+  })
   .then(([quotes, records]) => {
     quoteList = quotes;
     recordList = records;
@@ -62,16 +66,22 @@ function findQuoteRecords(quoteId) {
 
 function navigateToRecord(record) {
   const anchor = getRecordAnchorId(record);
-  try {
-    sessionStorage.setItem("classrecord:pending-record-jump", JSON.stringify({
-      targetAnchorId: anchor,
-      originHref: location.href,
-      createdAt: Date.now()
-    }));
-  } catch (error) {
-    // Storage may be unavailable; the hash jump still works.
+  if (typeof window.ClassRecordPrepareRecordJump === "function") {
+    window.ClassRecordPrepareRecordJump(anchor, location.href);
+  } else {
+    try {
+      sessionStorage.setItem("classrecord:pending-record-jump", JSON.stringify({
+        targetAnchorId: anchor,
+        originHref: location.href,
+        createdAt: Date.now()
+      }));
+    } catch (error) {
+      // Storage may be unavailable; the hash jump still works.
+    }
   }
-  const href = `record.html?view=list#${anchor}`;
+  const href = typeof window.ClassRecordGetRecordListHref === "function"
+    ? window.ClassRecordGetRecordListHref(anchor)
+    : `record.html?view=list#${anchor}`;
   if (typeof window.navigateTo === "function") window.navigateTo(href);
   else location.href = href;
 }

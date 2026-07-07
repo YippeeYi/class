@@ -987,51 +987,9 @@ body>#quotes-list {
 .quote-tag {
   display: inline-block;
   color: var(--quote-accent);
-  cursor: help;
-  border-bottom: 2px dashed var(--quote-border);
-  transition: background-color 0.15s ease;
-}
-
-.quote-tag:hover {
+  cursor: text;
+  border-bottom: 2px dotted var(--quote-border);
   background-color: var(--quote-soft-bg);
-}
-
-/* Tooltip */
-
-.quote-tooltip {
-  position: fixed;
-  cursor: pointer;
-  max-width: 340px;
-  background: var(--tooltip-bg);
-  backdrop-filter: blur(8px);
-  border-radius: 10px;
-  padding: 10px 12px;
-  box-shadow: none;
-  font-size: 14px;
-  line-height: 1.7;
-  border: var(--panel-border);
-  z-index: 9999;
-
-  opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
-
-.quote-tooltip.show {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.quote-tooltip.hidden {
-  pointer-events: none;
-}
-
-.quote-tooltip-hint {
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--text-muted);
-  text-align: right;
-  user-select: none;
 }
 
 /* 隐藏文本 */
@@ -5575,7 +5533,6 @@ body>.archive-tool-shell {
     pointer-events: auto;
   }
 
-  .quote-tag,
   .person-tag,
   .attach-toggle,
   .guide-stat-link,
@@ -5694,9 +5651,6 @@ body>.archive-tool-shell {
     -webkit-overflow-scrolling: touch;
   }
 
-  .quote-tooltip {
-    display: none !important;
-  }
 }
 
 @media (max-width: 420px) {
@@ -6221,7 +6175,6 @@ body.hidden-record-mode .hidden-record-banner {
 
 @media (prefers-reduced-motion: reduce) {
 
-  .quote-tooltip,
   .inline-tooltip {
     transition-duration: 0.01ms;
     transform: none;

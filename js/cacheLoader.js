@@ -59,14 +59,15 @@ window.ensureAllCachesLoaded = async function ({ expire = 24 * 60 * 60 * 1000, s
     try {
         if (typeof onProgress === "function") {
             onProgress(0);
-            await loadAllRecords();
+            const records = await loadAllRecords();
             onProgress(0.45);
             await loadAllPeople();
             onProgress(0.72);
-            await loadAllQuotes();
+            await loadAllQuotes({ records });
             onProgress(1);
         } else {
-            await Promise.all([loadAllRecords(), loadAllPeople(), loadAllQuotes()]);
+            const [records] = await Promise.all([loadAllRecords(), loadAllPeople()]);
+            await loadAllQuotes({ records });
         }
     } finally {
         if (showOverlay) hideLoadingOverlay();

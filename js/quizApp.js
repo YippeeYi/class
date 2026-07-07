@@ -11,7 +11,7 @@
   const filterWrap = document.getElementById('quiz-filter');
   const quizCard = document.querySelector('.quiz-card');
   const typeLabels = { choice: '\u9009\u62e9\u9898', fill: '\u586b\u7a7a\u9898', judge: '\u5224\u65ad\u9898' };
-  const contentLabels = { person: '\u4eba\u540d', quote: '\u672f\u8bed', author: '\u8bb0\u5f55\u4eba', date: '\u8bb0\u5f55\u65f6\u95f4' };
+  const contentLabels = { person: '\u4eba\u540d', quote: '\u540d\u8a00', author: '\u8bb0\u5f55\u4eba', date: '\u8bb0\u5f55\u65f6\u95f4' };
   const secretContentLabels = { [SECRET_CONTENT]: '???' };
   const contentByType = {
     choice: ['person', 'quote', 'author', 'date'],
@@ -981,7 +981,11 @@
   });
 
   (window.cacheReadyPromise || Promise.resolve())
-    .then(() => Promise.all([window.loadAllRecords(), window.loadAllPeople(), window.loadAllQuotes(), loadSecretQuestions()]))
+    .then(async () => {
+      const [records, people, secretQuestions] = await Promise.all([window.loadAllRecords(), window.loadAllPeople(), loadSecretQuestions()]);
+      const quotes = await window.loadAllQuotes({ records });
+      return [records, people, quotes, secretQuestions];
+    })
     .then(([records, people, quotes, secretQuestions]) => {
       const quizRecords = records.filter((record) => !String(record.fileName || record.id || '').replace(/\.json$/i, '').endsWith('-00'));
       const pools = {

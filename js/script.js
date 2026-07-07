@@ -194,7 +194,6 @@ function renderPageSupplements(items = []) {
   if (!supplements.length) return "";
   return `
     <section class="record-written-supplements" aria-label="补充记录">
-      <h2>补充记录</h2>
       ${supplements.map((item) => {
         const author = String(item.author || "").trim();
         return `

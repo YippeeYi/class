@@ -118,11 +118,17 @@
             startTipRotation(tipEl);
         }
 
-        const [recordsResult, peopleResult, quotesResult] = await Promise.allSettled([
+        const [recordsResult, peopleResult] = await Promise.allSettled([
             typeof window.loadAllRecords === 'function' ? window.loadAllRecords() : [],
-            typeof window.loadAllPeople === 'function' ? window.loadAllPeople() : [],
-            typeof window.loadAllQuotes === 'function' ? window.loadAllQuotes() : []
+            typeof window.loadAllPeople === 'function' ? window.loadAllPeople() : []
         ]);
+        const recordsForQuotes = recordsResult.status === 'fulfilled' && Array.isArray(recordsResult.value) ? recordsResult.value : [];
+        const quotesResult = typeof window.loadAllQuotes === 'function'
+            ? await window.loadAllQuotes({ records: recordsForQuotes }).then(
+                (value) => ({ status: 'fulfilled', value }),
+                (reason) => ({ status: 'rejected', reason })
+            )
+            : { status: 'fulfilled', value: [] };
 
         [recordsResult, peopleResult, quotesResult]
             .filter((result) => result.status === 'rejected')

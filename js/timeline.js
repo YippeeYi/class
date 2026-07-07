@@ -45,12 +45,30 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
     }
 
     function navigate(href) {
+        const url = new URL(href, location.href);
+        const isRecordHashJump = (url.pathname.endsWith('/record.html') || url.pathname.endsWith('record.html')) && url.hash;
+        if (isRecordHashJump) {
+            const anchor = url.hash.replace(/^#/, '');
+            if (typeof window.ClassRecordPrepareRecordJump === 'function') {
+                window.ClassRecordPrepareRecordJump(anchor, location.href);
+            } else {
+                try {
+                    sessionStorage.setItem('classrecord:pending-record-jump', JSON.stringify({
+                        targetAnchorId: anchor,
+                        originHref: location.href,
+                        createdAt: Date.now()
+                    }));
+                } catch (error) {
+                    // Storage may be unavailable; the hash jump still works.
+                }
+            }
+        }
         if (typeof window.navigateTo === 'function') window.navigateTo(href);
         else location.href = href;
     }
 
     function recordHref(record) {
-        return `record.html#${getRecordAnchorId(record)}`;
+        return `record.html?view=list#${getRecordAnchorId(record)}`;
     }
 
     function parseRecordDate(record) {
@@ -686,7 +704,11 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
     });
 
     (window.cacheReadyPromise || Promise.resolve())
-        .then(() => Promise.all([window.loadAllRecords(), window.loadAllPeople(), window.loadAllQuotes()]))
+        .then(async () => {
+            const [recordList, peopleList] = await Promise.all([window.loadAllRecords(), window.loadAllPeople()]);
+            const quotesList = await window.loadAllQuotes({ records: recordList });
+            return [recordList, peopleList, quotesList];
+        })
         .then(([recordList, peopleList, quotesList]) => {
             records = [...recordList];
             people = [...peopleList];

@@ -119,14 +119,15 @@ function buildQuotesFromRecords(records) {
     return [...quoteMap.values()].sort((a, b) => (a.sourceDate || "").localeCompare(b.sourceDate || "") || a.id.localeCompare(b.id));
 }
 
-window.loadAllQuotes = async function ({ onProgressStep } = {}) {
+window.loadAllQuotes = async function ({ onProgressStep, records } = {}) {
     if (QuoteStore.loaded) {
         return QuoteStore.quotes;
     }
     const list = await loadWithCache({
         key: "quotes:from-records",
         expire: 24 * 60 * 60 * 1000,
-        loader: async () => buildQuotesFromRecords(await window.loadAllRecords())
+        force: Array.isArray(records),
+        loader: async () => buildQuotesFromRecords(Array.isArray(records) ? records : await window.loadAllRecords())
     });
 
     QuoteStore.quotes = list.filter(Boolean);

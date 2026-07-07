@@ -384,6 +384,29 @@ function countRecordTextCharacters(text) {
 window.stripRecordMarkup = stripRecordMarkup;
 window.countRecordTextCharacters = countRecordTextCharacters;
 
+function prepareRecordJump(anchorId, originHref = location.href) {
+    const targetAnchorId = String(anchorId || "").replace(/^#/, "");
+    if (!targetAnchorId) return "";
+    try {
+        sessionStorage.setItem("classrecord:pending-record-jump", JSON.stringify({
+            targetAnchorId,
+            originHref,
+            createdAt: Date.now()
+        }));
+    } catch (error) {
+        // Storage may be unavailable in privacy modes; the hash jump itself still works.
+    }
+    return targetAnchorId;
+}
+
+function getRecordListHref(anchorId) {
+    const targetAnchorId = String(anchorId || "").replace(/^#/, "");
+    return `record.html?view=list#${targetAnchorId}`;
+}
+
+window.ClassRecordPrepareRecordJump = prepareRecordJump;
+window.ClassRecordGetRecordListHref = getRecordListHref;
+
 document.addEventListener("click", (event) => {
     const jump = event.target.closest(".record-jump-link[data-record-jump]");
     if (!jump) return;
@@ -397,16 +420,8 @@ document.addEventListener("click", (event) => {
     const sourceRecord = jump.closest(".record");
     const sourceUrl = new URL(location.href);
     if (sourceRecord?.id) sourceUrl.hash = sourceRecord.id;
-    try {
-        sessionStorage.setItem("classrecord:pending-record-jump", JSON.stringify({
-            targetAnchorId: anchor,
-            originHref: sourceUrl.href,
-            createdAt: Date.now()
-        }));
-    } catch (error) {
-        // Storage may be unavailable in privacy modes; the jump itself still works.
-    }
-    const href = `record.html?view=list#${anchor}`;
+    prepareRecordJump(anchor, sourceUrl.href);
+    const href = getRecordListHref(anchor);
     if (typeof window.navigateTo === "function") window.navigateTo(href);
     else location.href = href;
 });
@@ -517,13 +532,49 @@ function cancelRecordFocus() {
     recordFocusGeneration += 1;
 }
 
+function easeRecordScroll(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function animateRecordScrollTo(targetY, { behavior = "smooth" } = {}) {
+    const startY = window.scrollY;
+    const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    const endY = Math.max(0, Math.min(maxY, Number(targetY) || 0));
+    if (behavior === "auto" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        window.scrollTo(0, endY);
+        return Promise.resolve();
+    }
+    const distance = endY - startY;
+    if (Math.abs(distance) < 2) {
+        window.scrollTo(0, endY);
+        return Promise.resolve();
+    }
+    const duration = Math.max(420, Math.min(980, 420 + Math.abs(distance) * 0.22));
+    const start = performance.now();
+    return new Promise((resolve) => {
+        const step = (now) => {
+            const progress = Math.min(1, (now - start) / duration);
+            window.scrollTo(0, startY + distance * easeRecordScroll(progress));
+            if (progress < 1) {
+                requestAnimationFrame(step);
+            } else {
+                window.scrollTo(0, endY);
+                resolve();
+            }
+        };
+        requestAnimationFrame(step);
+    });
+}
+
 function focusRecordAnchor(anchorId, { behavior = "smooth" } = {}) {
     const target = document.getElementById(String(anchorId || "").replace(/^#/, ""));
     if (!target) return false;
     const generation = ++recordFocusGeneration;
-    requestAnimationFrame(() => {
+    requestAnimationFrame(async () => {
         if (generation !== recordFocusGeneration) return;
-        target.scrollIntoView({ behavior, block: "center" });
+        const rect = target.getBoundingClientRect();
+        const targetY = window.scrollY + rect.top - Math.max(16, (window.innerHeight - Math.min(rect.height, window.innerHeight * 0.72)) / 2);
+        await animateRecordScrollTo(targetY, { behavior });
         afterScrollSettles(target, () => {
             if (generation !== recordFocusGeneration) return;
             target.classList.remove("record-anchor-highlight");
@@ -540,6 +591,7 @@ function focusRecordAnchor(anchorId, { behavior = "smooth" } = {}) {
 
 window.ClassRecordFocusAnchor = focusRecordAnchor;
 window.ClassRecordCancelFocus = cancelRecordFocus;
+window.ClassRecordScrollToRecord = focusRecordAnchor;
 
 function renderRecordList(records, container) {
     records.forEach((record) => {
@@ -840,19 +892,6 @@ function bindToggle(recordDiv) {
     }
 }
 
-let quoteCache = null;
-let activeTooltip = null;
-let activeQuoteId = null;
-let tooltipTimer = null;
-let tooltipRemoveTimer = null;
-let lastMouseX = 0;
-let lastMouseY = 0;
-let isHoveringTooltip = false;
-let isHoveringQuote = false;
-let activeQuoteTag = null;
-let activeQuotePointerOffset = null;
-let quoteDismissedByScroll = false;
-
 const TOOLTIP_DELAY = 200;
 const TOOLTIP_REMOVE_DELAY = 120;
 
@@ -866,169 +905,6 @@ function getInlineMarkerRects(tag) {
         ? Array.from(tag.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0)
         : [];
     return rects.length ? rects : [tag.getBoundingClientRect()];
-}
-
-function positionQuoteTooltip() {
-    if (!activeTooltip || !activeQuoteTag) return;
-    const tagBounds = activeQuoteTag.getBoundingClientRect();
-    const pointer = activeQuotePointerOffset
-        ? { x: tagBounds.left + activeQuotePointerOffset.x, y: tagBounds.top + activeQuotePointerOffset.y }
-        : { x: lastMouseX, y: lastMouseY };
-    const { left, top } = calculateInlineTooltipPosition({
-        tagRects: getInlineMarkerRects(activeQuoteTag),
-        tooltipRect: activeTooltip.getBoundingClientRect(),
-        viewportWidth: window.innerWidth,
-        viewportHeight: window.innerHeight,
-        pointer,
-        multiline: true
-    });
-    activeTooltip.style.left = `${left}px`;
-    activeTooltip.style.top = `${top}px`;
-}
-
-async function ensureQuotes() {
-    if (!quoteCache) {
-        const list = await loadAllQuotes();
-        quoteCache = {};
-        list.forEach((quote) => {
-            quoteCache[quote.id] = quote;
-        });
-    }
-}
-
-document.addEventListener("mousemove", (event) => {
-    lastMouseX = event.clientX;
-    lastMouseY = event.clientY;
-    const hoveredQuote = event.target.closest(".quote-tag");
-    if (quoteDismissedByScroll && hoveredQuote) {
-        quoteDismissedByScroll = false;
-        queueQuoteTooltip(hoveredQuote, event);
-        return;
-    }
-    if (activeQuoteTag && event.target.closest(".quote-tag") === activeQuoteTag) {
-        const bounds = activeQuoteTag.getBoundingClientRect();
-        activeQuotePointerOffset = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
-    } else if (activeQuoteTag) {
-        isHoveringQuote = false;
-        scheduleTooltipRemoval();
-    }
-});
-
-function queueQuoteTooltip(tag, event) {
-    lastMouseX = event.clientX;
-    lastMouseY = event.clientY;
-    const quoteId = tag.dataset.id;
-    isHoveringQuote = true;
-    clearTimeout(tooltipTimer);
-
-    tooltipTimer = setTimeout(async () => {
-        await ensureQuotes();
-        const quote = quoteCache[quoteId];
-        if (!quote) return;
-        if (activeTooltip && activeQuoteId === quoteId) return;
-
-        removeTooltip(true);
-        activeQuoteId = quoteId;
-        activeQuoteTag = tag;
-        const tagBounds = tag.getBoundingClientRect();
-        activeQuotePointerOffset = { x: lastMouseX - tagBounds.left, y: lastMouseY - tagBounds.top };
-        activeTooltip = document.createElement("div");
-        activeTooltip.className = "quote-tooltip hidden";
-        activeTooltip.innerHTML = `
-            <div class="quote-tooltip-content">${formatContent(quote.content || quote.description || "")}</div>
-            <div class="quote-tooltip-hint">点击定位到对应记录</div>
-        `;
-        document.body.appendChild(activeTooltip);
-
-        activeTooltip.addEventListener("mouseenter", () => {
-            isHoveringTooltip = true;
-            clearTimeout(tooltipRemoveTimer);
-        });
-        activeTooltip.addEventListener("mouseleave", () => {
-            isHoveringTooltip = false;
-            scheduleTooltipRemoval();
-        });
-
-        activeTooltip.style.position = "fixed";
-        positionQuoteTooltip();
-
-        requestAnimationFrame(() => {
-            activeTooltip.classList.remove("hidden");
-            activeTooltip.classList.add("show");
-        });
-    }, TOOLTIP_DELAY);
-}
-
-function dismissQuoteTooltipForScroll() {
-    if (!activeTooltip && !activeQuoteTag && !tooltipTimer) return;
-    quoteDismissedByScroll = true;
-    clearTimeout(tooltipTimer);
-    tooltipTimer = null;
-    clearTimeout(tooltipRemoveTimer);
-    tooltipRemoveTimer = null;
-    isHoveringQuote = false;
-    isHoveringTooltip = false;
-    removeTooltip();
-}
-
-window.addEventListener("wheel", dismissQuoteTooltipForScroll, { passive: true, capture: true });
-window.addEventListener("scroll", dismissQuoteTooltipForScroll, true);
-
-document.addEventListener("mouseover", (event) => {
-    const tag = event.target.closest(".quote-tag");
-    if (!tag || quoteDismissedByScroll) return;
-    queueQuoteTooltip(tag, event);
-});
-
-document.addEventListener("mouseout", (event) => {
-    if (event.target.closest(".quote-tag")) {
-        isHoveringQuote = false;
-    }
-
-    clearTimeout(tooltipTimer);
-    tooltipTimer = null;
-    if (!activeTooltip) return;
-
-    const to = event.relatedTarget;
-    if (to && (to.closest(".quote-tag") || to.closest(".quote-tooltip"))) {
-        return;
-    }
-
-    scheduleTooltipRemoval();
-});
-
-function scheduleTooltipRemoval() {
-    clearTimeout(tooltipRemoveTimer);
-
-    tooltipRemoveTimer = setTimeout(() => {
-        const element = document.elementFromPoint(lastMouseX, lastMouseY);
-        const hovering = isHoveringQuote ||
-            isHoveringTooltip ||
-            (element && (element.closest(".quote-tag") || element.closest(".quote-tooltip")));
-
-        if (!hovering) {
-            removeTooltip();
-        }
-    }, TOOLTIP_REMOVE_DELAY);
-}
-
-function removeTooltip(immediate = false) {
-    if (!activeTooltip) return;
-
-    activeTooltip.classList.remove("show");
-    const element = activeTooltip;
-    activeTooltip = null;
-    activeQuoteId = null;
-    activeQuoteTag = null;
-    activeQuotePointerOffset = null;
-    isHoveringTooltip = false;
-    isHoveringQuote = false;
-
-    if (immediate) {
-        element.remove();
-    } else {
-        setTimeout(() => element.remove(), 150);
-    }
 }
 
 const illustrationPreloadCache = new Map();
@@ -1273,7 +1149,6 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
         lastPointerPosition = pointerPosition;
         pointerTagOffset = pointerOffset;
         beforeShow?.();
-        removeTooltip(true);
         const token = requestToken;
         const tooltip = document.createElement("div");
         tooltip.className = `${tooltipClass} inline-tooltip hidden`;
@@ -1530,54 +1405,6 @@ document.addEventListener("click", (event) => {
     if (!event.target.closest(".inline-tooltip")) {
         illustrationTooltipController.hide(true);
         annotationTooltipController.hide(true);
-    }
-
-    const navigateQuote = async (quoteId) => {
-        const records = typeof window.loadAllRecords === "function" ? await window.loadAllRecords() : [];
-        const quotes = typeof window.loadAllQuotes === "function" ? await window.loadAllQuotes().catch(() => []) : [];
-        const quote = quotes.find((item) => item.id === quoteId);
-        const recordFile = String(quote?.recordFile || "").replace(/\.json$/i, "");
-        const matches = recordFile
-            ? records.filter((record) => String(record.fileName || record.id || "").replace(/\.json$/i, "") === recordFile)
-            : records.filter((record) => extractMentionedQuoteIds(record.content || "").includes(quoteId));
-        if (matches.length !== 1) {
-            const message = matches.length === 0 ? "没有找到这条名言对应的记录。" : "这条名言匹配到多条记录，请检查数据标记。";
-            window.alert(message);
-            console.warn(message, { quoteId, matches });
-            return;
-        }
-        const target = matches[0];
-        if (typeof window.ClassRecordNavigateToRecord === "function") {
-            await window.ClassRecordNavigateToRecord(target.fileName || target.id, {});
-            return;
-        }
-        const anchor = getRecordAnchorId(target);
-        try {
-            sessionStorage.setItem("classrecord:pending-record-jump", JSON.stringify({
-                targetAnchorId: anchor,
-                originHref: location.href,
-                createdAt: Date.now()
-            }));
-        } catch (error) {
-            // Storage may be unavailable; the hash jump still works.
-        }
-        const href = `record.html?view=list#${anchor}`;
-        if (typeof window.navigateTo === "function") window.navigateTo(href);
-        else location.href = href;
-    };
-
-    const tooltip = event.target.closest(".quote-tooltip");
-    if (tooltip && activeQuoteId) {
-        navigateQuote(activeQuoteId);
-        removeTooltip(true);
-        return;
-    }
-
-    const quoteTag = event.target.closest(".quote-tag");
-    if (quoteTag && (event.pointerType === "touch" || window.matchMedia("(hover: none)").matches)) {
-        navigateQuote(quoteTag.dataset.id);
-        removeTooltip(true);
-        return;
     }
 
     const tag = event.target.closest(".person-tag");
