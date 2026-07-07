@@ -1404,7 +1404,6 @@ illustrationTooltipController = createInlineTooltipController({
     tooltipClass: "illustration-tooltip",
     role: "dialog",
     pointerAnchor: true,
-    showDelay: 0,
     beforeShow: () => annotationTooltipController.hide(true),
     populate: async ({ tag, tooltip, reveal, isCurrent }) => {
         tooltip.setAttribute("aria-label", `${tag.textContent?.trim() || "插图"}预览`);
