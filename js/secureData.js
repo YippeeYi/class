@@ -9,7 +9,6 @@
     const recordPagePromises = new Map();
     const pageSupplementPromises = new Map();
     let pageMessagesPromise = null;
-    let quotesPromise = null;
     let materialsPromise = null;
     const assetListPromises = new Map();
     const signedUrlCache = new Map();
@@ -106,7 +105,6 @@
             tables: {
                 records: 'class_records',
                 people: 'class_people',
-                quotes: 'class_quotes',
                 recordPages: 'class_record_pages',
                 pageMessages: 'class_page_messages',
                 pageSupplements: 'class_page_supplements',
@@ -232,40 +230,6 @@
             if (typeof onProgressStep === 'function') onProgressStep(record.fileName);
             return record;
         });
-    };
-
-    const normalizeQuote = (row, index = 0) => {
-        const raw = parseRaw(row);
-        const quote = row.quote || raw.quote || raw.term || raw.title || '';
-        return {
-            ...raw,
-            id: row.quote_id || raw.id || quote || `quote-${index + 1}`,
-            quote,
-            aliases: Array.isArray(row.aliases) ? row.aliases : (Array.isArray(raw.aliases) ? raw.aliases : []),
-            content: row.content || raw.content || raw.definition || raw.description || '',
-            sourceDate: row.source_date || raw.sourceDate || raw.since || '',
-            relatedPeople: Array.isArray(row.related_people) ? row.related_people : (Array.isArray(raw.relatedPeople) ? raw.relatedPeople : []),
-            recordFile: row.record_file || raw.recordFile || raw.record || ''
-        };
-    };
-
-    const loadQuotes = async ({ onProgressStep } = {}) => {
-        const config = await getConfig();
-        if (!quotesPromise) {
-            quotesPromise = selectAll(config.tables.quotes, '*', 'id')
-                .then((rows) => rows.map((row, index) => {
-                    const item = normalizeQuote(row, index);
-                    if (typeof onProgressStep === 'function') onProgressStep(item.id);
-                    return item;
-                }))
-                .catch(async (error) => {
-                    // Transitional compatibility for projects that have not run
-                    // the class_glossary -> class_quotes migration yet.
-                    const rows = await selectAll(config.tables.glossary || 'class_glossary', '*', 'id');
-                    return rows.map((row, index) => normalizeQuote(row, index));
-                });
-        }
-        return quotesPromise;
     };
 
     const loadPeople = async ({ onProgressStep } = {}) => {
@@ -614,7 +578,6 @@
         recordPagePromises.clear();
         pageSupplementPromises.clear();
         pageMessagesPromise = null;
-        quotesPromise = null;
         materialsPromise = null;
         assetListPromises.clear();
         signedUrlCache.clear();
@@ -631,8 +594,6 @@
         isEnabled,
         loadMaterials,
         loadPageSupplements,
-        loadQuotes,
-        loadGlossary: loadQuotes,
         loadPeople,
         loadQuizQuestions,
         listAssetPaths,

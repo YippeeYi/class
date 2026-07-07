@@ -3,7 +3,6 @@
     const DEFAULT_TABLES = {
         records: "class_records",
         people: "class_people",
-        quotes: "class_quotes",
         recordPages: "class_record_pages",
         pageMessages: "class_page_messages",
         pageSupplements: "class_page_supplements",

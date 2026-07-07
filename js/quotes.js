@@ -6,7 +6,7 @@
 const container = document.getElementById("quotes-list");
 let quoteList = [];
 let recordList = [];
-let currentSortKey = "sourceDate";
+let currentSortKey = "id";
 let currentSortOrder = "asc";
 
 const cacheReady = window.cacheReadyPromise || Promise.resolve();
@@ -19,10 +19,10 @@ cacheReady.then(() => Promise.all([loadAllQuotes(), loadAllRecords()]))
   })
   .catch((error) => {
     console.warn("名言数据加载失败：", error);
-    container.innerHTML = '<div class="record-empty"><strong>名言加载失败。</strong><span>请刷新页面或检查 Supabase 数据表。</span></div>';
+    container.innerHTML = '<div class="record-empty"><strong>名言加载失败。</strong><span>请刷新页面或检查记录标记。</span></div>';
   });
 
-function renderQuotes(sortKey = "sourceDate", sortOrder = "asc") {
+function renderQuotes(sortKey = "id", sortOrder = "asc") {
   container.innerHTML = "";
   const list = sortQuotes(quoteList, sortKey, sortOrder);
 
@@ -33,8 +33,7 @@ function renderQuotes(sortKey = "sourceDate", sortOrder = "asc") {
       <tr>
         <th>序号</th>
         <th>ID</th>
-        <th>名言</th>
-        <th>来源日期</th>
+        <th>内容</th>
       </tr>
     </thead>
     <tbody>
@@ -42,8 +41,7 @@ function renderQuotes(sortKey = "sourceDate", sortOrder = "asc") {
         <tr data-id="${quote.id}">
           <td>${index + 1}</td>
           <td>${quote.id}</td>
-          <td>${formatContent(quote.quote || quote.title || quote.id)}</td>
-          <td>${quote.sourceDate || "-"}</td>
+          <td>${formatContent(quote.quote || quote.id)}</td>
         </tr>
       `).join("")}
     </tbody>
@@ -89,7 +87,7 @@ function bindRowClick() {
       }
       const message = matches.length === 0
         ? "没有找到这条名言对应的记录。"
-        : "这条名言匹配到多条记录，请检查数据标记。";
+        : "这条名言匹配到多条记录，请检查记录标记。";
       window.alert(message);
       console.warn(message, { quoteId, matches });
     };
@@ -98,8 +96,8 @@ function bindRowClick() {
 
 function sortQuotes(list, key, order) {
   return [...list].sort((a, b) => {
-    const A = a[key] || "";
-    const B = b[key] || "";
+    const A = key === "quote" ? stripRecordMarkup(a.quote || "") : (a[key] || "");
+    const B = key === "quote" ? stripRecordMarkup(b.quote || "") : (b[key] || "");
     return order === "asc"
       ? A.localeCompare(B)
       : B.localeCompare(A);
@@ -113,14 +111,14 @@ const keyLabel = keyTrigger?.querySelector(".dropdown-label");
 const orderToggle = sortControls?.querySelector(".sort-order-toggle");
 
 const sortKeyText = {
-  sourceDate: "按来源时间",
-  id: "按名言名称"
+  id: "按 ID",
+  quote: "按内容"
 };
 
 function updateSortControls() {
   if (!sortControls || !keyTrigger || !keyLabel || !orderToggle) return;
   keyTrigger.dataset.value = currentSortKey;
-  keyLabel.textContent = sortKeyText[currentSortKey] || "按来源时间";
+  keyLabel.textContent = sortKeyText[currentSortKey] || "按 ID";
   orderToggle.dataset.value = currentSortOrder;
   orderToggle.textContent = currentSortOrder === "asc" ? "升序" : "降序";
   sortControls.querySelectorAll(".sort-option").forEach((option) => {
@@ -131,7 +129,7 @@ function updateSortControls() {
 sortControls?.addEventListener("click", (event) => {
   const option = event.target.closest(".sort-option");
   if (option) {
-    currentSortKey = option.dataset.value || "sourceDate";
+    currentSortKey = option.dataset.value || "id";
     closeSortDropdown(false);
     updateSortControls();
     renderQuotes(currentSortKey, currentSortOrder);

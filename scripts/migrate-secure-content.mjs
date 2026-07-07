@@ -7,12 +7,10 @@
  * This version does NOT require:
  *   - data/record/records_index.json
  *   - data/people/people_index.json
- *   - data/quotes/quotes_index.json
  *
  * It imports structured rows by scanning:
  *   - data/record/*.json
  *   - data/people/*.json
- *   - data/quotes/*.json
  *   - data/page-supplements/*.json
  *   - data/materials/*.json
  *
@@ -331,39 +329,6 @@ const importPeople = async () => {
     await pruneTable('class_people', 'id', rows.map((row) => row.id));
 };
 
-const importQuotes = async () => {
-    const files = await listJsonFiles('data/quotes');
-
-    if (!files.length) {
-        console.warn('Skipped quotes: no quotes JSON files found in data/quotes/.');
-        return;
-    }
-
-    const rows = [];
-
-    for (const [index, file] of files.entries()) {
-        const raw = await readJson(file);
-        const fileName = relativeFromDir('data/quotes', file);
-        const fallbackId = fileBaseNameWithoutExt(fileName);
-
-        rows.push({
-            id: raw.id || fallbackId,
-            quote_id: raw.id || fallbackId,
-            quote: raw.quote || raw.label || raw.name || raw.title || fallbackId,
-            aliases: Array.isArray(raw.aliases) ? raw.aliases : [],
-            content: raw.content || raw.description || '',
-            source_date: raw.sourceDate || raw.source_date || null,
-            related_people: Array.isArray(raw.relatedPeople) ? raw.relatedPeople : [],
-            record_file: raw.recordFile || raw.record_file || null,
-            sort_order: index,
-            raw
-        });
-    }
-
-    await upsert('class_quotes', rows, 'id');
-    await pruneTable('class_quotes', 'id', rows.map((row) => row.id));
-};
-
 const importPageSupplements = async () => {
     const files = (await listJsonFiles('data/page-supplements'))
         .filter(parsePageSupplementFileName);
@@ -632,7 +597,6 @@ const uploadPrivateFiles = async () => {
 
 await importRecords();
 await importPeople();
-await importQuotes();
 await importRecordPages();
 await importPageMessages();
 await importPageSupplements();

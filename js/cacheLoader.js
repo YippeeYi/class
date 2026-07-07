@@ -27,7 +27,7 @@ window.addEventListener("classrecordcacheclearing", () => {
 });
 
 window.needsCacheLoad = function ({ expire = 24 * 60 * 60 * 1000 } = {}) {
-    return !isCacheValid("records:visible", expire) || !isCacheValid("people", expire) || !isCacheValid("quotes", expire);
+    return !isCacheValid("records:visible", expire) || !isCacheValid("people", expire) || !isCacheValid("quotes:from-records", expire);
 };
 
 function isCacheValid(key, expire) {
