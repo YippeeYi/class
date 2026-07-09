@@ -54,13 +54,15 @@ function normalizeFileName(value) {
 }
 
 function getFilteredRecords() {
-  let filtered = filterRecordsByDate(allRecords, currentCriteria);
-  sortRecords(filtered);
-  return filtered;
+  return getFilteredRecordsForCurrentView(allRecords, currentCriteria);
 }
 
 function isNormalRecord(record) {
   return !["message", "supplement"].includes(String(record?.recordType || "").trim());
+}
+
+function isSupplementalRecord(record) {
+  return ["message", "supplement"].includes(String(record?.recordType || "").trim());
 }
 
 function getListViewRecords(records) {
@@ -73,6 +75,36 @@ function getCurrentViewFilterRecords() {
 
 function getRecordPageKey(record) {
   return String(record?.page || "").trim();
+}
+
+function hasRecordDateCriteria(criteria = {}) {
+  return Boolean(criteria.year || criteria.month || criteria.day);
+}
+
+function supplementalRecordMatchesCriteria(record, criteria = {}) {
+  if (!isSupplementalRecord(record)) return false;
+  if (hasRecordDateCriteria(criteria)) return false;
+  if (criteria.important) return false;
+  const normalizedQuery = normalizeSearchText(criteria.query);
+  if (normalizedQuery && !getRecordSearchText(record).includes(normalizedQuery)) return false;
+  return true;
+}
+
+function filterRecordsForView(records, criteria = {}, view = currentView) {
+  const sourceRecords = Array.isArray(records) ? records : [];
+  const normalMatches = filterRecordsByDate(getListViewRecords(sourceRecords), criteria);
+  if (view !== "written") {
+    sortRecords(normalMatches);
+    return normalMatches;
+  }
+  const supplementalMatches = sourceRecords.filter((record) => supplementalRecordMatchesCriteria(record, criteria));
+  const combined = [...normalMatches, ...supplementalMatches];
+  sortRecords(combined);
+  return combined;
+}
+
+function getFilteredRecordsForCurrentView(records, criteria = currentCriteria) {
+  return filterRecordsForView(records, criteria, currentView);
 }
 
 function hasActiveRecordFilter() {
@@ -246,13 +278,9 @@ function getVisiblePageMessage(page, matchedRecords = []) {
 function getVisiblePageSupplements(page, matchedRecords = []) {
   const supplements = getPageSupplements(page);
   if (!hasActiveRecordFilter()) return supplements;
-  const matchedKeys = new Set(
-    matchedRecords
-      .filter((record) => String(record?.recordType || "").trim() === "supplement")
-      .map(getSupplementKey)
-  );
-  if (!matchedKeys.size) return [];
-  return supplements.filter((item) => matchedKeys.has(getSupplementKey(item)));
+  const matchedSupplements = matchedRecords.filter((record) => String(record?.recordType || "").trim() === "supplement");
+  if (!matchedSupplements.length) return [];
+  return supplements.filter((item) => matchedSupplements.some((record) => isSamePageSupplement(item, record)));
 }
 
 function normalizeHiddenPageKey(value) {
@@ -394,12 +422,18 @@ function getPageMatchedRecords(page, filteredRecords) {
   ];
 }
 
-function getSupplementKey(item) {
-  return [
-    String(item?.id || item?.fileName || "").trim(),
-    String(item?.page || "").trim(),
-    String(item?.supplementIndex || item?.supplement_index || "").trim()
-  ].join("|");
+function getSupplementIndex(item) {
+  return String(item?.supplementIndex ?? item?.supplement_index ?? "").trim();
+}
+
+function isSamePageSupplement(left, right) {
+  if (getRecordPageKey(left) !== getRecordPageKey(right)) return false;
+  const leftIndex = getSupplementIndex(left);
+  const rightIndex = getSupplementIndex(right);
+  if (leftIndex && rightIndex && leftIndex === rightIndex) return true;
+  const leftKey = normalizeFileName(left?.fileName || left?.id);
+  const rightKey = normalizeFileName(right?.fileName || right?.id);
+  return Boolean(leftKey && rightKey && leftKey === rightKey);
 }
 
 function getWrittenPages(records) {
@@ -650,6 +684,7 @@ function renderRecordFilterForCurrentState() {
   renderRecordFilter({
     container: filterContainer,
     getRecords: getCurrentViewFilterRecords,
+    filterRecords: getFilteredRecordsForCurrentView,
     initial: currentCriteria,
     onClear: clearRecordNavigationState,
     onFilterChange: criteria => {
@@ -899,6 +934,7 @@ async function enterHiddenRecordMode() {
     renderRecordFilter({
       container: filterContainer,
       getRecords: getCurrentViewFilterRecords,
+      filterRecords: getFilteredRecordsForCurrentView,
       initial: currentCriteria,
       onClear: clearRecordNavigationState,
       onFilterChange: criteria => {
@@ -969,6 +1005,7 @@ cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
     renderRecordFilter({
       container: filterContainer,
       getRecords: getCurrentViewFilterRecords,
+      filterRecords: getFilteredRecordsForCurrentView,
       initial: currentCriteria,
       onClear: clearRecordNavigationState,
       onFilterChange: criteria => {

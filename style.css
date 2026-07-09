@@ -6176,10 +6176,10 @@ body.hidden-record-mode .hidden-record-banner {
 }
 
 .record-inline-table {
-  width: auto;
-  inline-size: fit-content;
+  width: max-content;
   max-width: 100%;
   max-inline-size: 100%;
+  box-sizing: border-box;
   table-layout: auto;
   border: 1px solid var(--table-border-soft);
   border-collapse: collapse;
@@ -6190,12 +6190,11 @@ body.hidden-record-mode .hidden-record-banner {
 }
 
 .record-inline-table td {
-  max-width: min(22rem, 58vw);
   padding: 0.25em 0.55em;
   border: 1px solid var(--table-border-soft);
   vertical-align: top;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
   white-space: normal;
 }
 

@@ -780,7 +780,7 @@ function uniqueSorted(values) {
 }
 
 function buildOptions(records, criteria) {
-    const dates = parseDateParts(records);
+    const dates = parseDateParts(records.filter((record) => !["message", "supplement"].includes(String(record?.recordType || "").trim())));
 
     return {
         yearOptions: uniqueSorted(dates
@@ -795,7 +795,7 @@ function buildOptions(records, criteria) {
     };
 }
 
-function renderRecordFilter({ container, onFilterChange, onClear, getRecords, initial = {} }) {
+function renderRecordFilter({ container, onFilterChange, onClear, getRecords, filterRecords = filterRecordsByDate, initial = {} }) {
     if (!container) return;
 
     container.innerHTML = "";
@@ -903,7 +903,7 @@ function renderRecordFilter({ container, onFilterChange, onClear, getRecords, in
     const updateFilterStatus = () => {
         if (!statusEl) return;
         const records = typeof getRecords === "function" ? getRecords() : [];
-        const count = filterRecordsByDate(records, currentCriteria).length;
+        const count = filterRecords(records, currentCriteria).length;
         const activeText = activeCriteriaText(currentCriteria);
         statusEl.innerHTML = `
             <span>共 ${count} 条结果</span>
