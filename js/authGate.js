@@ -1,14 +1,16 @@
 /************************************************************
  * authGate.js
- * 统一密钥门禁
+ * 统一邀请码门禁
  ************************************************************/
 
 (() => {
     document.documentElement.classList.add("auth-pending");
 
     const TARGET_KEY = "classRecordRedirectTarget";
-    const VERIFIED_KEY = "classRecordSiteKeyVerified.v1";
-    const ACCESS_TTL = 14 * 24 * 60 * 60 * 1000;
+    const ACCESS_KEY = "classRecord:inviteAccess";
+    const LAST_VISIT_KEY = "classRecord:lastVisitAt";
+    const ACCESS_MAX_IDLE_DAYS = 30;
+    const ACCESS_TTL = ACCESS_MAX_IDLE_DAYS * 24 * 60 * 60 * 1000;
     const AUTH_PAGE = "auth.html";
     const CONFIG_SCRIPT = "js/supabaseConfig.js";
     const CLIENT_SCRIPT = "js/supabaseClient.js";
@@ -27,6 +29,14 @@
 
     window.waitForAccess = () => accessPromise;
     window.getAuthReadyError = () => authReadyError;
+    window.getInviteAccessToken = () => {
+        try {
+            const item = JSON.parse(localStorage.getItem(ACCESS_KEY) || "{}");
+            return item?.type === "invite" ? String(item.token || "") : "";
+        } catch (error) {
+            return "";
+        }
+    };
     window.dispatchEvent(new Event("authGateReady"));
 
     const revealPage = () => document.documentElement.classList.remove("auth-pending");
@@ -74,11 +84,13 @@
 
     const getAccessState = () => {
         try {
-            const raw = localStorage.getItem(VERIFIED_KEY);
-            if (!raw) return { verified: false, shouldClear: false };
+            localStorage.removeItem("classRecord" + "SiteKeyVerified.v1");
+            const raw = localStorage.getItem(ACCESS_KEY);
+            const lastVisitRaw = localStorage.getItem(LAST_VISIT_KEY);
+            if (!raw || !lastVisitRaw) return { verified: false, shouldClear: Boolean(raw || lastVisitRaw) };
             const item = JSON.parse(raw);
-            const lastAccessAt = Date.parse(item?.lastAccessAt || item?.verifiedAt || "");
-            if (item?.verified !== true || !Number.isFinite(lastAccessAt) || Date.now() - lastAccessAt > ACCESS_TTL) {
+            const lastVisitAt = Date.parse(lastVisitRaw);
+            if (item?.verified !== true || item?.type !== "invite" || !item?.token || !Number.isFinite(lastVisitAt) || Date.now() - lastVisitAt > ACCESS_TTL) {
                 return { verified: false, shouldClear: true };
             }
             return { verified: true, shouldClear: false };
@@ -87,11 +99,15 @@
         }
     };
 
-    const saveVerifiedAccess = () => {
-        localStorage.setItem(VERIFIED_KEY, JSON.stringify({
+    const saveVerifiedAccess = (token) => {
+        const accessToken = token || window.getInviteAccessToken?.() || "";
+        localStorage.setItem(ACCESS_KEY, JSON.stringify({
             verified: true,
-            lastAccessAt: new Date().toISOString()
+            type: "invite",
+            token: accessToken,
+            verifiedAt: new Date().toISOString()
         }));
+        localStorage.setItem(LAST_VISIT_KEY, new Date().toISOString());
     };
 
     const storeRedirectTarget = () => {
@@ -134,6 +150,15 @@
             }
             await ensureSupabaseClient();
             if (verified) {
+                const refreshed = await window.ClassRecordSupabase?.refreshInviteAccess?.();
+                if (!refreshed) {
+                    await window.clearAllSiteCache?.({ preserveRedirectTarget: !isAuthPage });
+                    if (!isAuthPage) {
+                        storeRedirectTarget();
+                        window.location.replace(AUTH_PAGE);
+                        return;
+                    }
+                }
                 saveVerifiedAccess();
                 resolveAccessPromise();
                 revealPage();
@@ -144,7 +169,7 @@
             resolveAccessPromise();
             revealPage();
         } catch (error) {
-            console.warn("密钥门禁初始化失败：", error);
+            console.warn("访问门禁初始化失败：", error);
             if (!isAuthPage) {
                 storeRedirectTarget();
                 window.location.replace(AUTH_PAGE);
@@ -155,26 +180,37 @@
         }
     };
 
-    window.verifyAccessKey = async (key) => {
+    window.verifyInviteCode = async (code) => {
         try {
             const auth = await ensureSupabaseClient();
-            const ok = await auth.verifySiteKey(key);
-            if (!ok) {
-                return { ok: false, message: "密钥错误，请重新输入。" };
+            const result = await auth.verifyInviteCode(code);
+            if (!result?.ok) {
+                const reasonMessages = {
+                    invalid: "邀请码不存在，请检查后重新输入。",
+                    used: "这个邀请码已经使用过。",
+                    expired: "这个邀请码已经过期。",
+                    empty: "请输入邀请码。"
+                };
+                return { ok: false, message: reasonMessages[result?.reason] || "邀请码验证失败，请重新输入。" };
             }
-            saveVerifiedAccess();
+            if (!result.accessToken) {
+                return { ok: false, message: "邀请码已验证，但访问凭证生成失败，请稍后重试。" };
+            }
+            saveVerifiedAccess(result.accessToken);
             resolveAccessPromise();
             revealPage();
             return { ok: true };
         } catch (error) {
-            console.warn("密钥验证失败：", error);
-            return { ok: false, message: error?.message || "密钥验证请求失败，请稍后重试。" };
+            console.warn("邀请码验证失败：", error);
+            return { ok: false, message: error?.message || "邀请码验证请求失败，请稍后重试。" };
         }
     };
 
-    window.clearAccessKey = async () => {
+    window.clearInviteAccess = async () => {
         await window.clearAllSiteCache?.();
     };
+
+    window.clearAccessKey = window.clearInviteAccess;
 
     handleGate();
 })();

@@ -4,7 +4,7 @@
  *
  * 注意：
  * - anonKey 是 Supabase 前端公开密钥，不是 service_role 密钥。
- * - 访问密钥通过 Supabase RPC 验证，正确密钥不要写入前端。
+ * - 一次性邀请码通过 Supabase RPC 验证，可用邀请码不要写入前端。
  ************************************************************/
 
 window.CLASS_RECORD_SUPABASE = {

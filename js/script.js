@@ -515,6 +515,12 @@ function renderWrittenView(records) {
   }
   const writtenFigure = container.querySelector(".record-written-image");
   const writtenImage = container.querySelector(".record-written-image img");
+  writtenFigure?.addEventListener("click", () => {
+    if (!imagePath || typeof window.ClassRecordImageViewer?.open !== "function") return;
+    window.ClassRecordImageViewer.open(imagePath, {
+      alt: hiddenMode ? `${page.page} hidden written record` : `${page.page} written record`
+    });
+  });
   writtenImage?.addEventListener("load", (event) => {
     setWrittenImageState(event.currentTarget.closest(".record-written-image"), "loaded", token);
   }, { once: true });
@@ -912,5 +918,5 @@ cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
   })
   .catch((error) => {
     console.warn("记录加载失败：", error);
-    container.innerHTML = '<div class="record-empty"><strong>记录加载失败。</strong><span>请确认 Supabase 数据表和访问密钥状态后重试。</span></div>';
+    container.innerHTML = '<div class="record-empty"><strong>记录加载失败。</strong><span>请确认 Supabase 数据表和访问权限状态后重试。</span></div>';
   });

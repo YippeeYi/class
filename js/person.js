@@ -8,6 +8,7 @@ if (!personId) {
 
 const recordContainer = document.getElementById("record-list");
 const filterContainer = document.getElementById("record-filter");
+const switchContainer = document.querySelector(".record-switch");
 const switchButtons = document.querySelectorAll(".switch-btn");
 
 let participatedRecords = [];
@@ -92,6 +93,12 @@ cacheReady.then(() => Promise.all([loadAllPeople({ force: true }), loadAllRecord
 
     sortRecords(participatedRecords);
     sortRecords(authoredRecords);
+    const showSwitch = authoredRecords.length > 0;
+    switchContainer?.classList.remove("is-pending");
+    switchContainer?.classList.toggle("is-hidden", !showSwitch);
+    if (!showSwitch) {
+        switchButtons.forEach((item) => item.classList.toggle("active", item.dataset.type === "participated"));
+    }
     renderRecordList(participatedRecords, recordContainer);
     renderFilterUI();
 }).catch((error) => {

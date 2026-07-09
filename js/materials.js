@@ -45,7 +45,11 @@
         .then(() => loadAllMaterials())
         .then((items) => {
             materials = items;
-            activeId = materials[0]?.id || "";
+            const requestedId = new URLSearchParams(location.search).get("id") || "";
+            activeId = materials.some((item) => item.id === requestedId) ? requestedId : (materials[0]?.id || "");
+            if (requestedId && activeId !== requestedId) {
+                console.warn(`Material not found: ${requestedId}`);
+            }
             if (!materials.length) {
                 listHost.innerHTML = "";
                 contentHost.innerHTML = '<div class="materials-placeholder">暂无资料</div>';

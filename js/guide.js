@@ -146,6 +146,34 @@
         setText('guide-people-count', valueOrEmpty(peopleResult).length);
         setText('guide-quote-count', valueOrEmpty(quotesResult).length);
 
+        if (typeof window.preloadAllJsonImageMetadata === 'function') {
+            window.setTimeout(async () => {
+                try {
+                    const materials = typeof window.loadAllMaterials === 'function' ? await window.loadAllMaterials().catch(() => []) : [];
+                    const pageMessages = typeof window.ClassRecordData?.loadPageMessages === 'function'
+                        ? await window.ClassRecordData.loadPageMessages().catch(() => [])
+                        : [];
+                    const pageSupplements = typeof window.ClassRecordData?.loadPageSupplements === 'function'
+                        ? await window.ClassRecordData.loadPageSupplements({ hidden: false }).catch(() => [])
+                        : [];
+                    const recordPages = typeof window.ClassRecordData?.loadRecordPages === 'function'
+                        ? await window.ClassRecordData.loadRecordPages({ hidden: false }).catch(() => [])
+                        : [];
+                    window.preloadAllJsonImageMetadata({
+                        records: valueOrEmpty(recordsResult),
+                        people: valueOrEmpty(peopleResult),
+                        quotes: valueOrEmpty(quotesResult),
+                        materials,
+                        pageMessages,
+                        pageSupplements,
+                        recordPages
+                    }).catch((error) => console.warn('Image metadata prewarm failed:', error));
+                } catch (error) {
+                    console.warn('Image metadata prewarm failed:', error);
+                }
+            }, 120);
+        }
+
         const records = valueOrEmpty(recordsResult).filter((record) => {
             const hidden = record?.hidden === true || String(record?.hidden || '').trim().toLowerCase() === 'true';
             return !hidden;
@@ -195,7 +223,7 @@
     bindStatCardLinks();
 
     document.getElementById('clear-access-btn')?.addEventListener('click', async () => {
-        if (!window.confirm('确定移除本机保存的访问密钥并清除本站缓存吗？')) return;
+        if (!window.confirm('确定移除本机保存的访问权限并清除本站缓存吗？')) return;
         await window.clearAccessKey?.();
         window.location.replace('auth.html');
     });

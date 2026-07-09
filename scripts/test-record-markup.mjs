@@ -53,6 +53,10 @@ const cases = [
     ['[[del:[[record:file-name|显示文字]]]]', ['inline-delete', 'record-jump-link']],
     ['[[anno:注解中包含 [[person:personId|显示名]]|被注释文字]]', ['annotation', '被注释文字']],
     ['[[illu:example.png|带有 [[red:红色文字]] 的文字]]', ['data-image-src="data/attachments/example.png"', 'inline-illustration', 'inline-red']],
+    ['[[material:basketball-rule|篮球规则]]', ['material-jump-link', 'data-material-jump="basketball-rule"', '篮球规则']],
+    ['[[table:2x3|姓名|项目|结果|张三|跳远|2.1m]]', ['record-inline-table', '<td>姓名</td>', '<td>2.1m</td>']],
+    ['[[table:2x3|A||C|D|E|]]', ['record-inline-table', '<td></td>', '<td>C</td>']],
+    ['[[table:1x2|[[person:a|甲]]|[[material:m|资料]]]]', ['record-inline-table', 'person-tag', 'material-jump-link']],
     ['[[frac:[[del:上方文字]]|[[under:下方文字]]]]', ['inline-fraction', 'inline-delete', 'inline-underline']],
     ['[[red:包含 [[quote:quoteId|名言]] 的文字]]', ['inline-red', 'quote-tag']],
     ['[[del:[[red:红色删除文字]]]]', ['inline-delete', 'inline-red']],
@@ -92,6 +96,7 @@ assert.equal([...getAuthors({ author: 'alice', content: '[[author:alice|重复]]
 assert.equal([...extractQuotes('[[quote:t1|名言]][[del:{{t2|旧名言}}]][[anno:提到 [[quote:t3|名言]]|[[quote:t1|重复]]]]')].sort().join(','), 't1,t2,t3');
 assert.equal(extractQuotes('普通文本 t1；[[person:t2|不是名言]][[record:t3|不是名言]]').length, 0);
 assert.equal(countTextCharacters('甲[[person:a|乙]][[red:丙]]'), 3);
+assert.equal(countTextCharacters('[[material:m|资料]][[table:1x2|甲|乙]]'), 4);
 assert.equal(extractIllustrations('[[illu:example.jpeg|插图]]').join(','), 'data/attachments/example.jpeg');
 assert.equal(calculateTooltipPosition({ tagRect: { left: 20, top: 40, right: 120, bottom: 80, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 150, y: 60 } }).top, 88);
 assert.equal(calculateTooltipPosition({ tagRect: { left: 20, top: 120, right: 120, bottom: 140, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 150, y: 130 } }).top, 72);
@@ -133,4 +138,4 @@ assert.equal(peopleContext.getPeopleColumnsForTest('student').map((column) => co
 assert.equal(peopleContext.getPeopleColumnsForTest('teacher').map((column) => column.label).join(','), '序号,姓名,别名,参与,学科');
 assert.equal(peopleContext.getPeopleColumnsForTest('other').map((column) => column.label).join(','), '序号,姓名,别名,参与');
 
-console.log(`Passed ${cases.length + 39} markup, people, and timeline checks.`);
+console.log(`Passed ${cases.length + 40} markup, people, and timeline checks.`);

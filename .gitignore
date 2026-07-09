@@ -1,2 +1,4 @@
 data/
 images/record-pages/
+.env
+node_modules/

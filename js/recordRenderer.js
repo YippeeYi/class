@@ -103,12 +103,27 @@ function splitTopLevelOnce(source, separator = "|") {
     return index < 0 ? null : [source.slice(0, index), source.slice(index + separator.length)];
 }
 
+function splitTopLevelAll(source, separator = "|") {
+    const parts = [];
+    let cursor = 0;
+    for (let index = 0; index <= source.length - separator.length; index += 1) {
+        const relativeIndex = findTopLevelSeparator(source.slice(cursor), separator);
+        if (relativeIndex < 0) break;
+        const absoluteIndex = cursor + relativeIndex;
+        parts.push(source.slice(cursor, absoluteIndex));
+        cursor = absoluteIndex + separator.length;
+        index = cursor - 1;
+    }
+    parts.push(source.slice(cursor));
+    return parts;
+}
+
 function extractRecordMarkupReferences(value) {
     const participantIds = new Set();
     const extraAuthorIds = new Set();
     const quoteIds = new Set();
     const illustrationPaths = new Set();
-    const binaryTypes = new Set(["person", "author", "quote", "term", "record", "frac", "anno", "illu", "arrow"]);
+    const binaryTypes = new Set(["person", "author", "quote", "term", "record", "material", "frac", "anno", "illu", "arrow"]);
     const unaryTypes = new Set(["del", "under", "red", "hide", "sup", "sub", "center", "right"]);
 
     const visit = (input, depth = 0) => {
@@ -151,6 +166,12 @@ function extractRecordMarkupReferences(value) {
             } else if (unaryTypes.has(type)) {
                 const content = body.slice(colon + 1);
                 if (content) visit(content, depth + 1);
+            } else if (type === "table") {
+                const parts = splitTopLevelAll(body.slice(colon + 1));
+                const size = String(parts.shift() || "").trim();
+                if (/^\d{1,2}x\d{1,2}$/i.test(size)) {
+                    parts.forEach((cell) => visit(cell, depth + 1));
+                }
             } else if (binaryTypes.has(type)) {
                 const parts = splitTopLevelOnce(body.slice(colon + 1));
                 if (parts && parts[0] && parts[1]) {
@@ -253,7 +274,31 @@ function renderSquareMarkup(body, raw, context) {
         return `<${config.tag}${classAttribute}>${rendered}</${config.tag}>`;
     }
 
-    for (const type of ["person", "author", "quote", "term", "record", "frac", "anno", "illu", "arrow"]) {
+    if (body.startsWith("table:")) {
+        const parts = splitTopLevelAll(body.slice("table:".length));
+        const sizeText = String(parts.shift() || "").trim();
+        const sizeMatch = /^(\d{1,2})x(\d{1,2})$/i.exec(sizeText);
+        if (!sizeMatch) return asText ? raw : escapeRecordText(raw);
+        const rows = Math.max(1, Math.min(30, Number(sizeMatch[1]) || 0));
+        const cols = Math.max(1, Math.min(12, Number(sizeMatch[2]) || 0));
+        const cellCount = rows * cols;
+        if (parts.length > cellCount) {
+            console.warn(`Record table markup has ${parts.length - cellCount} extra cells; extras were ignored.`);
+        }
+        const cells = parts.slice(0, cellCount);
+        while (cells.length < cellCount) cells.push("");
+        if (asText) return cells.map((cell) => parseInlineMarkup(cell, context)).join("");
+        const tableRows = Array.from({ length: rows }, (_, rowIndex) => {
+            const tds = Array.from({ length: cols }, (_, colIndex) => {
+                const cell = cells[rowIndex * cols + colIndex] || "";
+                return `<td>${render(cell)}</td>`;
+            }).join("");
+            return `<tr>${tds}</tr>`;
+        }).join("");
+        return `<span class="record-table-scroll" role="group" aria-label="record table"><table class="record-inline-table"><tbody>${tableRows}</tbody></table></span>`;
+    }
+
+    for (const type of ["person", "author", "quote", "term", "record", "material", "frac", "anno", "illu", "arrow"]) {
         const prefix = `${type}:`;
         if (!body.startsWith(prefix)) continue;
         const parts = splitTopLevelOnce(body.slice(prefix.length));
@@ -273,6 +318,11 @@ function renderSquareMarkup(body, raw, context) {
             if (!/^[a-zA-Z0-9_-]+(?:\.json)?$/.test(first)) return asText ? render(second) : render(second);
             const label = render(second);
             return asText || context.disableRecordLinks ? label : `<button type="button" class="record-jump-link" data-record-jump="${first}" style="--record-jump-hue:${stableRecordJumpHue(first)}">${label}</button>`;
+        }
+        if (type === "material") {
+            if (!/^[a-zA-Z0-9_-]+$/.test(first)) return asText ? render(second) : render(second);
+            const label = render(second);
+            return asText ? label : `<button type="button" class="material-jump-link" data-material-jump="${escapeRecordAttribute(first)}">${label}</button>`;
         }
         if (type === "frac" || type === "arrow") return parseInlineStack(first, second, type === "arrow" ? "arrow" : "fraction", context);
         if (type === "anno") {
@@ -384,6 +434,14 @@ function countRecordTextCharacters(text) {
 window.stripRecordMarkup = stripRecordMarkup;
 window.countRecordTextCharacters = countRecordTextCharacters;
 
+function materialExists(materialId) {
+    const id = String(materialId || "").trim();
+    if (!id) return false;
+    const materials = window.MaterialStore?.materials;
+    if (!Array.isArray(materials) || !window.MaterialStore?.loaded) return true;
+    return materials.some((item) => item?.id === id);
+}
+
 function prepareRecordJump(anchorId, originHref = location.href) {
     const targetAnchorId = String(anchorId || "").replace(/^#/, "");
     if (!targetAnchorId) return "";
@@ -408,6 +466,25 @@ window.ClassRecordPrepareRecordJump = prepareRecordJump;
 window.ClassRecordGetRecordListHref = getRecordListHref;
 
 document.addEventListener("click", (event) => {
+    const materialJump = event.target.closest(".material-jump-link[data-material-jump]");
+    if (materialJump) {
+        const materialId = String(materialJump.dataset.materialJump || "").trim();
+        if (!materialId) return;
+        if (!materialExists(materialId)) {
+            console.warn(`Material not found: ${materialId}`);
+        } else if (!window.MaterialStore?.loaded && typeof window.loadAllMaterials === "function") {
+            window.loadAllMaterials().then(() => {
+                if (!materialExists(materialId)) console.warn(`Material not found: ${materialId}`);
+            }).catch((error) => {
+                console.warn("Material existence check failed:", error);
+            });
+        }
+        const href = `materials.html?id=${encodeURIComponent(materialId)}`;
+        if (typeof window.navigateTo === "function") window.navigateTo(href);
+        else location.href = href;
+        return;
+    }
+
     const jump = event.target.closest(".record-jump-link[data-record-jump]");
     if (!jump) return;
     const recordKey = String(jump.dataset.recordJump || "").replace(/\.json$/i, "");
@@ -944,9 +1021,34 @@ const illustrationPreloadCache = new Map();
 const illustrationReadyCache = new Map();
 const illustrationDimensionCache = new Map();
 const illustrationDimensionPromises = new Map();
+const IMAGE_SIZE_STORAGE_KEY = "classRecord:imageSizes:v1";
+const IMAGE_SIZE_CONCURRENCY = 6;
+
+window.imageSizeCache = window.imageSizeCache || {};
+
+try {
+    const storedImageSizes = JSON.parse(localStorage.getItem(IMAGE_SIZE_STORAGE_KEY) || "{}");
+    Object.entries(storedImageSizes).forEach(([src, item]) => {
+        if (item?.width > 0 && item?.height > 0) {
+            window.imageSizeCache[src] = { width: Number(item.width), height: Number(item.height) };
+            illustrationDimensionCache.set(src, window.imageSizeCache[src]);
+        }
+    });
+} catch (error) {
+    // Persistent image metadata is only an optimization.
+}
+
+function persistImageSizeCache() {
+    try {
+        localStorage.setItem(IMAGE_SIZE_STORAGE_KEY, JSON.stringify(window.imageSizeCache || {}));
+    } catch (error) {
+        // Keep the in-memory cache when storage is unavailable.
+    }
+}
 
 function getIllustrationSourceDimensions(path) {
-    return illustrationDimensionCache.get(String(path || "").trim()) || null;
+    const sourcePath = String(path || "").trim();
+    return illustrationDimensionCache.get(sourcePath) || window.imageSizeCache?.[sourcePath] || null;
 }
 
 window.getIllustrationSourceDimensions = getIllustrationSourceDimensions;
@@ -956,6 +1058,7 @@ window.addEventListener("classrecordcacheclearing", () => {
     illustrationReadyCache.clear();
     illustrationDimensionCache.clear();
     illustrationDimensionPromises.clear();
+    window.imageSizeCache = {};
 });
 
 function resolveIllustrationUrl(path) {
@@ -999,6 +1102,8 @@ function preloadIllustrationDimensions(path) {
                 dimensionsResolved = true;
                 const dimensions = { width: image.naturalWidth, height: image.naturalHeight };
                 illustrationDimensionCache.set(sourcePath, dimensions);
+                window.imageSizeCache[sourcePath] = dimensions;
+                persistImageSizeCache();
                 resolve(dimensions);
                 return true;
             };
@@ -1016,6 +1121,7 @@ function preloadIllustrationDimensions(path) {
             };
             image.onerror = () => {
                 cancelAnimationFrame(dimensionFrame);
+                console.warn(`Image dimensions failed to load: ${sourcePath}`);
                 if (!dimensionsResolved) resolve(null);
             };
             image.src = url;
@@ -1031,14 +1137,131 @@ function preloadIllustrationDimensions(path) {
 }
 
 async function preloadRecordIllustrationMetadata(records) {
-    const paths = new Set();
-    (Array.isArray(records) ? records : []).forEach((record) => {
-        extractIllustrationPaths(record?.content || "").forEach((path) => paths.add(path));
-    });
-    await Promise.all([...paths].map((path) => preloadIllustrationDimensions(path)));
+    await preloadAllJsonImageMetadata({ records });
 }
 
 window.preloadRecordIllustrationMetadata = preloadRecordIllustrationMetadata;
+
+function collectImagePathsFromValue(value, paths, depth = 0) {
+    if (depth > 10 || value == null) return;
+    if (typeof value === "string") {
+        extractIllustrationPaths(value).forEach((path) => paths.add(path));
+        const trimmed = value.trim();
+        const normalized = normalizeIllustrationPath(trimmed) || (/^(?:https?:|data:|blob:|images\/|data\/attachments\/)/i.test(trimmed) ? trimmed.replace(/^data\/attachments\//i, "data/attachments/") : "");
+        if (normalized && /\.(png|jpe?g|gif|webp|svg)(?:$|\?)/i.test(normalized)) paths.add(normalized);
+        return;
+    }
+    if (Array.isArray(value)) {
+        value.forEach((item) => collectImagePathsFromValue(item, paths, depth + 1));
+        return;
+    }
+    if (typeof value === "object") {
+        Object.values(value).forEach((item) => collectImagePathsFromValue(item, paths, depth + 1));
+    }
+}
+
+function collectAllJsonImagePaths(dataSets = {}) {
+    const paths = new Set();
+    Object.values(dataSets).forEach((value) => collectImagePathsFromValue(value, paths));
+    return [...paths].filter(Boolean);
+}
+
+async function preloadImageDimensionsWithLimit(paths, concurrency = IMAGE_SIZE_CONCURRENCY) {
+    const list = [...new Set(paths || [])].filter(Boolean);
+    let cursor = 0;
+    const worker = async () => {
+        while (cursor < list.length) {
+            const path = list[cursor];
+            cursor += 1;
+            await preloadIllustrationDimensions(path).catch((error) => {
+                console.warn(`Image dimensions failed to load: ${path}`, error);
+            });
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(concurrency, list.length) }, () => worker()));
+}
+
+async function preloadAllJsonImageMetadata(dataSets = {}) {
+    const paths = collectAllJsonImagePaths(dataSets);
+    await preloadImageDimensionsWithLimit(paths);
+}
+
+window.collectAllJsonImagePaths = collectAllJsonImagePaths;
+window.preloadAllJsonImageMetadata = preloadAllJsonImageMetadata;
+
+const imageViewerState = {
+    overlay: null,
+    previousOverflow: "",
+    closeHandler: null
+};
+
+async function resolvePreviewImageUrl(sourcePath) {
+    const direct = String(sourcePath || "").trim();
+    if (!direct) return "";
+    if (/^(?:https?:|data:|blob:)/i.test(direct)) return direct;
+    if (/^(?:\.\/|\/)?images\//i.test(direct)) return new URL(direct.replace(/^\//, ""), document.baseURI).href;
+    return (await resolveIllustrationUrl(direct)) || direct;
+}
+
+function closeImageViewer() {
+    const overlay = imageViewerState.overlay;
+    if (!overlay) return;
+    document.documentElement.style.overflow = imageViewerState.previousOverflow;
+    document.removeEventListener("keydown", imageViewerState.closeHandler, true);
+    imageViewerState.overlay = null;
+    imageViewerState.closeHandler = null;
+    overlay.classList.remove("is-visible");
+    overlay.classList.add("is-leaving");
+    window.setTimeout(() => overlay.remove(), 160);
+}
+
+async function openImageViewer(sourcePath, { alt = "image preview" } = {}) {
+    closeImageViewer();
+    const overlay = document.createElement("div");
+    overlay.className = "image-viewer";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.innerHTML = `
+        <button type="button" class="image-viewer-close" aria-label="Close image preview">×</button>
+        <div class="image-viewer-frame">
+            <div class="image-viewer-status">Loading image...</div>
+        </div>
+    `;
+    imageViewerState.previousOverflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    imageViewerState.overlay = overlay;
+    imageViewerState.closeHandler = (event) => {
+        if (event.key === "Escape") closeImageViewer();
+    };
+    document.addEventListener("keydown", imageViewerState.closeHandler, true);
+    overlay.addEventListener("click", (event) => {
+        if (event.target === overlay || event.target.closest(".image-viewer-close")) closeImageViewer();
+    });
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add("is-visible"));
+    const frame = overlay.querySelector(".image-viewer-frame");
+    const url = await resolvePreviewImageUrl(sourcePath).catch(() => "");
+    if (!overlay.isConnected || imageViewerState.overlay !== overlay) return;
+    if (!url) {
+        frame.innerHTML = '<div class="image-viewer-status">Image failed to load.</div>';
+        return;
+    }
+    const image = document.createElement("img");
+    image.alt = alt;
+    image.decoding = "async";
+    image.onload = () => {
+        if (imageViewerState.overlay === overlay) frame.replaceChildren(image);
+    };
+    image.onerror = () => {
+        if (imageViewerState.overlay === overlay) frame.innerHTML = '<div class="image-viewer-status">Image failed to load.</div>';
+    };
+    image.src = url;
+}
+
+window.ClassRecordImageViewer = {
+    open: openImageViewer,
+    close: closeImageViewer
+};
 
 function setIllustrationFailure(tooltip) {
     tooltip.classList.add("has-error");
@@ -1243,7 +1466,7 @@ function createInlineTooltipController({ triggerSelector, tooltipClass, role = "
         hoveringTrigger = true;
         queueShow(tag, event);
     });
-    document.addEventListener("pointerove", (event) => {
+    document.addEventListener("pointermove", (event) => {
         const tag = event.target.closest(triggerSelector);
         if (event.pointerType === "touch") return;
         if (dismissedByScroll && tag) {
@@ -1424,6 +1647,14 @@ illustrationTooltipController = createInlineTooltipController({
 document.addEventListener("click", (event) => {
     const illustration = event.target.closest(".inline-illustration");
     if (illustration) {
+        if (event.target.closest(".record-written-view")) {
+            const src = String(illustration.dataset.imageSrc || "").trim();
+            if (src && typeof window.ClassRecordImageViewer?.open === "function") {
+                event.preventDefault();
+                window.ClassRecordImageViewer.open(src, { alt: illustration.textContent?.trim() || "record illustration" });
+            }
+            return;
+        }
         event.preventDefault();
         illustrationTooltipController.toggle(illustration, event);
         return;

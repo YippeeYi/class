@@ -22,7 +22,7 @@ drop policy if exists "class_page_supplements_read" on public.class_page_supplem
 create policy "class_page_supplements_read"
 on public.class_page_supplements for select
 to anon, authenticated
-using (true);
+using (public.has_class_record_access());
 
 create table if not exists public.class_materials (
     id text primary key,
@@ -39,6 +39,6 @@ drop policy if exists "class_materials_read" on public.class_materials;
 create policy "class_materials_read"
 on public.class_materials for select
 to anon, authenticated
-using (true);
+using (public.has_class_record_access());
 
 notify pgrst, 'reload schema';

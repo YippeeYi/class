@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>访问密钥 · 编日史</title>
+    <title>邀请码 · 编日史</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="js/themeBootstrap.js"></script>
     <link rel="stylesheet" href="style.css">
@@ -16,10 +16,10 @@
 
 <body class="auth-page">
     <div class="auth-card">
-        <h1>输入访问密钥</h1>
-        <p class="auth-hint">请输入班级统一访问密钥。</p>
+        <h1>输入一次性邀请码</h1>
+        <p class="auth-hint">邀请码验证成功后，本浏览器将获得 30 天滑动访问权限。</p>
         <form class="auth-form">
-            <input type="password" name="siteKey" placeholder="访问密钥" autocomplete="current-password" required>
+            <input type="text" name="inviteCode" placeholder="CR-ABCD-EFGH-2345" autocomplete="one-time-code" required>
             <button type="submit">进入</button>
         </form>
         <p class="auth-error" aria-live="polite"></p>

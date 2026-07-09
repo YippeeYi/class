@@ -71,6 +71,46 @@ function prewarmBackground(loaders) {
     }
 }
 
+function prewarmImageMetadata() {
+    const run = async () => {
+        if (typeof window.preloadAllJsonImageMetadata !== 'function') return;
+        try {
+            const records = typeof window.loadAllRecords === 'function' ? await window.loadAllRecords() : [];
+            const people = typeof window.loadAllPeople === 'function' ? await window.loadAllPeople() : [];
+            const quotes = typeof window.loadAllQuotes === 'function' ? await window.loadAllQuotes({ records }) : [];
+            const materials = typeof window.loadAllMaterials === 'function' ? await window.loadAllMaterials() : [];
+            const pageMessages = typeof window.ClassRecordData?.loadPageMessages === 'function'
+                ? await window.ClassRecordData.loadPageMessages().catch(() => [])
+                : [];
+            const pageSupplements = typeof window.ClassRecordData?.loadPageSupplements === 'function'
+                ? await window.ClassRecordData.loadPageSupplements({ hidden: false }).catch(() => [])
+                : [];
+            const recordPages = typeof window.ClassRecordData?.loadRecordPages === 'function'
+                ? await window.ClassRecordData.loadRecordPages({ hidden: false }).catch(() => [])
+                : [];
+            window.preloadAllJsonImageMetadata({
+                records,
+                people,
+                quotes,
+                materials,
+                pageMessages,
+                pageSupplements,
+                recordPages
+            }).catch((error) => {
+                console.warn('Image metadata prewarm failed:', error);
+            });
+        } catch (error) {
+            console.warn('Image metadata prewarm failed:', error);
+        }
+    };
+
+    if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(run, { timeout: 1600 });
+    } else {
+        window.setTimeout(run, 500);
+    }
+}
+
 window.cacheReadyPromise = (async () => {
     await waitForAccess();
 
@@ -84,4 +124,5 @@ window.cacheReadyPromise = (async () => {
     const allLoaders = [window.loadAllRecords, window.loadAllPeople, window.loadAllQuotes, window.loadAllMaterials].filter(Boolean);
     const backgroundLoaders = allLoaders.filter((loader) => !criticalLoaders.includes(loader));
     prewarmBackground(backgroundLoaders);
+    prewarmImageMetadata();
 })();

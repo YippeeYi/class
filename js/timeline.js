@@ -89,6 +89,14 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
         map.set(key, (map.get(key) || 0) + amount);
     }
 
+    function getRecordCharacters(record) {
+        return countRecordTextCharacters(record?.content || record?.text || '');
+    }
+
+    function sumCharacters(recordList) {
+        return (recordList || []).reduce((sum, record) => sum + getRecordCharacters(record), 0);
+    }
+
     function isKnownPersonId(id) {
         return Boolean(id) && (!knownPeopleIds.size || knownPeopleIds.has(id));
     }
@@ -243,6 +251,15 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
         return { entries, allEntries, total };
     }
 
+    function getAuthorCharacterDistribution(recordList, { type = 'daily' } = {}) {
+        const counts = new Map();
+        recordList.forEach((record) => countMapValue(counts, getAuthorId(record), getRecordCharacters(record)));
+        const allEntries = topEntries(counts, Number.MAX_SAFE_INTEGER);
+        const total = allEntries.reduce((sum, [, count]) => sum + count, 0);
+        const entries = isSummaryPieType(type) ? mergeSummaryAuthorEntries(allEntries) : allEntries;
+        return { entries, allEntries, total };
+    }
+
     function getPiePoint(angle, radius = 49) {
         const radians = (angle - 90) * Math.PI / 180;
         return {
@@ -297,6 +314,28 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
                 </div>
             </section>
         `;
+    }
+
+    function renderAuthorCharacterPie(recordList, title, type) {
+        const { entries, allEntries, total } = getAuthorCharacterDistribution(recordList, { type });
+        const scopeId = createPieScope(`${type || 'summary'}-chars`);
+        return `
+            <section class="timeline-chart-card timeline-pie-card timeline-author-pie-card" data-pie-chart="${scopeId}" aria-label="${escapeHtml(title)}">
+                <header><h3>${escapeHtml(title)}</h3><p>${total ? `${allEntries.length} 位记录人 · ${total} 字` : '暂无记录人数据'}</p></header>
+                <div class="timeline-author-pie-body">
+                    <div class="timeline-pie timeline-author-pie">${renderAuthorPieSvg(entries, total, { type, scopeId, chartKind: `${type}-chars` })}<strong>${total}</strong></div>
+                    ${renderAuthorCharacterLegend(recordList, 'timeline-author-legend', { type, scopeId })}
+                </div>
+            </section>
+        `;
+    }
+
+    function renderAuthorCharacterLegend(recordList, className = 'timeline-author-legend', { showValues = true, type = 'daily', scopeId = '' } = {}) {
+        const { entries, total } = getAuthorCharacterDistribution(recordList, { type });
+        const legend = entries.map(([id, count], index) => `
+            <li class="${showValues ? 'has-values' : ''}"${scopeId ? ` data-pie-legend-item data-pie-scope="${escapeHtml(scopeId)}" data-slice-key="${escapeHtml(id)}" tabindex="0"` : ''}><i style="--legend-color:${getPieColor(id, index, type)}"></i><span class="timeline-author-legend-name">${escapeHtml(getPersonLabel(id))}</span>${showValues ? `<span class="timeline-author-legend-count">${count} 字</span><span class="timeline-author-legend-percent">${formatPercent(count, total)}</span>` : ''}</li>
+        `).join('');
+        return `<ul class="${className}">${legend || '<li class="is-empty">暂无可统计数据</li>'}</ul>`;
     }
 
     function getTopLabel(map, type) {
@@ -561,7 +600,84 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
                     <div class="timeline-chip-list">${quoteChips || '<span class="timeline-muted">暂无名言标记</span>'}</div>
                 </section>
             </div>
+            ${renderCharacterStats(month, recordsByDay, dayCount)}
 
+        `;
+    }
+
+    function weightedMapForRecords(recordList, extractor) {
+        const map = new Map();
+        (recordList || []).forEach((record) => {
+            const amount = getRecordCharacters(record);
+            if (!amount) return;
+            extractor(record).forEach((id) => countMapValue(map, id, amount));
+        });
+        return map;
+    }
+
+    function renderWeightedChips(map, count, labelGetter, dataName) {
+        return topEntries(map, count).map(([id, value]) => `<button type="button" class="timeline-chip" data-${dataName}="${escapeHtml(id)}">${escapeHtml(labelGetter(id))}<span>${value} 字</span></button>`).join('');
+    }
+
+    function renderCharacterStats(month, recordsByDay, dayCount) {
+        const year = getActiveYear();
+        const activeMonthRecords = month?.records || [];
+        const monthCharacters = sumCharacters(activeMonthRecords);
+        const yearCharacters = sumCharacters(year?.records || []);
+        const totalCharacters = sumCharacters(records);
+        const peopleChars = weightedMapForRecords(activeMonthRecords, extractPeople);
+        const authorChars = weightedMapForRecords(activeMonthRecords, (record) => [getAuthorId(record)]);
+        const quoteChars = weightedMapForRecords(activeMonthRecords, extractQuotes);
+        const monthTrend = [...months]
+            .sort((a, b) => a.key.localeCompare(b.key))
+            .map((item) => ({ label: item.key, shortLabel: item.key.slice(5), value: sumCharacters(item.records), month: item.key }));
+        const daySeries = Array.from({ length: dayCount }, (_, index) => {
+            const day = padDay(index + 1);
+            const dayRecords = recordsByDay.get(day) || [];
+            return { label: `${day} 日`, shortLabel: day, value: sumCharacters(dayRecords), day };
+        });
+        const peopleChips = renderWeightedChips(peopleChars, 10, getPersonLabel, 'person');
+        const authorChips = renderWeightedChips(authorChars, 8, getPersonLabel, 'person');
+        const quoteChips = renderWeightedChips(quoteChars, 8, getQuoteLabel, 'quote');
+        return `
+            <section class="timeline-character-section" aria-label="按记录字数统计">
+                <div class="timeline-step-head timeline-step-head--small">
+                    <span>字</span>
+                    <div>
+                        <h2>按记录字数统计</h2>
+                        <p>基于正文纯文本可见内容，标记语法按显示文字计入。</p>
+                    </div>
+                </div>
+                <section class="timeline-month-stat-grid" aria-label="字数统计摘要">
+                    <article><span>总字数</span><strong>${totalCharacters}</strong></article>
+                    <article><span>本年字数</span><strong>${yearCharacters}</strong></article>
+                    <article><span>本月字数</span><strong>${monthCharacters}</strong></article>
+                    <article><span>平均每条</span><strong>${activeMonthRecords.length ? Math.round(monthCharacters / activeMonthRecords.length) : 0} 字</strong></article>
+                    <article><span>人物维度</span><strong>${peopleChars.size}</strong></article>
+                    <article><span>记录人维度</span><strong>${authorChars.size}</strong></article>
+                    <article><span>名言维度</span><strong>${quoteChars.size}</strong></article>
+                    <article><span>重要字数</span><strong>${sumCharacters(activeMonthRecords.filter((record) => record.importance === 'important'))}</strong></article>
+                </section>
+                <div class="timeline-chart-grid timeline-chart-grid--overview">
+                    ${renderAuthorCharacterPie(records, '整体记录人字数占比', 'overall')}
+                    ${renderBarChart(monthTrend, { title: '月度记录字数柱形图', valueSuffix: ' 字', dataKey: 'month' })}
+                    ${renderBarChart(daySeries, { title: '每日记录字数柱形图', valueSuffix: ' 字', full: true, dataKey: 'day' })}
+                </div>
+                <div class="timeline-insight-grid">
+                    <section class="timeline-insight-card">
+                        <h3>人物相关字数</h3>
+                        <div class="timeline-chip-list">${peopleChips || '<span class="timeline-muted">暂无人物标记</span>'}</div>
+                    </section>
+                    <section class="timeline-insight-card">
+                        <h3>记录人字数</h3>
+                        <div class="timeline-chip-list">${authorChips || '<span class="timeline-muted">暂无记录人</span>'}</div>
+                    </section>
+                    <section class="timeline-insight-card">
+                        <h3>名言相关字数</h3>
+                        <div class="timeline-chip-list">${quoteChips || '<span class="timeline-muted">暂无名言标记</span>'}</div>
+                    </section>
+                </div>
+            </section>
         `;
     }
     function renderAll() {

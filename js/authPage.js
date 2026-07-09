@@ -1,6 +1,6 @@
 /************************************************************
  * authPage.js
- * 统一密钥输入页
+ * 统一邀请码输入页
  ************************************************************/
 
 (() => {
@@ -56,22 +56,22 @@
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
         if (submitting) return;
-        const key = form.querySelector('input[name="siteKey"]')?.value.trim();
-        if (!key) {
-            setError("请输入访问密钥。");
+        const code = form.querySelector('input[name="inviteCode"]')?.value.trim();
+        if (!code) {
+            setError("请输入邀请码。");
             return;
         }
-        if (typeof window.verifyAccessKey !== "function") {
+        if (typeof window.verifyInviteCode !== "function") {
             setError("验证模块尚未加载完成，请稍后重试。");
             return;
         }
 
         setError("");
         setSubmitting(true);
-        const result = await window.verifyAccessKey(key);
+        const result = await window.verifyInviteCode(code);
         setSubmitting(false);
         if (!result.ok) {
-            setError(result.message || "密钥验证失败。");
+            setError(result.message || "邀请码验证失败。");
             return;
         }
 

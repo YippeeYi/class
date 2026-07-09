@@ -127,7 +127,12 @@
             clientPromise = loadScriptOnce(SUPABASE_SDK_URL).then(() => {
                 if (!window.supabase?.createClient) throw new Error('Supabase SDK is unavailable.');
                 return window.supabase.createClient(config.url, config.anonKey, {
-                    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+                    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+                    global: {
+                        headers: {
+                            'x-class-record-access': window.getInviteAccessToken?.() || ''
+                        }
+                    }
                 });
             });
         }
