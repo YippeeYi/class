@@ -249,6 +249,50 @@ function parseInlineStack(top, bottom, kind, context) {
     return `<span class="inline-stack ${kind === "arrow" ? "record-arrow-note inline-stack--arrow" : "inline-fraction inline-stack--fraction"}" style="--arrow-note-chars:${width}"><span class="inline-stack-text inline-stack-top ${kind === "arrow" ? "record-arrow-note-text" : "fraction-top"}">${topHtml}</span><span class="${middleClass}" aria-hidden="true"></span><span class="inline-stack-text inline-stack-bottom ${kind === "arrow" ? "record-arrow-note-text" : "fraction-bottom"}">${bottomHtml}</span></span>`;
 }
 
+function getTableTextUnits(text) {
+    return Array.from(String(text || "")).reduce((sum, character) => {
+        if (/\s/.test(character)) return sum + 0.35;
+        if (/[\u0000-\u007f]/.test(character)) return sum + 0.58;
+        return sum + 1;
+    }, 0);
+}
+
+function getTableCellVisibleLength(cell, context) {
+    const visibleText = parseInlineMarkup(cell, { ...context, mode: "text" }).trim();
+    return getTableTextUnits(visibleText);
+}
+
+function getRecordTableColumnWidths(cells, rows, cols, context) {
+    const stats = Array.from({ length: cols }, () => ({
+        max: 0,
+        shortMax: 0,
+        mediumMax: 0,
+        total: 0,
+        count: 0
+    }));
+
+    for (let rowIndex = 0; rowIndex < rows; rowIndex += 1) {
+        for (let colIndex = 0; colIndex < cols; colIndex += 1) {
+            const length = getTableCellVisibleLength(cells[rowIndex * cols + colIndex] || "", context);
+            const stat = stats[colIndex];
+            stat.max = Math.max(stat.max, length);
+            stat.total += length;
+            stat.count += 1;
+            if (length > 0 && length < 5) stat.shortMax = Math.max(stat.shortMax, length);
+            if (length > 0 && length < 15) stat.mediumMax = Math.max(stat.mediumMax, length);
+        }
+    }
+
+    return stats.map((stat) => {
+        const average = stat.count ? stat.total / stat.count : 0;
+        const shortFloor = stat.shortMax ? stat.shortMax + 1.6 : 0;
+        const mediumFloor = stat.mediumMax ? Math.ceil(stat.mediumMax / 2) + 1.8 : 0;
+        const base = Math.max(3.8, shortFloor, mediumFloor, Math.min(stat.max + 1.8, 28), Math.min(average + 2.4, 18));
+        const width = Math.min(Math.max(base, 3.8), 32);
+        return Number(width.toFixed(2));
+    });
+}
+
 function renderSquareMarkup(body, raw, context) {
     const render = (value) => parseInlineMarkup(value, context);
     const asText = context.mode === "text";
@@ -295,7 +339,9 @@ function renderSquareMarkup(body, raw, context) {
             }).join("");
             return `<tr>${tds}</tr>`;
         }).join("");
-        return `<span class="record-table-scroll" role="group" aria-label="record table"><table class="record-inline-table"><tbody>${tableRows}</tbody></table></span>`;
+        const columnWidths = getRecordTableColumnWidths(cells, rows, cols, context);
+        const colgroup = `<colgroup>${columnWidths.map((width) => `<col style="width:${width}ch">`).join("")}</colgroup>`;
+        return `<span class="record-table-scroll" role="group" aria-label="record table"><table class="record-inline-table">${colgroup}<tbody>${tableRows}</tbody></table></span>`;
     }
 
     for (const type of ["person", "author", "quote", "term", "record", "material", "frac", "anno", "illu", "arrow"]) {
