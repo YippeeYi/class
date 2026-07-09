@@ -6176,7 +6176,7 @@ body.hidden-record-mode .hidden-record-banner {
 }
 
 .record-inline-table {
-  width: max-content;
+  width: min(100%, var(--record-table-width, 100%));
   max-width: 100%;
   max-inline-size: 100%;
   box-sizing: border-box;

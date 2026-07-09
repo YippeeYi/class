@@ -267,6 +267,7 @@ function getRecordTableColumnWidths(cells, rows, cols, context) {
         max: 0,
         shortMax: 0,
         mediumMax: 0,
+        longMax: 0,
         total: 0,
         count: 0
     }));
@@ -280,17 +281,28 @@ function getRecordTableColumnWidths(cells, rows, cols, context) {
             stat.count += 1;
             if (length > 0 && length < 5) stat.shortMax = Math.max(stat.shortMax, length);
             if (length > 0 && length < 15) stat.mediumMax = Math.max(stat.mediumMax, length);
+            if (length >= 15) stat.longMax = Math.max(stat.longMax, length);
         }
     }
 
-    return stats.map((stat) => {
+    const maxByColumnCount = Math.max(12, Math.min(46, 58 / Math.max(1, Math.sqrt(cols))));
+    const widths = stats.map((stat) => {
         const average = stat.count ? stat.total / stat.count : 0;
-        const shortFloor = stat.shortMax ? stat.shortMax + 1.6 : 0;
-        const mediumFloor = stat.mediumMax ? Math.ceil(stat.mediumMax / 2) + 1.8 : 0;
-        const base = Math.max(3.8, shortFloor, mediumFloor, Math.min(stat.max + 1.8, 28), Math.min(average + 2.4, 18));
-        const width = Math.min(Math.max(base, 3.8), 32);
+        const shortFloor = stat.shortMax ? stat.shortMax + 2 : 0;
+        const mediumFloor = stat.mediumMax ? Math.ceil(stat.mediumMax / 2) + 2.4 : 0;
+        const longTarget = stat.longMax ? Math.min(Math.max(Math.sqrt(stat.longMax) * 5.2, stat.longMax * 0.48), maxByColumnCount) : 0;
+        const contentTarget = stat.max <= 5
+            ? stat.max + 2
+            : stat.max < 15
+                ? Math.ceil(stat.max / 2) + 2.4
+                : longTarget;
+        const base = Math.max(4.2, shortFloor, mediumFloor, contentTarget, Math.min(average + 3, maxByColumnCount * 0.72));
+        const width = Math.min(Math.max(base, 4.2), maxByColumnCount);
         return Number(width.toFixed(2));
     });
+
+    const totalWidth = Number(widths.reduce((sum, width) => sum + width, 0).toFixed(2));
+    return { widths, totalWidth };
 }
 
 function renderSquareMarkup(body, raw, context) {
@@ -339,9 +351,9 @@ function renderSquareMarkup(body, raw, context) {
             }).join("");
             return `<tr>${tds}</tr>`;
         }).join("");
-        const columnWidths = getRecordTableColumnWidths(cells, rows, cols, context);
-        const colgroup = `<colgroup>${columnWidths.map((width) => `<col style="width:${width}ch">`).join("")}</colgroup>`;
-        return `<span class="record-table-scroll" role="group" aria-label="record table"><table class="record-inline-table">${colgroup}<tbody>${tableRows}</tbody></table></span>`;
+        const { widths, totalWidth } = getRecordTableColumnWidths(cells, rows, cols, context);
+        const colgroup = `<colgroup>${widths.map((width) => `<col style="width:${width}ch">`).join("")}</colgroup>`;
+        return `<span class="record-table-scroll" role="group" aria-label="record table"><table class="record-inline-table" style="--record-table-width:${totalWidth}ch">${colgroup}<tbody>${tableRows}</tbody></table></span>`;
     }
 
     for (const type of ["person", "author", "quote", "term", "record", "material", "frac", "anno", "illu", "arrow"]) {
