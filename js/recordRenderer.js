@@ -322,6 +322,8 @@ function getRecordTableColumnWidths(cells, rows, cols, context) {
         return {
             floor: Number(floor.toFixed(2)),
             ideal: Number(ideal.toFixed(2)),
+            max: stat.max,
+            longMax: stat.longMax,
             weight: Math.max(1, stat.longMax || stat.max || average || 1)
         };
     });
@@ -336,12 +338,12 @@ function getRecordTableColumnWidths(cells, rows, cols, context) {
         const candidates = columns
             .map((column, index) => ({ column, index, room: widths[index] - column.floor }))
             .filter((item) => item.room > 0.01)
-            .sort((a, b) => b.column.weight - a.column.weight);
+            .sort((a, b) => a.column.weight - b.column.weight);
         if (!candidates.length) break;
-        const weightTotal = candidates.reduce((sum, item) => sum + item.column.weight, 0);
+        const weightTotal = candidates.reduce((sum, item) => sum + (1 / item.column.weight), 0);
         let removed = 0;
         candidates.forEach((item) => {
-            const share = extraToRemove * (item.column.weight / weightTotal);
+            const share = extraToRemove * ((1 / item.column.weight) / weightTotal);
             const take = Math.min(item.room, share);
             widths[item.index] -= take;
             removed += take;
@@ -358,15 +360,17 @@ function getRecordTableColumnWidths(cells, rows, cols, context) {
                 .map((column, index) => ({
                     column,
                     index,
-                    room: Math.max(0, maxByColumnCount - widths[index])
+                    room: Math.max(0, maxByColumnCount - widths[index]),
+                    need: Math.max(0, column.max - widths[index])
                 }))
-                .filter((item) => item.room > 0.01)
+                .filter((item) => item.room > 0.01 && (item.need > 0.01 || item.column.longMax > 0))
                 .sort((a, b) => b.column.weight - a.column.weight);
             if (!candidates.length) break;
-            const weightTotal = candidates.reduce((sum, item) => sum + item.column.weight, 0);
+            const weightTotal = candidates.reduce((sum, item) => sum + item.column.weight * (item.need > 0 ? 1.4 : 1), 0);
             let added = 0;
             candidates.forEach((item) => {
-                const share = extraSpace * (item.column.weight / weightTotal);
+                const weighted = item.column.weight * (item.need > 0 ? 1.4 : 1);
+                const share = extraSpace * (weighted / weightTotal);
                 const add = Math.min(item.room, share);
                 widths[item.index] += add;
                 added += add;
