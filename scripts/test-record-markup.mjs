@@ -57,6 +57,7 @@ const cases = [
     ['[[table:2x3|姓名|项目|结果|张三|跳远|2.1m]]', ['record-inline-table', '<td>姓名</td>', '<td>2.1m</td>']],
     ['[[table:2x3|A||C|D|E|]]', ['record-inline-table', '<td></td>', '<td>C</td>']],
     ['[[table:1x2|[[person:a|甲]]|[[material:m|资料]]]]', ['record-inline-table', '--record-table-width:', '<colgroup>', 'person-tag', 'material-jump-link']],
+    ['[[table:1x2|短项|这是一段明显更长并且可能需要换行的表格内容，用来验证表格会尽量占满可用宽度]]', ['record-inline-table is-expanded', '--record-table-width:', '<colgroup>']],
     ['[[frac:[[del:上方文字]]|[[under:下方文字]]]]', ['inline-fraction', 'inline-delete', 'inline-underline']],
     ['[[red:包含 [[quote:quoteId|名言]] 的文字]]', ['inline-red', 'quote-tag']],
     ['[[del:[[red:红色删除文字]]]]', ['inline-delete', 'inline-red']],

@@ -257,9 +257,16 @@ function getTableTextUnits(text) {
     }, 0);
 }
 
+function getTableHanCount(text) {
+    return (String(text || "").match(/[\u4e00-\u9fff]/g) || []).length;
+}
+
 function getTableCellVisibleLength(cell, context) {
     const visibleText = parseInlineMarkup(cell, { ...context, mode: "text" }).trim();
-    return getTableTextUnits(visibleText);
+    return {
+        han: getTableHanCount(visibleText),
+        units: getTableTextUnits(visibleText)
+    };
 }
 
 function getRecordTableColumnWidths(cells, rows, cols, context) {
@@ -273,16 +280,19 @@ function getRecordTableColumnWidths(cells, rows, cols, context) {
         total: 0,
         count: 0
     }));
+    const cellMetrics = [];
 
     for (let rowIndex = 0; rowIndex < rows; rowIndex += 1) {
         for (let colIndex = 0; colIndex < cols; colIndex += 1) {
-            const length = getTableCellVisibleLength(cells[rowIndex * cols + colIndex] || "", context);
+            const metric = getTableCellVisibleLength(cells[rowIndex * cols + colIndex] || "", context);
+            const length = metric.units;
             const stat = stats[colIndex];
+            cellMetrics.push({ colIndex, ...metric });
             stat.max = Math.max(stat.max, length);
             stat.total += length;
             stat.count += 1;
-            if (length > 0 && length < 5) stat.shortMax = Math.max(stat.shortMax, length);
-            if (length > 0 && length < 15) stat.mediumMax = Math.max(stat.mediumMax, length);
+            if (metric.han > 0 && metric.han < 5) stat.shortMax = Math.max(stat.shortMax, Math.max(length, metric.han));
+            if (metric.han > 0 && metric.han < 15) stat.mediumMax = Math.max(stat.mediumMax, Math.max(length, metric.han));
             if (length >= 15) {
                 stat.longMax = Math.max(stat.longMax, length);
                 stat.longTotal += length;
@@ -296,7 +306,7 @@ function getRecordTableColumnWidths(cells, rows, cols, context) {
     const columns = stats.map((stat) => {
         const average = stat.count ? stat.total / stat.count : 0;
         const longAverage = stat.longCount ? stat.longTotal / stat.longCount : 0;
-        const shortFloor = stat.shortMax ? stat.shortMax + 2.2 : 0;
+        const shortFloor = stat.shortMax ? stat.shortMax + 2.6 : 0;
         const mediumFloor = stat.mediumMax ? Math.ceil(stat.mediumMax / 2) + 2.6 : 0;
         const longFloor = stat.longMax ? Math.min(Math.max(11, Math.sqrt(stat.longMax) * 3.7), maxByColumnCount * 0.72) : 0;
         const floor = Math.min(Math.max(4.4, shortFloor, mediumFloor, longFloor), maxByColumnCount);
@@ -340,9 +350,36 @@ function getRecordTableColumnWidths(cells, rows, cols, context) {
         extraToRemove -= removed;
     }
 
+    let shouldExpand = cellMetrics.some((metric) => metric.units > widths[metric.colIndex] + 0.35);
+    if (shouldExpand) {
+        let extraSpace = Math.max(0, tableWidthBudget - widths.reduce((sum, width) => sum + width, 0));
+        while (extraSpace > 0.01) {
+            const candidates = columns
+                .map((column, index) => ({
+                    column,
+                    index,
+                    room: Math.max(0, maxByColumnCount - widths[index])
+                }))
+                .filter((item) => item.room > 0.01)
+                .sort((a, b) => b.column.weight - a.column.weight);
+            if (!candidates.length) break;
+            const weightTotal = candidates.reduce((sum, item) => sum + item.column.weight, 0);
+            let added = 0;
+            candidates.forEach((item) => {
+                const share = extraSpace * (item.column.weight / weightTotal);
+                const add = Math.min(item.room, share);
+                widths[item.index] += add;
+                added += add;
+            });
+            if (added <= 0.01) break;
+            extraSpace -= added;
+        }
+    }
+
     widths = widths.map((width) => Number(width.toFixed(2)));
     const totalWidth = Number(widths.reduce((sum, width) => sum + width, 0).toFixed(2));
-    return { widths, totalWidth };
+    shouldExpand = shouldExpand || cellMetrics.some((metric) => metric.units > widths[metric.colIndex] + 0.35);
+    return { widths, totalWidth, shouldExpand };
 }
 
 function renderSquareMarkup(body, raw, context) {
@@ -391,9 +428,9 @@ function renderSquareMarkup(body, raw, context) {
             }).join("");
             return `<tr>${tds}</tr>`;
         }).join("");
-        const { widths, totalWidth } = getRecordTableColumnWidths(cells, rows, cols, context);
+        const { widths, totalWidth, shouldExpand } = getRecordTableColumnWidths(cells, rows, cols, context);
         const colgroup = `<colgroup>${widths.map((width) => `<col style="width:${width}ch">`).join("")}</colgroup>`;
-        return `<span class="record-table-scroll" role="group" aria-label="record table"><table class="record-inline-table" style="--record-table-width:${totalWidth}ch">${colgroup}<tbody>${tableRows}</tbody></table></span>`;
+        return `<span class="record-table-scroll" role="group" aria-label="record table"><table class="record-inline-table${shouldExpand ? " is-expanded" : ""}" style="--record-table-width:${totalWidth}ch">${colgroup}<tbody>${tableRows}</tbody></table></span>`;
     }
 
     for (const type of ["person", "author", "quote", "term", "record", "material", "frac", "anno", "illu", "arrow"]) {
