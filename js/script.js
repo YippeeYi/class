@@ -71,6 +71,10 @@ function getCurrentViewFilterRecords() {
   return currentView === "written" ? allRecords : getListViewRecords(allRecords);
 }
 
+function getRecordPageKey(record) {
+  return String(record?.page || "").trim();
+}
+
 function hasActiveRecordFilter() {
   return Boolean(
     currentCriteria.year
@@ -232,8 +236,23 @@ function getPageSupplements(page) {
   return Array.isArray(items) ? items.filter((item) => item?.content) : [];
 }
 
-function hasPageWrittenExtras(page) {
-  return Boolean(getPageMessage(page)?.content) || getPageSupplements(page).length > 0;
+function getVisiblePageMessage(page, matchedRecords = []) {
+  const message = getPageMessage(page);
+  if (!hasActiveRecordFilter()) return message;
+  const hasMatchedMessage = matchedRecords.some((record) => String(record?.recordType || "").trim() === "message");
+  return hasMatchedMessage ? message : null;
+}
+
+function getVisiblePageSupplements(page, matchedRecords = []) {
+  const supplements = getPageSupplements(page);
+  if (!hasActiveRecordFilter()) return supplements;
+  const matchedKeys = new Set(
+    matchedRecords
+      .filter((record) => String(record?.recordType || "").trim() === "supplement")
+      .map(getSupplementKey)
+  );
+  if (!matchedKeys.size) return [];
+  return supplements.filter((item) => matchedKeys.has(getSupplementKey(item)));
 }
 
 function normalizeHiddenPageKey(value) {
@@ -345,24 +364,54 @@ async function loadHiddenRecordImagePages() {
   return hiddenRecordPagesPromise;
 }
 
-function getPageRecords(page, filteredRecords) {
+function isRecordFileWithinPage(page, record) {
   const startFile = normalizeFileName(page.start).toLowerCase();
   const endFile = normalizeFileName(page.end).toLowerCase();
-  if (!startFile || !endFile) return [];
+  if (!startFile || !endFile) return false;
   const from = startFile < endFile ? startFile : endFile;
   const to = startFile < endFile ? endFile : startFile;
+  const fileName = normalizeFileName(record.fileName || record.id).toLowerCase();
+  return Boolean(fileName) && fileName >= from && fileName <= to;
+}
+
+function getPageRecords(page, filteredRecords) {
+  return filteredRecords.filter((record) => isNormalRecord(record) && isRecordFileWithinPage(page, record));
+}
+
+function getPageSupplementalMatches(page, filteredRecords) {
+  const pageKey = getPageKey(page);
+  if (!pageKey) return [];
   return filteredRecords.filter((record) => {
-    const fileName = normalizeFileName(record.fileName || record.id).toLowerCase();
-    return Boolean(fileName) && fileName >= from && fileName <= to;
+    const type = String(record?.recordType || "").trim();
+    return (type === "message" || type === "supplement") && getRecordPageKey(record) === pageKey;
   });
+}
+
+function getPageMatchedRecords(page, filteredRecords) {
+  return [
+    ...getPageRecords(page, filteredRecords),
+    ...getPageSupplementalMatches(page, filteredRecords)
+  ];
+}
+
+function getSupplementKey(item) {
+  return [
+    String(item?.id || item?.fileName || "").trim(),
+    String(item?.page || "").trim(),
+    String(item?.supplementIndex || item?.supplement_index || "").trim()
+  ].join("|");
 }
 
 function getWrittenPages(records) {
   const filtering = hasActiveRecordFilter();
   return recordPageConfig
-    .map((page) => ({ ...page, records: getPageRecords(page, records) }))
+    .map((page) => {
+      const pageRecords = getPageRecords(page, records);
+      const matchedRecords = filtering ? getPageMatchedRecords(page, records) : pageRecords;
+      return { ...page, records: pageRecords, matchedRecords };
+    })
     .filter((page) => Boolean(getPageImagePath(page, page.records)))
-    .filter((page) => !filtering || page.records.length > 0 || hasPageWrittenExtras(page));
+    .filter((page) => !filtering || page.matchedRecords.length > 0);
 }
 function getPageImagePath(page, pageRecords) {
   if (hiddenMode) return page.imagePath || "";
@@ -476,8 +525,9 @@ function renderWrittenView(records) {
   currentPageIndex = Math.max(0, Math.min(currentPageIndex, pages.length - 1));
   const page = pages[currentPageIndex];
   const pageRecords = page.records || [];
-  const pageMessage = getPageMessage(page);
-  const pageSupplements = getPageSupplements(page);
+  const pageMatchedRecords = page.matchedRecords || pageRecords;
+  const pageMessage = getVisiblePageMessage(page, pageMatchedRecords);
+  const pageSupplements = getVisiblePageSupplements(page, pageMatchedRecords);
   const pageHasExtras = Boolean(pageMessage?.content) || pageSupplements.length > 0;
   pageRecords.sort((a, b) => (a.recordIndex ?? 0) - (b.recordIndex ?? 0));
   const imagePath = getPageImagePath(page, pageRecords);
@@ -599,7 +649,7 @@ function renderWrittenView(records) {
 function renderRecordFilterForCurrentState() {
   renderRecordFilter({
     container: filterContainer,
-    getRecords: () => allRecords,
+    getRecords: getCurrentViewFilterRecords,
     initial: currentCriteria,
     onClear: clearRecordNavigationState,
     onFilterChange: criteria => {
@@ -766,6 +816,7 @@ function renderViewControls() {
     history.replaceState(null, "", `${location.pathname}${params.toString() ? `?${params}` : ""}${location.hash}`);
     currentPageIndex = 0;
     controls.querySelectorAll(".switch-btn").forEach((item) => item.classList.toggle("active", item === button));
+    renderRecordFilterForCurrentState();
     renderCurrentViewAsync();
   });
 }

@@ -81,6 +81,7 @@
   --table-row-hover-bg: linear-gradient(90deg, color-mix(in srgb, var(--theme-surface-strong) 68%, #f8e7ba) 0%, color-mix(in srgb, var(--theme-surface) 68%, #ffe9f5) 100%);
   --table-row-hover-edge: color-mix(in srgb, var(--theme-accent-strong) 28%, rgba(79, 55, 24, 0.28));
   --table-row-hover-border: color-mix(in srgb, var(--theme-accent-strong) 34%, rgba(79, 55, 24, 0.32));
+  --table-border-soft: color-mix(in srgb, var(--theme-accent-strong) 22%, transparent);
   --important-border: color-mix(in srgb, var(--theme-accent) 62%, #f095c2);
   --important-bg: linear-gradient(90deg, color-mix(in srgb, var(--theme-surface) 44%, transparent), rgba(255, 252, 246, 0.4));
   --guide-panel-bg: color-mix(in srgb, var(--theme-surface) 82%, transparent);
@@ -6167,29 +6168,35 @@ body.hidden-record-mode .hidden-record-banner {
 }
 
 .record-table-scroll {
-  display: block;
+  display: inline-block;
   max-width: 100%;
   margin: 0.45em 0;
   overflow: visible;
+  vertical-align: top;
 }
 
 .record-inline-table {
-  width: 100%;
-  table-layout: fixed;
-  border-collapse: separate;
-  border-spacing: clamp(10px, 2.6vw, 22px) 6px;
+  width: auto;
+  inline-size: fit-content;
+  max-width: 100%;
+  max-inline-size: 100%;
+  table-layout: auto;
+  border: 1px solid var(--table-border-soft);
+  border-collapse: collapse;
   color: inherit;
   font: inherit;
   line-height: inherit;
+  background: color-mix(in srgb, var(--theme-surface) 18%, transparent);
 }
 
 .record-inline-table td {
-  min-width: 4.5em;
-  padding: 0;
-  border: 0;
+  max-width: min(22rem, 58vw);
+  padding: 0.25em 0.55em;
+  border: 1px solid var(--table-border-soft);
   vertical-align: top;
   overflow-wrap: anywhere;
   word-break: break-word;
+  white-space: normal;
 }
 
 .illustration-tooltip {
@@ -6400,13 +6407,12 @@ body.hidden-record-mode .hidden-record-banner {
 }
 
 .materials-shell {
-  width: min(1240px, calc(100vw - 24px));
-  height: calc(100vh - 28px);
-  max-height: calc(100vh - 28px);
-  margin: -10px auto 0;
+  width: min(1120px, calc(100vw - 32px));
+  height: calc(100vh - 56px);
+  max-height: calc(100vh - 56px);
+  margin: 0 auto;
   display: grid;
-  grid-template-rows: max-content minmax(0, 1fr);
-  gap: 8px;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 body.materials-page {
@@ -6415,15 +6421,13 @@ body.materials-page {
 }
 
 .materials-shell h1 {
-  margin: 0 0 2px;
   margin-left: 0;
-  line-height: 1.05;
 }
 
 .materials-panel {
   display: grid;
   grid-template-columns: minmax(180px, 0.34fr) minmax(0, 1fr);
-  height: 100%;
+  height: min(680px, calc(100vh - 160px));
   min-height: 0;
   overflow: hidden;
   border: var(--panel-border);
@@ -6501,18 +6505,10 @@ body.materials-page {
 }
 
 @media (max-width: 760px) {
-  .materials-shell {
-    width: min(100%, calc(100vw - 20px));
-    height: calc(100vh - 22px);
-    max-height: calc(100vh - 22px);
-    margin-top: -8px;
-    gap: 6px;
-  }
-
   .materials-panel {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
-    height: 100%;
+    height: calc(100vh - 138px);
     min-height: 0;
   }
 

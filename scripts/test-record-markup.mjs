@@ -110,6 +110,8 @@ assert.equal(calculateTooltipPosition({ tagRects: [{ left: 20, right: 180, top: 
 assert.equal(calculateTooltipPosition({ tagRects: [{ left: 20, right: 180, top: 20, bottom: 40 }, { left: 20, right: 90, top: 120, bottom: 140 }], tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 220, pointer: { x: 65, y: 130 } }).top, 72);
 assert.equal([...fixedScale(8, 12, 3)].join(','), '12,9,6,3,0');
 assert.equal([...fixedScale(72, 100, 25)].join(','), '100,75,50,25,0');
+assert.equal([...fixedScale(1200, 3000, 750)].join(','), '3000,2250,1500,750,0');
+assert.equal([...fixedScale(640, 1000, 250)].join(','), '1000,750,500,250,0');
 assert.equal([...fixedScale(13, 12, 3)].join(','), '15,12,9,6,3,0');
 assert.equal([...fixedScale(101, 100, 25)].join(','), '125,100,75,50,25,0');
 assert.equal(
@@ -142,4 +144,4 @@ assert.equal(peopleContext.getPeopleColumnsForTest('student').map((column) => co
 assert.equal(peopleContext.getPeopleColumnsForTest('teacher').map((column) => column.label).join(','), '序号,姓名,别名,参与,学科');
 assert.equal(peopleContext.getPeopleColumnsForTest('other').map((column) => column.label).join(','), '序号,姓名,别名,参与');
 
-console.log(`Passed ${cases.length + 40} markup, people, and timeline checks.`);
+console.log(`Passed ${cases.length + 42} markup, people, and timeline checks.`);

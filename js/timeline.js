@@ -116,6 +116,18 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
         return Math.round(getRecordListMetricTotal(list) / list.length);
     }
 
+    function getMonthlyChartScaleOptions() {
+        return activeMetric === 'characters'
+            ? { fixedMax: 3000, fixedStep: 750 }
+            : { fixedMax: 100, fixedStep: 25 };
+    }
+
+    function getDailyChartScaleOptions() {
+        return activeMetric === 'characters'
+            ? { fixedMax: 1000, fixedStep: 250 }
+            : { fixedMax: 12, fixedStep: 3 };
+    }
+
     function isKnownPersonId(id) {
         return Boolean(id) && (!knownPeopleIds.size || knownPeopleIds.has(id));
     }
@@ -453,7 +465,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
             </div>
             <div class="timeline-chart-grid timeline-chart-grid--overview">
                 ${renderAuthorPie(records, `整体记录人${metricName}占比`, 'overall')}
-                ${renderBarChart(monthTrend, { title: `月度${metricName}柱形图`, valueSuffix: ` ${metricUnit}`, dataKey: 'month', fixedMax: activeMetric === 'count' ? 100 : 0, fixedStep: activeMetric === 'count' ? 25 : 0 })}
+                ${renderBarChart(monthTrend, { title: `月度${metricName}柱形图`, valueSuffix: ` ${metricUnit}`, dataKey: 'month', ...getMonthlyChartScaleOptions() })}
             </div>
         `;
     }
@@ -585,7 +597,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
                 <article><span>平均每条</span><strong>${getMetricAverage(month.records)} ${metricUnit}</strong></article>
             </section>
             <div class="timeline-chart-grid">
-                ${renderBarChart(daySeries, { title: `每日${metricName}柱形图`, valueSuffix: ` ${metricUnit}`, full: true, dataKey: 'day', fixedMax: activeMetric === 'count' ? 12 : 0, fixedStep: activeMetric === 'count' ? 3 : 0 })}
+                ${renderBarChart(daySeries, { title: `每日${metricName}柱形图`, valueSuffix: ` ${metricUnit}`, full: true, dataKey: 'day', ...getDailyChartScaleOptions() })}
             </div>
             <section class="timeline-insight-card timeline-calendar-card">
                 <header class="timeline-calendar-head">

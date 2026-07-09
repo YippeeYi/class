@@ -2,3 +2,4 @@ data/
 images/record-pages/
 .env
 node_modules/
+invite-codes-test.txt
