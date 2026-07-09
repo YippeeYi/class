@@ -291,7 +291,7 @@ function getRecordTableColumnWidths(cells, rows, cols, context) {
             stat.max = Math.max(stat.max, length);
             stat.total += length;
             stat.count += 1;
-            if (metric.han > 0 && metric.han < 5) stat.shortMax = Math.max(stat.shortMax, Math.max(length, metric.han));
+            if (metric.han > 0 && metric.han <= 10) stat.shortMax = Math.max(stat.shortMax, Math.max(length, metric.han));
             if (metric.han > 0 && metric.han < 15) stat.mediumMax = Math.max(stat.mediumMax, Math.max(length, metric.han));
             if (length >= 15) {
                 stat.longMax = Math.max(stat.longMax, length);
@@ -302,11 +302,11 @@ function getRecordTableColumnWidths(cells, rows, cols, context) {
     }
 
     const tableWidthBudget = Math.max(34, Math.min(78, 84 - cols * 2.2));
-    const maxByColumnCount = Math.max(11, Math.min(44, tableWidthBudget / Math.max(1, Math.sqrt(cols))));
+    const maxByColumnCount = Math.max(13, Math.min(44, tableWidthBudget / Math.max(1, Math.sqrt(cols))));
     const columns = stats.map((stat) => {
         const average = stat.count ? stat.total / stat.count : 0;
         const longAverage = stat.longCount ? stat.longTotal / stat.longCount : 0;
-        const shortFloor = stat.shortMax ? stat.shortMax + 2.6 : 0;
+        const shortFloor = stat.shortMax ? stat.shortMax + 3.2 : 0;
         const mediumFloor = stat.mediumMax ? Math.ceil(stat.mediumMax / 2) + 2.6 : 0;
         const longFloor = stat.longMax ? Math.min(Math.max(11, Math.sqrt(stat.longMax) * 3.7), maxByColumnCount * 0.72) : 0;
         const floor = Math.min(Math.max(4.4, shortFloor, mediumFloor, longFloor), maxByColumnCount);
@@ -352,7 +352,7 @@ function getRecordTableColumnWidths(cells, rows, cols, context) {
         extraToRemove -= removed;
     }
 
-    let shouldExpand = cellMetrics.some((metric) => metric.units > widths[metric.colIndex] + 0.35);
+    let shouldExpand = floorTotal > tableWidthBudget || cellMetrics.some((metric) => metric.units > widths[metric.colIndex] + 0.35);
     if (shouldExpand) {
         let extraSpace = Math.max(0, tableWidthBudget - widths.reduce((sum, width) => sum + width, 0));
         while (extraSpace > 0.01) {
@@ -371,7 +371,8 @@ function getRecordTableColumnWidths(cells, rows, cols, context) {
             candidates.forEach((item) => {
                 const weighted = item.column.weight * (item.need > 0 ? 1.4 : 1);
                 const share = extraSpace * (weighted / weightTotal);
-                const add = Math.min(item.room, share);
+                const room = item.column.longMax > 0 ? item.room : Math.min(item.room, item.need);
+                const add = Math.min(room, share);
                 widths[item.index] += add;
                 added += add;
             });
@@ -433,7 +434,12 @@ function renderSquareMarkup(body, raw, context) {
             return `<tr>${tds}</tr>`;
         }).join("");
         const { widths, totalWidth, shouldExpand } = getRecordTableColumnWidths(cells, rows, cols, context);
-        const colgroup = `<colgroup>${widths.map((width) => `<col style="width:${width}ch">`).join("")}</colgroup>`;
+        const colgroup = `<colgroup>${widths.map((width) => {
+            const colWidth = shouldExpand && totalWidth > 0
+                ? `${Number(((width / totalWidth) * 100).toFixed(3))}%`
+                : `${width}ch`;
+            return `<col style="width:${colWidth}">`;
+        }).join("")}</colgroup>`;
         return `<span class="record-table-scroll" role="group" aria-label="record table"><table class="record-inline-table${shouldExpand ? " is-expanded" : ""}" style="--record-table-width:${totalWidth}ch">${colgroup}<tbody>${tableRows}</tbody></table></span>`;
     }
 
