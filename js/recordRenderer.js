@@ -268,6 +268,8 @@ function getRecordTableColumnWidths(cells, rows, cols, context) {
         shortMax: 0,
         mediumMax: 0,
         longMax: 0,
+        longTotal: 0,
+        longCount: 0,
         total: 0,
         count: 0
     }));
@@ -281,26 +283,64 @@ function getRecordTableColumnWidths(cells, rows, cols, context) {
             stat.count += 1;
             if (length > 0 && length < 5) stat.shortMax = Math.max(stat.shortMax, length);
             if (length > 0 && length < 15) stat.mediumMax = Math.max(stat.mediumMax, length);
-            if (length >= 15) stat.longMax = Math.max(stat.longMax, length);
+            if (length >= 15) {
+                stat.longMax = Math.max(stat.longMax, length);
+                stat.longTotal += length;
+                stat.longCount += 1;
+            }
         }
     }
 
-    const maxByColumnCount = Math.max(12, Math.min(46, 58 / Math.max(1, Math.sqrt(cols))));
-    const widths = stats.map((stat) => {
+    const tableWidthBudget = Math.max(34, Math.min(78, 84 - cols * 2.2));
+    const maxByColumnCount = Math.max(11, Math.min(44, tableWidthBudget / Math.max(1, Math.sqrt(cols))));
+    const columns = stats.map((stat) => {
         const average = stat.count ? stat.total / stat.count : 0;
-        const shortFloor = stat.shortMax ? stat.shortMax + 2 : 0;
-        const mediumFloor = stat.mediumMax ? Math.ceil(stat.mediumMax / 2) + 2.4 : 0;
-        const longTarget = stat.longMax ? Math.min(Math.max(Math.sqrt(stat.longMax) * 5.2, stat.longMax * 0.48), maxByColumnCount) : 0;
+        const longAverage = stat.longCount ? stat.longTotal / stat.longCount : 0;
+        const shortFloor = stat.shortMax ? stat.shortMax + 2.2 : 0;
+        const mediumFloor = stat.mediumMax ? Math.ceil(stat.mediumMax / 2) + 2.6 : 0;
+        const longFloor = stat.longMax ? Math.min(Math.max(11, Math.sqrt(stat.longMax) * 3.7), maxByColumnCount * 0.72) : 0;
+        const floor = Math.min(Math.max(4.4, shortFloor, mediumFloor, longFloor), maxByColumnCount);
+        const longTarget = stat.longMax
+            ? Math.min(Math.max(longAverage * 0.62, stat.longMax * 0.52, Math.sqrt(stat.longMax) * 5.7), maxByColumnCount)
+            : 0;
         const contentTarget = stat.max <= 5
-            ? stat.max + 2
+            ? stat.max + 2.2
             : stat.max < 15
-                ? Math.ceil(stat.max / 2) + 2.4
+                ? stat.max + 2.2
                 : longTarget;
-        const base = Math.max(4.2, shortFloor, mediumFloor, contentTarget, Math.min(average + 3, maxByColumnCount * 0.72));
-        const width = Math.min(Math.max(base, 4.2), maxByColumnCount);
-        return Number(width.toFixed(2));
+        const ideal = Math.min(Math.max(floor, contentTarget, Math.min(average + 3.2, maxByColumnCount * 0.76)), maxByColumnCount);
+        return {
+            floor: Number(floor.toFixed(2)),
+            ideal: Number(ideal.toFixed(2)),
+            weight: Math.max(1, stat.longMax || stat.max || average || 1)
+        };
     });
 
+    const idealTotal = columns.reduce((sum, column) => sum + column.ideal, 0);
+    const floorTotal = columns.reduce((sum, column) => sum + column.floor, 0);
+    const targetTotal = Math.max(floorTotal, Math.min(idealTotal, tableWidthBudget));
+    let extraToRemove = Math.max(0, idealTotal - targetTotal);
+    let widths = columns.map((column) => column.ideal);
+
+    while (extraToRemove > 0.01) {
+        const candidates = columns
+            .map((column, index) => ({ column, index, room: widths[index] - column.floor }))
+            .filter((item) => item.room > 0.01)
+            .sort((a, b) => b.column.weight - a.column.weight);
+        if (!candidates.length) break;
+        const weightTotal = candidates.reduce((sum, item) => sum + item.column.weight, 0);
+        let removed = 0;
+        candidates.forEach((item) => {
+            const share = extraToRemove * (item.column.weight / weightTotal);
+            const take = Math.min(item.room, share);
+            widths[item.index] -= take;
+            removed += take;
+        });
+        if (removed <= 0.01) break;
+        extraToRemove -= removed;
+    }
+
+    widths = widths.map((width) => Number(width.toFixed(2)));
     const totalWidth = Number(widths.reduce((sum, width) => sum + width, 0).toFixed(2));
     return { widths, totalWidth };
 }
