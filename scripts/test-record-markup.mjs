@@ -97,6 +97,10 @@ assert.equal([...extractQuotes('[[quote:t1|名言]][[del:{{t2|旧名言}}]][[ann
 assert.equal(extractQuotes('普通文本 t1；[[person:t2|不是名言]][[record:t3|不是名言]]').length, 0);
 assert.equal(countTextCharacters('甲[[person:a|乙]][[red:丙]]'), 3);
 assert.equal(countTextCharacters('[[material:m|资料]][[table:1x2|甲|乙]]'), 4);
+assert.equal(countTextCharacters('\u7532\uff0cA 1\u2460\u2461\u3002!'), 5);
+assert.equal(countTextCharacters('[[illu:example.png|\u56feA-1!]]'), 3);
+assert.equal(countTextCharacters('[[illu:example.png]]'), 0);
+assert.equal(countTextCharacters('[[table:1x2|\u7532\uff0cA|\u2460-9!]]'), 4);
 assert.equal(extractIllustrations('[[illu:example.jpeg|插图]]').join(','), 'data/attachments/example.jpeg');
 assert.equal(calculateTooltipPosition({ tagRect: { left: 20, top: 40, right: 120, bottom: 80, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 150, y: 60 } }).top, 88);
 assert.equal(calculateTooltipPosition({ tagRect: { left: 20, top: 120, right: 120, bottom: 140, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 150, y: 130 } }).top, 72);

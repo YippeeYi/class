@@ -59,6 +59,18 @@ function getFilteredRecords() {
   return filtered;
 }
 
+function isNormalRecord(record) {
+  return !["message", "supplement"].includes(String(record?.recordType || "").trim());
+}
+
+function getListViewRecords(records) {
+  return (Array.isArray(records) ? records : []).filter(isNormalRecord);
+}
+
+function getCurrentViewFilterRecords() {
+  return currentView === "written" ? allRecords : getListViewRecords(allRecords);
+}
+
 function hasActiveRecordFilter() {
   return Boolean(
     currentCriteria.year
@@ -730,7 +742,7 @@ function renderCurrentView() {
   if (currentView === "written") {
     renderWrittenView(records);
   } else {
-    renderRecordList(records, container);
+    renderRecordList(getListViewRecords(records), container);
   }
 }
 
@@ -835,7 +847,7 @@ async function enterHiddenRecordMode() {
     renderViewControls();
     renderRecordFilter({
       container: filterContainer,
-      getRecords: () => allRecords,
+      getRecords: getCurrentViewFilterRecords,
       initial: currentCriteria,
       onClear: clearRecordNavigationState,
       onFilterChange: criteria => {
@@ -905,7 +917,7 @@ cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
 
     renderRecordFilter({
       container: filterContainer,
-      getRecords: () => allRecords,
+      getRecords: getCurrentViewFilterRecords,
       initial: currentCriteria,
       onClear: clearRecordNavigationState,
       onFilterChange: criteria => {

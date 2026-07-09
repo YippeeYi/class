@@ -302,7 +302,7 @@ function renderSquareMarkup(body, raw, context) {
         const prefix = `${type}:`;
         if (!body.startsWith(prefix)) continue;
         const parts = splitTopLevelOnce(body.slice(prefix.length));
-        if (!parts || !parts[0] || !parts[1]) return asText ? raw : escapeRecordText(raw);
+        if (!parts || !parts[0] || !parts[1]) return asText && type === "illu" ? "" : asText ? raw : escapeRecordText(raw);
         const [first, second] = parts;
         if (type === "person" || type === "author") {
             if (!/^[a-zA-Z0-9_-]+$/.test(first)) return asText ? raw : escapeRecordText(raw);
@@ -428,7 +428,7 @@ function stripRecordMarkup(text) {
 }
 
 function countRecordTextCharacters(text) {
-    return Array.from(stripRecordMarkup(text)).length;
+    return (stripRecordMarkup(text).match(/[\u4e00-\u9fffA-Za-z0-9\u2460-\u2473\u3251-\u325f\u32b1-\u32bf]/g) || []).length;
 }
 
 window.stripRecordMarkup = stripRecordMarkup;
@@ -1563,6 +1563,7 @@ illustrationTooltipController = createInlineTooltipController({
             image.decoding = "async";
             image.width = readyImage.width;
             image.height = readyImage.height;
+            image.dataset.previewSrc = sourcePath;
             image.src = readyImage.url;
             setIllustrationFrameSize(tooltip, image, readyImage.width, readyImage.height);
             image.addEventListener("error", () => {
@@ -1577,6 +1578,7 @@ illustrationTooltipController = createInlineTooltipController({
         image.alt = tag.textContent?.trim() || "记录插图";
         image.decoding = "async";
         image.fetchPriority = "high";
+        image.dataset.previewSrc = sourcePath;
         let placeholderShown = false;
         let dimensionFrame = null;
         const sourceDimensions = getIllustrationSourceDimensions(sourcePath);
@@ -1645,14 +1647,26 @@ illustrationTooltipController = createInlineTooltipController({
 });
 
 document.addEventListener("click", (event) => {
+    const tooltipImage = event.target.closest(".illustration-tooltip img[data-preview-src]");
+    if (tooltipImage && typeof window.ClassRecordImageViewer?.open === "function") {
+        event.preventDefault();
+        event.stopPropagation();
+        illustrationTooltipController.hide(true);
+        annotationTooltipController.hide(true);
+        window.ClassRecordImageViewer.open(tooltipImage.dataset.previewSrc, {
+            alt: tooltipImage.alt || "record illustration"
+        });
+        return;
+    }
+
     const illustration = event.target.closest(".inline-illustration");
     if (illustration) {
-        if (event.target.closest(".record-written-view")) {
-            const src = String(illustration.dataset.imageSrc || "").trim();
-            if (src && typeof window.ClassRecordImageViewer?.open === "function") {
-                event.preventDefault();
-                window.ClassRecordImageViewer.open(src, { alt: illustration.textContent?.trim() || "record illustration" });
-            }
+        const src = String(illustration.dataset.imageSrc || "").trim();
+        if (src && typeof window.ClassRecordImageViewer?.open === "function") {
+            event.preventDefault();
+            illustrationTooltipController.hide(true);
+            annotationTooltipController.hide(true);
+            window.ClassRecordImageViewer.open(src, { alt: illustration.textContent?.trim() || "record illustration" });
             return;
         }
         event.preventDefault();
