@@ -437,10 +437,10 @@ function renderSquareMarkup(body, raw, context) {
         const colgroup = `<colgroup>${widths.map((width) => {
             const colWidth = shouldExpand && totalWidth > 0
                 ? `${Number(((width / totalWidth) * 100).toFixed(3))}%`
-                : `${width}ch`;
+                : `${width}em`;
             return `<col style="width:${colWidth}">`;
         }).join("")}</colgroup>`;
-        return `<span class="record-table-scroll" role="group" aria-label="record table"><table class="record-inline-table${shouldExpand ? " is-expanded" : ""}" style="--record-table-width:${totalWidth}ch">${colgroup}<tbody>${tableRows}</tbody></table></span>`;
+        return `<span class="record-table-scroll" role="group" aria-label="record table"><table class="record-inline-table${shouldExpand ? " is-expanded" : ""}" style="--record-table-width:${totalWidth}em">${colgroup}<tbody>${tableRows}</tbody></table></span>`;
     }
 
     for (const type of ["person", "author", "quote", "term", "record", "material", "frac", "anno", "illu", "arrow"]) {
