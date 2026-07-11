@@ -79,6 +79,9 @@ function prewarmImageMetadata() {
             const people = typeof window.loadAllPeople === 'function' ? await window.loadAllPeople() : [];
             const quotes = typeof window.loadAllQuotes === 'function' ? await window.loadAllQuotes({ records }) : [];
             const materials = typeof window.loadAllMaterials === 'function' ? await window.loadAllMaterials() : [];
+            const creditsPage = typeof window.ClassRecordData?.loadCreditsPage === 'function'
+                ? await window.ClassRecordData.loadCreditsPage().catch(() => null)
+                : null;
             const pageMessages = typeof window.ClassRecordData?.loadPageMessages === 'function'
                 ? await window.ClassRecordData.loadPageMessages().catch(() => [])
                 : [];
@@ -93,6 +96,7 @@ function prewarmImageMetadata() {
                 people,
                 quotes,
                 materials,
+                creditsPage,
                 pageMessages,
                 pageSupplements,
                 recordPages

@@ -150,7 +150,13 @@
     };
 
     const warmCoreData = () => {
-        [window.loadAllRecords, window.loadAllPeople, window.loadAllQuotes, window.loadAllMaterials]
+        [
+            window.loadAllRecords,
+            window.loadAllPeople,
+            window.loadAllQuotes,
+            window.loadAllMaterials,
+            () => window.ClassRecordData?.loadCreditsPage?.()
+        ]
             .filter(Boolean)
             .forEach((loader) => Promise.resolve(loader()).catch(() => {}));
     };

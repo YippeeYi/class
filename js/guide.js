@@ -150,6 +150,9 @@
             window.setTimeout(async () => {
                 try {
                     const materials = typeof window.loadAllMaterials === 'function' ? await window.loadAllMaterials().catch(() => []) : [];
+                    const creditsPage = typeof window.ClassRecordData?.loadCreditsPage === 'function'
+                        ? await window.ClassRecordData.loadCreditsPage().catch(() => null)
+                        : null;
                     const pageMessages = typeof window.ClassRecordData?.loadPageMessages === 'function'
                         ? await window.ClassRecordData.loadPageMessages().catch(() => [])
                         : [];
@@ -164,6 +167,7 @@
                         people: valueOrEmpty(peopleResult),
                         quotes: valueOrEmpty(quotesResult),
                         materials,
+                        creditsPage,
                         pageMessages,
                         pageSupplements,
                         recordPages
