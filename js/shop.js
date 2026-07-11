@@ -15,7 +15,7 @@
 
     function stripHtml(text) {
         const wrap = document.createElement("div");
-        wrap.innerHTML = String(text || "");
+        wrap.textContent = String(text || "");
         return wrap.textContent || wrap.innerText || "";
     }
 

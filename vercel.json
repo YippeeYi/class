@@ -5,7 +5,11 @@
       "destination": "/404.html"
     },
     {
-      "source": "/images/(.*)",
+      "source": "/images/record-pages/(.*)",
+      "destination": "/404.html"
+    },
+    {
+      "source": "/images/private/(.*)",
       "destination": "/404.html"
     }
   ]

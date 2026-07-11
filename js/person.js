@@ -1,11 +1,6 @@
 const params = new URLSearchParams(location.search);
 const personId = params.get("id");
 
-if (!personId) {
-    alert("Missing person id.");
-    throw new Error("personId missing");
-}
-
 const recordContainer = document.getElementById("record-list");
 const filterContainer = document.getElementById("record-filter");
 const switchContainer = document.querySelector(".record-switch");
@@ -63,8 +58,16 @@ async function renderPersonAvatar(person) {
     if (!src) return;
     const card = document.createElement("div");
     card.className = "person-avatar-card";
-    card.innerHTML = `<img src="${escapeHtml(src)}" alt="${escapeHtml(person.name || person.id)}" width="192" height="192" loading="eager" decoding="async" fetchpriority="high">`;
-    card.querySelector("img")?.addEventListener("error", () => {
+    const image = document.createElement("img");
+    image.src = src;
+    image.alt = stripRecordMarkup(person.name || person.id || "");
+    image.width = 192;
+    image.height = 192;
+    image.loading = "eager";
+    image.decoding = "async";
+    image.fetchPriority = "high";
+    card.appendChild(image);
+    image.addEventListener("error", () => {
         card.remove();
         info.classList.remove("has-person-avatar");
     }, { once: true });
@@ -75,9 +78,13 @@ async function renderPersonAvatar(person) {
 const cacheReady = window.cacheReadyPromise || Promise.resolve();
 
 cacheReady.then(() => Promise.all([loadAllPeople({ force: true }), loadAllRecords()])).then(([people, records]) => {
+    if (!personId) {
+        recordContainer.innerHTML = '<div class="record-empty"><strong>人物参数缺失。</strong><span>请从人物名单页重新打开。</span></div>';
+        return;
+    }
     const person = people.find((item) => item.id === personId);
     if (!person) {
-        alert("Person not found.");
+        recordContainer.innerHTML = '<div class="record-empty"><strong>没有找到这个人物。</strong><span>请检查链接或从人物名单页重新打开。</span></div>';
         return;
     }
 
@@ -102,7 +109,7 @@ cacheReady.then(() => Promise.all([loadAllPeople({ force: true }), loadAllRecord
     renderRecordList(participatedRecords, recordContainer);
     renderFilterUI();
 }).catch((error) => {
-    console.error("Person page load failed:", error);
+    console.warn("Person page load failed:", error);
     recordContainer.innerHTML = `<div class="record-empty"><strong>页面加载失败。</strong><span>${escapeHtml(error?.message || "")}</span></div>`;
 });
 

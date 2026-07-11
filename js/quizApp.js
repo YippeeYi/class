@@ -697,7 +697,7 @@
       });
       return questions;
     } catch (error) {
-      console.error('Hidden lamian questions failed to load from Supabase:', error);
+      console.warn('Hidden lamian questions failed to load from Supabase:', error);
       return [];
     }
   }

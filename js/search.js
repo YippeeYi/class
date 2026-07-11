@@ -29,6 +29,8 @@
             .replace(/'/g, "&#39;");
     }
 
+    const escapeAttribute = escapeHtml;
+
     function normalize(text) {
         return stripRecordMarkup(String(text || ""))
             .replace(/\s+/g, " ")
@@ -208,8 +210,8 @@
                 <h2>${typeLabels[group.type]} <span>${group.items.length}</span></h2>
                 <div class="search-result-list">
                     ${group.items.map((item) => `
-                        <article class="search-result-card" data-href="${item.href}">
-                            <div class="search-result-type">${typeLabels[item.type]}</div>
+                        <article class="search-result-card" data-href="${escapeAttribute(item.href || "")}">
+                            <div class="search-result-type">${escapeHtml(typeLabels[item.type])}</div>
                             <h3>${item.richTitle || escapeHtml(item.title)}</h3>
                             <p class="search-result-meta">${escapeHtml(item.meta || item.id || "")}</p>
                             <p class="search-result-snippet">${makeSnippet(item.text, query)}</p>

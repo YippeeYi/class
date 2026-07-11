@@ -134,7 +134,7 @@ function renderPeopleSection(role, { initial = false } = {}) {
         </thead>
         <tbody>
           ${list.map((p, i) => `
-            <tr data-id="${p.id}" class="${role === "teacher" && p.main === true ? "people-row-main-teacher" : ""}">
+            <tr data-id="${escapeRecordAttribute(p.id)}" class="${role === "teacher" && p.main === true ? "people-row-main-teacher" : ""}">
               ${columns.map((column) => `<td>${column.render(p, i)}</td>`).join("")}
             </tr>
           `).join("")}
@@ -172,7 +172,7 @@ function bindRoleSortDropdowns(section) {
 function bindRowClick(section) {
     section.querySelectorAll(".people-table tbody tr").forEach(tr => {
         tr.onclick = () => {
-            const href = `person.html?id=${tr.dataset.id}`;
+            const href = `person.html?id=${encodeURIComponent(tr.dataset.id || "")}`;
             if (typeof window.navigateTo === 'function') {
                 window.navigateTo(href);
             } else {

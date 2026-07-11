@@ -1,5 +1,12 @@
 data/
 images/record-pages/
 .env
+.env.*
+!.env.example
 node_modules/
-invite-codes-test.txt
+invite-codes*.txt
+dist/
+build/
+.vercel/
+.netlify/
+*.log

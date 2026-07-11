@@ -218,6 +218,53 @@ function extractIllustrationPaths(value) {
     return extractRecordMarkupReferences(value).illustrationPaths;
 }
 
+function extractQuoteMarkers(value) {
+    const markers = [];
+    const visit = (input, depth = 0) => {
+        if (depth > 32) return;
+        const source = String(input || "");
+        for (let index = 0; index < source.length;) {
+            if (!isEscapedMarkupCharacter(source, index) && source.startsWith("{{", index)) {
+                const end = source.indexOf("}}", index + 2);
+                if (end >= 0) {
+                    const parts = splitTopLevelOnce(source.slice(index + 2, end));
+                    if (parts && /^[a-zA-Z0-9_-]+$/.test(parts[0]) && parts[1]) {
+                        markers.push({ id: parts[0], quote: parts[1] });
+                        visit(parts[1], depth + 1);
+                        index = end + 2;
+                        continue;
+                    }
+                }
+            }
+            if (isEscapedMarkupCharacter(source, index) || !source.startsWith("[[", index)) {
+                index += 1;
+                continue;
+            }
+            const end = findBalancedSquareEnd(source, index);
+            if (end < 0) {
+                index += 2;
+                continue;
+            }
+            const body = source.slice(index + 2, end - 2);
+            const colon = body.indexOf(":");
+            const type = colon > 0 ? body.slice(0, colon) : "";
+            const content = colon > 0 ? body.slice(colon + 1) : body;
+            if (type === "quote" || type === "term") {
+                const parts = splitTopLevelOnce(content);
+                if (parts && /^[a-zA-Z0-9_-]+$/.test(parts[0]) && parts[1]) {
+                    markers.push({ id: parts[0], quote: parts[1] });
+                    visit(parts[1], depth + 1);
+                }
+            } else {
+                visit(content, depth + 1);
+            }
+            index = end;
+        }
+    };
+    visit(value);
+    return markers;
+}
+
 function getRecordParticipantIds(record) {
     return extractParticipantPersonIds(record?.content || "");
 }
@@ -234,6 +281,7 @@ window.extractParticipantPersonIds = extractParticipantPersonIds;
 window.extractMentionedPersonIds = extractParticipantPersonIds;
 window.extractExtraAuthorIds = extractExtraAuthorIds;
 window.extractMentionedQuoteIds = extractMentionedQuoteIds;
+window.extractQuoteMarkers = extractQuoteMarkers;
 // Transitional compatibility for legacy integrations; new code uses quotes.
 window.extractMentionedTermIds = extractMentionedQuoteIds;
 window.extractIllustrationPaths = extractIllustrationPaths;
