@@ -44,7 +44,7 @@
         if (!items?.length) return '';
         return `
             <article class="credits-card credits-card--original-images">
-                <h2>原始图片</h2>
+                <h2>附件</h2>
                 <div class="credits-original-list">
                     ${items.map((item) => `
                         <section class="credits-original-item">
