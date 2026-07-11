@@ -1,14 +1,6 @@
 (() => {
-    const CREDITS = {
-        groups: [
-            { title: '书面记录', members: ['总主编：[[shr|吞噬细胞]]', '主编：[[zzk|Johnson]],[[qyc|qyc]],[[sjy|冰球王子]],[[zlpa|四字]],[[ljy|栗笋]],[[wy|wy]],[[hxw|氦星人]],[[dfy|CRAFT]],[[sry|孔亚峰主人（狗💩）]]', '吉祥物：[[lxc|lxc（刘乐乐）]]'] },
-            { title: '网站制作', members: ['制作：[[dfy|CRAFT]]', '内容编写：[[dfy|CRAFT]],[[zzk|Johnson]]'] }
-        ],
-        thanks: [
-            '感谢[[shr|吞噬细胞]],[[zzk|Johnson]],[[sjy|冰球王子]],[[zlpa|四字]]对史实校准的大力支持。',
-            '[[dfy|我]]谨代表编日史制作组向每一位为编日史制作提供帮助的同学表达衷心的感谢！'
-        ]
-    };
+    const root = document.getElementById('credits-content');
+    if (!root) return;
 
     const escapeHtml = (value) => String(value || '')
         .replace(/&/g, '&amp;')
@@ -19,33 +11,101 @@
 
     const renderContent = (value) => {
         const text = String(value || '');
-
-        if (typeof window.parseContent === 'function') {
-            return window.parseContent(text);
-        }
-
-        if (typeof parseContent === 'function') {
-            return parseContent(text);
-        }
-
+        if (typeof window.parseContent === 'function') return window.parseContent(text);
+        if (typeof parseContent === 'function') return parseContent(text);
         return escapeHtml(text);
     };
 
-    const root = document.getElementById('credits-content');
-    if (!root) return;
+    const renderStatus = (title, detail = '') => {
+        root.innerHTML = `
+            <div class="credits-status" role="status">
+                <strong>${escapeHtml(title)}</strong>
+                ${detail ? `<span>${escapeHtml(detail)}</span>` : ''}
+            </div>
+        `;
+    };
 
-    root.innerHTML = `
-        <div class="credits-grid">
-            ${CREDITS.groups.map((group) => `
-                <article class="credits-card">
-                    <h2>${escapeHtml(group.title)}</h2>
-                    <ul>${group.members.map((member) => `<li>${renderContent(member)}</li>`).join('')}</ul>
-                </article>
-            `).join('')}
-            <article class="credits-card credits-card--thanks">
-                <h2>致谢</h2>
-                ${CREDITS.thanks.map((item) => `<p>${renderContent(item)}</p>`).join('')}
+    const renderTextItems = (items, tagName = 'p') => {
+        return (items || [])
+            .map((item) => `<${tagName}>${renderContent(item)}</${tagName}>`)
+            .join('');
+    };
+
+    const renderSections = (sections) => {
+        return (sections || []).map((section) => `
+            <article class="credits-card">
+                ${section.title ? `<h2>${escapeHtml(section.title)}</h2>` : ''}
+                ${section.members?.length ? `<ul>${renderTextItems(section.members, 'li')}</ul>` : ''}
             </article>
-        </div>
-    `;
+        `).join('');
+    };
+
+    const renderOriginalImages = (items) => {
+        if (!items?.length) return '';
+        return `
+            <article class="credits-card credits-card--original-images">
+                <h2>原始图片</h2>
+                <div class="credits-original-list">
+                    ${items.map((item) => `
+                        <section class="credits-original-item">
+                            ${item.title ? `<h3>${escapeHtml(item.title)}</h3>` : ''}
+                            ${item.content ? `<p>${renderContent(item.content)}</p>` : ''}
+                        </section>
+                    `).join('')}
+                </div>
+            </article>
+        `;
+    };
+
+    const renderCredits = (page) => {
+        const sections = page?.sections || [];
+        const thanks = page?.thanks || [];
+        const originalImages = page?.originalImages || [];
+        if (!sections.length && !thanks.length && !originalImages.length) {
+            renderStatus('暂无可展示内容', '请检查 Supabase 中的制作组与致谢页面数据。');
+            return;
+        }
+
+        const title = String(page?.title || '').trim();
+        if (title) {
+            document.title = title;
+            const heading = document.querySelector('.credits-head h1');
+            if (heading) heading.textContent = title;
+        }
+
+        root.innerHTML = `
+            <div class="credits-grid">
+                ${renderSections(sections)}
+                ${thanks.length ? `
+                    <article class="credits-card credits-card--thanks">
+                        <h2>致谢</h2>
+                        ${renderTextItems(thanks)}
+                    </article>
+                ` : ''}
+                ${renderOriginalImages(originalImages)}
+            </div>
+        `;
+    };
+
+    const loadCredits = async () => {
+        renderStatus('正在加载制作组与致谢内容...');
+        try {
+            await window.waitForAccess?.();
+            if (!window.ClassRecordData?.isEnabled?.() || typeof window.ClassRecordData.loadCreditsPage !== 'function') {
+                throw new Error('Supabase credits page loader is unavailable.');
+            }
+            if (typeof window.loadAllPeople === 'function') {
+                await window.loadAllPeople().catch((error) => {
+                    console.warn('People data failed to load for credits markup:', error);
+                });
+            }
+            const page = await window.ClassRecordData.loadCreditsPage();
+            renderCredits(page);
+        } catch (error) {
+            console.warn('Credits page failed to load:', error);
+            renderStatus('制作组与致谢内容加载失败', '请稍后重试，或检查访问权限与 Supabase 配置。');
+        }
+    };
+
+    loadCredits();
 })();

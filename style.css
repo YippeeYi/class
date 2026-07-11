@@ -5855,13 +5855,58 @@ body.hidden-record-mode .hidden-record-banner {
   padding-left: 1.2em;
 }
 
+.credits-status {
+  display: grid;
+  gap: 6px;
+  padding: 18px 20px;
+  border: var(--panel-border);
+  border-color: var(--theme-border-color);
+  border-radius: 18px;
+  color: var(--text-main);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-soft);
+}
+
+.credits-status span {
+  color: var(--text-subtle);
+}
+
 .credits-card--thanks {
   grid-column: 1 / -1;
   display: grid;
   gap: 8px;
 }
 
+.credits-card--original-images {
+  grid-column: 1 / -1;
+}
+
+.credits-original-list {
+  display: grid;
+  gap: 12px;
+}
+
+.credits-original-item {
+  display: grid;
+  gap: 6px;
+}
+
+.credits-original-item h3 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 1rem;
+}
+
 @media (max-width: 640px) {
+  .credits-shell {
+    width: min(100% - 20px, 960px);
+    margin-top: 68px;
+  }
+
+  .credits-grid {
+    grid-template-columns: 1fr;
+  }
+
   .person-avatar-card {
     width: 108px;
   }

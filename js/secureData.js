@@ -9,6 +9,7 @@
     const recordPagePromises = new Map();
     const pageSupplementPromises = new Map();
     let pageMessagesPromise = null;
+    let creditsPagePromise = null;
     let materialsPromise = null;
     const assetListPromises = new Map();
     const signedUrlCache = new Map();
@@ -110,6 +111,7 @@
                 pageSupplements: 'class_page_supplements',
                 materials: 'class_materials',
                 quizQuestions: 'class_quiz_questions',
+                creditsPage: 'class_credits_page',
                 ...(config.tables || {})
             }
         };
@@ -307,6 +309,92 @@
                 });
         }
         return materialsPromise;
+    };
+
+    const normalizeTextList = (value) => {
+        if (Array.isArray(value)) {
+            return value
+                .map((item) => {
+                    if (typeof item === 'string') return item;
+                    if (item && typeof item === 'object') return item.content || item.text || item.label || '';
+                    return '';
+                })
+                .map((item) => String(item || '').trim())
+                .filter(Boolean);
+        }
+        const text = String(value || '').trim();
+        return text ? [text] : [];
+    };
+
+    const normalizeCreditSections = (value) => {
+        const list = Array.isArray(value) ? value : [];
+        return list.map((section, index) => {
+            if (typeof section === 'string') {
+                return {
+                    id: `section-${index + 1}`,
+                    title: '',
+                    members: [section]
+                };
+            }
+            const item = section && typeof section === 'object' ? section : {};
+            return {
+                id: String(item.id || `section-${index + 1}`),
+                title: String(item.title || item.name || '').trim(),
+                members: normalizeTextList(item.members || item.items || item.content || item.text)
+            };
+        }).filter((section) => section.title || section.members.length);
+    };
+
+    const normalizeOriginalImages = (value) => {
+        const list = Array.isArray(value) ? value : [];
+        return list.map((item, index) => {
+            if (typeof item === 'string') {
+                return {
+                    id: `image-${index + 1}`,
+                    title: '',
+                    content: item
+                };
+            }
+            const image = item && typeof item === 'object' ? item : {};
+            return {
+                id: String(image.id || `image-${index + 1}`),
+                title: String(image.title || image.name || '').trim(),
+                content: String(image.content || image.text || image.description || '').trim()
+            };
+        }).filter((item) => item.title || item.content);
+    };
+
+    const loadCreditsPage = async () => {
+        const config = await getConfig();
+        if (!creditsPagePromise) {
+            creditsPagePromise = selectAll(config.tables.creditsPage, '*', null, { id: 'main' })
+                .then((rows) => {
+                    const row = rows[0];
+                    if (!row) return null;
+                    const raw = parseRaw(row);
+                    const source = {
+                        ...raw,
+                        title: row.title ?? raw.title,
+                        sections: row.sections ?? raw.sections,
+                        thanks: row.thanks ?? raw.thanks,
+                        originalImages: row.original_images ?? raw.originalImages ?? raw.original_images,
+                        updatedAt: row.updated_at ?? raw.updatedAt ?? raw.updated_at
+                    };
+                    return {
+                        id: row.id || raw.id || 'main',
+                        title: String(source.title || '').trim(),
+                        sections: normalizeCreditSections(source.sections),
+                        thanks: normalizeTextList(source.thanks),
+                        originalImages: normalizeOriginalImages(source.originalImages),
+                        updatedAt: source.updatedAt || ''
+                    };
+                })
+                .catch((error) => {
+                    creditsPagePromise = null;
+                    throw error;
+                });
+        }
+        return creditsPagePromise;
     };
 
     const loadRecordPages = async ({ hidden = false } = {}) => {
@@ -584,6 +672,7 @@
         pageSupplementPromises.clear();
         pageMessagesPromise = null;
         materialsPromise = null;
+        creditsPagePromise = null;
         assetListPromises.clear();
         signedUrlCache.clear();
         failedSignCache.clear();
@@ -597,6 +686,7 @@
         getConfig,
         getPreloadedAsset,
         isEnabled,
+        loadCreditsPage,
         loadMaterials,
         loadPageSupplements,
         loadPeople,

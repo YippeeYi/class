@@ -283,6 +283,20 @@ create table if not exists public.class_quiz_questions (
     raw jsonb not null default '{}'::jsonb
 );
 
+create table if not exists public.class_credits_page (
+    id text primary key default 'main',
+    title text not null default '制作组与致谢',
+    sections jsonb not null default '[]'::jsonb,
+    thanks jsonb not null default '[]'::jsonb,
+    original_images jsonb not null default '[]'::jsonb,
+    updated_at timestamptz not null default now(),
+    raw jsonb not null default '{}'::jsonb,
+    constraint class_credits_page_id_check check (id = 'main'),
+    constraint class_credits_page_sections_array check (jsonb_typeof(sections) = 'array'),
+    constraint class_credits_page_thanks_array check (jsonb_typeof(thanks) = 'array'),
+    constraint class_credits_page_original_images_array check (jsonb_typeof(original_images) = 'array')
+);
+
 alter table public.class_records enable row level security;
 alter table public.class_people enable row level security;
 alter table public.class_record_pages enable row level security;
@@ -290,6 +304,7 @@ alter table public.class_page_messages enable row level security;
 alter table public.class_page_supplements enable row level security;
 alter table public.class_materials enable row level security;
 alter table public.class_quiz_questions enable row level security;
+alter table public.class_credits_page enable row level security;
 
 drop policy if exists "class_records_read" on public.class_records;
 create policy "class_records_read"
@@ -330,6 +345,12 @@ using (public.has_class_record_access());
 drop policy if exists "class_quiz_questions_read" on public.class_quiz_questions;
 create policy "class_quiz_questions_read"
 on public.class_quiz_questions for select
+to anon, authenticated
+using (public.has_class_record_access());
+
+drop policy if exists "class_credits_page_read" on public.class_credits_page;
+create policy "class_credits_page_read"
+on public.class_credits_page for select
 to anon, authenticated
 using (public.has_class_record_access());
 

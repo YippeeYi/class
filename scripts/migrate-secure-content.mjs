@@ -495,6 +495,36 @@ const importQuiz = async () => {
     await pruneTable('class_quiz_questions', 'id', rows.map((row) => row.id));
 };
 
+const normalizeCreditsTextList = (value) => {
+    if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean);
+    const text = String(value || '').trim();
+    return text ? [text] : [];
+};
+
+const importCreditsPage = async () => {
+    if (!(await exists('data/credits-page.json'))) {
+        console.warn('Skipped credits page: data/credits-page.json not found.');
+        return;
+    }
+
+    const raw = await readJson('data/credits-page.json');
+    const sections = Array.isArray(raw.sections) ? raw.sections : [];
+    const thanks = normalizeCreditsTextList(raw.thanks);
+    const originalImages = Array.isArray(raw.originalImages)
+        ? raw.originalImages
+        : (Array.isArray(raw.original_images) ? raw.original_images : []);
+
+    await upsert('class_credits_page', [{
+        id: 'main',
+        title: String(raw.title || '制作组与致谢').trim(),
+        sections,
+        thanks,
+        original_images: originalImages,
+        raw,
+        updated_at: new Date().toISOString()
+    }], 'id');
+};
+
 const listStorageObjects = async (prefix = '') => {
     const rows = await request(`/storage/v1/object/list/${bucket}`, {
         method: 'POST',
@@ -602,6 +632,7 @@ await importPageMessages();
 await importPageSupplements();
 await importMaterials();
 await importQuiz();
+await importCreditsPage();
 await uploadPrivateFiles();
 
 console.log(shouldPrune ? 'Migration complete. Remote stale data/files were pruned.' : 'Migration complete.');
