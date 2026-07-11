@@ -15,19 +15,11 @@
         preview: "url('images/backgrounds/blue-sky-mountain.jpg')"
     },
     {
-        id: "gray-skull",
+        id: "sunset",
         category: "\u98ce\u666f",
         label: "\u98ce\u666f",
-        meta: "灰色骷髅头",
-        image: "images/backgrounds/gray-skull.png",
-        preview: "url('images/backgrounds/gray-skull.png')"
-    },
-    {
-        id: "field-cottage",
-        category: "\u98ce\u666f",
-        label: "\u98ce\u666f",
-        meta: "田园屋舍",
-        image: "images/backgrounds/field-cottage.png",
-        preview: "url('images/backgrounds/field-cottage.png')"
+        meta: "落日",
+        image: "images/backgrounds/sunset.png",
+        preview: "url('images/backgrounds/sunset.png')"
     }
 ];
