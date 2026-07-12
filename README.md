@@ -33,7 +33,8 @@
 - `js/secureData.js`：记录、人物、名言、答题、书面页和 Storage 签名 URL 读取。
 - `js/recordStore.js`、`js/peopleStore.js`、`js/quoteStore.js`：运行时只读数据仓库。
 - `js/recordRenderer.js`：记录正文、人物链接、名言链接、隐藏内容、上下标和附件展示。
-- `docs/supabase-setup.sql`：当前无账号方案的 Supabase SQL。
+- `docs/supabase-setup.sql`：当前无账号方案的 Supabase 建表、函数、RLS 与 Storage policy SQL。
+- `docs/supabase-security-check.sql`：Supabase 安全状态只读检查 SQL。
 
 ## 本地运行
 
@@ -75,7 +76,7 @@ HTML 转义。插图路径严格限制在 `data/attachments/` 目录。
 
 ## Supabase 邀请码设置
 
-完整 SQL 见 `docs/supabase-invite-codes.sql`。核心机制：数据库只保存 `invite_codes.code_hash`，前端提交邀请码后由 RPC 在数据库端读取私有配置表 `invite_code_settings` 中的 pepper 计算 hash，并在同一个 `update ... returning` 操作中把邀请码标记为已使用。
+完整设置 SQL 见 `docs/supabase-setup.sql`，安全检查 SQL 见 `docs/supabase-security-check.sql`。核心机制：数据库只保存 `invite_codes.code_hash`，前端提交邀请码后由 RPC 在数据库端读取私有配置表 `invite_code_settings` 中的 pepper 计算 hash，并在同一个 `update ... returning` 操作中把邀请码标记为已使用。
 
 本地生成邀请码：
 
