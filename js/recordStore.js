@@ -132,6 +132,10 @@ window.loadHiddenRecords = async function ({ onProgressStep } = {}) {
     if (!window.ClassRecordData?.isEnabled()) {
         throw new Error("隐藏记录只能从 Supabase 安全数据源读取。");
     }
+    const isAdmin = await window.ClassRecordSupabase?.hasAdminAccess?.();
+    if (!isAdmin) {
+        throw new Error("隐藏记录仅允许 admin 访问。");
+    }
 
     const list = await loadWithCache({
         key: "records:hidden",

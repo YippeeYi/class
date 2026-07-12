@@ -46,8 +46,8 @@ function parseArgs(argv) {
     if (args.expiresDays !== null && (!Number.isFinite(args.expiresDays) || args.expiresDays <= 0)) {
         throw new Error('--expires-days must be a positive number.');
     }
-    if (args.accessLevel !== 'normal') {
-        throw new Error('--access-level must be "normal". Hidden/admin access is disabled.');
+    if (!['normal', 'admin'].includes(args.accessLevel)) {
+        throw new Error('--access-level must be "normal" or "admin".');
     }
     return args;
 }

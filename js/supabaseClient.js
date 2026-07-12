@@ -110,12 +110,22 @@
         return data === true;
     };
 
+    const hasAdminAccess = async () => {
+        const token = window.getInviteAccessToken?.() || "";
+        if (!token) return false;
+        const supabase = await getClient();
+        const { data, error } = await supabase.rpc("has_class_record_admin_access", {});
+        if (error) return false;
+        return data === true;
+    };
+
     window.ClassRecordSupabase = {
         getConfig,
         getClient,
         getErrorMessage,
         isConfigured,
         verifyInviteCode,
-        refreshInviteAccess
+        refreshInviteAccess,
+        hasAdminAccess
     };
 })();
