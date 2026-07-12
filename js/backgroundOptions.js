@@ -9,7 +9,7 @@
     {
         id: "blue-sky-mountain",
         category: "\u98ce\u666f",
-        label: "\u98ce\u666f",
+        label: "山",
         meta: 'Photo by <a href="https://unsplash.com/@asoggetti?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Alessio Soggetti</a> on <a href="https://unsplash.com/photos/mountains-covered-with-fogs-gdE-5Oui1Y0?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Unsplash</a>',
         image: "images/backgrounds/blue-sky-mountain.jpg",
         preview: "url('images/backgrounds/blue-sky-mountain.jpg')"
@@ -17,7 +17,7 @@
     {
         id: "cloud",
         category: "\u98ce\u666f",
-        label: "\u98ce\u666f",
+        label: "云",
         meta: 'Photo by <a href="https://unsplash.com/@agneserudzite?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Agnese Rudzīte</a> on <a href="https://unsplash.com/photos/pink-and-orange-clouds-against-a-pale-sky-at-sunset-bziUIonXyI4?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Unsplash</a>',
         image: "images/backgrounds/cloud.jpg",
         preview: "url('images/backgrounds/cloud.jpg')"
