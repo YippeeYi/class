@@ -9,7 +9,7 @@
     const TARGET_KEY = "classRecordRedirectTarget";
     const ACCESS_KEY = "classRecord:inviteAccess";
     const LAST_VISIT_KEY = "classRecord:lastVisitAt";
-    const ACCESS_MAX_IDLE_DAYS = 30;
+    const ACCESS_MAX_IDLE_DAYS = 90;
     const ACCESS_TTL = ACCESS_MAX_IDLE_DAYS * 24 * 60 * 60 * 1000;
     const AUTH_PAGE = "auth.html";
     const CONFIG_SCRIPT = "js/supabaseConfig.js";

@@ -248,7 +248,7 @@ begin
          where token_hash = public.hash_invite_secret(access_token)
            and access_level = 'admin'
            and revoked_at is null
-           and last_seen_at > now() - interval '30 days'
+           and last_seen_at > now() - interval '90 days'
     );
 exception when others then
     return false;
@@ -273,7 +273,7 @@ begin
        set last_seen_at = now()
      where token_hash = target_hash
        and revoked_at is null
-       and last_seen_at > now() - interval '30 days'
+       and last_seen_at > now() - interval '90 days'
      returning id into refreshed_id;
     return refreshed_id is not null;
 end;
@@ -300,7 +300,7 @@ begin
           from public.invite_access_sessions
          where token_hash = public.hash_invite_secret(access_token)
            and revoked_at is null
-           and last_seen_at > now() - interval '30 days'
+           and last_seen_at > now() - interval '90 days'
     );
 exception when others then
     return false;

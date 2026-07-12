@@ -7,7 +7,7 @@
 - 没有账号体系：没有注册、登录、用户身份表、用户 ID、管理员账号或个人中心。
 - 一次性邀请码通过 Supabase RPC `verify_invite_code(input_code text)` 验证并原子作废。
 - 前端不读取邀请码表，不硬编码可用邀请码。
-- 验证通过后，本地只保存 `classRecord:inviteAccess` 和 `classRecord:lastVisitAt`，不保存原始邀请码；状态采用 30 天最近访问滑动有效期。
+- 验证通过后，本地只保存 `classRecord:inviteAccess` 和 `classRecord:lastVisitAt`，不保存原始邀请码；状态采用 90 天最近访问滑动有效期。
 - 前端允许的 Supabase 交互只有邀请码验证、必要数据读取、Storage 签名 URL 和必要的只读展示请求。
 - 前端不再提交评论、收藏、表情、分享、成就、Q 币、答题结果、纠错、留言或任何用户本地状态。
 

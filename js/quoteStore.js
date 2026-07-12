@@ -46,7 +46,3 @@ window.loadAllQuotes = async function ({ onProgressStep, records } = {}) {
     }
     return QuoteStore.quotes;
 };
-
-// Compatibility only: older pages/extensions may still call the historical API.
-window.GlossaryStore = window.QuoteStore;
-window.loadAllGlossary = window.loadAllQuotes;
