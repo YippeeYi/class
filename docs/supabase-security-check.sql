@@ -155,13 +155,23 @@ invite_schema as (
             from pg_constraint
             where conrelid = to_regclass('public.invite_codes')
               and conname = 'invite_codes_access_level_check'
+              and pg_get_constraintdef(oid) ilike '%access_level = ''normal''%'
         ) as invite_codes_has_access_level_check,
         exists (
             select 1
             from pg_constraint
             where conrelid = to_regclass('public.invite_access_sessions')
               and conname = 'invite_access_sessions_access_level_check'
+              and pg_get_constraintdef(oid) ilike '%access_level = ''normal''%'
         ) as sessions_has_access_level_check,
+        not exists (
+            select 1 from public.invite_codes
+            where access_level is distinct from 'normal'
+        ) as invite_codes_all_normal,
+        not exists (
+            select 1 from public.invite_access_sessions
+            where access_level is distinct from 'normal'
+        ) as sessions_all_normal,
         exists (
             select 1 from information_schema.tables
             where table_schema = 'public'
@@ -302,14 +312,28 @@ union all
 select
     'invite_schema.invite_codes_access_level_check',
     case when invite_codes_has_access_level_check then 'PASS' else 'FAIL' end,
-    'invite_codes access_level must be constrained to normal/admin'
+    'invite_codes access_level must be constrained to normal only'
 from invite_schema
 
 union all
 select
     'invite_schema.sessions_access_level_check',
     case when sessions_has_access_level_check then 'PASS' else 'FAIL' end,
-    'invite_access_sessions access_level must be constrained to normal/admin'
+    'invite_access_sessions access_level must be constrained to normal only'
+from invite_schema
+
+union all
+select
+    'invite_schema.invite_codes_all_normal',
+    case when invite_codes_all_normal then 'PASS' else 'FAIL' end,
+    'invite_codes must not contain admin or other access_level values'
+from invite_schema
+
+union all
+select
+    'invite_schema.sessions_all_normal',
+    case when sessions_all_normal then 'PASS' else 'FAIL' end,
+    'invite_access_sessions must not contain admin or other access_level values'
 from invite_schema
 
 union all

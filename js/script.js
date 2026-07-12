@@ -5,7 +5,6 @@
 
 const container = document.getElementById("record-list");
 const filterContainer = document.getElementById("record-filter");
-const HIDDEN_RECORD_SEQUENCE = "qibaishihuaxia";
 const HIDDEN_PAGE_MIN = 1;
 const HIDDEN_PAGE_MAX = 83;
 const HIDDEN_PAGE_CHECK_CONCURRENCY = 6;
@@ -16,7 +15,6 @@ let recordPageConfigMode = "";
 let recordPageLoadToken = 0;
 let writtenImageRenderToken = 0;
 let hiddenMode = false;
-let hiddenSequenceBuffer = "";
 let hiddenRecordPagesPromise = null;
 let pendingRecordJump = null;
 let activeRecordJumpDialog = null;
@@ -914,60 +912,10 @@ function resetCriteriaForHiddenMode() {
 }
 
 async function enterHiddenRecordMode() {
-  if (hiddenMode) return;
-  hiddenMode = true;
-  recordPageLoadToken += 1;
-  recordPageConfig = [];
-  recordPageConfigMode = "";
-  window.ClassRecordHiddenModeActive = true;
-  document.body.classList.add("hidden-record-mode");
-  resetCriteriaForHiddenMode();
-  container.innerHTML = '<div class="record-empty"><strong>正在加载隐藏记录···</strong><span>仅本次会话可见，刷新后恢复普通记录。</span></div>';
-  renderHiddenModeBanner("正在加载隐藏记录···", "info");
-  try {
-    const records = await window.loadHiddenRecords();
-    allRecords = records;
-    sortRecords(allRecords);
-    await window.preloadRecordIllustrationMetadata?.(allRecords);
-    renderHiddenModeBanner(`隐藏记录查看已开启，共 ${allRecords.length} 条。刷新后自动恢复普通记录。`, "success");
-    renderViewControls();
-    renderRecordFilter({
-      container: filterContainer,
-      getRecords: getCurrentViewFilterRecords,
-      filterRecords: getFilteredRecordsForCurrentView,
-      initial: currentCriteria,
-      onClear: clearRecordNavigationState,
-      onFilterChange: criteria => {
-        clearPendingRecordJumpState();
-        currentCriteria = { ...criteria };
-        currentPageIndex = 0;
-        renderCurrentViewAsync();
-      }
-    });
-    renderCurrentViewAsync();
-  } catch (error) {
-    console.warn("隐藏记录加载失败：", error);
-    container.innerHTML = '<div class="record-empty"><strong>隐藏记录加载失败。</strong><span>请确认 Supabase 表、RLS 和 Storage 路径已配置。</span></div>';
-    renderHiddenModeBanner("隐藏记录加载失败，请确认 Supabase 配置。", "error");
-  }
-}
-
-function bindHiddenRecordShortcut() {
-  document.addEventListener("keydown", (event) => {
-    if (event.ctrlKey || event.altKey || event.metaKey || event.key.length !== 1) return;
-    const active = document.activeElement;
-    if (active && ["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName)) return;
-    hiddenSequenceBuffer = (hiddenSequenceBuffer + event.key.toLowerCase()).slice(-HIDDEN_RECORD_SEQUENCE.length);
-    if (hiddenSequenceBuffer === HIDDEN_RECORD_SEQUENCE) {
-      hiddenSequenceBuffer = "";
-      enterHiddenRecordMode();
-    }
-  });
+  return false;
 }
 
 const cacheReady = window.cacheReadyPromise || Promise.resolve();
-
-bindHiddenRecordShortcut();
 
 cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
   .then(async ([records]) => {
