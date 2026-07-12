@@ -3,6 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://*.supabase.co; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta name="referrer" content="same-origin">
     <title>邀请码 · 编日史</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="js/themeBootstrap.js"></script>
@@ -26,9 +28,6 @@
     </div>
 
     <script src="js/authPage.js"></script>
-    <!-- Cloudflare Web Analytics -->
-    <script defer src='https://static.cloudflareinsights.com/beacon.min.js'
-        data-cf-beacon='{"token": "1111e0403f354ef6a4e0ef29b62e3e2e"}'></script><!-- End Cloudflare Web Analytics -->
 </body>
 
 </html>

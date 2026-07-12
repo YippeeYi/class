@@ -3,6 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://*.supabase.co; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta name="referrer" content="same-origin">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>编日史 · 名言</title>
     <script src="js/themeBootstrap.js"></script>
@@ -52,12 +54,6 @@
     <script src="js/backgroundSwitcher.js"></script>
     <script src="js/quotes.js"></script>
 
-    <footer class="footer">
-        本站使用匿名访问统计，仅用于了解页面使用情况，不收集任何个人信息。
-    </footer>
-
-    <script defer src='https://static.cloudflareinsights.com/beacon.min.js'
-        data-cf-beacon='{"token": "1111e0403f354ef6a4e0ef29b62e3e2e"}'></script>
 </body>
 
 </html>

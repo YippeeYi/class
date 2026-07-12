@@ -20,7 +20,7 @@ async function loadDotEnv() {
 }
 
 function parseArgs(argv) {
-    const args = { count: 0, expiresDays: null, note: '' };
+    const args = { count: 0, expiresDays: null, note: '', accessLevel: 'normal' };
     for (let index = 2; index < argv.length; index += 1) {
         const arg = argv[index];
         const next = argv[index + 1];
@@ -33,6 +33,9 @@ function parseArgs(argv) {
         } else if (arg === '--note') {
             args.note = String(next || '');
             index += 1;
+        } else if (arg === '--access-level') {
+            args.accessLevel = String(next || '').trim().toLowerCase();
+            index += 1;
         } else {
             throw new Error(`Unknown argument: ${arg}`);
         }
@@ -42,6 +45,9 @@ function parseArgs(argv) {
     }
     if (args.expiresDays !== null && (!Number.isFinite(args.expiresDays) || args.expiresDays <= 0)) {
         throw new Error('--expires-days must be a positive number.');
+    }
+    if (!['normal', 'admin'].includes(args.accessLevel)) {
+        throw new Error('--access-level must be "normal" or "admin".');
     }
     return args;
 }
@@ -86,6 +92,7 @@ const rows = codes.map((code) => ({
     code_hash: hashCode(pepper, code),
     expires_at: expiresAt,
     note: args.note || null,
+    access_level: args.accessLevel,
     used: false
 }));
 
@@ -101,5 +108,6 @@ if (error) {
 
 console.log(`Generated invite codes: ${codes.length}`);
 console.log(`Expires at: ${expiresAt || 'never'}`);
+console.log(`Access level: ${args.accessLevel}`);
 console.log('Upload: success');
 codes.forEach((code) => console.log(code));

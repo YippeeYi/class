@@ -185,13 +185,7 @@
             const auth = await ensureSupabaseClient();
             const result = await auth.verifyInviteCode(code);
             if (!result?.ok) {
-                const reasonMessages = {
-                    invalid: "邀请码不存在，请检查后重新输入。",
-                    used: "这个邀请码已经使用过。",
-                    expired: "这个邀请码已经过期。",
-                    empty: "请输入邀请码。"
-                };
-                return { ok: false, message: reasonMessages[result?.reason] || "邀请码验证失败，请重新输入。" };
+                return { ok: false, message: "邀请码无效或已不可使用，请检查后重新输入。" };
             }
             if (!result.accessToken) {
                 return { ok: false, message: "邀请码已验证，但访问凭证生成失败，请稍后重试。" };

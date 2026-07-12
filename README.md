@@ -82,6 +82,8 @@ HTML 转义。插图路径严格限制在 `data/attachments/` 目录。
 ```bash
 npm install
 node scripts/generate-invite-codes.mjs --count 30 --expires-days 14 --note "G2-1 首批邀请码"
+# 仅在需要访问 hidden 内容时生成高权限邀请码
+node scripts/generate-invite-codes.mjs --count 1 --expires-days 7 --access-level admin --note "管理员隐藏内容访问"
 ```
 
 本地 `.env` 需要包含：

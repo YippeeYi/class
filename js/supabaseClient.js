@@ -1,5 +1,5 @@
 (function () {
-    const SDK_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+    const SDK_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0";
     const DEFAULT_TABLES = {
         records: "class_records",
         people: "class_people",

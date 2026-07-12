@@ -1,6 +1,6 @@
 (function () {
     const CONFIG_URL = 'supabaseConfig.js';
-    const SUPABASE_SDK_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    const SUPABASE_SDK_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0';
     const DEFAULT_BUCKET = 'classrecord-private';
 
     let configPromise = null;
