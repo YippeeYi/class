@@ -13,10 +13,56 @@
             .replace(/'/g, "&#39;");
     }
 
-    function stripHtml(text) {
+    const ALLOWED_INLINE_TAGS = new Set(["A", "BR", "STRONG", "B", "EM", "I", "SPAN", "SMALL", "CODE"]);
+    const SAFE_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
+
+    function sanitizeInlineHtml(value) {
+        const template = document.createElement("template");
+        template.innerHTML = String(value || "");
+
+        const sanitizeNode = (node) => {
+            if (node.nodeType === Node.TEXT_NODE) return;
+            if (node.nodeType !== Node.ELEMENT_NODE) {
+                node.remove();
+                return;
+            }
+
+            if (!ALLOWED_INLINE_TAGS.has(node.tagName)) {
+                node.replaceWith(document.createTextNode(node.textContent || ""));
+                return;
+            }
+
+            const originalHref = node.tagName === "A" ? node.getAttribute("href") || "" : "";
+            [...node.attributes].forEach((attribute) => node.removeAttribute(attribute.name));
+
+            if (node.tagName === "A") {
+                let safeHref = "";
+                try {
+                    const url = new URL(originalHref, location.href);
+                    if (SAFE_LINK_PROTOCOLS.has(url.protocol)) safeHref = url.href;
+                } catch (error) {
+                    safeHref = "";
+                }
+                if (!safeHref) {
+                    node.replaceWith(document.createTextNode(node.textContent || ""));
+                    return;
+                }
+                node.setAttribute("href", safeHref);
+                node.setAttribute("target", "_blank");
+                node.setAttribute("rel", "noopener noreferrer");
+            }
+
+            [...node.childNodes].forEach(sanitizeNode);
+        };
+
+        [...template.content.childNodes].forEach(sanitizeNode);
+        return template.innerHTML;
+    }
+
+    function htmlToText(value) {
         const wrap = document.createElement("div");
-        wrap.textContent = String(text || "");
-        return wrap.textContent || wrap.innerText || "";
+        wrap.innerHTML = sanitizeInlineHtml(value);
+        return (wrap.textContent || wrap.innerText || "").trim();
     }
 
     function getItems() {
@@ -30,8 +76,8 @@
     }
 
     function getItemTitle(item) {
-        const meta = stripHtml(item.meta || item.title || "");
-        const label = stripHtml(item.label || item.id);
+        const meta = htmlToText(item.meta || item.title || "");
+        const label = htmlToText(item.label || item.id);
         return meta && meta !== label ? `${label} · ${meta}` : label;
     }
 
@@ -53,7 +99,8 @@
         previewObserver?.disconnect();
         itemsWrap.innerHTML = items.map((item) => {
             const active = item.active || item.id === window.BackgroundState?.currentId;
-            const title = getItemTitle(item);
+            const label = htmlToText(item.label || item.id);
+            const meta = sanitizeInlineHtml(item.meta || item.title || "");
             const previewStyle = item.image
                 ? (active ? ` style="--shop-preview:url('${escapeHtml(item.image)}')"` : "")
                 : ` style="--shop-preview:${item.preview || "var(--control-gradient)"}"`;
@@ -62,7 +109,8 @@
                     <span class="shop-background-preview" aria-hidden="true"></span>
                     <div class="shop-card-head">
                         <span class="shop-item-type">${escapeHtml(item.category)}背景</span>
-                        <strong>${escapeHtml(title)}</strong>
+                        <strong>${escapeHtml(label)}</strong>
+                        ${meta ? `<span class="shop-item-meta">${meta}</span>` : ""}
                     </div>
                     <div class="shop-card-foot">
                         <button type="button" class="btn-action shop-use-btn" data-shop-use="${escapeHtml(item.id)}" ${active ? "disabled" : ""}>

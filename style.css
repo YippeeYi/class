@@ -3053,6 +3053,22 @@ body>.archive-tool-shell {
   font-size: 18px;
 }
 
+.shop-item-meta {
+  color: var(--text-soft);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.shop-item-meta a {
+  color: var(--theme-accent-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.shop-item-meta a:hover {
+  color: var(--accent-dark);
+}
+
 .shop-card-foot,
 .shop-unlock-actions {
   display: flex;
