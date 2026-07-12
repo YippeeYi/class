@@ -18,7 +18,7 @@
         id: "cloud",
         category: "\u98ce\u666f",
         label: "\u98ce\u666f",
-        meta: `Photo by<a href = "https://unsplash.com/@agneserudzite?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Agnese Rudzīte</a> on <a href="https://unsplash.com/photos/pink-and-orange-clouds-against-a-pale-sky-at-sunset-bziUIonXyI4?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Unsplash</a>`,
+        meta: `Photo by <a href="https://unsplash.com/@agneserudzite?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Agnese Rudzīte</a> on <a href="https://unsplash.com/photos/pink-and-orange-clouds-against-a-pale-sky-at-sunset-bziUIonXyI4?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Unsplash</a>`,
         image: "images/backgrounds/cloud.jpg",
         preview: "url('images/backgrounds/cloud.jpg')"
     }
