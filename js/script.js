@@ -28,6 +28,11 @@ let pageMessagesPromise = null;
 let pageSupplementsPromise = null;
 const writtenImagePreloadCache = new Map();
 const writtenImageReadyCache = new Map();
+const WRITTEN_IMAGE_DISPLAY_TRANSFORM = Object.freeze({ width: 1200, height: 1800, resize: "contain", quality: 78 });
+
+function getWrittenImageDisplayTransform() {
+  return window.ClassRecordData?.displayTransforms?.written || WRITTEN_IMAGE_DISPLAY_TRANSFORM;
+}
 
 window.addEventListener("classrecordcacheclearing", () => {
   writtenImagePreloadCache.clear();
@@ -486,7 +491,9 @@ function getCachedWrittenImageSource(path) {
   if (!sourcePath) return "";
   const readySource = writtenImageReadyCache.get(sourcePath);
   if (readySource) return readySource;
-  const preloaded = window.ClassRecordData?.getPreloadedAsset?.(sourcePath);
+  const preloaded = window.ClassRecordData?.getPreloadedAsset?.(sourcePath, {
+    transform: getWrittenImageDisplayTransform()
+  });
   if (preloaded?.url) {
     writtenImageReadyCache.set(sourcePath, preloaded.url);
     return preloaded.url;
@@ -514,7 +521,10 @@ function preloadWrittenImage(path, { priority = "low" } = {}) {
       if (directResult) return directResult;
     }
     return window.ClassRecordData?.preloadAsset
-      ? (await window.ClassRecordData.preloadAsset(sourcePath, { priority }).catch(() => "")) || ""
+      ? (await window.ClassRecordData.preloadAsset(sourcePath, {
+          priority,
+          transform: getWrittenImageDisplayTransform()
+        }).catch(() => "")) || ""
       : "";
   })();
   const reusable = promise.then((result) => {
@@ -603,13 +613,8 @@ function renderWrittenView(records) {
   const writtenImage = container.querySelector(".record-written-image img");
   writtenFigure?.addEventListener("click", () => {
     if (!imagePath || typeof window.ClassRecordImageViewer?.open !== "function") return;
-    const loadedUrl = writtenImage?.complete && writtenImage.naturalWidth > 0
-      ? writtenImage.currentSrc || writtenImage.src
-      : "";
     window.ClassRecordImageViewer.open(imagePath, {
-      alt: hiddenMode ? `${page.page} hidden written record` : `${page.page} written record`,
-      resolvedUrl: loadedUrl || getCachedWrittenImageSource(imagePath),
-      urlPromise: () => preloadWrittenImage(imagePath, { priority: "high" })
+      alt: hiddenMode ? `${page.page} hidden written record` : `${page.page} written record`
     });
   });
   writtenImage?.addEventListener("load", (event) => {

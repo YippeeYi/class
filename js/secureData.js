@@ -18,10 +18,33 @@
     const failedSignCache = new Map();
     const imagePreloadCache = new Map();
     const imagePreloadResults = new Map();
+    let imageTransformationsUnavailable = false;
     const FAILED_SIGN_TTL = 5 * 60 * 1000;
     const SIGNED_URL_REFRESH_BUFFER = 60 * 1000;
     const FAILED_ASSET_SESSION_KEY = 'classRecordMissingAssets.v1';
     const SIGNED_URL_SESSION_KEY = 'classRecordSignedUrls.v1';
+    const displayTransforms = Object.freeze({
+        written: Object.freeze({ width: 1200, height: 1800, resize: 'contain', quality: 78 }),
+        illustration: Object.freeze({ width: 960, quality: 76 })
+    });
+
+    const normalizeImageTransform = (transform) => {
+        if (!transform || typeof transform !== 'object') return null;
+        const normalized = {};
+        const width = Math.round(Number(transform.width));
+        const height = Math.round(Number(transform.height));
+        const quality = Math.round(Number(transform.quality));
+        if (width >= 1 && width <= 2500) normalized.width = width;
+        if (height >= 1 && height <= 2500) normalized.height = height;
+        if (quality >= 20 && quality <= 100) normalized.quality = quality;
+        if (['cover', 'contain', 'fill'].includes(transform.resize)) normalized.resize = transform.resize;
+        return Object.keys(normalized).length ? normalized : null;
+    };
+
+    const getAssetCacheKey = (safePath, transform) => {
+        const normalized = normalizeImageTransform(transform);
+        return normalized ? `${safePath}|transform:${JSON.stringify(normalized)}` : safePath;
+    };
 
     const persistSignedUrls = () => {
         try {
@@ -488,31 +511,34 @@
         });
     };
 
-    const signAssetUrl = async (path, { expiresIn, quiet = false, forceRefresh = false } = {}) => {
+    const signAssetUrl = async (path, { expiresIn, quiet = false, forceRefresh = false, transform = null } = {}) => {
         const safePath = normalizePrivateStoragePath(path);
         if (!safePath || /^https?:\/\//i.test(safePath)) return safePath;
+        const imageTransform = imageTransformationsUnavailable ? null : normalizeImageTransform(transform);
+        const cacheKey = getAssetCacheKey(safePath, imageTransform);
         const now = Date.now();
         const lifetime = expiresIn || 60 * 30;
         if (forceRefresh) {
-            signedUrlCache.delete(safePath);
-            failedSignCache.delete(safePath);
+            signedUrlCache.delete(cacheKey);
+            failedSignCache.delete(cacheKey);
         }
-        const failedAt = failedSignCache.get(safePath);
+        const failedAt = failedSignCache.get(cacheKey);
         if (failedAt && now - failedAt < FAILED_SIGN_TTL) {
             if (quiet) return '';
             throw new Error(`Storage asset unavailable: ${safePath}`);
         }
-        const cached = signedUrlCache.get(safePath);
+        const cached = signedUrlCache.get(cacheKey);
         if (cached && cached.expiresAt - SIGNED_URL_REFRESH_BUFFER > now) return cached.promise;
-        if (cached) signedUrlCache.delete(safePath);
+        if (cached) signedUrlCache.delete(cacheKey);
         const config = await getConfig();
         const client = await getClient();
-        const promise = client.storage.from(config.bucket).createSignedUrl(safePath, lifetime)
+        const options = imageTransform ? { transform: imageTransform } : undefined;
+        const promise = client.storage.from(config.bucket).createSignedUrl(safePath, lifetime, options)
             .then(({ data, error }) => {
                 if (error) throw error;
-                clearAssetFailure(safePath);
+                clearAssetFailure(cacheKey);
                 const url = data?.signedUrl || '';
-                const item = signedUrlCache.get(safePath);
+                const item = signedUrlCache.get(cacheKey);
                 if (item && url) {
                     item.url = url;
                     persistSignedUrls();
@@ -520,12 +546,12 @@
                 return url;
             })
             .catch((error) => {
-                signedUrlCache.delete(safePath);
-                markAssetFailed(safePath);
+                signedUrlCache.delete(cacheKey);
+                markAssetFailed(cacheKey);
                 if (quiet) return '';
                 throw error;
             });
-        signedUrlCache.set(safePath, { promise, expiresAt: now + lifetime * 1000 });
+        signedUrlCache.set(cacheKey, { promise, expiresAt: now + lifetime * 1000 });
         return promise;
     };
 
@@ -586,39 +612,57 @@
         return result;
     };
 
-    const preloadAsset = async (path, { priority = 'low' } = {}) => {
+    const preloadAsset = async (path, { priority = 'low', transform = null } = {}) => {
         const safePath = normalizePrivateStoragePath(path);
         if (!safePath) return null;
-        if (imagePreloadCache.has(safePath)) return imagePreloadCache.get(safePath);
-        const promise = signAssetUrl(safePath, { quiet: true }).then((url) => {
+        const requestedTransform = imageTransformationsUnavailable ? null : normalizeImageTransform(transform);
+        const cacheKey = getAssetCacheKey(safePath, requestedTransform);
+        if (imagePreloadCache.has(cacheKey)) return imagePreloadCache.get(cacheKey);
+        const loadVariant = async (imageTransform) => {
+            const url = await signAssetUrl(safePath, { quiet: true, transform: imageTransform });
             if (!url) return null;
             return new Promise((resolve) => {
                 const image = new Image();
                 image.decoding = 'async';
                 image.fetchPriority = priority;
                 image.onload = () => {
-                    imagePreloadResults.set(safePath, {
+                    const result = {
                         url,
                         width: image.naturalWidth,
                         height: image.naturalHeight
-                    });
-                    resolve(url);
+                    };
+                    imagePreloadResults.set(getAssetCacheKey(safePath, imageTransform), result);
+                    resolve(result);
                 };
                 image.onerror = () => resolve(null);
                 image.src = url;
             });
+        };
+        const promise = (async () => {
+            const transformed = await loadVariant(requestedTransform);
+            if (transformed) return transformed.url;
+            if (!requestedTransform) return null;
+            const original = await loadVariant(null);
+            if (original) {
+                imageTransformationsUnavailable = true;
+                imagePreloadResults.set(cacheKey, original);
+                return original.url;
+            }
+            return null;
+        })();
+        const reusablePromise = promise.then((url) => {
+            if (!url) imagePreloadCache.delete(cacheKey);
+            return url;
         });
-        const reusablePromise = promise.then((result) => {
-            if (!result) imagePreloadCache.delete(safePath);
-            return result;
-        });
-        imagePreloadCache.set(safePath, reusablePromise);
+        imagePreloadCache.set(cacheKey, reusablePromise);
         return reusablePromise;
     };
 
-    const getPreloadedAsset = (path) => {
+    const getPreloadedAsset = (path, { transform = null } = {}) => {
         const safePath = normalizePrivateStoragePath(path);
-        return safePath ? imagePreloadResults.get(safePath) || null : null;
+        if (!safePath) return null;
+        const requestedTransform = imageTransformationsUnavailable ? null : normalizeImageTransform(transform);
+        return imagePreloadResults.get(getAssetCacheKey(safePath, requestedTransform)) || null;
     };
 
     const listAssetPaths = async (directory, { search = '', limit = 100 } = {}) => {
@@ -708,9 +752,11 @@
         failedSignCache.clear();
         imagePreloadCache.clear();
         imagePreloadResults.clear();
+        imageTransformationsUnavailable = false;
     });
 
     window.ClassRecordData = {
+        displayTransforms,
         resolveAssetElements,
         getClient,
         getConfig,

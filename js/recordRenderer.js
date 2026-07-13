@@ -1146,6 +1146,11 @@ const illustrationPreloadCache = new Map();
 const illustrationReadyCache = new Map();
 const illustrationDimensionCache = new Map();
 const IMAGE_SIZE_STORAGE_KEY = "classRecord:imageSizes:v1";
+const ILLUSTRATION_DISPLAY_TRANSFORM = Object.freeze({ width: 960, quality: 76 });
+
+function getIllustrationDisplayTransform() {
+    return window.ClassRecordData?.displayTransforms?.illustration || ILLUSTRATION_DISPLAY_TRANSFORM;
+}
 
 window.imageSizeCache = window.imageSizeCache || {};
 
@@ -1196,7 +1201,10 @@ function resolveIllustrationUrl(path) {
     if (!sourcePath) return Promise.resolve(null);
     if (illustrationPreloadCache.has(sourcePath)) return illustrationPreloadCache.get(sourcePath);
     const promise = window.ClassRecordData?.isEnabled?.()
-        ? window.ClassRecordData.signAssetUrl(sourcePath, { quiet: true }).catch(() => null)
+        ? window.ClassRecordData.preloadAsset(sourcePath, {
+            priority: "low",
+            transform: getIllustrationDisplayTransform()
+        }).catch(() => null)
         : Promise.resolve(sourcePath);
     const reusable = promise.finally(() => {
         if (illustrationPreloadCache.get(sourcePath) === reusable) illustrationPreloadCache.delete(sourcePath);
@@ -1252,6 +1260,8 @@ async function resolveOriginalImageUrl(sourcePath, { forceRefresh = false } = {}
 async function resolveImageViewerUrl(sourcePath, { resolvedUrl = "", urlPromise = null } = {}) {
     const originalUrl = await resolveOriginalImageUrl(sourcePath).catch(() => "");
     if (originalUrl) return originalUrl;
+    const refreshedOriginalUrl = await resolveOriginalImageUrl(sourcePath, { forceRefresh: true }).catch(() => "");
+    if (refreshedOriginalUrl) return refreshedOriginalUrl;
     const readyUrl = String(resolvedUrl || "").trim();
     if (readyUrl) return readyUrl;
     if (urlPromise) {
@@ -1795,7 +1805,9 @@ illustrationTooltipController = createInlineTooltipController({
         tooltip.setAttribute("aria-label", `${tag.textContent?.trim() || "插图"}预览`);
         const sourcePath = String(tag.dataset.imageSrc || "").trim();
         let readyImage = illustrationReadyCache.get(sourcePath)
-            || window.ClassRecordData?.getPreloadedAsset?.(sourcePath);
+            || window.ClassRecordData?.getPreloadedAsset?.(sourcePath, {
+                transform: getIllustrationDisplayTransform()
+            });
         if (!readyImage && sourcePath && !window.ClassRecordData?.isEnabled?.()) {
             const cachedImage = new Image();
             cachedImage.src = sourcePath;
@@ -1906,8 +1918,7 @@ document.addEventListener("click", (event) => {
         illustrationTooltipController.hide(true);
         annotationTooltipController.hide(true);
         window.ClassRecordImageViewer.open(tooltipImage.dataset.previewSrc, {
-            alt: tooltipImage.alt || "record illustration",
-            resolvedUrl: tooltipImage.currentSrc || tooltipImage.src
+            alt: tooltipImage.alt || "record illustration"
         });
         return;
     }

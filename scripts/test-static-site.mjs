@@ -45,13 +45,16 @@ assert.match(stylesheet, /\.guide-page>\.guide-main\s*\{[^}]*justify-content:\s*
 const recordScript = await readFile(resolve(root, 'js/script.js'), 'utf8');
 const recordRenderer = await readFile(resolve(root, 'js/recordRenderer.js'), 'utf8');
 const secureData = await readFile(resolve(root, 'js/secureData.js'), 'utf8');
-assert.match(recordScript, /resolvedUrl:\s*loadedUrl\s*\|\|\s*getCachedWrittenImageSource/, 'written image viewer must reuse an already loaded or cached full-resolution URL');
-assert.match(recordScript, /urlPromise:\s*\(\)\s*=>\s*preloadWrittenImage/, 'written image viewer must wait for the shared preload promise');
-assert.match(recordRenderer, /openImageViewer\(sourcePath,\s*\{[^}]*resolvedUrl\s*=\s*""[^}]*urlPromise\s*=\s*null/s, 'shared image viewer must accept resolved and pending image sources');
+assert.doesNotMatch(recordScript, /ClassRecordImageViewer\.open\(imagePath,[\s\S]{0,240}resolvedUrl:/, 'written image viewer must not pass its display-sized URL as the original');
+assert.match(recordRenderer, /openImageViewer\(sourcePath,\s*\{[^}]*resolvedUrl\s*=\s*""[^}]*urlPromise\s*=\s*null/s, 'shared image viewer must retain guarded fallback support');
 assert.match(recordRenderer, /const originalUrl\s*=\s*await resolveOriginalImageUrl\(sourcePath\)/, 'shared image viewer must resolve the original asset before display fallbacks');
 assert.match(recordRenderer, /ClassRecordData\?\.isEnabled\?\.\(\)[^}]*signAssetUrl\(direct,\s*\{\s*quiet:\s*true,\s*forceRefresh\s*\}/s, 'secure image viewer paths must use signed Storage URLs before local image paths');
 assert.match(recordScript, /if \(window\.ClassRecordData\?\.isEnabled\?\.\(\)\) return "";[^}]*images\\\//s, 'written image preload must not probe private Storage paths as local images');
 assert.match(secureData, /signAssetUrl\s*=\s*async \(path,\s*\{[^}]*forceRefresh\s*=\s*false/, 'Storage signer must support refreshing an expired signed URL');
+assert.match(secureData, /getAssetCacheKey\(safePath,\s*imageTransform\)/, 'original and transformed Storage URLs must use variant-aware cache keys');
+assert.match(recordScript, /preloadAsset\(sourcePath,\s*\{[^}]*transform:\s*getWrittenImageDisplayTransform\(\)/s, 'written page images must request a display-sized transform');
+assert.match(recordRenderer, /preloadAsset\(sourcePath,\s*\{[^}]*transform:\s*getIllustrationDisplayTransform\(\)/s, 'inline illustrations must request a display-sized transform');
+assert.doesNotMatch(recordRenderer, /ClassRecordImageViewer\.open\(tooltipImage\.dataset\.previewSrc,[\s\S]{0,180}resolvedUrl:/, 'illustration viewer must not pass its display-sized URL as the original');
 assert.match(stylesheet, /\.image-viewer-frame\s*\{[^}]*border:\s*1px solid color-mix\([^}]*var\(--theme-accent-strong\)[^}]*background:[^}]*var\(--theme-surface\)/s, 'image viewer frame must use the active theme for its visual boundary');
 
 const quizPage = await readFile(resolve(root, 'quiz.html'), 'utf8');
