@@ -14,12 +14,9 @@
  *   - data/page-supplements/*.json
  *   - data/materials/*.json
  *
- * It still uploads files under:
- *   - data/
- *   - images/record-pages/
- *
- * Markdown files are excluded from upload:
- *   - *.md
+ * Storage uploads are reference-driven. Only binary assets referenced by the
+ * imported database rows are uploaded; source JSON is never copied to Storage.
+ * Quiz images are read from the ignored local private-assets/ directory.
  *
  * PowerShell:
  *   $env:SUPABASE_URL="https://xxxx.supabase.co"
@@ -37,6 +34,19 @@ const url = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const bucket = process.env.CLASS_RECORD_BUCKET || 'classrecord-private';
 const shouldPrune = process.argv.includes('--prune');
+const hiddenStoragePrefix = 'hidden/';
+const allowedStorageRoots = ['data/attachments/', 'images/record-pages/', 'images/quiz/'];
+const allowedStorageExtensions = new Set([
+    '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg',
+    '.pdf', '.txt', '.zip', '.mp3', '.wav', '.ogg', '.mp4', '.webm'
+]);
+const storageUploadManifest = new Map();
+const requiredDatabaseColumns = {
+    class_quiz_questions: [
+        'id', 'content_key', 'question_group', 'question_type', 'prompt',
+        'choices', 'answer', 'explanation', 'image_path', 'sort_order', 'raw'
+    ]
+};
 
 if (!url || !serviceRoleKey) {
     console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.');
@@ -69,6 +79,30 @@ const request = async (endpoint, options = {}) => {
 
     const text = await response.text();
     return text ? JSON.parse(text) : null;
+};
+
+const validateDatabaseSchema = async () => {
+    const specification = await request('/rest/v1/', {
+        headers: { Accept: 'application/openapi+json' }
+    });
+    const definitions = specification?.definitions || specification?.components?.schemas || {};
+    const missing = [];
+
+    for (const [table, requiredColumns] of Object.entries(requiredDatabaseColumns)) {
+        const properties = definitions?.[table]?.properties || {};
+        for (const column of requiredColumns) {
+            if (!Object.prototype.hasOwnProperty.call(properties, column)) {
+                missing.push(`${table}.${column}`);
+            }
+        }
+    }
+
+    if (missing.length) {
+        throw new Error(
+            `Supabase schema is missing required migration columns: ${missing.join(', ')}. `
+            + 'Run docs/supabase-setup.sql in Supabase SQL Editor, then retry this command.'
+        );
+    }
 };
 
 const exists = async (relativePath) => {
@@ -121,10 +155,6 @@ const parsePageSupplementFileName = (file) => {
     };
 };
 
-const isMarkdownFile = (file) => {
-    return normalizeSlash(file).toLowerCase().endsWith('.md');
-};
-
 const normalizeRecordPageImagePath = (value, fallbackPage) => {
     const raw = String(value || '').trim();
 
@@ -141,6 +171,66 @@ const normalizeRecordPageImagePath = (value, fallbackPage) => {
         .replace(/^record-pages\//i, '');
 
     return `images/record-pages/${trimExt(clean)}.jpeg`;
+};
+
+const normalizeAllowedStoragePath = (value, fallbackRoot = '') => {
+    const raw = normalizeSlash(String(value || '').trim()).replace(/^\/+/, '');
+    if (!raw || /^https?:\/\//i.test(raw) || /^[a-z][a-z0-9+.-]*:/i.test(raw)) return null;
+    const withoutHiddenPrefix = raw.startsWith(hiddenStoragePrefix) ? raw.slice(hiddenStoragePrefix.length) : raw;
+    const candidate = withoutHiddenPrefix.includes('/') ? withoutHiddenPrefix : `${fallbackRoot}${withoutHiddenPrefix}`;
+    const segments = candidate.split('/');
+    if (segments.some((segment) => !segment || segment === '.' || segment === '..')) return null;
+    if (!allowedStorageRoots.some((prefix) => candidate.startsWith(prefix))) return null;
+    if (!allowedStorageExtensions.has(path.extname(candidate).toLowerCase())) return null;
+    return candidate;
+};
+
+const getDefaultLocalAssetPath = (storagePath) => {
+    if (storagePath.startsWith('images/quiz/')) {
+        return `private-assets/${storagePath.slice('images/'.length)}`;
+    }
+    return storagePath;
+};
+
+const registerStorageAsset = (value, { hidden = false, fallbackRoot = '', localPath = '' } = {}) => {
+    if (/^https?:\/\//i.test(String(value || '').trim())) return String(value).trim();
+    const storagePath = normalizeAllowedStoragePath(value, fallbackRoot);
+    if (!storagePath) {
+        throw new Error(`Storage asset path is outside the upload allowlist: ${value}`);
+    }
+    const remotePath = hidden ? `${hiddenStoragePrefix}${storagePath}` : storagePath;
+    const sourcePath = normalizeSlash(localPath || getDefaultLocalAssetPath(storagePath));
+    storageUploadManifest.set(remotePath, { localPath: sourcePath, remotePath });
+    return remotePath;
+};
+
+const rewriteMarkupAssets = (value, { hidden = false } = {}) => {
+    return String(value || '').replace(/\[\[illu:([^|\]\r\n]+)\|/g, (match, markerPath) => {
+        const rawMarker = String(markerPath || '').trim().replace(/^hidden\//, '');
+        if (!rawMarker || rawMarker.includes('/') || rawMarker.includes('\\')) return match;
+        registerStorageAsset(rawMarker, { hidden, fallbackRoot: 'data/attachments/' });
+        return `[[illu:${hidden ? 'hidden/' : ''}${rawMarker}|`;
+    });
+};
+
+const rewriteMarkupAssetsDeep = (value, options) => {
+    if (typeof value === 'string') return rewriteMarkupAssets(value, options);
+    if (Array.isArray(value)) return value.map((item) => rewriteMarkupAssetsDeep(item, options));
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, rewriteMarkupAssetsDeep(item, options)]));
+    }
+    return value;
+};
+
+const rewriteAttachments = (value, { hidden = false } = {}) => {
+    if (!Array.isArray(value)) return [];
+    return value.map((attachment) => {
+        if (!attachment || typeof attachment !== 'object' || !attachment.file) return attachment;
+        return {
+            ...attachment,
+            file: registerStorageAsset(attachment.file, { hidden, fallbackRoot: 'data/attachments/' })
+        };
+    });
 };
 
 const walkFiles = async (dir) => {
@@ -184,11 +274,15 @@ const contentTypeFor = (file) => {
     if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
     if (ext === '.webp') return 'image/webp';
     if (ext === '.gif') return 'image/gif';
-    if (ext === '.json') return 'application/json';
-    if (ext === '.css') return 'text/css';
-    if (ext === '.js' || ext === '.mjs') return 'text/javascript';
-    if (ext === '.html') return 'text/html';
+    if (ext === '.svg') return 'image/svg+xml';
+    if (ext === '.pdf') return 'application/pdf';
     if (ext === '.txt') return 'text/plain';
+    if (ext === '.zip') return 'application/zip';
+    if (ext === '.mp3') return 'audio/mpeg';
+    if (ext === '.wav') return 'audio/wav';
+    if (ext === '.ogg') return 'audio/ogg';
+    if (ext === '.mp4') return 'video/mp4';
+    if (ext === '.webm') return 'video/webm';
 
     return 'application/octet-stream';
 };
@@ -272,6 +366,12 @@ const importRecords = async () => {
         const isHidden = Boolean(raw.hidden);
         const index = isHidden ? hiddenIndex++ : visibleIndex++;
         const recordId = raw.id || raw.recordId || `R${String(index + 1).padStart(3, '0')}`;
+        const content = rewriteMarkupAssets(raw.content || raw.text || '', { hidden: isHidden });
+        const attachments = rewriteAttachments(raw.attachments, { hidden: isHidden });
+        const sourceImagePath = normalizeRecordPageImagePath(
+            firstValue(raw.image_path, raw.imagePath, raw.image, raw.pageImage),
+            raw.page
+        );
 
         rows.push({
             file_name: fileName,
@@ -279,15 +379,12 @@ const importRecords = async () => {
             record_date: raw.date || fileBaseNameWithoutExt(fileName).slice(0, 10),
             record_time: raw.time || null,
             author: raw.author || raw.recorder || '',
-            content: raw.content || raw.text || '',
+            content,
             importance: raw.importance || 'normal',
-            attachments: Array.isArray(raw.attachments) ? raw.attachments : [],
+            attachments,
             record_index: index,
             hidden: isHidden,
-            image_path: normalizeRecordPageImagePath(
-                firstValue(raw.image_path, raw.imagePath, raw.image, raw.pageImage),
-                raw.page
-            ),
+            image_path: sourceImagePath ? registerStorageAsset(sourceImagePath, { hidden: isHidden }) : null,
             raw
         });
     }
@@ -310,6 +407,7 @@ const importPeople = async () => {
         const raw = await readJson(file);
         const fileName = relativeFromDir('data/people', file);
         const aliases = Array.isArray(raw.aliases) ? raw.aliases : (raw.alias ? [raw.alias] : []);
+        const avatarSource = firstValue(raw.avatar_url, raw.avatarUrl, raw.avatar);
 
         rows.push({
             id: raw.id || fileBaseNameWithoutExt(fileName),
@@ -320,6 +418,9 @@ const importPeople = async () => {
             subject: raw.subject == null || raw.subject === '' ? null : String(raw.subject),
             main: raw.main === true,
             bio: raw.bio || '',
+            avatar_url: avatarSource
+                ? registerStorageAsset(avatarSource, { fallbackRoot: 'data/attachments/' })
+                : null,
             sort_order: index,
             raw
         });
@@ -342,7 +443,8 @@ const importPageSupplements = async () => {
     for (const file of files) {
         const parsed = parsePageSupplementFileName(file);
         const raw = await readJson(file);
-        const content = String(raw.content || raw.text || '').trim();
+        const isHidden = raw.hidden === true;
+        const content = rewriteMarkupAssets(raw.content || raw.text || '', { hidden: isHidden }).trim();
         if (!content) {
             console.warn(`Skipped page supplement without content: ${file}`);
             continue;
@@ -353,7 +455,7 @@ const importPageSupplements = async () => {
             supplement_index: parsed.supplementIndex,
             author: raw.author || raw.recorder || '',
             content,
-            hidden: raw.hidden === true,
+            hidden: isHidden,
             sort_order: parsed.supplementIndex,
             raw
         });
@@ -376,7 +478,7 @@ const importMaterials = async () => {
         const fileName = relativeFromDir('data/materials', file);
         const fallbackId = fileBaseNameWithoutExt(fileName);
         const title = String(raw.title || raw.name || fallbackId).trim();
-        const content = String(raw.content || raw.description || '').trim();
+        const content = rewriteMarkupAssets(raw.content || raw.description || '').trim();
         if (!title || !content) {
             console.warn(`Skipped material without title/content: ${file}`);
             continue;
@@ -416,6 +518,10 @@ const importRecordPages = async () => {
         const isHidden = Boolean(raw.hidden);
         const index = isHidden ? hiddenIndex++ : visibleIndex++;
         const page = String(raw.page || raw.id || String(index + 1).padStart(2, '0'));
+        const sourceImagePath = normalizeRecordPageImagePath(
+            firstValue(raw.image_path, raw.imagePath, raw.image, raw.fileName, raw.file),
+            page
+        );
 
         return {
             page,
@@ -423,10 +529,7 @@ const importRecordPages = async () => {
             end_file: raw.end || raw.endFile || raw.to || null,
             sort_order: index,
             hidden: isHidden,
-            image_path: normalizeRecordPageImagePath(
-                firstValue(raw.image_path, raw.imagePath, raw.image, raw.fileName, raw.file),
-                page
-            ),
+            image_path: sourceImagePath ? registerStorageAsset(sourceImagePath, { hidden: isHidden }) : null,
             raw
         };
     });
@@ -446,7 +549,7 @@ const importPageMessages = async () => {
     for (const file of files) {
         const raw = await readJson(file);
         const page = fileBaseNameWithoutExt(file);
-        const content = String(raw.content || '').trim();
+        const content = rewriteMarkupAssets(raw.content || '').trim();
         if (!content) {
             console.warn(`Skipped page message without content: ${file}`);
             continue;
@@ -479,6 +582,7 @@ const importQuiz = async () => {
 
     const rows = items.map((item, index) => {
         const number = String(index + 1).padStart(2, '0');
+        const imagePath = item.image_path || item.imagePath || item.image || `images/quiz/lamian/${number}.png`;
 
         return {
             id: item.id || `LAMIAN-${number}`,
@@ -487,7 +591,7 @@ const importQuiz = async () => {
             question_type: 'fill',
             prompt: item.prompt || 'Hidden question',
             answer: String(item.answer || '').trim(),
-            image_path: item.image_path || item.imagePath || item.image || `images/quiz/lamian/${number}.png`,
+            image_path: registerStorageAsset(imagePath),
             sort_order: index,
             raw: item
         };
@@ -509,7 +613,7 @@ const importCreditsPage = async () => {
         return;
     }
 
-    const raw = await readJson('data/credits-page.json');
+    const raw = rewriteMarkupAssetsDeep(await readJson('data/credits-page.json'));
     const sections = Array.isArray(raw.sections) ? raw.sections : [];
     const thanks = normalizeCreditsTextList(raw.thanks);
     const originalImages = Array.isArray(raw.originalImages)
@@ -528,21 +632,27 @@ const importCreditsPage = async () => {
 };
 
 const listStorageObjects = async (prefix = '') => {
-    const rows = await request(`/storage/v1/object/list/${bucket}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            prefix,
-            limit: 1000,
-            offset: 0,
-            sortBy: {
-                column: 'name',
-                order: 'asc'
-            }
-        })
-    }) || [];
+    const rows = [];
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+        const pageRows = await request(`/storage/v1/object/list/${bucket}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                prefix,
+                limit: pageSize,
+                offset,
+                sortBy: {
+                    column: 'name',
+                    order: 'asc'
+                }
+            })
+        }) || [];
+        rows.push(...pageRows);
+        if (pageRows.length < pageSize) break;
+    }
 
     const output = [];
 
@@ -559,15 +669,19 @@ const listStorageObjects = async (prefix = '') => {
     return output;
 };
 
-const pruneStorage = async (localFiles) => {
+const pruneStorage = async (allowedRemoteFiles) => {
     if (!shouldPrune) return;
 
-    const keep = new Set(localFiles);
+    if (!allowedRemoteFiles.length) {
+        console.warn('Skipped Storage pruning: the explicit upload manifest is empty.');
+        return;
+    }
+    const keep = new Set(allowedRemoteFiles);
 
-    const remoteFiles = [
-        ...await listStorageObjects('data'),
-        ...await listStorageObjects('images/record-pages')
-    ];
+    // The bucket is dedicated to this site. Pruning from the root removes old
+    // source JSON and every other object that is no longer in the explicit
+    // reference-driven binary manifest.
+    const remoteFiles = await listStorageObjects('');
 
     const stale = remoteFiles.filter((file) => !keep.has(file));
 
@@ -596,37 +710,43 @@ const pruneStorage = async (localFiles) => {
 };
 
 const uploadPrivateFiles = async () => {
-    const files = stableSort([
-        ...await walkFiles('data'),
-        ...await walkFiles('images/record-pages')
-    ]);
-
-    const uploadable = files.filter((file) => !isMarkdownFile(file));
+    const uploadable = [...storageUploadManifest.values()]
+        .sort((a, b) => a.remotePath.localeCompare(b.remotePath, 'en'));
 
     if (!uploadable.length) {
-        console.warn('Skipped private file upload: no uploadable files found under data/ or images/record-pages/.');
+        console.warn('Skipped private file upload: no referenced binary assets were found.');
         return;
     }
 
-    for (const [index, file] of uploadable.entries()) {
-        const body = await fs.readFile(path.join(root, file));
+    for (const [index, item] of uploadable.entries()) {
+        const absoluteSource = path.resolve(root, item.localPath);
+        const relativeSource = normalizeSlash(path.relative(root, absoluteSource));
+        if (relativeSource.startsWith('../') || path.isAbsolute(relativeSource)) {
+            throw new Error(`Storage source escaped the project root: ${item.localPath}`);
+        }
+        const info = await fs.stat(absoluteSource).catch(() => null);
+        if (!info?.isFile()) {
+            throw new Error(`Referenced Storage asset is missing: ${item.localPath}`);
+        }
+        const body = await fs.readFile(absoluteSource);
 
-        await request(`/storage/v1/object/${bucket}/${file}`, {
+        await request(`/storage/v1/object/${bucket}/${item.remotePath}`, {
             method: 'POST',
             headers: {
-                'Content-Type': contentTypeFor(file),
+                'Content-Type': contentTypeFor(item.localPath),
                 'Cache-Control': '3600',
                 'x-upsert': 'true'
             },
             body
         });
 
-        console.log(`Uploaded private file ${index + 1} / ${uploadable.length}: ${file}`);
+        console.log(`Uploaded private asset ${index + 1} / ${uploadable.length}: ${item.remotePath}`);
     }
 
-    await pruneStorage(uploadable);
+    await pruneStorage(uploadable.map((item) => item.remotePath));
 };
 
+await validateDatabaseSchema();
 await importRecords();
 await importPeople();
 await importRecordPages();

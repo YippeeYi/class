@@ -2,16 +2,16 @@
 -- Read-only audit. Run in Supabase SQL Editor after docs/supabase-setup.sql.
 
 with
-content_tables(table_schema, table_name, has_hidden_column) as (
+content_tables(table_schema, table_name, has_hidden_column, admin_only) as (
     values
-        ('public', 'class_records', true),
-        ('public', 'class_people', false),
-        ('public', 'class_record_pages', true),
-        ('public', 'class_page_messages', false),
-        ('public', 'class_page_supplements', true),
-        ('public', 'class_materials', false),
-        ('public', 'class_quiz_questions', false),
-        ('public', 'class_credits_page', false)
+        ('public', 'class_records', true, false),
+        ('public', 'class_people', false, false),
+        ('public', 'class_record_pages', true, false),
+        ('public', 'class_page_messages', false, false),
+        ('public', 'class_page_supplements', true, false),
+        ('public', 'class_materials', false, false),
+        ('public', 'class_quiz_questions', false, true),
+        ('public', 'class_credits_page', false, false)
 ),
 private_tables(table_schema, table_name) as (
     values
@@ -34,6 +34,7 @@ table_state as (
         ct.table_schema,
         ct.table_name,
         ct.has_hidden_column,
+        ct.admin_only,
         c.oid as table_oid,
         coalesce(c.relrowsecurity, false) as rls_enabled
     from content_tables ct
@@ -45,6 +46,7 @@ policy_state as (
         ts.table_schema,
         ts.table_name,
         ts.has_hidden_column,
+        ts.admin_only,
         ts.rls_enabled,
         exists (
             select 1
@@ -66,8 +68,29 @@ policy_state as (
             from pg_policy p
             where p.polrelid = ts.table_oid
               and p.polcmd = 'r'
+              and pg_get_expr(p.polqual, p.polrelid) ilike '%has_class_record_admin_access%'
+        ) as has_admin_policy,
+        exists (
+            select 1
+            from pg_policy p
+            where p.polrelid = ts.table_oid
+              and p.polcmd = 'r'
               and regexp_replace(pg_get_expr(p.polqual, p.polrelid), '\s+', '', 'g') in ('true', '(true)')
         ) as has_using_true_policy
+        ,(
+            select count(*)
+            from pg_policy p
+            where p.polrelid = ts.table_oid
+              and p.polcmd = 'r'
+        ) as select_policy_count
+        ,(
+            select count(*)
+            from pg_policy p
+            where p.polrelid = ts.table_oid
+              and p.polcmd in ('a', 'w', 'd', '*')
+        ) as write_policy_count
+        ,has_table_privilege('anon', format('%I.%I', ts.table_schema, ts.table_name), 'insert,update,delete,truncate,references,trigger') as anon_can_write
+        ,has_table_privilege('authenticated', format('%I.%I', ts.table_schema, ts.table_name), 'insert,update,delete,truncate,references,trigger') as authenticated_can_write
     from table_state ts
 ),
 private_grants as (
@@ -75,7 +98,14 @@ private_grants as (
         pt.table_schema,
         pt.table_name,
         has_table_privilege('anon', format('%I.%I', pt.table_schema, pt.table_name), 'select') as anon_can_select,
-        has_table_privilege('authenticated', format('%I.%I', pt.table_schema, pt.table_name), 'select') as authenticated_can_select
+        has_table_privilege('authenticated', format('%I.%I', pt.table_schema, pt.table_name), 'select') as authenticated_can_select,
+        has_table_privilege('anon', format('%I.%I', pt.table_schema, pt.table_name), 'insert,update,delete,truncate,references,trigger') as anon_can_write,
+        has_table_privilege('authenticated', format('%I.%I', pt.table_schema, pt.table_name), 'insert,update,delete,truncate,references,trigger') as authenticated_can_write,
+        (
+            select count(*)
+            from pg_policy p
+            where p.polrelid = to_regclass(format('%I.%I', pt.table_schema, pt.table_name))
+        ) as policy_count
     from private_tables pt
 ),
 function_state as (
@@ -100,6 +130,15 @@ storage_policy as (
             where id = 'classrecord-private'
               and public = false
         ) as private_bucket_ok,
+        (
+            select count(*)
+            from pg_policy p
+            join pg_class c on c.oid = p.polrelid
+            join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname = 'storage'
+              and c.relname = 'objects'
+              and p.polcmd = 'r'
+        ) as storage_select_policy_count,
         exists (
             select 1
             from pg_policy p
@@ -108,23 +147,22 @@ storage_policy as (
             where n.nspname = 'storage'
               and c.relname = 'objects'
               and p.polcmd = 'r'
+              and p.polname = 'classrecord_private_read'
+              and p.polpermissive = true
+              and cardinality(p.polroles) = 2
+              and p.polroles @> array[
+                  (select oid from pg_roles where rolname = 'anon'),
+                  (select oid from pg_roles where rolname = 'authenticated')
+              ]::oid[]
               and pg_get_expr(p.polqual, p.polrelid) ilike '%classrecord-private%'
               and pg_get_expr(p.polqual, p.polrelid) ilike '%has_class_record_access%'
-        ) as storage_access_policy_ok,
-        exists (
-            select 1
-            from pg_policy p
-            join pg_class c on c.oid = p.polrelid
-            join pg_namespace n on n.oid = c.relnamespace
-            where n.nspname = 'storage'
-              and c.relname = 'objects'
-              and p.polcmd = 'r'
               and pg_get_expr(p.polqual, p.polrelid) ilike '%has_class_record_admin_access%'
-              and (
-                  pg_get_expr(p.polqual, p.polrelid) ilike '%H[0-9]%'
-                  or pg_get_expr(p.polqual, p.polrelid) ilike '%hidden%'
-              )
-        ) as storage_hidden_admin_policy_ok,
+              and pg_get_expr(p.polqual, p.polrelid) ilike '%hidden/%'
+              and pg_get_expr(p.polqual, p.polrelid) ilike '%data/attachments/%'
+              and pg_get_expr(p.polqual, p.polrelid) ilike '%images/record-pages/%'
+              and pg_get_expr(p.polqual, p.polrelid) ilike '%images/quiz/%'
+              and pg_get_expr(p.polqual, p.polrelid) not ilike '%H[0-9]%'
+        ) as storage_only_allowed_policy_ok,
         exists (
             select 1
             from pg_policy p
@@ -134,7 +172,16 @@ storage_policy as (
               and c.relname = 'objects'
               and p.polcmd = 'r'
               and regexp_replace(pg_get_expr(p.polqual, p.polrelid), '\s+', '', 'g') in ('true', '(true)')
-        ) as storage_has_using_true
+        ) as storage_has_using_true,
+        exists (
+            select 1
+            from pg_policy p
+            join pg_class c on c.oid = p.polrelid
+            join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname = 'storage'
+              and c.relname = 'objects'
+              and p.polcmd in ('a', 'w', 'd', '*')
+        ) as storage_has_write_policy
 ),
 invite_schema as (
     select
@@ -199,15 +246,15 @@ from storage_policy
 union all
 select
     'storage.select_policy_access_check',
-    case when storage_access_policy_ok then 'PASS' else 'FAIL' end,
-    'storage.objects select policy must require classrecord-private and has_class_record_access()'
+    case when storage_select_policy_count = 1 and storage_only_allowed_policy_ok then 'PASS' else 'FAIL' end,
+    'storage.objects must have exactly one SELECT policy: classrecord_private_read with invite and hidden-prefix admin checks'
 from storage_policy
 
 union all
 select
-    'storage.hidden_admin_policy',
-    case when storage_hidden_admin_policy_ok then 'PASS' else 'FAIL' end,
-    'hidden/Hxx Storage objects should require has_class_record_admin_access()'
+    'storage.no_extra_select_policy',
+    case when storage_select_policy_count = 1 and storage_only_allowed_policy_ok then 'PASS' else 'FAIL' end,
+    'any additional storage.objects SELECT policy is unauthorized and must fail this audit'
 from storage_policy
 
 union all
@@ -219,9 +266,62 @@ from storage_policy
 
 union all
 select
+    'storage.no_write_policy',
+    case when not storage_has_write_policy then 'PASS' else 'FAIL' end,
+    'frontend roles must not receive Storage INSERT/UPDATE/DELETE policies'
+from storage_policy
+
+union all
+select
+    'schema.quiz_required_columns',
+    case when not exists (
+        select required.column_name
+        from (values
+            ('id'), ('content_key'), ('question_group'), ('question_type'),
+            ('prompt'), ('choices'), ('answer'), ('explanation'),
+            ('image_path'), ('sort_order'), ('raw')
+        ) as required(column_name)
+        except
+        select columns.column_name
+        from information_schema.columns
+        where columns.table_schema = 'public'
+          and columns.table_name = 'class_quiz_questions'
+    ) then 'PASS' else 'FAIL' end,
+    'public.class_quiz_questions must contain every column used by the migration script'
+
+union all
+select
     'content.rls_enabled.' || table_name,
     case when rls_enabled then 'PASS' else 'FAIL' end,
     table_schema || '.' || table_name || ' must enable RLS'
+from policy_state
+
+union all
+select
+    'content.single_select_policy.' || table_name,
+    case when select_policy_count = 1 then 'PASS' else 'FAIL' end,
+    table_schema || '.' || table_name || ' must have exactly one SELECT policy'
+from policy_state
+
+union all
+select
+    'content.no_write_policy.' || table_name,
+    case when write_policy_count = 0 then 'PASS' else 'FAIL' end,
+    table_schema || '.' || table_name || ' must not have INSERT/UPDATE/DELETE policies'
+from policy_state
+
+union all
+select
+    'content.no_anon_write_grant.' || table_name,
+    case when not anon_can_write then 'PASS' else 'FAIL' end,
+    table_schema || '.' || table_name || ' anon must not have write grants'
+from policy_state
+
+union all
+select
+    'content.no_authenticated_write_grant.' || table_name,
+    case when not authenticated_can_write then 'PASS' else 'FAIL' end,
+    table_schema || '.' || table_name || ' authenticated must not have write grants'
 from policy_state
 
 union all
@@ -244,6 +344,17 @@ from policy_state
 
 union all
 select
+    'content.admin_only_policy.' || table_name,
+    case
+        when not admin_only then 'PASS'
+        when has_admin_policy then 'PASS'
+        else 'FAIL'
+    end,
+    table_schema || '.' || table_name || ' admin-only content must require has_class_record_admin_access()'
+from policy_state
+
+union all
+select
     'content.no_using_true_policy.' || table_name,
     case when not has_using_true_policy then 'PASS' else 'FAIL' end,
     table_schema || '.' || table_name || ' must not have USING (true) select policy'
@@ -254,6 +365,27 @@ select
     'private.no_anon_select.' || table_name,
     case when not anon_can_select then 'PASS' else 'FAIL' end,
     table_schema || '.' || table_name || ' anon must not directly select'
+from private_grants
+
+union all
+select
+    'private.no_policy.' || table_name,
+    case when policy_count = 0 then 'PASS' else 'FAIL' end,
+    table_schema || '.' || table_name || ' must have no direct-access RLS policies'
+from private_grants
+
+union all
+select
+    'private.no_anon_write.' || table_name,
+    case when not anon_can_write then 'PASS' else 'FAIL' end,
+    table_schema || '.' || table_name || ' anon must not write'
+from private_grants
+
+union all
+select
+    'private.no_authenticated_write.' || table_name,
+    case when not authenticated_can_write then 'PASS' else 'FAIL' end,
+    table_schema || '.' || table_name || ' authenticated must not write'
 from private_grants
 
 union all

@@ -99,7 +99,17 @@ INVITE_CODE_PEPPER=请填写一段足够长的随机字符串
 
 ## 数据与图片
 
-前端不依赖本地 `data/` 或 `images/record-pages/`。记录、人物、名言、答题和书面记录页来自 Supabase 表；图片和附件通过 Supabase Storage 签名 URL 加载。
+前端不依赖本地 `data/`、`images/record-pages/` 或 `images/quiz/lamian/`。记录、人物、名言、答题和书面记录页来自 Supabase 表；图片和附件通过 Supabase Storage 签名 URL 加载。
+
+迁移脚本只会上传数据库行实际引用、且位于白名单根目录中的二进制资源，不会把 `data/**/*.json` 上传到 Storage。Quiz 原图仅保存在本机被 Git 忽略的 `private-assets/quiz/` 下，迁移后对应对象路径仍为 `images/quiz/`。首次部署本阶段修复时，必须使用 `--prune` 删除 bucket 中遗留的原始 JSON 和失效文件：
+
+```bash
+node scripts/migrate-secure-content.mjs --prune
+```
+
+`--prune` 会以本次数据库导入实际生成的资源清单为准清理整个专用 bucket；请仅将 `classrecord-private` 用于本网站，并在执行前保留必要备份。
+
+`lamian` 隐藏题及其 `images/quiz/` 题图仅对管理员邀请码会话开放。普通邀请码不会预加载隐藏题，敲击 `lamian` 也不会触发解锁。
 
 ## 书面记录页内补充记录
 

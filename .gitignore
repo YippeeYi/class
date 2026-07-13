@@ -1,5 +1,7 @@
 data/
 images/record-pages/
+images/quiz/lamian/
+private-assets/
 .env
 .env.*
 !.env.example

@@ -44,10 +44,12 @@ function normalizeIllustrationPath(value) {
     const raw = String(value ?? "").trim();
     if (!raw || raw.length > 500 || /[\\?#%\u0000-\u001f\u007f]/.test(raw)) return "";
     if (/^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(raw)) return "";
-    const fileName = raw;
+    const hidden = raw.startsWith("hidden/");
+    const fileName = hidden ? raw.slice("hidden/".length) : raw;
     if (!fileName || fileName.includes("/") || fileName === "." || fileName === "..") return "";
     const extension = fileName.split(".").pop()?.toLowerCase();
-    return ILLUSTRATION_IMAGE_EXTENSIONS.has(extension) ? `data/attachments/${fileName}` : "";
+    if (!ILLUSTRATION_IMAGE_EXTENSIONS.has(extension)) return "";
+    return `${hidden ? "hidden/" : ""}data/attachments/${fileName}`;
 }
 
 function getPersonDisplayNameById(id) {

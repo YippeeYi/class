@@ -113,6 +113,36 @@ revoke all on public.invite_access_sessions from anon, authenticated;
 revoke all on public.invite_code_settings from anon, authenticated;
 revoke all on public.invite_code_attempts from anon, authenticated;
 
+-- These tables are reachable only from SECURITY DEFINER functions. Remove
+-- every historical policy as well as every frontend grant so an old policy
+-- cannot become active again after a future grant change.
+do $$
+declare
+    item record;
+begin
+    for item in
+        select p.polname as policy_name, n.nspname as schema_name, c.relname as table_name
+        from pg_policy p
+        join pg_class c on c.oid = p.polrelid
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'public'
+          and c.relname in (
+              'invite_codes',
+              'invite_access_sessions',
+              'invite_code_settings',
+              'invite_code_attempts'
+          )
+    loop
+        execute format(
+            'drop policy if exists %I on %I.%I',
+            item.policy_name,
+            item.schema_name,
+            item.table_name
+        );
+    end loop;
+end;
+$$;
+
 create or replace function public.hash_invite_secret(raw_value text)
 returns text
 language plpgsql
@@ -420,6 +450,38 @@ create table if not exists public.class_quiz_questions (
     raw jsonb not null default '{}'::jsonb
 );
 
+-- CREATE TABLE IF NOT EXISTS does not update an older table. Keep the
+-- migration columns explicit so rerunning this setup upgrades legacy schemas.
+alter table public.class_quiz_questions
+add column if not exists content_key text;
+
+alter table public.class_quiz_questions
+add column if not exists question_group text;
+
+alter table public.class_quiz_questions
+add column if not exists question_type text;
+
+alter table public.class_quiz_questions
+add column if not exists prompt text;
+
+alter table public.class_quiz_questions
+add column if not exists choices jsonb not null default '[]'::jsonb;
+
+alter table public.class_quiz_questions
+add column if not exists answer text;
+
+alter table public.class_quiz_questions
+add column if not exists explanation text;
+
+alter table public.class_quiz_questions
+add column if not exists image_path text;
+
+alter table public.class_quiz_questions
+add column if not exists sort_order integer;
+
+alter table public.class_quiz_questions
+add column if not exists raw jsonb not null default '{}'::jsonb;
+
 create table if not exists public.class_credits_page (
     id text primary key default 'main',
     title text not null default '制作组与致谢',
@@ -466,8 +528,6 @@ begin
               'class_quiz_questions',
               'class_credits_page'
           )
-          and p.polcmd = 'r'
-          and regexp_replace(pg_get_expr(p.polqual, p.polrelid), '\s+', '', 'g') in ('true', '(true)')
     loop
         execute format(
             'drop policy if exists %I on %I.%I',
@@ -478,6 +538,27 @@ begin
     end loop;
 end;
 $$;
+
+-- Establish a least-privilege table baseline on every rerun. RLS remains the
+-- row-level guard, while grants prevent old write policies from becoming an
+-- accidental write path for frontend roles.
+revoke all on public.class_records from public, anon, authenticated;
+revoke all on public.class_people from public, anon, authenticated;
+revoke all on public.class_record_pages from public, anon, authenticated;
+revoke all on public.class_page_messages from public, anon, authenticated;
+revoke all on public.class_page_supplements from public, anon, authenticated;
+revoke all on public.class_materials from public, anon, authenticated;
+revoke all on public.class_quiz_questions from public, anon, authenticated;
+revoke all on public.class_credits_page from public, anon, authenticated;
+
+grant select on public.class_records to anon, authenticated;
+grant select on public.class_people to anon, authenticated;
+grant select on public.class_record_pages to anon, authenticated;
+grant select on public.class_page_messages to anon, authenticated;
+grant select on public.class_page_supplements to anon, authenticated;
+grant select on public.class_materials to anon, authenticated;
+grant select on public.class_quiz_questions to anon, authenticated;
+grant select on public.class_credits_page to anon, authenticated;
 
 drop policy if exists "class_records_read" on public.class_records;
 create policy "class_records_read"
@@ -519,7 +600,10 @@ drop policy if exists "class_quiz_questions_read" on public.class_quiz_questions
 create policy "class_quiz_questions_read"
 on public.class_quiz_questions for select
 to anon, authenticated
-using (public.has_class_record_access());
+using (
+    public.has_class_record_access()
+    and public.has_class_record_admin_access()
+);
 
 drop policy if exists "class_credits_page_read" on public.class_credits_page;
 create policy "class_credits_page_read"
@@ -548,15 +632,16 @@ begin
         join pg_namespace n on n.oid = c.relnamespace
         where n.nspname = 'storage'
           and c.relname = 'objects'
-          and p.polcmd = 'r'
-          and regexp_replace(pg_get_expr(p.polqual, p.polrelid), '\s+', '', 'g') in ('true', '(true)')
     loop
         execute format('drop policy if exists %I on storage.objects', item.policy_name);
     end loop;
 end;
 $$;
 
-drop policy if exists "classrecord_private_read" on storage.objects;
+-- This project intentionally keeps exactly one policy on storage.objects.
+-- PostgreSQL combines permissive policies with OR, so leaving any historical
+-- SELECT policy in place could bypass the invite check. Frontend uploads are
+-- not supported, so old write policies are removed as well.
 create policy "classrecord_private_read"
 on storage.objects for select
 to anon, authenticated
@@ -565,10 +650,17 @@ using (
     and public.has_class_record_access()
     and (
         (
-            name !~ '(^|/)H[0-9]{1,3}\.(jpe?g|png|webp)$'
-            and name !~ '(^|/)hidden/'
+            name !~ '^hidden/'
+            and name ~ '^(data/attachments/|images/record-pages/).+\.(png|jpe?g|webp|gif|svg|pdf|txt|zip|mp3|wav|ogg|mp4|webm)$'
         )
-        or public.has_class_record_admin_access()
+        or (
+            name ~ '^images/quiz/.+\.(png|jpe?g|webp|gif|svg)$'
+            and public.has_class_record_admin_access()
+        )
+        or (
+            name ~ '^hidden/(data/attachments/|images/record-pages/).+\.(png|jpe?g|webp|gif|svg|pdf|txt|zip|mp3|wav|ogg|mp4|webm)$'
+            and public.has_class_record_admin_access()
+        )
     )
 );
 

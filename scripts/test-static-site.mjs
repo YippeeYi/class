@@ -40,6 +40,7 @@ for (const page of pages) {
 const vercel = JSON.parse(await readFile(resolve(root, 'vercel.json'), 'utf8'));
 assert.ok(Array.isArray(vercel.headers) && vercel.headers.length, 'vercel.json must configure security headers');
 assert.ok(Array.isArray(vercel.rewrites) && vercel.rewrites.some((item) => item.source === '/data/(.*)'), 'local data must not be publicly served');
+assert.ok(vercel.rewrites.some((item) => item.source === '/images/quiz/(.*)'), 'local quiz images must not be publicly served');
 
 const stylesheet = await readFile(resolve(root, 'style.css'), 'utf8');
 assert.match(stylesheet, /\.guide-page>\.top-right-actions\s*\{[^}]*position:\s*fixed/s, 'guide auxiliary actions must not enter the centered grid flow');
@@ -69,5 +70,10 @@ assert.doesNotMatch(searchScript, /\.slice\(0,\s*80\)/, 'search results must not
 
 const quizPage = await readFile(resolve(root, 'quiz.html'), 'utf8');
 assert.ok(quizPage.indexOf('js/quizCore.js') < quizPage.indexOf('js/quizApp.js'), 'quiz core must load before the UI controller');
+const quizScript = await readFile(resolve(root, 'js/quizApp.js'), 'utf8');
+assert.match(quizScript, /data-secure-src/, 'quiz images must use private Storage references');
+assert.match(quizScript, /resolveAssetElements/, 'quiz images must be signed before display');
+assert.match(quizScript, /if \(!secretAdminAccess\)/, 'lamian unlock must be disabled without administrator access');
+assert.match(quizScript, /hasAdminAccess/, 'lamian unlock must verify administrator access with Supabase');
 
 console.log(`Passed static checks for ${pages.length} pages.`);

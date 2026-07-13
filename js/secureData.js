@@ -210,6 +210,14 @@
         return normalizePrivateStoragePath(raw);
     };
 
+    const normalizeQuizImagePath = (value) => {
+        const raw = normalizePrivateStoragePath(value).replace(/\\/g, '/');
+        if (!raw || /^https?:\/\//i.test(raw) || /^[a-z][a-z0-9+.-]*:/i.test(raw)) return '';
+        if (raw.split('/').some((segment) => !segment || segment === '.' || segment === '..')) return '';
+        if (!raw.startsWith('images/quiz/')) return '';
+        return /\.(?:png|jpe?g|webp|gif)$/i.test(raw) ? raw : '';
+    };
+
     const normalizeRecord = (row, fallbackIndex = 0) => {
         const raw = parseRaw(row);
         const fileName = row.file_name || raw.fileName || raw.id || `record-${fallbackIndex + 1}`;
@@ -507,9 +515,9 @@
                 choices: Array.isArray(row.choices) ? row.choices : (Array.isArray(raw.choices) ? raw.choices : []),
                 answer: row.answer || raw.answer || '',
                 explanation: row.explanation || raw.explanation || '',
-                // Quiz JSON is stored in Supabase, but its image field points to
-                // a public frontend-local asset and must never be signed.
-                image: String(row.image_path || raw.image || raw.imagePath || '').trim().replace(/^\/+/, '')
+                // Quiz images are private Storage objects. The UI signs this
+                // validated object path only after the invite gate resolves.
+                image: normalizeQuizImagePath(row.image_path || raw.image || raw.imagePath || '')
             };
         });
     };

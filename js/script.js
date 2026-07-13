@@ -6,9 +6,6 @@
 const container = document.getElementById("record-list");
 const filterContainer = document.getElementById("record-filter");
 const HIDDEN_RECORD_SEQUENCE = "qibaishihuaxia";
-const HIDDEN_PAGE_MIN = 1;
-const HIDDEN_PAGE_MAX = 83;
-const HIDDEN_PAGE_CHECK_CONCURRENCY = 6;
 
 let allRecords = [];
 let recordPageConfig = [];
@@ -277,111 +274,16 @@ function getVisiblePageSupplements(page, matchedRecords = []) {
   return supplements.filter((item) => matchedSupplements.some((record) => isSamePageSupplement(item, record)));
 }
 
-function normalizeHiddenPageKey(value) {
-  const text = String(value || "").trim().toLowerCase();
-  if (!text) return "";
-  const fileName = text.split(/[\\/]/).pop() || text;
-  const match = fileName.match(/^h?(\d{1,3})(?:\.jpeg)?$/i);
-  if (match) return match[1].padStart(2, "0");
-  return "";
-}
-
-function normalizePageNumber(value) {
-  const match = String(value || "").trim().match(/^(?:H)?(\d{1,3})$/i);
-  return match ? String(Number(match[1])) : "";
-}
-
-function deriveHiddenImagePath(originalPath, pageKey) {
-  const hiddenFileName = `H${pageKey}.jpeg`;
-  const rawPath = String(originalPath || "").trim();
-  if (!rawPath) return "";
-  if (/^https?:\/\//i.test(rawPath)) {
-    try {
-      const url = new URL(rawPath);
-      url.pathname = url.pathname.replace(/[^/]*$/, hiddenFileName);
-      return url.toString();
-    } catch (error) {
-      return "";
-    }
-  }
-  return rawPath.replace(/[^/\\]*$/, hiddenFileName);
-}
-
 async function loadHiddenRecordImagePages() {
   if (!window.ClassRecordData?.isEnabled()) return [];
   if (hiddenRecordPagesPromise) return hiddenRecordPagesPromise;
 
-  hiddenRecordPagesPromise = (async () => {
-    const normalPages = (await window.ClassRecordData.loadRecordPages({ hidden: false }))
-      .map(normalizeRecordPage);
-    const normalPageMap = new Map(normalPages.map((page) => [normalizePageNumber(page.page), page]));
-    const imageTemplate = normalPages.find((page) => page.imagePath)?.imagePath || "";
-    if (!imageTemplate) return [];
-
-    const normalizedTemplate = window.ClassRecordData.normalizePrivateStoragePath?.(imageTemplate) || imageTemplate;
-    const lastDirectorySeparator = Math.max(normalizedTemplate.lastIndexOf("/"), normalizedTemplate.lastIndexOf("\\"));
-    const directory = lastDirectorySeparator >= 0 ? normalizedTemplate.slice(0, lastDirectorySeparator) : "";
-    if (window.ClassRecordData.listAssetPaths && !/^https?:\/\//i.test(normalizedTemplate)) {
-      try {
-        const listedPaths = await window.ClassRecordData.listAssetPaths(directory, { search: "H", limit: 100 });
-        const existingPages = listedPaths.map((imagePath) => {
-          const pageKey = normalizeHiddenPageKey(imagePath);
-          const pageNumber = Number(pageKey);
-          if (!pageKey || pageNumber < HIDDEN_PAGE_MIN || pageNumber > HIDDEN_PAGE_MAX) return null;
-          const normalPage = normalPageMap.get(String(pageNumber));
-          return {
-            ...(normalPage || {}),
-            page: `H${pageKey}`,
-            originalPage: String(pageNumber),
-            start: normalPage?.start || "",
-            end: normalPage?.end || "",
-            imagePath
-          };
-        }).filter(Boolean);
-        return existingPages.sort((a, b) => Number(a.originalPage) - Number(b.originalPage));
-      } catch (error) {
-        // Fall back to quiet, cached probes when Storage listing is unavailable.
-      }
-    }
-
-    const candidates = [];
-    for (let pageNumber = HIDDEN_PAGE_MIN; pageNumber <= HIDDEN_PAGE_MAX; pageNumber += 1) {
-      const pageKey = String(pageNumber).padStart(2, "0");
-      const normalPage = normalPageMap.get(String(pageNumber));
-      const imagePath = deriveHiddenImagePath(normalPage?.imagePath || imageTemplate, pageKey);
-      if (imagePath) candidates.push({ pageKey, normalPage, imagePath });
-    }
-
-    const existingPages = [];
-    let nextCandidate = 0;
-    const checkNext = async () => {
-      while (nextCandidate < candidates.length) {
-        const candidate = candidates[nextCandidate];
-        nextCandidate += 1;
-        const signedUrl = await window.ClassRecordData
-          .signAssetUrl(candidate.imagePath, { quiet: true })
-          .catch(() => "");
-        if (!signedUrl) continue;
-        existingPages.push({
-          ...(candidate.normalPage || {}),
-          page: `H${candidate.pageKey}`,
-          originalPage: String(Number(candidate.pageKey)),
-          start: candidate.normalPage?.start || "",
-          end: candidate.normalPage?.end || "",
-          imagePath: candidate.imagePath
-        });
-      }
-    };
-
-    await Promise.all(Array.from(
-      { length: Math.min(HIDDEN_PAGE_CHECK_CONCURRENCY, candidates.length) },
-      () => checkNext()
-    ));
-    return existingPages.sort((a, b) => Number(a.originalPage) - Number(b.originalPage));
-  })().catch((error) => {
-    hiddenRecordPagesPromise = null;
-    throw error;
-  });
+  hiddenRecordPagesPromise = window.ClassRecordData.loadRecordPages({ hidden: true })
+    .then((pages) => (pages || []).map(normalizeRecordPage).filter((page) => page.page && page.imagePath))
+    .catch((error) => {
+      hiddenRecordPagesPromise = null;
+      throw error;
+    });
 
   return hiddenRecordPagesPromise;
 }

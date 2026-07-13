@@ -48,6 +48,10 @@
       "destination": "/404.html"
     },
     {
+      "source": "/images/quiz/(.*)",
+      "destination": "/404.html"
+    },
+    {
       "source": "/images/private/(.*)",
       "destination": "/404.html"
     }

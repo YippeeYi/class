@@ -62,6 +62,7 @@ const cases = [
     ['[[del:[[record:file-name|显示文字]]]]', ['inline-delete', 'record-jump-link']],
     ['[[anno:注解中包含 [[person:personId|显示名]]|被注释文字]]', ['annotation', '被注释文字']],
     ['[[illu:example.png|带有 [[red:红色文字]] 的文字]]', ['data-image-src="data/attachments/example.png"', 'inline-illustration', 'inline-red']],
+    ['[[illu:hidden/example.png|隐藏插图]]', ['data-image-src="hidden/data/attachments/example.png"', 'inline-illustration']],
     ['[[material:basketball-rule|篮球规则]]', ['material-jump-link', 'data-material-jump="basketball-rule"', '篮球规则']],
     ['[[table:2x3|姓名|项目|结果|张三|跳远|2.1m]]', ['record-inline-table', '<td>姓名</td>', '<td>2.1m</td>']],
     ['[[table:2x3|A||C|D|E|]]', ['record-inline-table', '<td></td>', '<td>C</td>']],

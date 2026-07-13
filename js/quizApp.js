@@ -23,6 +23,7 @@
   let answeredCurrent = false;
   let secretProgress = [];
   let secretUnlocked = false;
+  let secretAdminAccess = false;
   let secretBuffer = '';
   let activeFilters = {
     types: new Set(Object.keys(typeLabels)),
@@ -152,7 +153,7 @@
       questionText.innerHTML = `
         <span class="quiz-question-prompt quiz-question-prompt--secret">${escapeHtml(currentQuestion.prompt)}</span>
         <span class="quiz-secret-visual">
-          ${currentQuestion.imagePath ? `<img src="${escapeHtml(currentQuestion.imagePath)}" alt="\u9898\u76ee\u56fe\u7247" width="1200" height="800" loading="eager" decoding="async" fetchpriority="high">` : '<span class="quiz-image-missing">\u9898\u76ee\u56fe\u7247\u8d44\u6e90\u7f3a\u5931</span>'}
+          ${currentQuestion.imagePath ? `<img data-secure-src="${escapeHtml(currentQuestion.imagePath)}" alt="\u9898\u76ee\u56fe\u7247" width="1200" height="800" loading="eager" decoding="async" fetchpriority="high">` : '<span class="quiz-image-missing">\u9898\u76ee\u56fe\u7247\u8d44\u6e90\u7f3a\u5931</span>'}
           ${renderSecretAnswerBoxes()}
         </span>
       `;
@@ -163,6 +164,11 @@
         fallback.textContent = '\u9898\u76ee\u56fe\u7247\u52a0\u8f7d\u5931\u8d25';
         image.replaceWith(fallback);
       }, { once: true });
+      if (image) {
+        window.ClassRecordData?.resolveAssetElements?.(questionText).catch(() => {
+          if (image.isConnected) image.dispatchEvent(new Event('error'));
+        });
+      }
       return;
     }
 
@@ -721,6 +727,7 @@
 
   async function loadSecretQuestions({ force = false } = {}) {
     try {
+      if (!secretAdminAccess) return [];
       if (!window.ClassRecordData?.loadQuizQuestions) {
         throw new Error('Supabase quiz data loader is unavailable.');
       }
@@ -956,6 +963,10 @@
 
   document.addEventListener('keydown', (event) => {
     if (event.ctrlKey || event.altKey || event.metaKey || event.key.length !== 1) return;
+    if (!secretAdminAccess) {
+      secretBuffer = '';
+      return;
+    }
     secretBuffer = (secretBuffer + event.key.toLowerCase()).slice(-SECRET_SEQUENCE.length);
     if (!secretUnlocked && secretBuffer === SECRET_SEQUENCE) {
       secretUnlocked = true;
@@ -983,16 +994,17 @@
         Promise.resolve(window.ClassRecordData?.loadPageMessages?.() || []).catch(() => []),
         Promise.resolve(window.ClassRecordData?.loadPageSupplements?.({ hidden: false }) || []).catch(() => [])
       ]);
-      const [records, people, secretQuestions, [pageMessages, pageSupplements]] = await Promise.all([
+      const [records, people, adminAccess, [pageMessages, pageSupplements]] = await Promise.all([
         window.loadAllRecords(),
         window.loadAllPeople(),
-        loadSecretQuestions(),
+        Promise.resolve(window.ClassRecordSupabase?.hasAdminAccess?.() || false).catch(() => false),
         supplementalPromise
       ]);
+      secretAdminAccess = adminAccess === true;
       const quotes = await window.loadAllQuotes({ records });
-      return [records, people, quotes, secretQuestions, pageMessages, pageSupplements];
+      return [records, people, quotes, pageMessages, pageSupplements];
     })
-    .then(([records, people, quotes, secretQuestions, pageMessages, pageSupplements]) => {
+    .then(([records, people, quotes, pageMessages, pageSupplements]) => {
       const quizRecords = records.filter((record) => !String(record.fileName || record.id || '').replace(/\.json$/i, '').endsWith('-00'));
       const messages = pageMessages.map((item, index) => normalizeSupplementalRecord(item, 'message', index)).filter((record) => record.content);
       const supplements = pageSupplements.map((item, index) => normalizeSupplementalRecord(item, 'supplement', index)).filter((record) => record.content);
@@ -1013,8 +1025,7 @@
       questionSources = deduplicateSources([
         ...quizRecords.map((record) => buildRecordSource(record, 'record', pools, authorPool, datePool)),
         ...messages.map((record) => buildRecordSource(record, 'message', pools, authorPool, datePool)),
-        ...supplements.map((record) => buildRecordSource(record, 'supplement', pools, authorPool, datePool)),
-        ...secretQuestions.map(buildSecretSource)
+        ...supplements.map((record) => buildRecordSource(record, 'supplement', pools, authorPool, datePool))
       ]);
       renderQuestion();
     })
