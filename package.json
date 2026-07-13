@@ -3,7 +3,7 @@
   "type": "module",
   "scripts": {
     "generate-invite-codes": "node scripts/generate-invite-codes.mjs",
-    "test": "node scripts/test-record-markup.mjs && node scripts/test-quiz-core.mjs && node scripts/test-static-site.mjs"
+    "test": "node scripts/test-record-markup.mjs && node scripts/test-record-view.mjs && node scripts/test-quiz-core.mjs && node scripts/test-static-site.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0"

@@ -91,6 +91,10 @@ function normalizeSupplementalRecords({ records, pageMessages, pageSupplements, 
     return supplemental.filter((item) => item.content);
 }
 
+window.ClassRecordSupplemental = Object.freeze({
+    normalize: normalizeSupplementalRecords
+});
+
 function refreshCombinedRecords() {
     RecordStore.allRecords = [...RecordStore.records, ...RecordStore.hiddenRecords];
 }

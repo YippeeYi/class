@@ -613,7 +613,12 @@ function normalizeSearchText(text) {
 }
 
 function getRecordSearchText(record) {
-    return normalizeSearchText(record.content || "");
+    return normalizeSearchText([
+        record.content || record.text || "",
+        record.author || record.recorder || "",
+        record.date || "",
+        record.time || ""
+    ].join(" "));
 }
 
 function formatContent(text, options = {}) {
@@ -873,11 +878,13 @@ function filterRecordsByDate(records, { year, month, day, important, excludeDail
     return records.filter((record) => {
         if (onlyImportant && record.importance !== "important") return false;
         if (hideDaily && String(record.fileName || record.id || "").replace(/\.json$/i, "").endsWith("-00")) return false;
-        if (!record.date) return false;
-        const [recordYear, recordMonth, recordDay] = record.date.split("-");
-        if (hasYear && recordYear !== year) return false;
-        if (hasMonth && recordMonth !== month) return false;
-        if (hasDay && recordDay !== day) return false;
+        if (hasYear || hasMonth || hasDay) {
+            if (!record.date) return false;
+            const [recordYear, recordMonth, recordDay] = record.date.split("-");
+            if (hasYear && recordYear !== year) return false;
+            if (hasMonth && recordMonth !== month) return false;
+            if (hasDay && recordDay !== day) return false;
+        }
         if (normalizedQuery && !getRecordSearchText(record).includes(normalizedQuery)) return false;
         return true;
     });
@@ -1201,8 +1208,30 @@ function resolveIllustrationUrl(path) {
 const imageViewerState = {
     overlay: null,
     previousOverflow: "",
-    closeHandler: null
+    closeHandler: null,
+    resizeHandler: null
 };
+
+function calculateImageViewerBounds(viewportWidth, viewportHeight) {
+    const width = Math.max(1, Number(viewportWidth) || 1);
+    const height = Math.max(1, Number(viewportHeight) || 1);
+    const padding = Math.min(28, Math.max(14, width * 0.03));
+    return {
+        width: Math.max(1, Math.min(1280, width - padding * 2)),
+        height: Math.max(1, Math.min(980, height - padding * 2))
+    };
+}
+
+function updateImageViewerBounds(overlay) {
+    if (!overlay?.isConnected) return;
+    const viewport = window.visualViewport;
+    const bounds = calculateImageViewerBounds(
+        viewport?.width || window.innerWidth || document.documentElement.clientWidth,
+        viewport?.height || window.innerHeight || document.documentElement.clientHeight
+    );
+    overlay.style.setProperty("--image-viewer-max-width", `${bounds.width}px`);
+    overlay.style.setProperty("--image-viewer-max-height", `${bounds.height}px`);
+}
 
 async function resolvePreviewImageUrl(sourcePath, resolvedUrl = "") {
     const readyUrl = String(resolvedUrl || "").trim();
@@ -1219,8 +1248,11 @@ function closeImageViewer() {
     if (!overlay) return;
     document.documentElement.style.overflow = imageViewerState.previousOverflow;
     document.removeEventListener("keydown", imageViewerState.closeHandler, true);
+    window.removeEventListener("resize", imageViewerState.resizeHandler);
+    window.visualViewport?.removeEventListener("resize", imageViewerState.resizeHandler);
     imageViewerState.overlay = null;
     imageViewerState.closeHandler = null;
+    imageViewerState.resizeHandler = null;
     overlay.classList.remove("is-visible");
     overlay.classList.add("is-leaving");
     window.setTimeout(() => overlay.remove(), 160);
@@ -1244,11 +1276,15 @@ async function openImageViewer(sourcePath, { alt = "image preview", resolvedUrl 
     imageViewerState.closeHandler = (event) => {
         if (event.key === "Escape") closeImageViewer();
     };
+    imageViewerState.resizeHandler = () => updateImageViewerBounds(overlay);
     document.addEventListener("keydown", imageViewerState.closeHandler, true);
+    window.addEventListener("resize", imageViewerState.resizeHandler, { passive: true });
+    window.visualViewport?.addEventListener("resize", imageViewerState.resizeHandler, { passive: true });
     overlay.addEventListener("click", (event) => {
         if (event.target === overlay || event.target.closest(".image-viewer-close")) closeImageViewer();
     });
     document.body.appendChild(overlay);
+    updateImageViewerBounds(overlay);
     requestAnimationFrame(() => overlay.classList.add("is-visible"));
     const frame = overlay.querySelector(".image-viewer-frame");
     const url = await resolvePreviewImageUrl(sourcePath, resolvedUrl).catch(() => "");

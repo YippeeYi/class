@@ -24,7 +24,7 @@ const context = vm.createContext({
 });
 
 const source = await readFile(new URL('../js/recordRenderer.js', import.meta.url), 'utf8');
-vm.runInContext(`${source}\nthis.renderMarkupForTest = parseContent; this.buildRecordBodyForTest = buildRecordBody;`, context);
+vm.runInContext(`${source}\nthis.renderMarkupForTest = parseContent; this.buildRecordBodyForTest = buildRecordBody; this.calculateImageViewerBoundsForTest = calculateImageViewerBounds;`, context);
 const render = context.renderMarkupForTest;
 const buildRecordBody = context.buildRecordBodyForTest;
 const extractPeople = context.window.extractMentionedPersonIds;
@@ -33,6 +33,7 @@ const extractQuotes = context.window.extractMentionedQuoteIds;
 const getAuthors = context.window.getRecordAuthorIds;
 const countTextCharacters = context.window.countRecordTextCharacters;
 const calculateTooltipPosition = context.window.calculateInlineTooltipPosition;
+const calculateImageViewerBounds = context.calculateImageViewerBoundsForTest;
 const extractIllustrations = context.window.extractIllustrationPaths;
 const extractTokens = context.window.extractRecordMarkupTokens;
 const timelineSource = await readFile(new URL('../js/timeline.js', import.meta.url), 'utf8');
@@ -122,6 +123,9 @@ assert.equal(calculateTooltipPosition({ tagRect: { left: 0, top: 40, right: 100,
 assert.equal(calculateTooltipPosition({ tagRect: { left: 200, top: 40, right: 300, bottom: 80, width: 100 }, tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 295, y: 60 } }).left, 188);
 assert.equal(calculateTooltipPosition({ tagRects: [{ left: 20, right: 180, top: 40, bottom: 60 }, { left: 20, right: 90, top: 64, bottom: 84 }], tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 200, pointer: { x: 65, y: 72 } }).top, 92);
 assert.equal(calculateTooltipPosition({ tagRects: [{ left: 20, right: 180, top: 20, bottom: 40 }, { left: 20, right: 90, top: 120, bottom: 140 }], tooltipRect: { width: 100, height: 40 }, viewportWidth: 300, viewportHeight: 220, pointer: { x: 65, y: 130 } }).top, 72);
+assert.deepEqual({ ...calculateImageViewerBounds(1366, 768) }, { width: 1280, height: 712 });
+assert.deepEqual({ ...calculateImageViewerBounds(390, 844) }, { width: 362, height: 816 });
+assert.deepEqual({ ...calculateImageViewerBounds(900, 500) }, { width: 846, height: 446 });
 assert.equal([...fixedScale(8, 12, 3)].join(','), '12,9,6,3,0');
 assert.equal([...fixedScale(72, 100, 25)].join(','), '100,75,50,25,0');
 assert.equal([...fixedScale(1200, 3000, 750)].join(','), '3000,2250,1500,750,0');

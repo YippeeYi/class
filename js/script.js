@@ -55,15 +55,11 @@ function normalizeFileName(value) {
 }
 
 function getFilteredRecords() {
-  return getFilteredRecordsForCurrentView(allRecords, currentCriteria);
+  return getFilteredRecordsForCurrentView(getCurrentViewFilterRecords(), currentCriteria);
 }
 
 function isNormalRecord(record) {
   return !["message", "supplement"].includes(String(record?.recordType || "").trim());
-}
-
-function isSupplementalRecord(record) {
-  return ["message", "supplement"].includes(String(record?.recordType || "").trim());
 }
 
 function getListViewRecords(records) {
@@ -71,37 +67,29 @@ function getListViewRecords(records) {
 }
 
 function getCurrentViewFilterRecords() {
-  return currentView === "written" ? allRecords : getListViewRecords(allRecords);
+  const normalRecords = getListViewRecords(allRecords);
+  if (currentView !== "written") return normalRecords;
+  if (hiddenMode) return allRecords.slice();
+  const supplementalRecords = window.ClassRecordSupplemental?.normalize?.({
+    records: normalRecords,
+    pageMessages: [...pageMessageMap.values()],
+    pageSupplements: [...pageSupplementMap.values()].flat(),
+    pages: recordPageConfig,
+    hidden: false
+  }) || [];
+  return [...normalRecords, ...supplementalRecords];
 }
 
 function getRecordPageKey(record) {
   return String(record?.page || "").trim();
 }
 
-function hasRecordDateCriteria(criteria = {}) {
-  return Boolean(criteria.year || criteria.month || criteria.day);
-}
-
-function supplementalRecordMatchesCriteria(record, criteria = {}) {
-  if (!isSupplementalRecord(record)) return false;
-  if (hasRecordDateCriteria(criteria)) return false;
-  if (criteria.important) return false;
-  const normalizedQuery = normalizeSearchText(criteria.query);
-  if (normalizedQuery && !getRecordSearchText(record).includes(normalizedQuery)) return false;
-  return true;
-}
-
 function filterRecordsForView(records, criteria = {}, view = currentView) {
   const sourceRecords = Array.isArray(records) ? records : [];
-  const normalMatches = filterRecordsByDate(getListViewRecords(sourceRecords), criteria);
-  if (view !== "written") {
-    sortRecords(normalMatches);
-    return normalMatches;
-  }
-  const supplementalMatches = sourceRecords.filter((record) => supplementalRecordMatchesCriteria(record, criteria));
-  const combined = [...normalMatches, ...supplementalMatches];
-  sortRecords(combined);
-  return combined;
+  const eligibleRecords = view === "written" ? sourceRecords : getListViewRecords(sourceRecords);
+  const matches = filterRecordsByDate(eligibleRecords, criteria);
+  sortRecords(matches);
+  return matches;
 }
 
 function getFilteredRecordsForCurrentView(records, criteria = currentCriteria) {

@@ -6277,6 +6277,9 @@ body.hidden-record-mode .hidden-record-banner {
   place-items: center;
   padding: clamp(14px, 3vw, 28px);
   box-sizing: border-box;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   background: color-mix(in srgb, var(--overlay-backdrop) 86%, rgba(0, 0, 0, 0.42));
   backdrop-filter: blur(10px);
   opacity: 0;
@@ -6294,17 +6297,18 @@ body.hidden-record-mode .hidden-record-banner {
 .image-viewer-frame {
   display: grid;
   place-items: center;
-  width: min(96vw, 1280px);
-  height: min(92vh, 980px);
-  height: min(92dvh, 980px);
+  width: var(--image-viewer-max-width, min(96vw, 1280px));
+  height: var(--image-viewer-max-height, min(92dvh, 980px));
+  max-width: 100%;
+  max-height: 100%;
   min-width: 0;
   min-height: 0;
 }
 
 .image-viewer-frame img {
   display: block;
-  max-width: 100%;
-  max-height: 100%;
+  max-width: var(--image-viewer-max-width, 100%);
+  max-height: var(--image-viewer-max-height, 100%);
   width: auto;
   height: auto;
   border-radius: 12px;
