@@ -1238,18 +1238,22 @@ function updateImageViewerBounds(overlay) {
     imageViewerState.interaction?.refresh();
 }
 
-async function resolveOriginalImageUrl(sourcePath) {
+async function resolveOriginalImageUrl(sourcePath, { forceRefresh = false } = {}) {
     const direct = String(sourcePath || "").trim();
     if (!direct) return "";
     if (/^(?:https?:|data:|blob:)/i.test(direct)) return direct;
+    if (window.ClassRecordData?.isEnabled?.()) {
+        return window.ClassRecordData.signAssetUrl(direct, { quiet: true, forceRefresh }).catch(() => "");
+    }
     if (/^(?:\.\/|\/)?images\//i.test(direct)) return new URL(direct.replace(/^\//, ""), document.baseURI).href;
-    return (await resolveIllustrationUrl(direct)) || direct;
+    return direct;
 }
 
 async function resolveImageViewerUrl(sourcePath, { resolvedUrl = "", urlPromise = null } = {}) {
     const originalUrl = await resolveOriginalImageUrl(sourcePath).catch(() => "");
     if (originalUrl) return originalUrl;
     const readyUrl = String(resolvedUrl || "").trim();
+    if (readyUrl) return readyUrl;
     if (urlPromise) {
         try {
             const pendingUrl = await (typeof urlPromise === "function" ? urlPromise() : urlPromise);
@@ -1258,7 +1262,35 @@ async function resolveImageViewerUrl(sourcePath, { resolvedUrl = "", urlPromise 
             // Fall through to a fresh resolution attempt before reporting an error.
         }
     }
-    return readyUrl;
+    return "";
+}
+
+function normalizeImageViewerUrl(url) {
+    const candidate = String(url || "").trim();
+    if (!candidate) return "";
+    try {
+        return new URL(candidate, document.baseURI).href;
+    } catch (error) {
+        return candidate;
+    }
+}
+
+async function resolveImageViewerFallbackUrl(sourcePath, { resolvedUrl = "", urlPromise = null } = {}, attemptedUrls = new Set(), { forceRefresh = false } = {}) {
+    const candidates = [];
+    const freshOriginal = await resolveOriginalImageUrl(sourcePath, { forceRefresh }).catch(() => "");
+    if (freshOriginal) candidates.push(freshOriginal);
+    if (resolvedUrl) candidates.push(resolvedUrl);
+    if (urlPromise) {
+        try {
+            const pendingUrl = await (typeof urlPromise === "function" ? urlPromise() : urlPromise);
+            if (pendingUrl) candidates.push(pendingUrl);
+        } catch (error) {
+            // A rejected preload is a real failed candidate; try any remaining source.
+        }
+    }
+    return candidates
+        .map(normalizeImageViewerUrl)
+        .find((candidate) => candidate && !attemptedUrls.has(candidate)) || "";
 }
 
 function setImageViewerStatus(overlay, frame, state) {
@@ -1441,8 +1473,16 @@ async function openImageViewer(sourcePath, { alt = "image preview", resolvedUrl 
     image.alt = alt;
     image.decoding = "async";
     image.draggable = false;
-    const hasPreferredUrl = Boolean(resolvedUrl || urlPromise);
-    let attemptedFreshUrl = false;
+    const attemptedUrls = new Set();
+    let resolvingFallback = false;
+    let refreshedOriginal = false;
+    const loadCandidate = (candidate) => {
+        const normalized = normalizeImageViewerUrl(candidate);
+        if (!normalized || attemptedUrls.has(normalized)) return false;
+        attemptedUrls.add(normalized);
+        image.src = normalized;
+        return true;
+    };
     const showFailure = () => {
         if (imageViewerState.overlay === overlay) setImageViewerStatus(overlay, frame, "error");
     };
@@ -1452,21 +1492,21 @@ async function openImageViewer(sourcePath, { alt = "image preview", resolvedUrl 
         setImageViewerStatus(overlay, frame, "success");
         imageViewerState.interaction = createImageViewerInteraction(frame, image);
     };
-    image.onerror = () => {
-        if (attemptedFreshUrl || !hasPreferredUrl) {
-            showFailure();
-            return;
-        }
-        attemptedFreshUrl = true;
-        resolveOriginalImageUrl(sourcePath).then((freshUrl) => {
-            if (!freshUrl || freshUrl === image.src || imageViewerState.overlay !== overlay) {
-                showFailure();
-                return;
-            }
-            image.src = freshUrl;
-        }).catch(showFailure);
+    image.onerror = async () => {
+        if (resolvingFallback || imageViewerState.overlay !== overlay) return;
+        resolvingFallback = true;
+        const fallbackUrl = await resolveImageViewerFallbackUrl(
+            sourcePath,
+            { resolvedUrl, urlPromise },
+            attemptedUrls,
+            { forceRefresh: !refreshedOriginal }
+        ).catch(() => "");
+        refreshedOriginal = true;
+        resolvingFallback = false;
+        if (imageViewerState.overlay !== overlay) return;
+        if (!loadCandidate(fallbackUrl)) showFailure();
     };
-    image.src = url;
+    if (!loadCandidate(url)) showFailure();
 }
 
 window.ClassRecordImageViewer = {

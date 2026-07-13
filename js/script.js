@@ -474,6 +474,7 @@ function getDirectWrittenImageUrl(path) {
   const sourcePath = String(path || "").trim();
   if (!sourcePath) return "";
   if (/^(?:https?:|data:|blob:)/i.test(sourcePath)) return sourcePath;
+  if (window.ClassRecordData?.isEnabled?.()) return "";
   if (/^(?:\.\/|\/)?images\//i.test(sourcePath)) {
     return new URL(sourcePath.replace(/^\//, ""), document.baseURI).href;
   }

@@ -488,11 +488,15 @@
         });
     };
 
-    const signAssetUrl = async (path, { expiresIn, quiet = false } = {}) => {
+    const signAssetUrl = async (path, { expiresIn, quiet = false, forceRefresh = false } = {}) => {
         const safePath = normalizePrivateStoragePath(path);
         if (!safePath || /^https?:\/\//i.test(safePath)) return safePath;
         const now = Date.now();
         const lifetime = expiresIn || 60 * 30;
+        if (forceRefresh) {
+            signedUrlCache.delete(safePath);
+            failedSignCache.delete(safePath);
+        }
         const failedAt = failedSignCache.get(safePath);
         if (failedAt && now - failedAt < FAILED_SIGN_TTL) {
             if (quiet) return '';

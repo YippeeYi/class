@@ -24,7 +24,7 @@ const context = vm.createContext({
 });
 
 const source = await readFile(new URL('../js/recordRenderer.js', import.meta.url), 'utf8');
-vm.runInContext(`${source}\nthis.renderMarkupForTest = parseContent; this.buildRecordBodyForTest = buildRecordBody; this.calculateImageViewerBoundsForTest = calculateImageViewerBounds; this.calculateImageViewerZoomForTest = calculateImageViewerZoom; this.calculateImageViewerFitForTest = calculateImageViewerFit; this.resolveImageViewerUrlForTest = resolveImageViewerUrl;`, context);
+vm.runInContext(`${source}\nthis.renderMarkupForTest = parseContent; this.buildRecordBodyForTest = buildRecordBody; this.calculateImageViewerBoundsForTest = calculateImageViewerBounds; this.calculateImageViewerZoomForTest = calculateImageViewerZoom; this.calculateImageViewerFitForTest = calculateImageViewerFit; this.resolveImageViewerUrlForTest = resolveImageViewerUrl; this.resolveImageViewerFallbackUrlForTest = resolveImageViewerFallbackUrl;`, context);
 const render = context.renderMarkupForTest;
 const buildRecordBody = context.buildRecordBodyForTest;
 const extractPeople = context.window.extractMentionedPersonIds;
@@ -37,6 +37,7 @@ const calculateImageViewerBounds = context.calculateImageViewerBoundsForTest;
 const calculateImageViewerZoom = context.calculateImageViewerZoomForTest;
 const calculateImageViewerFit = context.calculateImageViewerFitForTest;
 const resolveImageViewerUrl = context.resolveImageViewerUrlForTest;
+const resolveImageViewerFallbackUrl = context.resolveImageViewerFallbackUrlForTest;
 const extractIllustrations = context.window.extractIllustrationPaths;
 const extractTokens = context.window.extractRecordMarkupTokens;
 const timelineSource = await readFile(new URL('../js/timeline.js', import.meta.url), 'utf8');
@@ -152,9 +153,29 @@ context.window.ClassRecordData = {
     signAssetUrl: async (path) => `https://storage.example.test/original/${path}`
 };
 assert.equal(
-    await resolveImageViewerUrl('private/original.jpeg', { resolvedUrl: 'https://storage.example.test/thumbnail.jpeg' }),
-    'https://storage.example.test/original/private/original.jpeg'
+    await resolveImageViewerUrl('images/record-pages/01.jpeg', { resolvedUrl: 'https://storage.example.test/thumbnail.jpeg' }),
+    'https://storage.example.test/original/images/record-pages/01.jpeg'
 );
+context.window.ClassRecordData.signAssetUrl = async () => '';
+assert.equal(
+    await resolveImageViewerUrl('images/record-pages/01.jpeg', { resolvedUrl: 'https://storage.example.test/already-loaded.jpeg' }),
+    'https://storage.example.test/already-loaded.jpeg'
+);
+let forceRefreshReceived = false;
+context.window.ClassRecordData.signAssetUrl = async (path, options) => {
+    forceRefreshReceived = options.forceRefresh;
+    return 'https://storage.example.test/fresh-original.jpeg';
+};
+assert.equal(
+    await resolveImageViewerFallbackUrl(
+        'images/record-pages/01.jpeg',
+        { resolvedUrl: 'https://storage.example.test/already-loaded.jpeg' },
+        new Set(['https://storage.example.test/expired-original.jpeg']),
+        { forceRefresh: true }
+    ),
+    'https://storage.example.test/fresh-original.jpeg'
+);
+assert.equal(forceRefreshReceived, true);
 delete context.window.ClassRecordData;
 assert.equal([...fixedScale(8, 12, 3)].join(','), '12,9,6,3,0');
 assert.equal([...fixedScale(72, 100, 25)].join(','), '100,75,50,25,0');
