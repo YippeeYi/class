@@ -12,6 +12,7 @@ const assetArgument = process.argv.find((value) => value.startsWith('--asset='))
 const knownAsset = assetArgument?.slice('--asset='.length) || 'images/record-pages/01.jpeg';
 const sensitiveAsset = 'images/quiz/lamian/01.png';
 const accessToken = String(process.env.CLASS_RECORD_ACCESS_TOKEN || '').trim();
+const invalidToken = '0'.repeat(64);
 
 assert.ok(url && anonKey, 'Unable to read Supabase URL/anon key from js/supabaseConfig.js');
 assert.ok(!knownAsset.includes('..') && !knownAsset.startsWith('/'), 'Invalid --asset path');
@@ -78,7 +79,22 @@ for (const table of contentTables) {
     assert.deepEqual(rows, [], `FAIL: unauthenticated anon request can read ${table}`);
 }
 
-console.log(`PASS: unauthenticated anon cannot list, download, sign ${knownAsset}, or read protected tables.`);
+const invalidAccessResponse = await request('/rest/v1/rpc/has_class_record_access', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}'
+}, invalidToken);
+assert.equal(invalidAccessResponse.ok, true, 'invalid-token access RPC failed unexpectedly');
+assert.equal(await invalidAccessResponse.json(), false, 'FAIL: a fabricated localStorage token obtained access');
+
+const invalidRecordResponse = await request('/rest/v1/class_records?select=id&limit=1', {
+    headers: { Accept: 'application/json' }
+}, invalidToken);
+if (invalidRecordResponse.ok) {
+    assert.deepEqual(await invalidRecordResponse.json(), [], 'FAIL: a fabricated bearer token can read records');
+}
+
+console.log(`PASS: unauthenticated and fabricated-token requests cannot list, download, sign ${knownAsset}, or read protected tables.`);
 
 if (accessToken) {
     assert.equal(accessToken.length, 64, 'CLASS_RECORD_ACCESS_TOKEN must be the 64-character browser access token');

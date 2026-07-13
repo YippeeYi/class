@@ -14,8 +14,10 @@
             code: String(error?.code || error?.status || "unknown").slice(0, 80),
             ...(context.id ? { id: String(context.id).slice(0, 120) } : {})
         };
-        if (isDevelopment) console[method](label, safe, error);
-        else console[method](label, safe);
+        // Never pass the raw Supabase error object to console: browser/network
+        // implementations may attach request details. Development keeps the
+        // same type/code/id diagnostics without exposing headers or payloads.
+        console[method](label, { ...safe, development: isDevelopment });
     };
 
     window.ClassRecordDiagnostics = Object.freeze({

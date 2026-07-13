@@ -1,6 +1,6 @@
 (function () {
     const CONFIG_URL = 'supabaseConfig.js';
-    const SUPABASE_SDK_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0';
+    const SUPABASE_SDK_URL = 'vendor/supabase-js-2.45.0.js';
     const SUPABASE_SDK_INTEGRITY = 'sha384-NNePyabYRaJyedI6EQAY7SV5Z8/0sQkuQ5WVfhKm0H+j0KSugkI2ZMNzw/QtzAWz';
     const DEFAULT_BUCKET = 'classrecord-private';
 
@@ -76,8 +76,8 @@
         if (/^https:\/\//i.test(src)) {
             script.crossOrigin = 'anonymous';
             script.referrerPolicy = 'no-referrer';
-            if (src === SUPABASE_SDK_URL) script.integrity = SUPABASE_SDK_INTEGRITY;
         }
+        if (src === SUPABASE_SDK_URL) script.integrity = SUPABASE_SDK_INTEGRITY;
         script.onload = () => resolve();
         script.onerror = () => reject(new Error(`Script load failed: ${src}`));
         document.head.appendChild(script);

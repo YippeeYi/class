@@ -30,6 +30,8 @@ required_functions(function_name, arg_types, should_be_public_executable) as (
         ('has_class_record_admin_access', '', true),
         ('revoke_invite_access_session', 'uuid', false),
         ('revoke_all_invite_access_sessions', '', false),
+        ('get_invite_access_session_overview', '', false),
+        ('list_invite_access_sessions', '', false),
         ('cleanup_invite_code_attempts', '', false)
 ),
 table_state as (
@@ -200,6 +202,20 @@ invite_schema as (
               and table_name = 'invite_access_sessions'
               and column_name = 'access_level'
         ) as sessions_has_access_level,
+        not exists (
+            select required.column_name
+            from (values
+                ('created_at'), ('last_seen_at'), ('expires_at'), ('revoked_at'),
+                ('last_origin_hash'), ('refresh_window_started_at'), ('refresh_count'),
+                ('risk_flags'), ('risk_flagged_at')
+            ) as required(column_name)
+            where not exists (
+                select 1 from information_schema.columns c
+                where c.table_schema = 'public'
+                  and c.table_name = 'invite_access_sessions'
+                  and c.column_name = required.column_name
+            )
+        ) as sessions_has_lifecycle_metadata,
         exists (
             select 1
             from pg_constraint
@@ -216,6 +232,13 @@ invite_schema as (
               and pg_get_constraintdef(oid) ilike '%normal%'
               and pg_get_constraintdef(oid) ilike '%admin%'
         ) as sessions_has_access_level_check,
+        exists (
+            select 1
+            from pg_constraint
+            where conrelid = to_regclass('public.invite_access_sessions')
+              and conname = 'invite_access_sessions_token_hash_format_check'
+              and pg_get_constraintdef(oid) ilike '%64%'
+        ) as sessions_has_token_hash_check,
         not exists (
             select 1 from public.invite_codes
             where access_level is null
@@ -255,6 +278,10 @@ invite_hardening as (
         pg_get_functiondef(to_regprocedure('public.has_class_record_admin_access()')) as admin_definition,
         coalesce(has_function_privilege('service_role', to_regprocedure('public.revoke_invite_access_session(uuid)'), 'execute'), false) as service_can_revoke_one,
         coalesce(has_function_privilege('service_role', to_regprocedure('public.revoke_all_invite_access_sessions()'), 'execute'), false) as service_can_revoke_all,
+        coalesce(has_function_privilege('service_role', to_regprocedure('public.get_invite_access_session_overview()'), 'execute'), false) as service_can_view_overview,
+        coalesce(has_function_privilege('service_role', to_regprocedure('public.list_invite_access_sessions()'), 'execute'), false) as service_can_list_sessions,
+        coalesce(has_function_privilege('anon', to_regprocedure('public.get_invite_access_session_overview()'), 'execute'), true) as anon_can_view_overview,
+        coalesce(has_function_privilege('anon', to_regprocedure('public.list_invite_access_sessions()'), 'execute'), true) as anon_can_list_sessions,
         coalesce(has_function_privilege('service_role', to_regprocedure('public.cleanup_invite_code_attempts()'), 'execute'), false) as service_can_cleanup
 )
 
@@ -467,6 +494,13 @@ from invite_schema
 
 union all
 select
+    'invite_schema.session_lifecycle_metadata',
+    case when sessions_has_lifecycle_metadata then 'PASS' else 'FAIL' end,
+    'sessions must record created/last-used/absolute-expiry/revocation and non-blocking anomaly metadata'
+from invite_schema
+
+union all
+select
     'invite_schema.invite_codes_access_level_check',
     case when invite_codes_has_access_level_check then 'PASS' else 'FAIL' end,
     'invite_codes access_level must be constrained to normal/admin'
@@ -477,6 +511,13 @@ select
     'invite_schema.sessions_access_level_check',
     case when sessions_has_access_level_check then 'PASS' else 'FAIL' end,
     'invite_access_sessions access_level must be constrained to normal/admin'
+from invite_schema
+
+union all
+select
+    'invite_schema.session_token_hash_format',
+    case when sessions_has_token_hash_check then 'PASS' else 'FAIL' end,
+    'session table must store a 64-character SHA-256 hex hash, never the bearer token'
 from invite_schema
 
 union all
@@ -517,11 +558,41 @@ from invite_schema
 union all
 select
     'invite.absolute_session_lifetime',
-    case when refresh_definition ilike '%created_at%365 days%'
-           and access_definition ilike '%created_at%365 days%'
-           and admin_definition ilike '%created_at%365 days%'
+    case when refresh_definition ilike '%expires_at > now()%'
+           and refresh_definition ilike '%created_at%365 days%'
+           and access_definition ilike '%expires_at > now()%'
+           and admin_definition ilike '%expires_at > now()%'
          then 'PASS' else 'FAIL' end,
-    'refresh and access helpers must enforce the 365-day absolute session lifetime'
+    'refresh and access helpers must enforce explicit expiry plus the 365-day defensive bound'
+from invite_hardening
+
+union all
+select
+    'invite.token_generation_and_hashing',
+    case when verify_definition ilike '%gen_random_bytes(32)%'
+           and verify_definition ilike '%hash_invite_secret(access_token)%'
+           and verify_definition ilike '%accessToken%access_token%'
+         then 'PASS' else 'FAIL' end,
+    'invite exchange must return a 256-bit random token while persisting only its peppered hash'
+from invite_hardening
+
+union all
+select
+    'invite.non_blocking_anomaly_detection',
+    case when refresh_definition ilike '%high_refresh_rate%'
+           and refresh_definition ilike '%rapid_origin_change%'
+           and refresh_definition ilike '%last_origin_hash%'
+         then 'PASS' else 'FAIL' end,
+    'refresh must record pseudonymous anomaly flags without IP/device binding'
+from invite_hardening
+
+union all
+select
+    'invite.admin_session_visibility',
+    case when service_can_view_overview and service_can_list_sessions
+           and not anon_can_view_overview and not anon_can_list_sessions
+         then 'PASS' else 'FAIL' end,
+    'service_role may inspect session metadata, while anon cannot access it'
 from invite_hardening
 
 union all

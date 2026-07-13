@@ -21,14 +21,16 @@ const listFiles = async (directory = '.') => {
     return output;
 };
 
-const [setupSql, checkSql, phase2Sql, migration, secureData, quizApp, authGate] = await Promise.all([
+const [setupSql, checkSql, phase2Sql, finalAccessSql, migration, secureData, quizApp, authGate, siteCache] = await Promise.all([
     read('docs/supabase-setup.sql'),
     read('docs/supabase-security-check.sql'),
     read('docs/supabase-phase2-security.sql'),
+    read('docs/supabase-final-access-security.sql'),
     read('scripts/migrate-secure-content.mjs'),
     read('js/secureData.js'),
     read('js/quizApp.js'),
-    read('js/authGate.js')
+    read('js/authGate.js'),
+    read('js/siteCache.js')
 ]);
 
 assert.match(setupSql, /where n\.nspname = 'storage'[\s\S]*c\.relname = 'objects'[\s\S]*drop policy if exists %I on storage\.objects/, 'setup must remove every historical Storage policy');
@@ -55,6 +57,13 @@ assert.match(checkSql, /fingerprint_definition ilike '%rate:ip:%'[\s\S]*verify_d
 assert.match(phase2Sql, /created_at > now\(\) - interval '365 days'/, 'phase 2 migration must enforce an absolute server-side lifetime');
 assert.match(phase2Sql, /revoke_all_invite_access_sessions/, 'phase 2 migration must provide global session revocation');
 assert.doesNotMatch(phase2Sql.match(/create or replace function public\.verify_invite_code[\s\S]*?\$\$;/)?.[0] || '', /delete from public\.invite_code_attempts/, 'invite verification must not clean history inline');
+assert.match(finalAccessSql, /expires_at timestamptz/, 'final migration must persist an explicit absolute expiry');
+assert.match(finalAccessSql, /last_origin_hash/, 'final migration must support pseudonymous origin-change detection');
+assert.match(finalAccessSql, /high_refresh_rate[\s\S]*rapid_origin_change/, 'final migration must record both high-frequency and rapid-origin-change risks');
+assert.doesNotMatch(finalAccessSql, /user_agent|raw_ip|client_ip|ip_address/i, 'session anomaly metadata must not store raw device or IP identifiers');
+assert.match(finalAccessSql, /get_invite_access_session_overview/, 'final migration must provide a token-free administrator overview');
+assert.match(finalAccessSql, /list_invite_access_sessions/, 'final migration must provide token-free session inspection');
+assert.match(finalAccessSql, /revoke all on function public\.list_invite_access_sessions\(\) from public, anon, authenticated/, 'session inspection must not be callable by the browser anon role');
 
 assert.match(migration, /const storageUploadManifest = new Map\(\)/, 'migration must use an explicit Storage upload manifest');
 assert.match(migration, /await validateDatabaseSchema\(\);[\s\S]*await importRecords\(\)/, 'migration must validate its database schema before writing');
@@ -78,6 +87,9 @@ assert.match(quizApp, /ClassRecordSupabase\?\.hasAdminAccess/, 'hidden quiz unlo
 assert.match(authGate, /ACCESS_MAX_ABSOLUTE_DAYS = 365/, 'the browser gate must mirror the server absolute lifetime for early cleanup');
 assert.doesNotMatch(authGate, /item\?\.verified\s*!==\s*true/, 'local verified=true must not be treated as authority');
 assert.match(authGate, /refreshInviteAccess/, 'page access must still be confirmed by the server token refresh');
+assert.doesNotMatch(authGate, /(?:location|history)[^\n]*(?:token|accessToken)|URLSearchParams[^\n]*(?:token|accessToken)/i, 'bearer tokens must never enter URLs or browser history');
+assert.doesNotMatch(authGate, /console\.[a-z]+\([^\n]*(?:token|accessToken)/i, 'bearer tokens must never be logged');
+assert.doesNotMatch(siteCache, /console\[method\]\(label,\s*safe,\s*error\)/, 'diagnostics must not log raw Supabase errors that could carry request details');
 
 const repositoryFiles = await listFiles();
 const forbiddenPublicFiles = repositoryFiles.filter((file) => (
