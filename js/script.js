@@ -602,9 +602,13 @@ function renderWrittenView(records) {
   const writtenImage = container.querySelector(".record-written-image img");
   writtenFigure?.addEventListener("click", () => {
     if (!imagePath || typeof window.ClassRecordImageViewer?.open !== "function") return;
+    const loadedUrl = writtenImage?.complete && writtenImage.naturalWidth > 0
+      ? writtenImage.currentSrc || writtenImage.src
+      : "";
     window.ClassRecordImageViewer.open(imagePath, {
       alt: hiddenMode ? `${page.page} hidden written record` : `${page.page} written record`,
-      resolvedUrl: writtenImage?.currentSrc || writtenImage?.src || getCachedWrittenImageSource(imagePath)
+      resolvedUrl: loadedUrl || getCachedWrittenImageSource(imagePath),
+      urlPromise: () => preloadWrittenImage(imagePath, { priority: "high" })
     });
   });
   writtenImage?.addEventListener("load", (event) => {

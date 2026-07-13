@@ -44,8 +44,9 @@ assert.match(stylesheet, /\.guide-page>\.guide-main\s*\{[^}]*justify-content:\s*
 
 const recordScript = await readFile(resolve(root, 'js/script.js'), 'utf8');
 const recordRenderer = await readFile(resolve(root, 'js/recordRenderer.js'), 'utf8');
-assert.match(recordScript, /resolvedUrl:\s*writtenImage\?\.currentSrc/, 'written image viewer must reuse the loaded full-resolution URL');
-assert.match(recordRenderer, /openImageViewer\(sourcePath,\s*\{[^}]*resolvedUrl\s*=\s*""/s, 'shared image viewer must accept an already resolved URL');
+assert.match(recordScript, /resolvedUrl:\s*loadedUrl\s*\|\|\s*getCachedWrittenImageSource/, 'written image viewer must reuse an already loaded or cached full-resolution URL');
+assert.match(recordScript, /urlPromise:\s*\(\)\s*=>\s*preloadWrittenImage/, 'written image viewer must wait for the shared preload promise');
+assert.match(recordRenderer, /openImageViewer\(sourcePath,\s*\{[^}]*resolvedUrl\s*=\s*""[^}]*urlPromise\s*=\s*null/s, 'shared image viewer must accept resolved and pending image sources');
 
 const quizPage = await readFile(resolve(root, 'quiz.html'), 'utf8');
 assert.ok(quizPage.indexOf('js/quizCore.js') < quizPage.indexOf('js/quizApp.js'), 'quiz core must load before the UI controller');

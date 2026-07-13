@@ -6295,6 +6295,7 @@ body.hidden-record-mode .hidden-record-banner {
 }
 
 .image-viewer-frame {
+  position: relative;
   display: grid;
   place-items: center;
   width: var(--image-viewer-max-width, min(96vw, 1280px));
@@ -6303,6 +6304,11 @@ body.hidden-record-mode .hidden-record-banner {
   max-height: 100%;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  cursor: default;
+  contain: layout paint;
 }
 
 .image-viewer-frame img {
@@ -6314,6 +6320,18 @@ body.hidden-record-mode .hidden-record-banner {
   border-radius: 12px;
   object-fit: contain;
   box-shadow: var(--overlay-card-shadow);
+  transform-origin: center center;
+  will-change: transform;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.image-viewer-frame.can-drag {
+  cursor: grab;
+}
+
+.image-viewer-frame.is-dragging {
+  cursor: grabbing;
 }
 
 .image-viewer-close {

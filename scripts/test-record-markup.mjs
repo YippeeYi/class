@@ -24,7 +24,7 @@ const context = vm.createContext({
 });
 
 const source = await readFile(new URL('../js/recordRenderer.js', import.meta.url), 'utf8');
-vm.runInContext(`${source}\nthis.renderMarkupForTest = parseContent; this.buildRecordBodyForTest = buildRecordBody; this.calculateImageViewerBoundsForTest = calculateImageViewerBounds;`, context);
+vm.runInContext(`${source}\nthis.renderMarkupForTest = parseContent; this.buildRecordBodyForTest = buildRecordBody; this.calculateImageViewerBoundsForTest = calculateImageViewerBounds; this.calculateImageViewerZoomForTest = calculateImageViewerZoom; this.resolveImageViewerUrlForTest = resolveImageViewerUrl;`, context);
 const render = context.renderMarkupForTest;
 const buildRecordBody = context.buildRecordBodyForTest;
 const extractPeople = context.window.extractMentionedPersonIds;
@@ -34,6 +34,8 @@ const getAuthors = context.window.getRecordAuthorIds;
 const countTextCharacters = context.window.countRecordTextCharacters;
 const calculateTooltipPosition = context.window.calculateInlineTooltipPosition;
 const calculateImageViewerBounds = context.calculateImageViewerBoundsForTest;
+const calculateImageViewerZoom = context.calculateImageViewerZoomForTest;
+const resolveImageViewerUrl = context.resolveImageViewerUrlForTest;
 const extractIllustrations = context.window.extractIllustrationPaths;
 const extractTokens = context.window.extractRecordMarkupTokens;
 const timelineSource = await readFile(new URL('../js/timeline.js', import.meta.url), 'utf8');
@@ -126,6 +128,21 @@ assert.equal(calculateTooltipPosition({ tagRects: [{ left: 20, right: 180, top: 
 assert.deepEqual({ ...calculateImageViewerBounds(1366, 768) }, { width: 1280, height: 712 });
 assert.deepEqual({ ...calculateImageViewerBounds(390, 844) }, { width: 362, height: 816 });
 assert.deepEqual({ ...calculateImageViewerBounds(900, 500) }, { width: 846, height: 446 });
+const zoomedAroundPointer = { ...calculateImageViewerZoom({ scale: 1, panX: 0, panY: 0, pointX: 100, pointY: -50, deltaY: -1000 }) };
+assert.ok(zoomedAroundPointer.scale > 1);
+assert.ok(Math.abs((100 - zoomedAroundPointer.panX) / zoomedAroundPointer.scale - 100) < 0.0001);
+assert.ok(Math.abs((-50 - zoomedAroundPointer.panY) / zoomedAroundPointer.scale + 50) < 0.0001);
+assert.deepEqual({ ...calculateImageViewerZoom({ scale: 2, panX: 40, panY: 20, pointX: 10, pointY: 10, deltaY: 10000 }) }, { scale: 0.25, panX: 0, panY: 0 });
+let resolvePendingViewerUrl;
+let pendingViewerState = 'loading';
+const pendingViewerUrl = new Promise((resolve) => { resolvePendingViewerUrl = resolve; });
+const pendingViewerResult = resolveImageViewerUrl('private/image.jpeg', { urlPromise: pendingViewerUrl })
+    .then((url) => { pendingViewerState = 'success'; return url; });
+await Promise.resolve();
+assert.equal(pendingViewerState, 'loading');
+resolvePendingViewerUrl('https://example.test/image.jpeg');
+assert.equal(await pendingViewerResult, 'https://example.test/image.jpeg');
+assert.equal(pendingViewerState, 'success');
 assert.equal([...fixedScale(8, 12, 3)].join(','), '12,9,6,3,0');
 assert.equal([...fixedScale(72, 100, 25)].join(','), '100,75,50,25,0');
 assert.equal([...fixedScale(1200, 3000, 750)].join(','), '3000,2250,1500,750,0');

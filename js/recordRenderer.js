@@ -1209,8 +1209,12 @@ const imageViewerState = {
     overlay: null,
     previousOverflow: "",
     closeHandler: null,
-    resizeHandler: null
+    resizeHandler: null,
+    interaction: null
 };
+
+const IMAGE_VIEWER_MIN_SCALE = 0.25;
+const IMAGE_VIEWER_MAX_SCALE = 12;
 
 function calculateImageViewerBounds(viewportWidth, viewportHeight) {
     const width = Math.max(1, Number(viewportWidth) || 1);
@@ -1231,6 +1235,7 @@ function updateImageViewerBounds(overlay) {
     );
     overlay.style.setProperty("--image-viewer-max-width", `${bounds.width}px`);
     overlay.style.setProperty("--image-viewer-max-height", `${bounds.height}px`);
+    imageViewerState.interaction?.refresh();
 }
 
 async function resolvePreviewImageUrl(sourcePath, resolvedUrl = "") {
@@ -1243,6 +1248,127 @@ async function resolvePreviewImageUrl(sourcePath, resolvedUrl = "") {
     return (await resolveIllustrationUrl(direct)) || direct;
 }
 
+async function resolveImageViewerUrl(sourcePath, { resolvedUrl = "", urlPromise = null } = {}) {
+    const readyUrl = String(resolvedUrl || "").trim();
+    if (readyUrl) return readyUrl;
+    if (urlPromise) {
+        try {
+            const pendingUrl = await (typeof urlPromise === "function" ? urlPromise() : urlPromise);
+            if (pendingUrl) return String(pendingUrl).trim();
+        } catch (error) {
+            // Fall through to a fresh resolution attempt before reporting an error.
+        }
+    }
+    return resolvePreviewImageUrl(sourcePath);
+}
+
+function setImageViewerStatus(overlay, frame, state) {
+    if (!overlay || !frame) return;
+    overlay.dataset.imageState = state;
+    frame.classList.toggle("is-ready", state === "success");
+    if (state === "success") return;
+    const status = document.createElement("div");
+    status.className = "image-viewer-status";
+    status.textContent = state === "error" ? "Image failed to load." : "Loading image...";
+    frame.replaceChildren(status);
+}
+
+function calculateImageViewerZoom({ scale, panX, panY, pointX, pointY, deltaY }) {
+    const oldScale = scale;
+    const nextScale = clamp(oldScale * Math.exp(-deltaY * 0.0015), IMAGE_VIEWER_MIN_SCALE, IMAGE_VIEWER_MAX_SCALE);
+    if (nextScale <= 1) return { scale: nextScale, panX: 0, panY: 0 };
+    const ratio = nextScale / oldScale;
+    return {
+        scale: nextScale,
+        panX: pointX - (pointX - panX) * ratio,
+        panY: pointY - (pointY - panY) * ratio
+    };
+}
+
+function createImageViewerInteraction(frame, image) {
+    let scale = 1;
+    let panX = 0;
+    let panY = 0;
+    let drag = null;
+    let renderFrame = 0;
+
+    const getPanBounds = () => ({
+        x: Math.max(0, (image.offsetWidth * scale - frame.clientWidth) / 2),
+        y: Math.max(0, (image.offsetHeight * scale - frame.clientHeight) / 2)
+    });
+    const render = () => {
+        renderFrame = 0;
+        const bounds = getPanBounds();
+        panX = clamp(panX, -bounds.x, bounds.x);
+        panY = clamp(panY, -bounds.y, bounds.y);
+        image.style.transform = `translate3d(${panX}px, ${panY}px, 0) scale(${scale})`;
+        const canDrag = bounds.x > 0.5 || bounds.y > 0.5;
+        frame.classList.toggle("can-drag", canDrag);
+        frame.dataset.scale = scale.toFixed(3);
+    };
+    const scheduleRender = () => {
+        if (!renderFrame) renderFrame = requestAnimationFrame(render);
+    };
+    const onWheel = (event) => {
+        event.preventDefault();
+        const rect = frame.getBoundingClientRect();
+        const next = calculateImageViewerZoom({
+            scale,
+            panX,
+            panY,
+            pointX: event.clientX - (rect.left + rect.width / 2),
+            pointY: event.clientY - (rect.top + rect.height / 2),
+            deltaY: event.deltaY
+        });
+        if (next.scale === scale) return;
+        ({ scale, panX, panY } = next);
+        scheduleRender();
+    };
+    const finishDrag = (event) => {
+        if (!drag || (event?.pointerId != null && event.pointerId !== drag.pointerId)) return;
+        if (frame.hasPointerCapture?.(drag.pointerId)) frame.releasePointerCapture(drag.pointerId);
+        drag = null;
+        frame.classList.remove("is-dragging");
+    };
+    const onPointerDown = (event) => {
+        if (event.button !== 0 || !frame.classList.contains("can-drag")) return;
+        event.preventDefault();
+        drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, panX, panY };
+        frame.setPointerCapture?.(event.pointerId);
+        frame.classList.add("is-dragging");
+    };
+    const onPointerMove = (event) => {
+        if (!drag || event.pointerId !== drag.pointerId) return;
+        event.preventDefault();
+        panX = drag.panX + event.clientX - drag.x;
+        panY = drag.panY + event.clientY - drag.y;
+        scheduleRender();
+    };
+    const preventNativeDrag = (event) => event.preventDefault();
+
+    frame.addEventListener("wheel", onWheel, { passive: false });
+    frame.addEventListener("pointerdown", onPointerDown);
+    frame.addEventListener("pointermove", onPointerMove);
+    frame.addEventListener("pointerup", finishDrag);
+    frame.addEventListener("pointercancel", finishDrag);
+    image.addEventListener("dragstart", preventNativeDrag);
+    render();
+
+    return {
+        refresh: scheduleRender,
+        destroy() {
+            if (renderFrame) cancelAnimationFrame(renderFrame);
+            finishDrag();
+            frame.removeEventListener("wheel", onWheel);
+            frame.removeEventListener("pointerdown", onPointerDown);
+            frame.removeEventListener("pointermove", onPointerMove);
+            frame.removeEventListener("pointerup", finishDrag);
+            frame.removeEventListener("pointercancel", finishDrag);
+            image.removeEventListener("dragstart", preventNativeDrag);
+        }
+    };
+}
+
 function closeImageViewer() {
     const overlay = imageViewerState.overlay;
     if (!overlay) return;
@@ -1250,15 +1376,17 @@ function closeImageViewer() {
     document.removeEventListener("keydown", imageViewerState.closeHandler, true);
     window.removeEventListener("resize", imageViewerState.resizeHandler);
     window.visualViewport?.removeEventListener("resize", imageViewerState.resizeHandler);
+    imageViewerState.interaction?.destroy();
     imageViewerState.overlay = null;
     imageViewerState.closeHandler = null;
     imageViewerState.resizeHandler = null;
+    imageViewerState.interaction = null;
     overlay.classList.remove("is-visible");
     overlay.classList.add("is-leaving");
     window.setTimeout(() => overlay.remove(), 160);
 }
 
-async function openImageViewer(sourcePath, { alt = "image preview", resolvedUrl = "" } = {}) {
+async function openImageViewer(sourcePath, { alt = "image preview", resolvedUrl = "", urlPromise = null } = {}) {
     closeImageViewer();
     const overlay = document.createElement("div");
     overlay.className = "image-viewer";
@@ -1285,26 +1413,32 @@ async function openImageViewer(sourcePath, { alt = "image preview", resolvedUrl 
     });
     document.body.appendChild(overlay);
     updateImageViewerBounds(overlay);
+    setImageViewerStatus(overlay, overlay.querySelector(".image-viewer-frame"), "loading");
     requestAnimationFrame(() => overlay.classList.add("is-visible"));
     const frame = overlay.querySelector(".image-viewer-frame");
-    const url = await resolvePreviewImageUrl(sourcePath, resolvedUrl).catch(() => "");
+    const url = await resolveImageViewerUrl(sourcePath, { resolvedUrl, urlPromise }).catch(() => "");
     if (!overlay.isConnected || imageViewerState.overlay !== overlay) return;
     if (!url) {
-        frame.innerHTML = '<div class="image-viewer-status">Image failed to load.</div>';
+        setImageViewerStatus(overlay, frame, "error");
         return;
     }
     const image = document.createElement("img");
     image.alt = alt;
     image.decoding = "async";
+    image.draggable = false;
+    const hasPreferredUrl = Boolean(resolvedUrl || urlPromise);
     let attemptedFreshUrl = false;
     const showFailure = () => {
-        if (imageViewerState.overlay === overlay) frame.innerHTML = '<div class="image-viewer-status">Image failed to load.</div>';
+        if (imageViewerState.overlay === overlay) setImageViewerStatus(overlay, frame, "error");
     };
     image.onload = () => {
-        if (imageViewerState.overlay === overlay) frame.replaceChildren(image);
+        if (imageViewerState.overlay !== overlay) return;
+        frame.replaceChildren(image);
+        setImageViewerStatus(overlay, frame, "success");
+        imageViewerState.interaction = createImageViewerInteraction(frame, image);
     };
     image.onerror = () => {
-        if (attemptedFreshUrl || !resolvedUrl) {
+        if (attemptedFreshUrl || !hasPreferredUrl) {
             showFailure();
             return;
         }
