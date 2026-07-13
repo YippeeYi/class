@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
 const signedRequests = [];
+let quizRequests = 0;
 const createSignedUrl = async (path, expiresIn, options) => {
     signedRequests.push({ path, expiresIn, options });
     if (path.includes('fallback') && options?.transform) return { data: null, error: new Error('transform unavailable') };
@@ -30,7 +31,30 @@ const window = {
         storage: { privateBucket: 'classrecord-private' }
     },
     ClassRecordSupabase: {
-        getClient: async () => ({ storage: { from: () => ({ createSignedUrl }) } })
+        getClient: async () => ({
+            storage: { from: () => ({ createSignedUrl }) },
+            from: () => ({
+                select: () => ({
+                    order: async () => {
+                        quizRequests += 1;
+                        return {
+                            data: [{
+                                id: 'LAMIAN-01',
+                                content_key: 'legacy-value',
+                                question_group: 'lamian',
+                                question_type: 'fill',
+                                prompt: 'Hidden prompt',
+                                answer: 'Hidden answer',
+                                image_path: 'images/quiz/lamian/01.png',
+                                sort_order: 0,
+                                raw: {}
+                            }],
+                            error: null
+                        };
+                    }
+                })
+            })
+        })
     },
     addEventListener() {}
 };
@@ -81,4 +105,10 @@ const afterFallbackUrl = await data.preloadAsset('images/record-pages/after-fall
 assert.match(afterFallbackUrl, /\/original\//);
 assert.equal(signedRequests.at(-1).options, undefined, 'unsupported transformations must fall back without repeated transform failures');
 
-console.log('Passed transformed preview, original URL isolation, refresh, and transformation fallback checks.');
+const hiddenQuestions = await data.loadQuizQuestions('lamian');
+assert.equal(hiddenQuestions.length, 1, 'question_group must remain a valid hidden-pool discriminator when content_key is stale');
+assert.equal(hiddenQuestions[0].image, 'images/quiz/lamian/01.png');
+await data.loadQuizQuestions('lamian', { force: true });
+assert.equal(quizRequests, 2, 'forced hidden-pool retry must bypass the cached query');
+
+console.log('Passed secure image variants and hidden quiz loader retry checks.');

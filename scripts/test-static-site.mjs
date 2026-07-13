@@ -32,6 +32,9 @@ for (const page of pages) {
         const gateIndex = html.indexOf('js/authGate.js');
         assert.ok(cacheIndex >= 0 && gateIndex > cacheIndex, `${page} must initialize cache clearing before the auth gate`);
     }
+    if (html.includes('js/recordRenderer.js')) {
+        assert.ok(html.indexOf('js/illustrationDimensions.js') < html.indexOf('js/recordRenderer.js'), `${page} must load illustration dimensions before the markup renderer`);
+    }
 }
 
 const vercel = JSON.parse(await readFile(resolve(root, 'vercel.json'), 'utf8'));
@@ -57,7 +60,12 @@ assert.match(recordRenderer, /preloadAsset\(sourcePath,\s*\{[^}]*transform:\s*ge
 assert.doesNotMatch(recordRenderer, /ClassRecordImageViewer\.open\(tooltipImage\.dataset\.previewSrc,[\s\S]{0,180}resolvedUrl:/, 'illustration viewer must not pass its display-sized URL as the original');
 assert.match(recordRenderer, /image\.style\.width\s*=\s*`\$\{rendered\.width\}px`[^}]*image\.style\.height\s*=\s*`\$\{rendered\.height\}px`/s, 'image viewer zoom must increase the real render size');
 assert.doesNotMatch(recordRenderer, /image\.style\.transform\s*=\s*`[^`]*scale\(\$\{scale\}\)/, 'image viewer must not upscale a low-resolution composited layer');
+assert.match(recordRenderer, /translate3d\(calc\(-50% \+ \$\{panX\}px\),\s*calc\(-50% \+ \$\{panY\}px\),\s*0\)/, 'image viewer pan coordinates must share the same centered origin as its bounds');
 assert.match(stylesheet, /\.image-viewer-frame\s*\{[^}]*border:\s*1px solid color-mix\([^}]*var\(--theme-accent-strong\)[^}]*background:[^}]*var\(--theme-surface\)/s, 'image viewer frame must use the active theme for its visual boundary');
+assert.match(stylesheet, /\.image-viewer-frame img\s*\{[^}]*position:\s*absolute[^}]*top:\s*50%[^}]*left:\s*50%/s, 'image viewer images must use an explicit centered coordinate system');
+
+const searchScript = await readFile(resolve(root, 'js/search.js'), 'utf8');
+assert.doesNotMatch(searchScript, /\.slice\(0,\s*80\)/, 'search results must not be truncated');
 
 const quizPage = await readFile(resolve(root, 'quiz.html'), 'utf8');
 assert.ok(quizPage.indexOf('js/quizCore.js') < quizPage.indexOf('js/quizApp.js'), 'quiz core must load before the UI controller');

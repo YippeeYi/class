@@ -189,8 +189,7 @@
             .filter((item) => enabledTypes.has(item.type))
             .map((item) => ({ ...item, score: scoreItem(item, query) }))
             .filter((item) => item.score > 0)
-            .sort((a, b) => b.score - a.score || b.sortKey.localeCompare(a.sortKey))
-            .slice(0, 80);
+            .sort((a, b) => b.score - a.score || b.sortKey.localeCompare(a.sortKey));
 
         if (summary) {
             summary.textContent = `找到 ${matches.length} 个结果。`;

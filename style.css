@@ -6323,6 +6323,9 @@ body.hidden-record-mode .hidden-record-banner {
 }
 
 .image-viewer-frame img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   display: block;
   max-width: none;
   max-height: none;

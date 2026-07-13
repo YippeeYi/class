@@ -451,6 +451,7 @@ function renderSquareMarkup(body, raw, context) {
         const parts = splitTopLevelOnce(body.slice(prefix.length));
         if (!parts || !parts[0] || !parts[1]) return asText && type === "illu" ? "" : asText ? raw : escapeRecordText(raw);
         const [first, second] = parts;
+        if (context.plainReferenceTypes.has(type)) return render(second);
         if (type === "person" || type === "author") {
             if (!/^[a-zA-Z0-9_-]+$/.test(first)) return asText ? raw : escapeRecordText(raw);
             const label = render(second);
@@ -491,6 +492,9 @@ function parseInlineMarkup(value, options = {}) {
     const context = {
         mode: options.mode || "html",
         disableRecordLinks: Boolean(options.disableRecordLinks),
+        plainReferenceTypes: options.plainReferenceTypes instanceof Set
+            ? options.plainReferenceTypes
+            : new Set(options.plainReferenceTypes || []),
         tooltipContext: Boolean(options.tooltipContext),
         depth: (options.depth || 0) + 1
     };
@@ -1154,6 +1158,18 @@ function getIllustrationDisplayTransform() {
 
 window.imageSizeCache = window.imageSizeCache || {};
 
+function restoreBundledIllustrationDimensions() {
+    Object.entries(window.ClassRecordIllustrationDimensions || {}).forEach(([src, item]) => {
+        if (item?.width > 0 && item?.height > 0) {
+            const dimensions = { width: Number(item.width), height: Number(item.height) };
+            window.imageSizeCache[src] = dimensions;
+            illustrationDimensionCache.set(src, dimensions);
+        }
+    });
+}
+
+restoreBundledIllustrationDimensions();
+
 try {
     const storedImageSizes = JSON.parse(localStorage.getItem(IMAGE_SIZE_STORAGE_KEY) || "{}");
     Object.entries(storedImageSizes).forEach(([src, item]) => {
@@ -1194,6 +1210,7 @@ window.addEventListener("classrecordcacheclearing", () => {
     illustrationReadyCache.clear();
     illustrationDimensionCache.clear();
     window.imageSizeCache = {};
+    restoreBundledIllustrationDimensions();
 });
 
 function resolveIllustrationUrl(path) {
@@ -1341,6 +1358,13 @@ function calculateImageViewerRenderSize(baseWidth, baseHeight, scale) {
     };
 }
 
+function calculateImageViewerPanBounds(renderedWidth, renderedHeight, availableWidth, availableHeight) {
+    return {
+        x: Math.max(0, (Math.max(1, Number(renderedWidth) || 1) - Math.max(1, Number(availableWidth) || 1)) / 2),
+        y: Math.max(0, (Math.max(1, Number(renderedHeight) || 1) - Math.max(1, Number(availableHeight) || 1)) / 2)
+    };
+}
+
 function createImageViewerInteraction(frame, image) {
     let scale = 1;
     let panX = 0;
@@ -1352,10 +1376,7 @@ function createImageViewerInteraction(frame, image) {
     let availableWidth = 1;
     let availableHeight = 1;
 
-    const getPanBounds = () => ({
-        x: Math.max(0, (image.offsetWidth - availableWidth) / 2),
-        y: Math.max(0, (image.offsetHeight - availableHeight) / 2)
-    });
+    const getPanBounds = () => calculateImageViewerPanBounds(image.offsetWidth, image.offsetHeight, availableWidth, availableHeight);
     const render = () => {
         renderFrame = 0;
         const rendered = calculateImageViewerRenderSize(baseWidth, baseHeight, scale);
@@ -1364,7 +1385,7 @@ function createImageViewerInteraction(frame, image) {
         const bounds = getPanBounds();
         panX = clamp(panX, -bounds.x, bounds.x);
         panY = clamp(panY, -bounds.y, bounds.y);
-        image.style.transform = `translate3d(${panX}px, ${panY}px, 0)`;
+        image.style.transform = `translate3d(calc(-50% + ${panX}px), calc(-50% + ${panY}px), 0)`;
         const canDrag = bounds.x > 0.5 || bounds.y > 0.5;
         frame.classList.toggle("can-drag", canDrag);
         frame.dataset.scale = scale.toFixed(3);

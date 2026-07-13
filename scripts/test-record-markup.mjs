@@ -24,7 +24,7 @@ const context = vm.createContext({
 });
 
 const source = await readFile(new URL('../js/recordRenderer.js', import.meta.url), 'utf8');
-vm.runInContext(`${source}\nthis.renderMarkupForTest = parseContent; this.buildRecordBodyForTest = buildRecordBody; this.calculateImageViewerBoundsForTest = calculateImageViewerBounds; this.calculateImageViewerZoomForTest = calculateImageViewerZoom; this.calculateImageViewerFitForTest = calculateImageViewerFit; this.calculateImageViewerRenderSizeForTest = calculateImageViewerRenderSize; this.resolveImageViewerUrlForTest = resolveImageViewerUrl; this.resolveImageViewerFallbackUrlForTest = resolveImageViewerFallbackUrl;`, context);
+vm.runInContext(`${source}\nthis.renderMarkupForTest = parseContent; this.buildRecordBodyForTest = buildRecordBody; this.calculateImageViewerBoundsForTest = calculateImageViewerBounds; this.calculateImageViewerZoomForTest = calculateImageViewerZoom; this.calculateImageViewerFitForTest = calculateImageViewerFit; this.calculateImageViewerRenderSizeForTest = calculateImageViewerRenderSize; this.calculateImageViewerPanBoundsForTest = calculateImageViewerPanBounds; this.resolveImageViewerUrlForTest = resolveImageViewerUrl; this.resolveImageViewerFallbackUrlForTest = resolveImageViewerFallbackUrl;`, context);
 const render = context.renderMarkupForTest;
 const buildRecordBody = context.buildRecordBodyForTest;
 const extractPeople = context.window.extractMentionedPersonIds;
@@ -37,6 +37,7 @@ const calculateImageViewerBounds = context.calculateImageViewerBoundsForTest;
 const calculateImageViewerZoom = context.calculateImageViewerZoomForTest;
 const calculateImageViewerFit = context.calculateImageViewerFitForTest;
 const calculateImageViewerRenderSize = context.calculateImageViewerRenderSizeForTest;
+const calculateImageViewerPanBounds = context.calculateImageViewerPanBoundsForTest;
 const resolveImageViewerUrl = context.resolveImageViewerUrlForTest;
 const resolveImageViewerFallbackUrl = context.resolveImageViewerFallbackUrlForTest;
 const extractIllustrations = context.window.extractIllustrationPaths;
@@ -93,6 +94,11 @@ assert.equal(render('((旧黑幕))'), '((旧黑幕))');
 assert.equal(render('[[unknown:值|标签]]'), '[[unknown:值|标签]]');
 
 assert.equal(render('<script>alert(1)</script>'), '&lt;script&gt;alert(1)&lt;/script&gt;');
+const quizStemMarkup = render('[[person:alice|Alice]][[quote:q1|Quote]][[record:2024-01|Record]][[material:m1|Material]][[red:kept]]', {
+    plainReferenceTypes: new Set(['person', 'author', 'quote', 'record', 'material'])
+});
+assert.equal(quizStemMarkup, 'AliceQuoteRecordMaterial<span class="inline-red">kept</span>');
+
 const escapedRecord = buildRecordBody({
     id: '<img src=x onerror=alert(1)>',
     date: '<script>alert(1)</script>',
@@ -135,6 +141,8 @@ const tallImageFit = calculateImageViewerFit(1200, 5000, 818, 418);
 assert.ok(Math.abs(tallImageFit.width - 100.32) < 0.0001 && Math.abs(tallImageFit.height - 418) < 0.0001);
 assert.deepEqual({ ...calculateImageViewerFit(200, 100, 818, 418) }, { width: 200, height: 100 });
 assert.deepEqual({ ...calculateImageViewerRenderSize(400, 600, 4) }, { width: 1600, height: 2400 });
+assert.deepEqual({ ...calculateImageViewerPanBounds(1600, 2400, 800, 600) }, { x: 400, y: 900 });
+assert.deepEqual({ ...calculateImageViewerPanBounds(400, 300, 800, 600) }, { x: 0, y: 0 });
 const zoomedAroundPointer = { ...calculateImageViewerZoom({ scale: 1, panX: 0, panY: 0, pointX: 100, pointY: -50, deltaY: -1000 }) };
 assert.ok(zoomedAroundPointer.scale > 1);
 assert.ok(Math.abs((100 - zoomedAroundPointer.panX) / zoomedAroundPointer.scale - 100) < 0.0001);

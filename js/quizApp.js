@@ -13,6 +13,7 @@
   const typeLabels = { choice: '\u9009\u62e9\u9898', fill: '\u586b\u7a7a\u9898', judge: '\u5224\u65ad\u9898' };
   const contentLabels = { person: '\u4eba\u540d', quote: '\u540d\u8a00', author: '\u8bb0\u5f55\u4eba', date: '\u8bb0\u5f55\u65f6\u95f4' };
   const secretContentLabels = { [SECRET_CONTENT]: '???' };
+  const QUESTION_PLAIN_REFERENCE_TYPES = new Set(['person', 'author', 'quote', 'record', 'material']);
   const QuizCore = window.ClassRecordQuizCore;
   if (!QuizCore) throw new Error('Quiz core is unavailable.');
 
@@ -142,7 +143,7 @@
       ? renderJudgeCorrection(question.sideText, question.wrongText, question.correctText, revealed)
       : question.sideText;
     const sideClass = question.content === 'author' ? ' quiz-question-side--author' : '';
-    return `<span class="quiz-question-side${sideClass}"><span class="quiz-side-label">${escapeHtml(question.sideLabel || '')}</span><span class="quiz-side-value">${formatTrustedContent(valueHtml)}</span></span>`;
+    return `<span class="quiz-question-side${sideClass}"><span class="quiz-side-label">${escapeHtml(question.sideLabel || '')}</span><span class="quiz-side-value">${formatTrustedContent(valueHtml, { plainReferenceTypes: QUESTION_PLAIN_REFERENCE_TYPES })}</span></span>`;
   }
 
   function renderQuestionBody(revealed = false) {
@@ -175,7 +176,7 @@
     }
     questionText.innerHTML = `
       <span class="quiz-question-prompt">${escapeHtml(currentQuestion.prompt)}</span>
-      <span class="quiz-question-record${shouldBlankRecord ? ' has-answer-blank' : ''}">${formatTrustedContent(recordHtml, { disableRecordLinks: true })}</span>
+      <span class="quiz-question-record${shouldBlankRecord ? ' has-answer-blank' : ''}">${formatTrustedContent(recordHtml, { plainReferenceTypes: QUESTION_PLAIN_REFERENCE_TYPES })}</span>
       ${renderSideBox(currentQuestion, revealed)}
     `;
   }
@@ -718,12 +719,12 @@
     return [...new Map(sources.filter(Boolean).map((source) => [source.id, source])).values()];
   }
 
-  async function loadSecretQuestions() {
+  async function loadSecretQuestions({ force = false } = {}) {
     try {
       if (!window.ClassRecordData?.loadQuizQuestions) {
         throw new Error('Supabase quiz data loader is unavailable.');
       }
-      const rows = await window.ClassRecordData.loadQuizQuestions(SECRET_CONTENT);
+      const rows = await window.ClassRecordData.loadQuizQuestions(SECRET_CONTENT, { force });
       if (!Array.isArray(rows) || !rows.length) {
         throw new Error('Supabase returned no lamian quiz rows. Check class_quiz_questions and its RLS policy.');
       }
@@ -959,6 +960,20 @@
     if (!secretUnlocked && secretBuffer === SECRET_SEQUENCE) {
       secretUnlocked = true;
       renderFilter();
+      if (!questionSources.some((source) => source.sourceType === 'hidden')) {
+        void loadSecretQuestions({ force: true }).then((questions) => {
+          if (!questions.length) return;
+          questionSources = deduplicateSources([
+            ...questionSources,
+            ...questions.map(buildSecretSource)
+          ]);
+          if (activeFilters.contents.has(SECRET_CONTENT)) {
+            renderQuestion();
+          } else {
+            updateCandidateSources();
+          }
+        });
+      }
     }
   });
 

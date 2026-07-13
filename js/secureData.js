@@ -478,14 +478,16 @@
         return pageMessagesPromise;
     };
 
-    const loadQuizQuestions = async (contentKey) => {
+    const loadQuizQuestions = async (contentKey, { force = false } = {}) => {
         const config = await getConfig();
         const key = String(contentKey || '').trim();
+        if (force) quizQuestionPromises.delete(key);
         if (!quizQuestionPromises.has(key)) {
             const promise = selectAll(config.tables.quizQuestions, '*', 'sort_order')
                 .then((rows) => rows.filter((row) => {
                     const raw = parseRaw(row);
-                    return (row.content_key || row.question_group || raw.content || raw.group) === key;
+                    return [row.content_key, row.question_group, raw.contentKey, raw.content, raw.group]
+                        .some((value) => String(value || '').trim() === key);
                 }))
                 .catch((error) => {
                     quizQuestionPromises.delete(key);
@@ -494,6 +496,7 @@
             quizQuestionPromises.set(key, promise);
         }
         const rows = await quizQuestionPromises.get(key);
+        if (!rows.length) quizQuestionPromises.delete(key);
         return rows.map((row, index) => {
             const raw = parseRaw(row);
             return {
