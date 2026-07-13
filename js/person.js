@@ -77,7 +77,7 @@ async function renderPersonAvatar(person) {
 
 const cacheReady = window.cacheReadyPromise || Promise.resolve();
 
-cacheReady.then(() => Promise.all([loadAllPeople({ force: true }), loadAllRecords()])).then(([people, records]) => {
+cacheReady.then(() => Promise.all([loadAllPeople(), loadAllRecords()])).then(([people, records]) => {
     if (!personId) {
         recordContainer.innerHTML = '<div class="record-empty"><strong>人物参数缺失。</strong><span>请从人物名单页重新打开。</span></div>';
         return;

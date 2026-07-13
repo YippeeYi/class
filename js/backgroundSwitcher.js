@@ -123,7 +123,7 @@
             "--control-active-gradient", "--control-active-glow", "--control-shadow", "--control-shadow-hover",
             "--control-shadow-pressed", "--focus-ring", "--control-text", "--control-active-text", "--accent-dark",
             "--shadow-soft", "--field-border", "--overlay-backdrop", "--overlay-card-bg", "--overlay-card-shadow",
-            "--bg-card", "--guide-panel-bg", "--guide-card-bg", "--progress-track-bg", "--table-header-bg",
+            "--bg-card", "--guide-panel-bg", "--guide-card-bg", "--table-header-bg",
             "--table-row-hover-bg", "--table-row-hover-edge", "--table-row-hover-border", "--important-border", "--important-bg",
             "--attachment-bg", "--attachment-border", "--tooltip-bg", "--link-soft-bg", "--quote-soft-bg"
         ].forEach((name) => root.style.removeProperty(name));
@@ -225,7 +225,6 @@
             "--bg-card": `rgba(${toRgbString(surface)}, 0.48)`,
             "--guide-panel-bg": `rgba(${toRgbString(surface)}, 0.82)`,
             "--guide-card-bg": `linear-gradient(160deg, rgba(${toRgbString(surface)}, 0.96), rgba(${toRgbString(surfaceStrong)}, 0.94))`,
-            "--progress-track-bg": `rgba(${toRgbString(surfaceStrong)}, 0.62)`,
             "--table-header-bg": `linear-gradient(135deg, rgba(${toRgbString(surface)}, 0.88), rgba(${toRgbString(surfaceStrong)}, 0.9))`,
             "--table-row-hover-bg": `linear-gradient(90deg, rgba(${toRgbString(surfaceStrong)}, 0.62) 0%, rgba(${toRgbString(surface)}, 0.72) 100%)`,
             "--table-row-hover-edge": `rgba(${toRgbString(accentStrong)}, 0.28)`,

@@ -13,22 +13,16 @@
   const typeLabels = { choice: '\u9009\u62e9\u9898', fill: '\u586b\u7a7a\u9898', judge: '\u5224\u65ad\u9898' };
   const contentLabels = { person: '\u4eba\u540d', quote: '\u540d\u8a00', author: '\u8bb0\u5f55\u4eba', date: '\u8bb0\u5f55\u65f6\u95f4' };
   const secretContentLabels = { [SECRET_CONTENT]: '???' };
-  const contentByType = {
-    choice: ['person', 'quote', 'author', 'date'],
-    fill: ['person', 'quote', 'author', SECRET_CONTENT],
-    judge: ['person', 'quote', 'author']
-  };
+  const QuizCore = window.ClassRecordQuizCore;
+  if (!QuizCore) throw new Error('Quiz core is unavailable.');
 
-  let allQuestions = [];
-  let questionBank = [];
+  let questionSources = [];
+  let candidateSources = [];
   let currentQuestion = null;
   let answeredCurrent = false;
-  let recentQuestionIds = [];
-  let recentContentKeys = [];
   let secretProgress = [];
   let secretUnlocked = false;
   let secretBuffer = '';
-  let preferredContentOnce = '';
   let activeFilters = {
     types: new Set(Object.keys(typeLabels)),
     contents: new Set(Object.keys(contentLabels))
@@ -188,8 +182,6 @@
 
   function stripOptionMarkup(text) {
     return window.stripRecordMarkup(text || '')
-      .replace(/\^(.+?)\^/g, '$1')
-      .replace(/_(.+?)_/g, '$1')
       .replace(/\n/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
@@ -204,17 +196,13 @@
   }
 
   function extractTokenRefs(text, kind) {
-    const pattern = kind === 'person'
-      ? /\[\[([a-zA-Z0-9_-]+)\|(.+?)\]\]/g
-      : /\{\{([a-zA-Z0-9_-]+)\|(.+?)\}\}/g;
-    const refs = [];
-    let match = pattern.exec(text || '');
-    while (match) {
-      const label = stripOptionMarkup(match[2]);
-      if (match[1] && label) refs.push({ id: match[1], label });
-      match = pattern.exec(text || '');
-    }
-    return refs;
+    if (typeof window.extractRecordMarkupTokens !== 'function') return [];
+    return window.extractRecordMarkupTokens(text || '', kind)
+      .map((marker) => ({
+        id: marker.id,
+        label: stripOptionMarkup(marker.label || marker.quote || '')
+      }))
+      .filter((marker) => marker.id && marker.label);
   }
 
   function uniqueValues(list) {
@@ -280,7 +268,8 @@
     people.forEach((person) => {
       add(person.id, person.id);
       add(person.id, String(person.name || '').trim());
-      extractTokenRefs(`[[${person.id}|${person.alias || ''}]]`, 'person').forEach((ref) => add(person.id, ref.label));
+      const alias = stripOptionMarkup(person.alias || '');
+      if (alias) add(person.id, alias);
     });
     records.filter((record) => !String(record.fileName || record.id || '').replace(/\.json$/i, '').endsWith('-00')).forEach((record) => {
       extractTokenRefs(record.content || '', 'person').forEach((ref) => add(ref.id, ref.label));
@@ -670,6 +659,65 @@
     };
   }
 
+  function addVariant(variants, content, type, question) {
+    if (!question) return;
+    if (!variants[content]) variants[content] = {};
+    variants[content][type] = question;
+  }
+
+  function buildRecordSource(record, sourceType, pools, authorPool, datePool) {
+    const variants = {};
+    addVariant(variants, 'person', 'choice', buildChoiceQuestion(record, 'person', pools));
+    addVariant(variants, 'person', 'fill', buildFillQuestion(record, 'person'));
+    addVariant(variants, 'person', 'judge', buildJudgeQuestion(record, 'person', pools));
+    addVariant(variants, 'quote', 'choice', buildChoiceQuestion(record, 'quote', pools));
+    addVariant(variants, 'quote', 'fill', buildFillQuestion(record, 'quote'));
+    addVariant(variants, 'quote', 'judge', buildJudgeQuestion(record, 'quote', pools));
+
+    if (sourceType === 'record') {
+      addVariant(variants, 'author', 'choice', buildAuthorChoiceQuestion(record, authorPool));
+      addVariant(variants, 'author', 'fill', buildAuthorFillQuestion(record));
+      addVariant(variants, 'author', 'judge', buildAuthorJudgeQuestion(record, authorPool));
+      addVariant(variants, 'date', 'choice', buildDateChoiceQuestion(record, datePool));
+    }
+
+    if (!Object.keys(variants).length) return null;
+    const recordKey = String(record.fileName || record.id || '').trim();
+    return {
+      id: `${sourceType}:${recordKey}`,
+      sourceType,
+      record,
+      variants
+    };
+  }
+
+  function buildSecretSource(question) {
+    return {
+      id: `hidden:${question.id}`,
+      sourceType: 'hidden',
+      record: question,
+      variants: { [SECRET_CONTENT]: { fill: question } }
+    };
+  }
+
+  function normalizeSupplementalRecord(item, sourceType, index) {
+    const page = String(item?.page || '').trim();
+    const fallbackId = sourceType === 'message'
+      ? `message-${page || index + 1}`
+      : `supplement-${page || index + 1}-${item?.supplementIndex || index + 1}`;
+    return {
+      ...item,
+      id: String(item?.id || item?.fileName || fallbackId),
+      fileName: String(item?.fileName || item?.id || fallbackId),
+      content: String(item?.content || item?.text || ''),
+      recordType: sourceType
+    };
+  }
+
+  function deduplicateSources(sources) {
+    return [...new Map(sources.filter(Boolean).map((source) => [source.id, source])).values()];
+  }
+
   async function loadSecretQuestions() {
     try {
       if (!window.ClassRecordData?.loadQuizQuestions) {
@@ -689,12 +737,6 @@
       if (!questions.length) {
         throw new Error('Lamian quiz rows were loaded but none contained a usable answer.');
       }
-      questions.forEach((question) => {
-        if (!question.imagePath) return;
-        const image = new Image();
-        image.decoding = 'async';
-        image.src = question.imagePath;
-      });
       return questions;
     } catch (error) {
       console.warn('Hidden lamian questions failed to load from Supabase:', error);
@@ -711,21 +753,9 @@
     quizCard?.classList.add(`is-answer-${type}`);
   }
 
-  function hasQuestionFor(types, contents) {
-    return allQuestions.some((question) => types.has(question.type) && contents.has(question.content));
-  }
-
-  function hasAnyQuestionInGroup(group, value) {
-    return allQuestions.some((question) => question[group === 'types' ? 'type' : 'content'] === value);
-  }
-
-  function updateQuestionBank() {
-    questionBank = allQuestions.filter((question) => activeFilters.types.has(question.type) && activeFilters.contents.has(question.content));
+  function updateCandidateSources() {
+    candidateSources = QuizCore.getCandidateSources(questionSources, activeFilters, secretUnlocked);
     renderFilter();
-  }
-
-  function questionRecordKey(question) {
-    return question?.recordKey || question?.id || '';
   }
 
   function randomizeQuestion(question) {
@@ -736,37 +766,8 @@
   }
 
   function pickNextQuestion() {
-    const avoidSet = new Set(recentQuestionIds);
-    const freshPool = questionBank.filter((question) => !avoidSet.has(questionRecordKey(question)));
-    const pool = freshPool.length ? freshPool : questionBank;
-    const preferredPool = preferredContentOnce
-      ? questionBank.filter((question) => question.content === preferredContentOnce)
-      : [];
-    const candidatePool = preferredPool.length ? preferredPool : pool;
-    // Pick a content group first so a small category (including hidden content)
-    // is not statistically buried by categories generated from every record.
-    const questionsByContent = new Map();
-    candidatePool.forEach((question) => {
-      const group = questionsByContent.get(question.content) || [];
-      group.push(question);
-      questionsByContent.set(question.content, group);
-    });
-    const contentKeys = [...questionsByContent.keys()];
-    const freshContentKeys = contentKeys.filter((key) => !recentContentKeys.includes(key));
-    const pickedContent = preferredContentOnce && questionsByContent.has(preferredContentOnce)
-      ? preferredContentOnce
-      : pickRandom(freshContentKeys.length ? freshContentKeys : contentKeys);
-    const contentPool = questionsByContent.get(pickedContent) || candidatePool;
-    const picked = randomizeQuestion(pickRandom(contentPool));
-    preferredContentOnce = '';
-    recentContentKeys = [pickedContent, ...recentContentKeys.filter((key) => key !== pickedContent)]
-      .filter((key) => contentKeys.includes(key))
-      .slice(0, Math.max(0, contentKeys.length - 1));
-    const key = questionRecordKey(picked);
-    if (key) {
-      recentQuestionIds = [key, ...recentQuestionIds.filter((item) => item !== key)].slice(0, 6);
-    }
-    return picked;
+    const picked = QuizCore.pickQuestion(questionSources, activeFilters, { secretUnlocked });
+    return picked ? randomizeQuestion(picked.question) : null;
   }
 
   function renderFilter() {
@@ -774,15 +775,9 @@
     const visibleContentLabels = secretUnlocked ? { ...contentLabels, ...secretContentLabels } : contentLabels;
     const buildButton = (group, value, label) => {
       const currentSet = activeFilters[group];
-      const nextSet = new Set(currentSet);
-      if (nextSet.has(value)) nextSet.delete(value);
-      else nextSet.add(value);
-      const nextTypes = group === 'types' ? nextSet : activeFilters.types;
-      const nextContents = group === 'contents' ? nextSet : activeFilters.contents;
       const selected = currentSet.has(value);
-      const unavailable = !hasAnyQuestionInGroup(group, value);
       // 未选项始终可重新选择；只对“模拟取消后结果为空”的已选项禁用。
-      const disabled = selected && !hasQuestionFor(nextTypes, nextContents);
+      const disabled = selected && !QuizCore.canDeselect(questionSources, activeFilters, group, value, secretUnlocked);
       return `
         <button type="button" class="btn-action filter-option${selected ? ' is-active' : ''}${disabled ? ' is-disabled' : ''}" data-group="${group}" data-value="${value}"${disabled ? ' disabled aria-disabled="true"' : ''}>
           <span class="quiz-filter-check">${selected ? '\u2713' : '+'}</span>${label}
@@ -811,8 +806,8 @@
 
   function renderQuestion() {
     setQuizLoading(false);
-    updateQuestionBank();
-    if (!questionBank.length) {
+    updateCandidateSources();
+    if (!candidateSources.length) {
       questionText.textContent = '\u5f53\u524d\u7b5b\u9009\u6761\u4ef6\u4e0b\u6ca1\u6709\u8db3\u591f\u7684\u6761\u76ee\u53ef\u751f\u6210\u9898\u76ee\u3002';
       questionMeta.textContent = '\u8bf7\u8c03\u6574\u9898\u578b\u6216\u9898\u76ee\u5185\u5bb9\u7b5b\u9009\u3002';
       optionsWrap.innerHTML = '';
@@ -823,6 +818,7 @@
     }
 
     currentQuestion = pickNextQuestion();
+    if (!currentQuestion) return;
     answeredCurrent = false;
     secretProgress = currentQuestion.content === SECRET_CONTENT ? splitAnswerChars(normalizeSecretText(currentQuestion.answer)).map(() => '') : [];
     feedback.textContent = '';
@@ -932,11 +928,6 @@
       Object.keys(typeLabels).forEach((type) => activeFilters.types.add(type));
       Object.keys(secretUnlocked ? { ...contentLabels, ...secretContentLabels } : contentLabels)
         .forEach((content) => activeFilters.contents.add(content));
-      preferredContentOnce = secretUnlocked
-        && activeFilters.contents.has(SECRET_CONTENT)
-        && allQuestions.some((question) => question.content === SECRET_CONTENT)
-        ? SECRET_CONTENT
-        : '';
       renderQuestion();
       return;
     }
@@ -944,17 +935,8 @@
 
     const group = button.dataset.group;
     const value = button.dataset.value;
-    const values = activeFilters[group];
-    if (values.has(value)) {
-      const nextValues = new Set(values);
-      nextValues.delete(value);
-      const nextTypes = group === 'types' ? nextValues : activeFilters.types;
-      const nextContents = group === 'contents' ? nextValues : activeFilters.contents;
-      if (hasQuestionFor(nextTypes, nextContents)) values.delete(value);
-    } else {
-      values.add(value);
-      if (group === 'contents') preferredContentOnce = value;
-    }
+    const result = QuizCore.simulateToggle(questionSources, activeFilters, group, value, secretUnlocked);
+    if (result.changed) activeFilters = result.filters;
     renderQuestion();
   });
 
@@ -982,40 +964,53 @@
 
   (window.cacheReadyPromise || Promise.resolve())
     .then(async () => {
-      const [records, people, secretQuestions] = await Promise.all([window.loadAllRecords(), window.loadAllPeople(), loadSecretQuestions()]);
+      const supplementalPromise = Promise.all([
+        Promise.resolve(window.ClassRecordData?.loadPageMessages?.() || []).catch(() => []),
+        Promise.resolve(window.ClassRecordData?.loadPageSupplements?.({ hidden: false }) || []).catch(() => [])
+      ]);
+      const [records, people, secretQuestions, [pageMessages, pageSupplements]] = await Promise.all([
+        window.loadAllRecords(),
+        window.loadAllPeople(),
+        loadSecretQuestions(),
+        supplementalPromise
+      ]);
       const quotes = await window.loadAllQuotes({ records });
-      return [records, people, quotes, secretQuestions];
+      return [records, people, quotes, secretQuestions, pageMessages, pageSupplements];
     })
-    .then(([records, people, quotes, secretQuestions]) => {
+    .then(([records, people, quotes, secretQuestions, pageMessages, pageSupplements]) => {
       const quizRecords = records.filter((record) => !String(record.fileName || record.id || '').replace(/\.json$/i, '').endsWith('-00'));
+      const messages = pageMessages.map((item, index) => normalizeSupplementalRecord(item, 'message', index)).filter((record) => record.content);
+      const supplements = pageSupplements.map((item, index) => normalizeSupplementalRecord(item, 'supplement', index)).filter((record) => record.content);
+      const tokenRecords = [...quizRecords, ...messages, ...supplements];
       const pools = {
-        personLabels: buildLabelMap(records, people),
+        personLabels: buildLabelMap(tokenRecords, people),
         personOptions: [],
         quoteOptions: uniqueValues(quotes.map((quote) => stripOptionMarkup(quote.quote)))
       };
       pools.personOptions = uniqueValues([...pools.personLabels.values()].flat());
       pools.quoteOptions = uniqueValues([
         ...pools.quoteOptions,
-        ...quizRecords.flatMap((record) => extractTokenRefs(record.content || '', 'quote').map((ref) => ref.label))
+        ...tokenRecords.flatMap((record) => extractTokenRefs(record.content || '', 'quote').map((ref) => ref.label))
       ]);
 
       const authorPool = uniqueValues(quizRecords.map((record) => record.author));
       const datePool = uniqueValues(quizRecords.map((record) => record.date));
-      const questions = [];
-      quizRecords.forEach((record) => {
-        questions.push(buildChoiceQuestion(record, 'person', pools));
-        questions.push(buildChoiceQuestion(record, 'quote', pools));
-        questions.push(buildFillQuestion(record, 'person'));
-        questions.push(buildFillQuestion(record, 'quote'));
-        questions.push(buildJudgeQuestion(record, 'person', pools));
-        questions.push(buildJudgeQuestion(record, 'quote', pools));
-        questions.push(buildAuthorChoiceQuestion(record, authorPool));
-        questions.push(buildAuthorFillQuestion(record));
-        questions.push(buildAuthorJudgeQuestion(record, authorPool));
-        questions.push(buildDateChoiceQuestion(record, datePool));
-      });
-
-      allQuestions = shuffle([...questions.filter(Boolean), ...secretQuestions]);
+      questionSources = deduplicateSources([
+        ...quizRecords.map((record) => buildRecordSource(record, 'record', pools, authorPool, datePool)),
+        ...messages.map((record) => buildRecordSource(record, 'message', pools, authorPool, datePool)),
+        ...supplements.map((record) => buildRecordSource(record, 'supplement', pools, authorPool, datePool)),
+        ...secretQuestions.map(buildSecretSource)
+      ]);
       renderQuestion();
+    })
+    .catch((error) => {
+      console.error('Quiz initialization failed:', error);
+      setQuizLoading(false);
+      questionText.textContent = '\u9898\u5e93\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002';
+      questionMeta.textContent = '';
+      optionsWrap.innerHTML = '';
+      optionsWrap.hidden = true;
+      if (fillForm) fillForm.hidden = true;
+      nextButton.disabled = true;
     });
 })();

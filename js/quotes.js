@@ -42,9 +42,9 @@ function renderQuotes(sortKey = "id", sortOrder = "asc") {
     </thead>
     <tbody>
       ${list.map((quote, index) => `
-        <tr data-id="${quote.id}">
+        <tr data-id="${escapeRecordAttribute(quote.id)}">
           <td>${index + 1}</td>
-          <td>${quote.id}</td>
+          <td>${escapeRecordText(quote.id)}</td>
           <td>${formatContent(quote.quote || quote.id)}</td>
         </tr>
       `).join("")}

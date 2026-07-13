@@ -6,11 +6,13 @@
     let configPromise = null;
     let clientPromise = null;
     const recordPromises = new Map();
+    let peoplePromise = null;
     const recordPagePromises = new Map();
     const pageSupplementPromises = new Map();
     let pageMessagesPromise = null;
     let creditsPagePromise = null;
     let materialsPromise = null;
+    const quizQuestionPromises = new Map();
     const assetListPromises = new Map();
     const signedUrlCache = new Map();
     const failedSignCache = new Map();
@@ -123,6 +125,9 @@
     };
 
     const getClient = async () => {
+        if (window.ClassRecordSupabase?.getClient) {
+            return window.ClassRecordSupabase.getClient();
+        }
         const config = await getConfig();
         if (!config.url || !config.anonKey) throw new Error('Supabase is not configured.');
         if (!clientPromise) {
@@ -241,7 +246,13 @@
 
     const loadPeople = async ({ onProgressStep } = {}) => {
         const config = await getConfig();
-        const rows = await selectAll(config.tables.people, '*', 'id');
+        if (!peoplePromise) {
+            peoplePromise = selectAll(config.tables.people, '*', 'id').catch((error) => {
+                peoplePromise = null;
+                throw error;
+            });
+        }
+        const rows = await peoplePromise;
         return rows.map((row, index) => {
             const raw = parseRaw(row);
             const item = {
@@ -446,7 +457,20 @@
 
     const loadQuizQuestions = async (contentKey) => {
         const config = await getConfig();
-        const rows = (await selectAll(config.tables.quizQuestions, '*', 'sort_order')).filter((row) => (row.content_key || row.question_group || parseRaw(row).content || parseRaw(row).group) === contentKey);
+        const key = String(contentKey || '').trim();
+        if (!quizQuestionPromises.has(key)) {
+            const promise = selectAll(config.tables.quizQuestions, '*', 'sort_order')
+                .then((rows) => rows.filter((row) => {
+                    const raw = parseRaw(row);
+                    return (row.content_key || row.question_group || raw.content || raw.group) === key;
+                }))
+                .catch((error) => {
+                    quizQuestionPromises.delete(key);
+                    throw error;
+                });
+            quizQuestionPromises.set(key, promise);
+        }
+        const rows = await quizQuestionPromises.get(key);
         return rows.map((row, index) => {
             const raw = parseRaw(row);
             return {
@@ -668,10 +692,12 @@
 
     window.addEventListener('classrecordcacheclearing', () => {
         recordPromises.clear();
+        peoplePromise = null;
         recordPagePromises.clear();
         pageSupplementPromises.clear();
         pageMessagesPromise = null;
         materialsPromise = null;
+        quizQuestionPromises.clear();
         creditsPagePromise = null;
         assetListPromises.clear();
         signedUrlCache.clear();

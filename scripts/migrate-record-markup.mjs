@@ -6,7 +6,7 @@ import path from 'node:path';
 const root = process.cwd();
 const dataRoot = path.join(root, 'data');
 const checkOnly = process.argv.includes('--check');
-const typedBinary = new Set(['person', 'author', 'quote', 'term', 'record', 'frac', 'anno', 'illu', 'arrow']);
+const typedBinary = new Set(['person', 'author', 'quote', 'term', 'record', 'material', 'frac', 'anno', 'illu', 'arrow']);
 const typedUnary = new Set(['del', 'under', 'red', 'hide', 'sup', 'sub', 'center', 'right']);
 
 function isEscaped(source, index) {
@@ -59,6 +59,19 @@ function splitTopLevelOnce(source, separator = '|') {
     return index < 0 ? null : [source.slice(0, index), source.slice(index + separator.length)];
 }
 
+function splitTopLevelAll(source, separator = '|') {
+    const parts = [];
+    let remaining = source;
+    while (remaining) {
+        const index = findTopLevelSeparator(remaining, separator);
+        if (index < 0) break;
+        parts.push(remaining.slice(0, index));
+        remaining = remaining.slice(index + separator.length);
+    }
+    parts.push(remaining);
+    return parts;
+}
+
 function migrateSquare(body, raw) {
     const colon = body.indexOf(':');
     const type = colon > 0 ? body.slice(0, colon) : '';
@@ -72,6 +85,12 @@ function migrateSquare(body, raw) {
         const normalizedType = type === 'term' ? 'quote' : type;
         const first = type === 'illu' ? parts[0].replace(/^data\/attachments\//i, '') : migrateMarkup(parts[0]);
         return `[[${normalizedType}:${first}|${migrateMarkup(parts[1])}]]`;
+    }
+    if (type === 'table') {
+        const parts = splitTopLevelAll(body.slice(colon + 1));
+        const size = parts.shift();
+        if (!/^\d{1,2}x\d{1,2}$/i.test(String(size || '').trim())) return raw;
+        return `[[table:${size}|${parts.map(migrateMarkup).join('|')}]]`;
     }
     const person = splitTopLevelOnce(body);
     if (person && /^[a-zA-Z0-9_-]+$/.test(person[0]) && person[1]) {
@@ -165,8 +184,8 @@ for (const file of await listJsonFiles(dataRoot)) {
     const original = await fs.readFile(file, 'utf8');
     const parsed = JSON.parse(original);
     const migrated = migrateValue(parsed);
+    if (JSON.stringify(migrated) === JSON.stringify(parsed)) continue;
     const next = `${JSON.stringify(migrated, null, 4)}\n`;
-    if (next === original.replace(/\r\n/g, '\n')) continue;
     changed.push(path.relative(root, file).replaceAll('\\', '/'));
     if (!checkOnly) await fs.writeFile(file, next, 'utf8');
 }

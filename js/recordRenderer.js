@@ -35,14 +35,16 @@ function escapeRecordText(value) {
 }
 
 const ILLUSTRATION_IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg"]);
+const recordMarkupReferenceCache = new Map();
+const recordNodeSources = new WeakMap();
+
+window.addEventListener("classrecordcacheclearing", () => recordMarkupReferenceCache.clear());
 
 function normalizeIllustrationPath(value) {
     const raw = String(value ?? "").trim();
     if (!raw || raw.length > 500 || /[\\?#%\u0000-\u001f\u007f]/.test(raw)) return "";
     if (/^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(raw)) return "";
-    // Full paths remain accepted for remote records written before the
-    // filename-only syntax was introduced.
-    const fileName = raw.replace(/^data\/attachments\//i, "");
+    const fileName = raw;
     if (!fileName || fileName.includes("/") || fileName === "." || fileName === "..") return "";
     const extension = fileName.split(".").pop()?.toLowerCase();
     return ILLUSTRATION_IMAGE_EXTENSIONS.has(extension) ? `data/attachments/${fileName}` : "";
@@ -76,7 +78,6 @@ function findBalancedSquareEnd(source, start) {
 
 function findTopLevelSeparator(source, separator = "|") {
     let squareDepth = 0;
-    let curlyDepth = 0;
     for (let index = 0; index <= source.length - separator.length; index += 1) {
         if (isEscapedMarkupCharacter(source, index)) continue;
         if (source.startsWith("[[", index)) {
@@ -85,13 +86,7 @@ function findTopLevelSeparator(source, separator = "|") {
         } else if (source.startsWith("]]", index) && squareDepth > 0) {
             squareDepth -= 1;
             index += 1;
-        } else if (source.startsWith("{{", index)) {
-            curlyDepth += 1;
-            index += 1;
-        } else if (source.startsWith("}}", index) && curlyDepth > 0) {
-            curlyDepth -= 1;
-            index += 1;
-        } else if (squareDepth === 0 && curlyDepth === 0 && source.startsWith(separator, index)) {
+        } else if (squareDepth === 0 && source.startsWith(separator, index)) {
             return index;
         }
     }
@@ -119,29 +114,22 @@ function splitTopLevelAll(source, separator = "|") {
 }
 
 function extractRecordMarkupReferences(value) {
+    const cacheKey = String(value ?? "");
+    const cached = recordMarkupReferenceCache.get(cacheKey);
+    if (cached) return cached;
     const participantIds = new Set();
     const extraAuthorIds = new Set();
     const quoteIds = new Set();
     const illustrationPaths = new Set();
-    const binaryTypes = new Set(["person", "author", "quote", "term", "record", "material", "frac", "anno", "illu", "arrow"]);
+    const personMarkers = [];
+    const quoteMarkers = [];
+    const binaryTypes = new Set(["person", "author", "quote", "record", "material", "frac", "anno", "illu", "arrow"]);
     const unaryTypes = new Set(["del", "under", "red", "hide", "sup", "sub", "center", "right"]);
 
     const visit = (input, depth = 0) => {
         if (depth > 32) return;
         const source = String(input ?? "");
         for (let index = 0; index < source.length;) {
-            if (!isEscapedMarkupCharacter(source, index) && source.startsWith("{{", index)) {
-                const end = source.indexOf("}}", index + 2);
-                if (end >= 0) {
-                    const parts = splitTopLevelOnce(source.slice(index + 2, end));
-                    if (parts && /^[a-zA-Z0-9_-]+$/.test(parts[0]) && parts[1]) {
-                        quoteIds.add(parts[0]);
-                        visit(parts[1], depth + 1);
-                        index = end + 2;
-                        continue;
-                    }
-                }
-            }
             if (isEscapedMarkupCharacter(source, index) || !source.startsWith("[[", index)) {
                 index += 1;
                 continue;
@@ -155,12 +143,18 @@ function extractRecordMarkupReferences(value) {
             const colon = body.indexOf(":");
             const type = colon > 0 ? body.slice(0, colon) : "";
 
-            if (type === "person" || type === "author" || type === "quote" || type === "term") {
+            if (type === "person" || type === "author" || type === "quote") {
                 const parts = splitTopLevelOnce(body.slice(colon + 1));
                 if (parts && /^[a-zA-Z0-9_-]+$/.test(parts[0]) && parts[1]) {
-                    if (type === "person") participantIds.add(parts[0]);
+                    if (type === "person") {
+                        participantIds.add(parts[0]);
+                        personMarkers.push({ id: parts[0], label: parts[1] });
+                    }
                     else if (type === "author") extraAuthorIds.add(parts[0]);
-                    else quoteIds.add(parts[0]);
+                    else {
+                        quoteIds.add(parts[0]);
+                        quoteMarkers.push({ id: parts[0], quote: parts[1], label: parts[1] });
+                    }
                     visit(parts[1], depth + 1);
                 }
             } else if (unaryTypes.has(type)) {
@@ -182,24 +176,23 @@ function extractRecordMarkupReferences(value) {
                     if (type === "frac" || type === "arrow" || type === "anno") visit(parts[0], depth + 1);
                     visit(parts[1], depth + 1);
                 }
-            } else {
-                const legacyPerson = splitTopLevelOnce(body);
-                if (legacyPerson && /^[a-zA-Z0-9_-]+$/.test(legacyPerson[0]) && legacyPerson[1]) {
-                    participantIds.add(legacyPerson[0]);
-                    visit(legacyPerson[1], depth + 1);
-                }
             }
             index = end;
         }
     };
 
     visit(value);
-    return {
+    const result = {
         participantIds: [...participantIds],
         extraAuthorIds: [...extraAuthorIds],
         quoteIds: [...quoteIds],
-        illustrationPaths: [...illustrationPaths]
+        illustrationPaths: [...illustrationPaths],
+        personMarkers,
+        quoteMarkers
     };
+    if (recordMarkupReferenceCache.size >= 2000) recordMarkupReferenceCache.clear();
+    recordMarkupReferenceCache.set(cacheKey, result);
+    return result;
 }
 
 function extractParticipantPersonIds(value) {
@@ -219,50 +212,12 @@ function extractIllustrationPaths(value) {
 }
 
 function extractQuoteMarkers(value) {
-    const markers = [];
-    const visit = (input, depth = 0) => {
-        if (depth > 32) return;
-        const source = String(input || "");
-        for (let index = 0; index < source.length;) {
-            if (!isEscapedMarkupCharacter(source, index) && source.startsWith("{{", index)) {
-                const end = source.indexOf("}}", index + 2);
-                if (end >= 0) {
-                    const parts = splitTopLevelOnce(source.slice(index + 2, end));
-                    if (parts && /^[a-zA-Z0-9_-]+$/.test(parts[0]) && parts[1]) {
-                        markers.push({ id: parts[0], quote: parts[1] });
-                        visit(parts[1], depth + 1);
-                        index = end + 2;
-                        continue;
-                    }
-                }
-            }
-            if (isEscapedMarkupCharacter(source, index) || !source.startsWith("[[", index)) {
-                index += 1;
-                continue;
-            }
-            const end = findBalancedSquareEnd(source, index);
-            if (end < 0) {
-                index += 2;
-                continue;
-            }
-            const body = source.slice(index + 2, end - 2);
-            const colon = body.indexOf(":");
-            const type = colon > 0 ? body.slice(0, colon) : "";
-            const content = colon > 0 ? body.slice(colon + 1) : body;
-            if (type === "quote" || type === "term") {
-                const parts = splitTopLevelOnce(content);
-                if (parts && /^[a-zA-Z0-9_-]+$/.test(parts[0]) && parts[1]) {
-                    markers.push({ id: parts[0], quote: parts[1] });
-                    visit(parts[1], depth + 1);
-                }
-            } else {
-                visit(content, depth + 1);
-            }
-            index = end;
-        }
-    };
-    visit(value);
-    return markers;
+    return extractRecordMarkupReferences(value).quoteMarkers;
+}
+
+function extractRecordMarkupTokens(value, kind) {
+    const references = extractRecordMarkupReferences(value);
+    return kind === "quote" ? references.quoteMarkers : references.personMarkers;
 }
 
 function getRecordParticipantIds(record) {
@@ -282,8 +237,7 @@ window.extractMentionedPersonIds = extractParticipantPersonIds;
 window.extractExtraAuthorIds = extractExtraAuthorIds;
 window.extractMentionedQuoteIds = extractMentionedQuoteIds;
 window.extractQuoteMarkers = extractQuoteMarkers;
-// Transitional compatibility for legacy integrations; new code uses quotes.
-window.extractMentionedTermIds = extractMentionedQuoteIds;
+window.extractRecordMarkupTokens = extractRecordMarkupTokens;
 window.extractIllustrationPaths = extractIllustrationPaths;
 window.getRecordParticipantIds = getRecordParticipantIds;
 window.getRecordAuthorIds = getRecordAuthorIds;
@@ -491,7 +445,7 @@ function renderSquareMarkup(body, raw, context) {
         return `<span class="record-table-scroll" role="group" aria-label="record table"><table class="record-inline-table${shouldExpand ? " is-expanded" : ""}" style="--record-table-width:${totalWidth}em">${colgroup}<tbody>${tableRows}</tbody></table></span>`;
     }
 
-    for (const type of ["person", "author", "quote", "term", "record", "material", "frac", "anno", "illu", "arrow"]) {
+    for (const type of ["person", "author", "quote", "record", "material", "frac", "anno", "illu", "arrow"]) {
         const prefix = `${type}:`;
         if (!body.startsWith(prefix)) continue;
         const parts = splitTopLevelOnce(body.slice(prefix.length));
@@ -502,7 +456,7 @@ function renderSquareMarkup(body, raw, context) {
             const label = render(second);
             return asText ? label : `<span class="person-tag" data-id="${first}" title="${escapeRecordAttribute(getPersonDisplayNameById(first))}">${label}</span>`;
         }
-        if (type === "quote" || type === "term") {
+        if (type === "quote") {
             if (!/^[a-zA-Z0-9_-]+$/.test(first)) return asText ? raw : escapeRecordText(raw);
             const label = render(second);
             return asText ? label : `<span class="quote-tag" data-id="${first}">${label}</span>`;
@@ -529,11 +483,6 @@ function renderSquareMarkup(body, raw, context) {
         return `<span class="inline-illustration" data-image-src="${escapeRecordAttribute(safePath)}" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false">${label}</span>`;
     }
 
-    const personParts = splitTopLevelOnce(body);
-    if (personParts && /^[a-zA-Z0-9_-]+$/.test(personParts[0]) && personParts[1]) {
-        const label = render(personParts[1]);
-        return asText ? label : `<span class="person-tag" data-id="${personParts[0]}" title="${escapeRecordAttribute(getPersonDisplayNameById(personParts[0]))}">${label}</span>`;
-    }
     return asText ? raw : escapeRecordText(raw);
 }
 
@@ -561,46 +510,6 @@ function parseInlineMarkup(value, options = {}) {
                 output += renderSquareMarkup(raw.slice(2, -2), raw, context);
                 index = end;
                 continue;
-            }
-        }
-        if (source.startsWith("->[", index)) {
-            const end = source.indexOf("]<-", index + 3);
-            if (end >= 0) {
-                const parts = splitTopLevelOnce(source.slice(index + 3, end), "||");
-                if (parts) {
-                    output += parseInlineStack(parts[0], parts[1], "arrow", context);
-                    index = end + 3;
-                    continue;
-                }
-            }
-        }
-        const paired = [
-            ["{{", "}}", "quote"], ["((", "))", "redacted"], ["!!", "!!", "center"],
-            [">>", "<<", "right"], ["^", "^", "sup"], ["_", "_", "sub"]
-        ].find(([open]) => source.startsWith(open, index));
-        if (paired) {
-            const [open, close, type] = paired;
-            const end = source.indexOf(close, index + open.length);
-            if (end >= 0) {
-                const inner = source.slice(index + open.length, end);
-                let rendered = parseInlineMarkup(inner, context);
-                if (type === "quote") {
-                    const parts = splitTopLevelOnce(inner);
-                    if (parts && /^[a-zA-Z0-9_-]+$/.test(parts[0]) && parts[1]) {
-                        rendered = parseInlineMarkup(parts[1], context);
-                        output += context.mode === "text" ? rendered : `<span class="quote-tag" data-id="${parts[0]}">${rendered}</span>`;
-                        index = end + close.length;
-                        continue;
-                    }
-                } else {
-                    if (context.mode === "text") output += rendered;
-                    else if (type === "redacted") output += `<span class="redacted"><span class="redacted-mask"></span><span class="redacted-content">${rendered}</span></span>`;
-                    else if (type === "center") output += `<span class="record-center-line">${rendered}</span>`;
-                    else if (type === "right") output += `<span class="record-align-right">${rendered}</span>`;
-                    else output += `<${type}>${rendered}</${type}>`;
-                    index = end + close.length;
-                    continue;
-                }
             }
         }
         const character = source[index];
@@ -728,6 +637,14 @@ function getRecordAnchorId(record) {
     return `record-${String(record.fileName || record.id || "").replace(/\.json$/i, "").replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
 
+function renderPersonReference(value) {
+    const id = String(value || "").trim();
+    if (!/^[a-zA-Z0-9_-]+$/.test(id)) return escapeRecordText(id);
+    return parseContent(`[[person:${id}|${id}]]`);
+}
+
+window.renderPersonReference = renderPersonReference;
+
 window.getRecordAnchorId = getRecordAnchorId;
 
 function getRecordKey(record) {
@@ -735,19 +652,20 @@ function getRecordKey(record) {
 }
 
 function buildRecordBody(record) {
-    const timeText = record.time ? `📌 ${record.time} |` : "";
+    const timeText = record.time ? `📌 ${escapeRecordText(record.time)} |` : "";
+    const attachments = Array.isArray(record.attachments) ? record.attachments.filter(Boolean) : [];
 
     return `
         <div class="meta">
             <span>
-                #${record.id} |
-                📅 ${record.date} |
+                #${escapeRecordText(record.id)} |
+                📅 ${escapeRecordText(record.date)} |
                 ${timeText}
-                ✍ ${parseContent(`[[${record.author}|${record.author}]]`)}
+                ✍ ${renderPersonReference(record.author)}
             </span>
             <span class="icon-group">
 
-                ${record.attachments?.length ? `<span class="attach-toggle">📎</span>` : ""}
+                ${attachments.length ? `<span class="attach-toggle">📎</span>` : ""}
 
             </span>
         </div>
@@ -755,10 +673,10 @@ function buildRecordBody(record) {
         <div class="content">
             ${formatContent(record.content)}
         </div>
-        ${record.attachments?.length ? `
+        ${attachments.length ? `
             <div class="attachments-wrapper" style="display:none">
                 <ul>
-                    ${record.attachments.map(a => `<li><a href="" data-secure-href="${a.file}" target="_blank" rel="noopener">${a.name}</a></li>`).join("")}
+                    ${attachments.map((attachment) => `<li><a href="" data-secure-href="${escapeRecordAttribute(attachment.file)}" target="_blank" rel="noopener">${escapeRecordText(attachment.name || attachment.file)}</a></li>`).join("")}
                 </ul>
             </div>
         ` : ""}
@@ -901,7 +819,6 @@ function renderRecordList(records, container) {
         }
     });
 
-    container.innerHTML = "";
     if (!records.length) {
         container.innerHTML = `
             <div class="record-empty">
@@ -911,18 +828,26 @@ function renderRecordList(records, container) {
         `;
         return;
     }
+    const existingNodes = new Map([...container.children]
+        .filter((node) => node.matches?.(".record[data-record-key]"))
+        .map((node) => [node.dataset.recordKey, node]));
     const fragment = document.createDocumentFragment();
     records.forEach((record) => {
         const importance = record.importance || "normal";
-        const div = document.createElement("div");
-        div.id = getRecordAnchorId(record);
-        div.dataset.recordKey = getRecordKey(record);
-        div.className = `record importance-${importance}`;
-        div.innerHTML = buildRecordBody(record);
-        bindToggle(div);
+        const recordKey = getRecordKey(record);
+        let div = existingNodes.get(recordKey);
+        if (!div || recordNodeSources.get(div) !== record) {
+            div = document.createElement("div");
+            div.id = getRecordAnchorId(record);
+            div.dataset.recordKey = recordKey;
+            div.className = `record importance-${/^[a-zA-Z0-9_-]+$/.test(importance) ? importance : "normal"}`;
+            div.innerHTML = buildRecordBody(record);
+            bindToggle(div);
+            recordNodeSources.set(div, record);
+        }
         fragment.appendChild(div);
     });
-    container.appendChild(fragment);
+    container.replaceChildren(fragment);
     if (window.ClassRecordData?.isEnabled()) {
         window.ClassRecordData.resolveAssetElements(container).catch((error) => {
             console.warn("私有附件链接加载失败：", error);
@@ -1213,9 +1138,7 @@ function getInlineMarkerRects(tag) {
 const illustrationPreloadCache = new Map();
 const illustrationReadyCache = new Map();
 const illustrationDimensionCache = new Map();
-const illustrationDimensionPromises = new Map();
 const IMAGE_SIZE_STORAGE_KEY = "classRecord:imageSizes:v1";
-const IMAGE_SIZE_CONCURRENCY = 6;
 
 window.imageSizeCache = window.imageSizeCache || {};
 
@@ -1244,13 +1167,20 @@ function getIllustrationSourceDimensions(path) {
     return illustrationDimensionCache.get(sourcePath) || window.imageSizeCache?.[sourcePath] || null;
 }
 
+function rememberIllustrationDimensions(path, width, height) {
+    if (!path || width <= 0 || height <= 0) return;
+    const dimensions = { width, height };
+    illustrationDimensionCache.set(path, dimensions);
+    window.imageSizeCache[path] = dimensions;
+    persistImageSizeCache();
+}
+
 window.getIllustrationSourceDimensions = getIllustrationSourceDimensions;
 
 window.addEventListener("classrecordcacheclearing", () => {
     illustrationPreloadCache.clear();
     illustrationReadyCache.clear();
     illustrationDimensionCache.clear();
-    illustrationDimensionPromises.clear();
     window.imageSizeCache = {};
 });
 
@@ -1261,126 +1191,12 @@ function resolveIllustrationUrl(path) {
     const promise = window.ClassRecordData?.isEnabled?.()
         ? window.ClassRecordData.signAssetUrl(sourcePath, { quiet: true }).catch(() => null)
         : Promise.resolve(sourcePath);
-    const reusable = promise.then((url) => {
-        if (!url) illustrationPreloadCache.delete(sourcePath);
-        return url;
+    const reusable = promise.finally(() => {
+        if (illustrationPreloadCache.get(sourcePath) === reusable) illustrationPreloadCache.delete(sourcePath);
     });
     illustrationPreloadCache.set(sourcePath, reusable);
     return reusable;
 }
-
-function preloadIllustrationDimensions(path) {
-    const sourcePath = String(path || "").trim();
-    if (!sourcePath) return Promise.resolve(null);
-    if (illustrationDimensionCache.has(sourcePath)) return Promise.resolve(illustrationDimensionCache.get(sourcePath));
-    if (illustrationDimensionPromises.has(sourcePath)) return illustrationDimensionPromises.get(sourcePath);
-    const promise = (async () => {
-        const preloaded = window.ClassRecordData?.getPreloadedAsset?.(sourcePath);
-        if (preloaded?.width > 0 && preloaded?.height > 0) {
-            illustrationReadyCache.set(sourcePath, preloaded);
-            const dimensions = { width: preloaded.width, height: preloaded.height };
-            illustrationDimensionCache.set(sourcePath, dimensions);
-            return dimensions;
-        }
-        const url = await resolveIllustrationUrl(sourcePath);
-        if (!url) return null;
-        return new Promise((resolve) => {
-            const image = new Image();
-            image.decoding = "async";
-            image.fetchPriority = "high";
-            let dimensionFrame = null;
-            let dimensionsResolved = false;
-            const resolveDimensions = () => {
-                if (dimensionsResolved || image.naturalWidth <= 0 || image.naturalHeight <= 0) return false;
-                dimensionsResolved = true;
-                const dimensions = { width: image.naturalWidth, height: image.naturalHeight };
-                illustrationDimensionCache.set(sourcePath, dimensions);
-                window.imageSizeCache[sourcePath] = dimensions;
-                persistImageSizeCache();
-                resolve(dimensions);
-                return true;
-            };
-            const inspectDimensions = () => {
-                if (!resolveDimensions() && !image.complete) dimensionFrame = requestAnimationFrame(inspectDimensions);
-            };
-            image.onload = () => {
-                cancelAnimationFrame(dimensionFrame);
-                resolveDimensions();
-                illustrationReadyCache.set(sourcePath, {
-                    url,
-                    width: image.naturalWidth,
-                    height: image.naturalHeight
-                });
-            };
-            image.onerror = () => {
-                cancelAnimationFrame(dimensionFrame);
-                console.warn(`Image dimensions failed to load: ${sourcePath}`);
-                if (!dimensionsResolved) resolve(null);
-            };
-            image.src = url;
-            inspectDimensions();
-        });
-    })();
-    const reusable = promise.then((dimensions) => {
-        if (!dimensions) illustrationDimensionPromises.delete(sourcePath);
-        return dimensions;
-    });
-    illustrationDimensionPromises.set(sourcePath, reusable);
-    return reusable;
-}
-
-async function preloadRecordIllustrationMetadata(records) {
-    await preloadAllJsonImageMetadata({ records });
-}
-
-window.preloadRecordIllustrationMetadata = preloadRecordIllustrationMetadata;
-
-function collectImagePathsFromValue(value, paths, depth = 0) {
-    if (depth > 10 || value == null) return;
-    if (typeof value === "string") {
-        extractIllustrationPaths(value).forEach((path) => paths.add(path));
-        const trimmed = value.trim();
-        const normalized = normalizeIllustrationPath(trimmed) || (/^(?:https?:|data:|blob:|images\/|data\/attachments\/)/i.test(trimmed) ? trimmed.replace(/^data\/attachments\//i, "data/attachments/") : "");
-        if (normalized && /\.(png|jpe?g|gif|webp|svg)(?:$|\?)/i.test(normalized)) paths.add(normalized);
-        return;
-    }
-    if (Array.isArray(value)) {
-        value.forEach((item) => collectImagePathsFromValue(item, paths, depth + 1));
-        return;
-    }
-    if (typeof value === "object") {
-        Object.values(value).forEach((item) => collectImagePathsFromValue(item, paths, depth + 1));
-    }
-}
-
-function collectAllJsonImagePaths(dataSets = {}) {
-    const paths = new Set();
-    Object.values(dataSets).forEach((value) => collectImagePathsFromValue(value, paths));
-    return [...paths].filter(Boolean);
-}
-
-async function preloadImageDimensionsWithLimit(paths, concurrency = IMAGE_SIZE_CONCURRENCY) {
-    const list = [...new Set(paths || [])].filter(Boolean);
-    let cursor = 0;
-    const worker = async () => {
-        while (cursor < list.length) {
-            const path = list[cursor];
-            cursor += 1;
-            await preloadIllustrationDimensions(path).catch((error) => {
-                console.warn(`Image dimensions failed to load: ${path}`, error);
-            });
-        }
-    };
-    await Promise.all(Array.from({ length: Math.min(concurrency, list.length) }, () => worker()));
-}
-
-async function preloadAllJsonImageMetadata(dataSets = {}) {
-    const paths = collectAllJsonImagePaths(dataSets);
-    await preloadImageDimensionsWithLimit(paths);
-}
-
-window.collectAllJsonImagePaths = collectAllJsonImagePaths;
-window.preloadAllJsonImageMetadata = preloadAllJsonImageMetadata;
 
 const imageViewerState = {
     overlay: null,
@@ -1388,7 +1204,9 @@ const imageViewerState = {
     closeHandler: null
 };
 
-async function resolvePreviewImageUrl(sourcePath) {
+async function resolvePreviewImageUrl(sourcePath, resolvedUrl = "") {
+    const readyUrl = String(resolvedUrl || "").trim();
+    if (readyUrl) return readyUrl;
     const direct = String(sourcePath || "").trim();
     if (!direct) return "";
     if (/^(?:https?:|data:|blob:)/i.test(direct)) return direct;
@@ -1408,7 +1226,7 @@ function closeImageViewer() {
     window.setTimeout(() => overlay.remove(), 160);
 }
 
-async function openImageViewer(sourcePath, { alt = "image preview" } = {}) {
+async function openImageViewer(sourcePath, { alt = "image preview", resolvedUrl = "" } = {}) {
     closeImageViewer();
     const overlay = document.createElement("div");
     overlay.className = "image-viewer";
@@ -1433,7 +1251,7 @@ async function openImageViewer(sourcePath, { alt = "image preview" } = {}) {
     document.body.appendChild(overlay);
     requestAnimationFrame(() => overlay.classList.add("is-visible"));
     const frame = overlay.querySelector(".image-viewer-frame");
-    const url = await resolvePreviewImageUrl(sourcePath).catch(() => "");
+    const url = await resolvePreviewImageUrl(sourcePath, resolvedUrl).catch(() => "");
     if (!overlay.isConnected || imageViewerState.overlay !== overlay) return;
     if (!url) {
         frame.innerHTML = '<div class="image-viewer-status">Image failed to load.</div>';
@@ -1442,11 +1260,26 @@ async function openImageViewer(sourcePath, { alt = "image preview" } = {}) {
     const image = document.createElement("img");
     image.alt = alt;
     image.decoding = "async";
+    let attemptedFreshUrl = false;
+    const showFailure = () => {
+        if (imageViewerState.overlay === overlay) frame.innerHTML = '<div class="image-viewer-status">Image failed to load.</div>';
+    };
     image.onload = () => {
         if (imageViewerState.overlay === overlay) frame.replaceChildren(image);
     };
     image.onerror = () => {
-        if (imageViewerState.overlay === overlay) frame.innerHTML = '<div class="image-viewer-status">Image failed to load.</div>';
+        if (attemptedFreshUrl || !resolvedUrl) {
+            showFailure();
+            return;
+        }
+        attemptedFreshUrl = true;
+        resolvePreviewImageUrl(sourcePath).then((freshUrl) => {
+            if (!freshUrl || freshUrl === image.src || imageViewerState.overlay !== overlay) {
+                showFailure();
+                return;
+            }
+            image.src = freshUrl;
+        }).catch(showFailure);
     };
     image.src = url;
 }
@@ -1828,6 +1661,7 @@ illustrationTooltipController = createInlineTooltipController({
             width: image.naturalWidth,
             height: image.naturalHeight
         });
+        rememberIllustrationDimensions(sourcePath, image.naturalWidth, image.naturalHeight);
         if (!placeholderShown) {
             setIllustrationFrameSize(tooltip, image, image.naturalWidth, image.naturalHeight);
             tooltip.replaceChildren(image);
@@ -1847,7 +1681,8 @@ document.addEventListener("click", (event) => {
         illustrationTooltipController.hide(true);
         annotationTooltipController.hide(true);
         window.ClassRecordImageViewer.open(tooltipImage.dataset.previewSrc, {
-            alt: tooltipImage.alt || "record illustration"
+            alt: tooltipImage.alt || "record illustration",
+            resolvedUrl: tooltipImage.currentSrc || tooltipImage.src
         });
         return;
     }

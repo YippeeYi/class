@@ -232,7 +232,7 @@ function renderPageMessage(message) {
   const author = String(message.author || "").trim();
   return `
     <article class="record record-written-message">
-      <div class="meta"><span>箴言${author ? ` · ✍ ${parseContent(`[[${author}|${author}]]`)}` : ""}</span></div>
+      <div class="meta"><span>箴言${author ? ` · ✍ ${renderPersonReference(author)}` : ""}</span></div>
       <div class="content">${formatContent(message.content)}</div>
     </article>
   `;
@@ -247,7 +247,7 @@ function renderPageSupplements(items = []) {
         const author = String(item.author || "").trim();
         return `
           <article class="record record-written-supplement">
-            <div class="meta"><span>补充记录${author ? ` · ✍ ${parseContent(`[[author:${author}|${author}]]`)}` : ""}</span></div>
+            <div class="meta"><span>补充记录${author ? ` · ✍ ${renderPersonReference(author)}` : ""}</span></div>
             <div class="content">${formatContent(item.content)}</div>
           </article>
         `;
@@ -538,7 +538,7 @@ function preloadWrittenImage(path, { priority = "low" } = {}) {
 }
 
 function preloadAdjacentWrittenPages(pages, pageIndex) {
-  const paths = [pageIndex - 2, pageIndex - 1, pageIndex + 1, pageIndex + 2]
+  const paths = [pageIndex - 1, pageIndex + 1]
     .filter((index) => index >= 0 && index < pages.length)
     .map((index) => getPageImagePath(pages[index], pages[index].records || []))
     .filter(Boolean);
@@ -615,7 +615,8 @@ function renderWrittenView(records) {
   writtenFigure?.addEventListener("click", () => {
     if (!imagePath || typeof window.ClassRecordImageViewer?.open !== "function") return;
     window.ClassRecordImageViewer.open(imagePath, {
-      alt: hiddenMode ? `${page.page} hidden written record` : `${page.page} written record`
+      alt: hiddenMode ? `${page.page} hidden written record` : `${page.page} written record`,
+      resolvedUrl: writtenImage?.currentSrc || writtenImage?.src || getCachedWrittenImageSource(imagePath)
     });
   });
   writtenImage?.addEventListener("load", (event) => {
@@ -929,7 +930,6 @@ async function enterHiddenRecordMode() {
     const records = await window.loadHiddenRecords();
     allRecords = records;
     sortRecords(allRecords);
-    await window.preloadRecordIllustrationMetadata?.(allRecords);
     renderHiddenModeBanner(`隐藏记录查看已开启，共 ${allRecords.length} 条。刷新后自动恢复普通记录。`, "success");
     renderViewControls();
     renderRecordFilter({
@@ -996,7 +996,6 @@ cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
     if (hiddenMode) return;
     allRecords = records;
     sortRecords(allRecords);
-    await window.preloadRecordIllustrationMetadata?.(allRecords);
     if (hiddenMode) return;
     try {
       const storedJump = JSON.parse(sessionStorage.getItem("classrecord:pending-record-jump") || "null");

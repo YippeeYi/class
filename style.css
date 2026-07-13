@@ -86,7 +86,6 @@
   --important-bg: linear-gradient(90deg, color-mix(in srgb, var(--theme-surface) 44%, transparent), rgba(255, 252, 246, 0.4));
   --guide-panel-bg: color-mix(in srgb, var(--theme-surface) 82%, transparent);
   --guide-card-bg: linear-gradient(160deg, color-mix(in srgb, var(--theme-surface) 94%, white), color-mix(in srgb, var(--theme-surface-strong) 92%, #f3e8db));
-  --progress-track-bg: color-mix(in srgb, var(--theme-surface-strong) 60%, rgba(148, 163, 184, 0.35));
   --theme-color: var(--theme-accent);
   --theme-color-soft: color-mix(in srgb, var(--theme-accent) 18%, transparent);
   --theme-border-color: color-mix(in srgb, var(--theme-accent-strong) 32%, rgba(13, 13, 14, 0.16));
@@ -235,37 +234,6 @@ body>#quotes-list {
   box-shadow: var(--control-shadow-pressed);
 }
 
-
-#loading-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay-backdrop);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-  backdrop-filter: blur(4px);
-}
-
-.loading-overlay-card {
-  background: var(--overlay-card-bg);
-  border-radius: 16px;
-  padding: 20px 26px;
-  box-shadow: var(--overlay-card-shadow);
-  text-align: center;
-}
-
-.loading-overlay-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-strong);
-}
-
-.loading-overlay-subtitle {
-  margin-top: 6px;
-  font-size: 14px;
-  color: var(--text-subtle);
-}
 
 .auth-page {
   min-height: 100vh;
@@ -1010,7 +978,7 @@ body>#quotes-list {
   cursor: pointer;
   color: var(--link-accent);
   border-bottom: 2px dashed transparent;
-  transition: all 0.15s ease;
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .person-tag:hover {
@@ -1576,33 +1544,6 @@ body>#quotes-list {
 .guide-tip.is-switching {
   opacity: 0;
   transform: translateY(6px);
-}
-
-.guide-progress {
-  margin-top: 20px;
-  width: min(360px, 78vw);
-}
-
-.guide-progress-track {
-  width: 100%;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--progress-track-bg);
-  overflow: hidden;
-}
-
-.guide-progress-fill {
-  height: 100%;
-  width: 0;
-  background-color: var(--accent-dark);
-  background-image: var(--control-active-gradient);
-  transition: width 0.2s ease;
-}
-
-.guide-progress-text {
-  margin-top: 10px;
-  color: var(--text-soft);
-  font-size: 14px;
 }
 
 .feature-page {
@@ -2289,6 +2230,10 @@ body>#quotes-list {
 .record-written-image.is-loaded img {
   opacity: 1;
   visibility: visible;
+}
+
+.record-written-image.is-loaded {
+  cursor: zoom-in;
 }
 
 .record-written-image.is-cache-hit img {
@@ -6331,6 +6276,7 @@ body.hidden-record-mode .hidden-record-banner {
   display: grid;
   place-items: center;
   padding: clamp(14px, 3vw, 28px);
+  box-sizing: border-box;
   background: color-mix(in srgb, var(--overlay-backdrop) 86%, rgba(0, 0, 0, 0.42));
   backdrop-filter: blur(10px);
   opacity: 0;
@@ -6348,14 +6294,17 @@ body.hidden-record-mode .hidden-record-banner {
 .image-viewer-frame {
   display: grid;
   place-items: center;
-  max-width: min(96vw, 1280px);
-  max-height: min(92vh, 980px);
+  width: min(96vw, 1280px);
+  height: min(92vh, 980px);
+  height: min(92dvh, 980px);
+  min-width: 0;
+  min-height: 0;
 }
 
 .image-viewer-frame img {
   display: block;
-  max-width: min(96vw, 1280px);
-  max-height: min(92vh, 980px);
+  max-width: 100%;
+  max-height: 100%;
   width: auto;
   height: auto;
   border-radius: 12px;
@@ -6588,4 +6537,41 @@ body.materials-page {
     max-height: none;
     padding: 18px 18px 30px;
   }
+}
+
+/* Keep the guide's center stage independent from fixed auxiliary controls. */
+.guide-page {
+  box-sizing: border-box;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  place-items: stretch;
+}
+
+.guide-page>.guide-main {
+  place-self: stretch;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.guide-page>.top-right-actions {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 20;
+  width: auto;
+  max-width: calc(100vw - 24px);
+  margin: 0;
+  justify-content: flex-end;
 }

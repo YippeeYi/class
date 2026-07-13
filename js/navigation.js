@@ -66,7 +66,6 @@
     document.addEventListener('pointerdown', restoreFullscreen, { once: true, capture: true });
 
     const prefetchCache = new Set();
-    const dataWarmCache = new Set();
 
     const getSafeRouteUrl = (href) => {
         const value = String(href || '').trim();
@@ -100,39 +99,6 @@
         prefetchCache.add(url.href);
     };
 
-    const warmRouteData = (href) => {
-        const url = getSafeRouteUrl(href);
-        if (!url || dataWarmCache.has(url.pathname)) return;
-        dataWarmCache.add(url.pathname);
-
-        const path = url.pathname.split('/').pop() || 'index.html';
-        const loaders = [];
-        if (['record.html', 'timeline.html', 'shop.html'].includes(path)) {
-            loaders.push(window.loadAllRecords, window.loadAllPeople);
-        } else if (['people.html', 'person.html'].includes(path)) {
-            loaders.push(window.loadAllPeople, window.loadAllRecords);
-        } else if (['quotes.html'].includes(path)) {
-            loaders.push(window.loadAllQuotes);
-        } else if (['quiz.html'].includes(path)) {
-            loaders.push(window.loadAllQuotes, window.loadAllPeople, window.loadAllRecords);
-        } else if (['search.html'].includes(path)) {
-            loaders.push(window.loadAllQuotes, window.loadAllPeople, window.loadAllRecords);
-        } else if (['materials.html'].includes(path)) {
-            loaders.push(window.loadAllMaterials);
-        }
-
-        const run = () => {
-            loaders.filter(Boolean).forEach((loader) => {
-                Promise.resolve(loader()).catch(() => {});
-            });
-        };
-        if ('requestIdleCallback' in window) {
-            window.requestIdleCallback(run, { timeout: 600 });
-        } else {
-            window.setTimeout(run, 180);
-        }
-    };
-
     const prefetchTargetFromEvent = (event) => {
         const trigger = event.target.closest('[data-nav-target], [data-target], a[href]');
         if (!trigger) {
@@ -146,45 +112,11 @@
             || (trigger.tagName === 'A' ? trigger.getAttribute('href') : '')
             || trigger.getAttribute('href');
         prefetchPage(href);
-        warmRouteData(href);
-    };
-
-    const warmCoreData = () => {
-        [
-            window.loadAllRecords,
-            window.loadAllPeople,
-            window.loadAllQuotes,
-            window.loadAllMaterials,
-            () => window.ClassRecordData?.loadCreditsPage?.()
-        ]
-            .filter(Boolean)
-            .forEach((loader) => Promise.resolve(loader()).catch(() => {}));
     };
 
     document.addEventListener('pointerover', prefetchTargetFromEvent, { passive: true });
     document.addEventListener('focusin', prefetchTargetFromEvent);
     document.addEventListener('touchstart', prefetchTargetFromEvent, { passive: true });
-
-    window.addEventListener('load', () => {
-        const run = () => {
-            prefetchPage('record.html');
-            prefetchPage('people.html');
-            prefetchPage('quotes.html');
-            prefetchPage('quiz.html');
-            prefetchPage('search.html');
-            prefetchPage('timeline.html');
-            prefetchPage('shop.html');
-            prefetchPage('credits.html');
-            prefetchPage('materials.html');
-            warmCoreData();
-        };
-
-        if ('requestIdleCallback' in window) {
-            window.requestIdleCallback(run, { timeout: 1200 });
-        } else {
-            window.setTimeout(run, 360);
-        }
-    });
 
     window.navigateTo = (href) => {
         if (!href) {

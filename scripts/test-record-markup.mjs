@@ -24,8 +24,9 @@ const context = vm.createContext({
 });
 
 const source = await readFile(new URL('../js/recordRenderer.js', import.meta.url), 'utf8');
-vm.runInContext(`${source}\nthis.renderMarkupForTest = parseContent;`, context);
+vm.runInContext(`${source}\nthis.renderMarkupForTest = parseContent; this.buildRecordBodyForTest = buildRecordBody;`, context);
 const render = context.renderMarkupForTest;
+const buildRecordBody = context.buildRecordBodyForTest;
 const extractPeople = context.window.extractMentionedPersonIds;
 const extractAuthors = context.window.extractExtraAuthorIds;
 const extractQuotes = context.window.extractMentionedQuoteIds;
@@ -33,6 +34,7 @@ const getAuthors = context.window.getRecordAuthorIds;
 const countTextCharacters = context.window.countRecordTextCharacters;
 const calculateTooltipPosition = context.window.calculateInlineTooltipPosition;
 const extractIllustrations = context.window.extractIllustrationPaths;
+const extractTokens = context.window.extractRecordMarkupTokens;
 const timelineSource = await readFile(new URL('../js/timeline.js', import.meta.url), 'utf8');
 vm.runInContext(timelineSource, context);
 const fixedScale = context.window.ClassRecordFixedChartScale;
@@ -79,22 +81,33 @@ assert.match(render('[[right:署名]]'), /record-align-right/);
 assert.match(render('[[anno:A\\|B|标签]]'), /data-note-source="A\\\|B"/);
 assert.ok(render('普通 \\[[ 文本').includes('普通 [[ 文本'));
 
-// The compatibility layer remains available for remote data not migrated yet.
-assert.match(render('[[legacy-id|旧人物]]'), /person-tag/);
-assert.match(render('{{legacy-quote|旧名言}}'), /quote-tag/);
-assert.match(render('((旧黑幕))'), /redacted/);
+assert.equal(render('[[legacy-id|旧人物]]'), '[[legacy-id|旧人物]]');
+assert.equal(render('{{legacy-quote|旧名言}}'), '{{legacy-quote|旧名言}}');
+assert.equal(render('((旧黑幕))'), '((旧黑幕))');
+assert.equal(render('[[unknown:值|标签]]'), '[[unknown:值|标签]]');
 
 assert.equal(render('<script>alert(1)</script>'), '&lt;script&gt;alert(1)&lt;/script&gt;');
+const escapedRecord = buildRecordBody({
+    id: '<img src=x onerror=alert(1)>',
+    date: '<script>alert(1)</script>',
+    author: 'bad]]<svg/onload=alert(1)>',
+    content: '<b>unsafe</b>',
+    attachments: [{ file: 'x" onmouseover="alert(1)', name: '<img src=x onerror=alert(1)>' }]
+});
+assert.doesNotMatch(escapedRecord, /<script>|<svg|<img src=x/i);
+assert.match(escapedRecord, /&lt;script&gt;|&lt;img/);
 assert.doesNotMatch(render('[[illu:../bad.svg|安全标签]]'), /inline-illustration/);
-assert.match(render('[[illu:data/attachments/legacy.png|旧路径]]'), /data-image-src="data\/attachments\/legacy.png"/);
+assert.doesNotMatch(render('[[illu:data/attachments/legacy.png|旧路径]]'), /inline-illustration/);
 
-assert.equal([...extractPeople('[[person:alice|甲]][[person:alice|再次提及]][[bob|乙]]')].sort().join(','), 'alice,bob');
-assert.equal([...extractPeople('[[del:[[person:a|甲]]]][[anno:注解提到 [[b|乙]]|[[red:[[person:c|丙]]]]]][[frac:[[d|丁]]|下方]]')].sort().join(','), 'a,b,c,d');
+assert.equal([...extractPeople('[[person:alice|甲]][[person:alice|再次提及]][[person:bob|乙]]')].sort().join(','), 'alice,bob');
+assert.equal([...extractPeople('[[del:[[person:a|甲]]]][[anno:注解提到 [[person:b|乙]]|[[red:[[person:c|丙]]]]]][[frac:[[person:d|丁]]|下方]]')].sort().join(','), 'a,b,c,d');
 assert.equal(extractPeople('作者 alice；[[record:file|alice]][[illu:image.png|alice]][[red:alice]]').length, 0);
 assert.equal(extractPeople('[[author:alice|甲]][[red:[[author:bob|乙]]]]').length, 0);
 assert.equal([...extractAuthors('[[author:alice|甲]][[red:[[author:bob|乙]]]][[author:alice|重复]]')].sort().join(','), 'alice,bob');
 assert.equal([...getAuthors({ author: 'alice', content: '[[author:alice|重复]][[author:bob|乙]]' })].sort().join(','), 'alice,bob');
-assert.equal([...extractQuotes('[[quote:t1|名言]][[del:{{t2|旧名言}}]][[anno:提到 [[quote:t3|名言]]|[[quote:t1|重复]]]]')].sort().join(','), 't1,t2,t3');
+assert.equal([...extractQuotes('[[quote:t1|名言]][[del:[[quote:t2|另一名言]]]][[anno:提到 [[quote:t3|名言]]|[[quote:t1|重复]]]]')].sort().join(','), 't1,t2,t3');
+assert.equal(extractTokens('[[red:[[person:a|甲]]]][[quote:q1|名言]]', 'person')[0].label, '甲');
+assert.equal(extractTokens('[[red:[[person:a|甲]]]][[quote:q1|名言]]', 'quote')[0].label, '名言');
 assert.equal(extractQuotes('普通文本 t1；[[person:t2|不是名言]][[record:t3|不是名言]]').length, 0);
 assert.equal(countTextCharacters('甲[[person:a|乙]][[red:丙]]'), 3);
 assert.equal(countTextCharacters('[[material:m|资料]][[table:1x2|甲|乙]]'), 4);
@@ -145,4 +158,4 @@ assert.equal(peopleContext.getPeopleColumnsForTest('student').map((column) => co
 assert.equal(peopleContext.getPeopleColumnsForTest('teacher').map((column) => column.label).join(','), '序号,姓名,别名,参与,学科');
 assert.equal(peopleContext.getPeopleColumnsForTest('other').map((column) => column.label).join(','), '序号,姓名,别名,参与');
 
-console.log(`Passed ${cases.length + 42} markup, people, and timeline checks.`);
+console.log(`Passed ${cases.length + 47} markup, people, and timeline checks.`);

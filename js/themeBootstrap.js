@@ -61,7 +61,6 @@
             "--bg-card": `rgba(${rgbText(surface)}, .58)`,
             "--guide-panel-bg": `rgba(${rgbText(surface)}, .86)`,
             "--guide-card-bg": `linear-gradient(160deg, rgba(${rgbText(surface)}, .98), rgba(${rgbText(surfaceStrong)}, .96))`,
-            "--progress-track-bg": `rgba(${rgbText(surfaceStrong)}, .66)`,
             "--table-header-bg": `linear-gradient(135deg, rgba(${rgbText(surface)}, .94), rgba(${rgbText(surfaceStrong)}, .94))`,
             "--table-row-hover-bg": `linear-gradient(90deg, rgba(${rgbText(surfaceStrong)}, .7), rgba(${rgbText(surface)}, .78))`,
             "--important-border": `rgba(${rgbText(accent)}, .72)`,

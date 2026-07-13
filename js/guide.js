@@ -4,10 +4,6 @@
  ************************************************************/
 
 (() => {
-    const progressWrap = document.getElementById('guide-progress');
-    const progressFill = document.getElementById('guide-progress-fill');
-    const progressText = document.getElementById('guide-progress-text');
-
     const resetGuideScroll = () => {
         document.documentElement.scrollTop = 0;
         document.body.scrollTop = 0;
@@ -19,17 +15,6 @@
     }
     resetGuideScroll();
     window.addEventListener('pageshow', resetGuideScroll);
-
-    const setProgress = (value) => {
-        const percent = Math.max(0, Math.min(100, Math.round(value * 100)));
-        if (progressFill) {
-            progressFill.style.width = `${percent}%`;
-        }
-        if (progressText) {
-            progressText.textContent = `缓存加载中 ${percent}%`;
-        }
-    };
-
 
     let tipTimer = null;
 
@@ -146,38 +131,6 @@
         setText('guide-people-count', valueOrEmpty(peopleResult).length);
         setText('guide-quote-count', valueOrEmpty(quotesResult).length);
 
-        if (typeof window.preloadAllJsonImageMetadata === 'function') {
-            window.setTimeout(async () => {
-                try {
-                    const materials = typeof window.loadAllMaterials === 'function' ? await window.loadAllMaterials().catch(() => []) : [];
-                    const creditsPage = typeof window.ClassRecordData?.loadCreditsPage === 'function'
-                        ? await window.ClassRecordData.loadCreditsPage().catch(() => null)
-                        : null;
-                    const pageMessages = typeof window.ClassRecordData?.loadPageMessages === 'function'
-                        ? await window.ClassRecordData.loadPageMessages().catch(() => [])
-                        : [];
-                    const pageSupplements = typeof window.ClassRecordData?.loadPageSupplements === 'function'
-                        ? await window.ClassRecordData.loadPageSupplements({ hidden: false }).catch(() => [])
-                        : [];
-                    const recordPages = typeof window.ClassRecordData?.loadRecordPages === 'function'
-                        ? await window.ClassRecordData.loadRecordPages({ hidden: false }).catch(() => [])
-                        : [];
-                    window.preloadAllJsonImageMetadata({
-                        records: valueOrEmpty(recordsResult),
-                        people: valueOrEmpty(peopleResult),
-                        quotes: valueOrEmpty(quotesResult),
-                        materials,
-                        creditsPage,
-                        pageMessages,
-                        pageSupplements,
-                        recordPages
-                    }).catch((error) => console.warn('Image metadata prewarm failed:', error));
-                } catch (error) {
-                    console.warn('Image metadata prewarm failed:', error);
-                }
-            }, 120);
-        }
-
         const records = valueOrEmpty(recordsResult).filter((record) => {
             const hidden = record?.hidden === true || String(record?.hidden || '').trim().toLowerCase() === 'true';
             return !hidden;
@@ -200,12 +153,6 @@
             };
         }
         if (secondary) secondary.hidden = false;
-    };
-
-    const showNav = () => {
-        if (progressWrap) {
-            progressWrap.hidden = true;
-        }
     };
 
     const waitForAccess = () => {
@@ -261,22 +208,6 @@
             if (wrap) {
                 wrap.hidden = false;
             }
-        }))
-        .finally(showNav);
+        }));
 
-    waitForAccess().then(() => {
-        const warmCaches = () => {
-            if (typeof window.ensureAllCachesLoaded === 'function') {
-                window.ensureAllCachesLoaded({ showOverlay: false, includeImages: false }).catch((error) => {
-                    console.warn('导览后台缓存预热失败：', error);
-                });
-            }
-        };
-
-        if ('requestIdleCallback' in window) {
-            window.requestIdleCallback(warmCaches, { timeout: 900 });
-        } else {
-            window.setTimeout(warmCaches, 300);
-        }
-    });
 })();

@@ -106,18 +106,7 @@ window.loadAllRecords = async function ({ onProgressStep } = {}) {
     const list = await loadWithCache({
         key: "records:visible",
         expire: 24 * 60 * 60 * 1000,
-        loader: async () => {
-            const records = await window.ClassRecordData.loadRecords({ onProgressStep, hidden: false });
-            const [pageMessages, pageSupplements, pages] = await Promise.all([
-                window.ClassRecordData.loadPageMessages?.().catch(() => []),
-                window.ClassRecordData.loadPageSupplements?.({ hidden: false }).catch(() => []),
-                window.ClassRecordData.loadRecordPages?.({ hidden: false }).catch(() => [])
-            ]);
-            return [
-                ...records,
-                ...normalizeSupplementalRecords({ records, pageMessages, pageSupplements, pages, hidden: false })
-            ];
-        }
+        loader: () => window.ClassRecordData.loadRecords({ onProgressStep, hidden: false })
     });
     RecordStore.records = normalizeRecordList(list, { hidden: false });
     RecordStore.loaded = true;
