@@ -21,11 +21,13 @@ const listFiles = async (directory = '.') => {
     return output;
 };
 
-const [setupSql, checkSql, phase2Sql, finalAccessSql, migration, secureData, quizApp, authGate, siteCache] = await Promise.all([
+const [setupSql, checkSql, phase2Sql, finalAccessSql, storageRepairSql, storageDiagnoseSql, migration, secureData, quizApp, authGate, siteCache] = await Promise.all([
     read('docs/supabase-setup.sql'),
     read('docs/supabase-security-check.sql'),
     read('docs/supabase-phase2-security.sql'),
     read('docs/supabase-final-access-security.sql'),
+    read('docs/supabase-storage-policy-repair.sql'),
+    read('docs/supabase-storage-policy-diagnose.sql'),
     read('scripts/migrate-secure-content.mjs'),
     read('js/secureData.js'),
     read('js/quizApp.js'),
@@ -43,6 +45,13 @@ assert.match(setupSql, /notify pgrst, 'reload schema'/, 'setup must refresh the 
 assert.doesNotMatch(setupSql, /name !~ '\(\^\|\/\)H\[0-9\]/, 'Storage authorization must not depend on Hxx file names');
 assert.match(setupSql, /revoke all on public\.class_records from public, anon, authenticated/, 'content table write grants must be reset');
 assert.match(setupSql, /c\.relname in \([\s\S]*'invite_codes'[\s\S]*drop policy if exists %I on %I\.%I/, 'private invite tables must have historical policies removed');
+assert.match(storageRepairSql, /where n\.nspname = 'storage'[\s\S]*c\.relname = 'objects'[\s\S]*drop policy if exists %I on storage\.objects/, 'emergency repair must remove every historical Storage policy');
+assert.match(storageRepairSql, /create policy "classrecord_private_read"[\s\S]*has_class_record_access\(\)[\s\S]*has_class_record_admin_access\(\)/, 'emergency repair must recreate only the guarded read policy');
+assert.doesNotMatch(storageRepairSql, /alter table storage\.objects enable row level security/, 'emergency repair must not require ownership of Supabase-managed storage.objects');
+assert.match(storageDiagnoseSql, /using_expression[\s\S]*storage\.policy_details/, 'diagnosis must print every effective Storage policy expression');
+assert.match(storageDiagnoseSql, /relrowsecurity[\s\S]*storage\.objects_rls_enabled/, 'diagnosis must check Storage RLS state without mutating the managed table');
+assert.match(storageDiagnoseSql, /access\.no_header_has_access/, 'diagnosis must report no-token access helper behavior');
+assert.match(storageDiagnoseSql, /has_class_record_access\(\)/, 'diagnosis must call the no-token access helper');
 
 assert.match(checkSql, /storage_select_policy_count = 1 and storage_only_allowed_policy_ok/, 'security audit must require exactly one allowed Storage SELECT policy');
 assert.match(checkSql, /storage\.no_extra_select_policy/, 'security audit must fail additional Storage SELECT policies');
