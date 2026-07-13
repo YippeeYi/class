@@ -813,7 +813,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
             renderAll();
         })
         .catch((error) => {
-            console.warn('时间线加载失败：', error);
+            window.ClassRecordDiagnostics?.warn('Timeline load failed', error);
             detail.innerHTML = '<div class="record-empty"><strong>时间线加载失败。</strong><span>请刷新页面或清空缓存后重试。</span></div>';
         });
 })();

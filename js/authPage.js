@@ -38,7 +38,7 @@
     };
 
     const showConfigError = (error) => {
-        setError(error?.message || "验证服务暂不可用。");
+        setError("验证服务暂不可用。");
         if (submitButton) {
             submitButton.disabled = true;
             submitButton.textContent = "等待配置";

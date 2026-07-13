@@ -1,5 +1,6 @@
 (function () {
     const SDK_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0";
+    const SDK_INTEGRITY = "sha384-NNePyabYRaJyedI6EQAY7SV5Z8/0sQkuQ5WVfhKm0H+j0KSugkI2ZMNzw/QtzAWz";
     const DEFAULT_TABLES = {
         records: "class_records",
         people: "class_people",
@@ -25,6 +26,9 @@
         const script = document.createElement("script");
         script.src = src;
         script.async = true;
+        script.crossOrigin = "anonymous";
+        script.referrerPolicy = "no-referrer";
+        if (src === SDK_URL) script.integrity = SDK_INTEGRITY;
         script.onload = resolve;
         script.onerror = () => reject(new Error("Supabase SDK load failed."));
         document.head.appendChild(script);
@@ -48,7 +52,6 @@
             tables: { ...DEFAULT_TABLES, ...(config.tables || {}) },
             storage: {
                 privateBucket: config.bucket || "classrecord-private",
-                signedUrlExpiresIn: 600,
                 ...(config.storage || {})
             },
             useSecureContent: config.useSecureContent !== false
@@ -83,7 +86,7 @@
             return "邀请码验证 RPC 不存在或尚未刷新，请在 Supabase SQL Editor 执行 verify_invite_code 配置 SQL 后重试。";
         }
         if (message.includes("network") || message.includes("fetch")) return "Network request failed.";
-        return fallback || error?.message || "Operation failed.";
+        return fallback || "Operation failed.";
     };
 
     const verifyInviteCode = async (code) => {

@@ -111,6 +111,13 @@ node scripts/migrate-secure-content.mjs --prune
 
 `lamian` 隐藏题及其 `images/quiz/` 题图仅对管理员邀请码会话开放。普通邀请码不会预加载隐藏题，敲击 `lamian` 也不会触发解锁。
 
+## 第二阶段安全参数
+
+- 普通 Storage signed URL 有效期为 600 秒；`hidden/` 和 `images/quiz/` 为 180 秒。URL 只保存在页面内存，不写入 Web Storage，并在页面退出或权限清理时清空。
+- 邀请访问保持 90 天闲置滑动体验，但服务端会在首次授权 365 天后强制重新验证。浏览器中的本地状态只用于找到候选 token，页面放行始终需要 Supabase 刷新成功。
+- `verify_invite_code()` 同时按代理提供的来源 IP、被尝试的邀请码和全站请求量限流。历史清理由 `cleanup_invite_code_attempts()` 独立执行，建议在 Supabase Cron 中每天调用一次：`select public.cleanup_invite_code_attempts();`。
+- 增量升级执行 `docs/supabase-phase2-security.sql`；会话过期与撤销测试执行 `docs/supabase-session-security-test.sql`。
+
 ## 书面记录页内补充记录
 
 补充记录文件单独放在 `data/page-supplements/`，不要放进 `data/record/`。

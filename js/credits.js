@@ -96,13 +96,13 @@
             }
             if (typeof window.loadAllPeople === 'function') {
                 await window.loadAllPeople().catch((error) => {
-                    console.warn('People data failed to load for credits markup:', error);
+                    window.ClassRecordDiagnostics?.warn('Credits people data load failed', error);
                 });
             }
             const page = await window.ClassRecordData.loadCreditsPage();
             renderCredits(page);
         } catch (error) {
-            console.warn('Credits page failed to load:', error);
+            window.ClassRecordDiagnostics?.warn('Credits page load failed', error);
             renderStatus('制作组与致谢内容加载失败', '请稍后重试，或检查访问权限与 Supabase 配置。');
         }
     };

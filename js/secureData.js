@@ -1,6 +1,7 @@
 (function () {
     const CONFIG_URL = 'supabaseConfig.js';
     const SUPABASE_SDK_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0';
+    const SUPABASE_SDK_INTEGRITY = 'sha384-NNePyabYRaJyedI6EQAY7SV5Z8/0sQkuQ5WVfhKm0H+j0KSugkI2ZMNzw/QtzAWz';
     const DEFAULT_BUCKET = 'classrecord-private';
 
     let configPromise = null;
@@ -20,7 +21,8 @@
     const imagePreloadResults = new Map();
     let imageTransformationsUnavailable = false;
     const FAILED_SIGN_TTL = 5 * 60 * 1000;
-    const SIGNED_URL_REFRESH_BUFFER = 60 * 1000;
+    const MIN_SIGNED_URL_SECONDS = 30;
+    const MAX_SIGNED_URL_SECONDS = 15 * 60;
     const FAILED_ASSET_SESSION_KEY = 'classRecordMissingAssets.v1';
     const SIGNED_URL_SESSION_KEY = 'classRecordSignedUrls.v1';
     const displayTransforms = Object.freeze({
@@ -46,59 +48,21 @@
         return normalized ? `${safePath}|transform:${JSON.stringify(normalized)}` : safePath;
     };
 
-    const persistSignedUrls = () => {
-        try {
-            const entries = {};
-            signedUrlCache.forEach((item, path) => {
-                if (item.url && item.expiresAt > Date.now() + SIGNED_URL_REFRESH_BUFFER) {
-                    entries[path] = { url: item.url, expiresAt: item.expiresAt };
-                }
-            });
-            sessionStorage.setItem(SIGNED_URL_SESSION_KEY, JSON.stringify(entries));
-        } catch (error) {
-            // The in-memory URL cache remains available.
-        }
-    };
-
+    // Signed URLs and failed object paths are memory-only. Remove caches left
+    // by older releases without restoring them into the current page.
     try {
-        const storedUrls = JSON.parse(sessionStorage.getItem(SIGNED_URL_SESSION_KEY) || '{}');
-        Object.entries(storedUrls).forEach(([path, item]) => {
-            if (item?.url && Number(item.expiresAt) > Date.now() + SIGNED_URL_REFRESH_BUFFER) {
-                signedUrlCache.set(path, {
-                    url: item.url,
-                    promise: Promise.resolve(item.url),
-                    expiresAt: Number(item.expiresAt)
-                });
-            }
-        });
+        sessionStorage.removeItem(SIGNED_URL_SESSION_KEY);
+        sessionStorage.removeItem(FAILED_ASSET_SESSION_KEY);
     } catch (error) {
-        // Signed URL persistence is an optimization only.
+        // Storage may be unavailable in privacy-restricted browsers.
     }
-
-    try {
-        const storedFailures = JSON.parse(sessionStorage.getItem(FAILED_ASSET_SESSION_KEY) || '{}');
-        Object.entries(storedFailures).forEach(([path, time]) => {
-            if (Date.now() - Number(time) < FAILED_SIGN_TTL) failedSignCache.set(path, Number(time));
-        });
-    } catch (error) {
-        // Missing-asset caching is an optimization only.
-    }
-
-    const persistFailedAssets = () => {
-        try {
-            sessionStorage.setItem(FAILED_ASSET_SESSION_KEY, JSON.stringify(Object.fromEntries(failedSignCache)));
-        } catch (error) {
-            // Keep the in-memory cache when session storage is unavailable.
-        }
-    };
 
     const markAssetFailed = (path) => {
         failedSignCache.set(path, Date.now());
-        persistFailedAssets();
     };
 
     const clearAssetFailure = (path) => {
-        if (failedSignCache.delete(path)) persistFailedAssets();
+        failedSignCache.delete(path);
     };
 
     const loadScriptOnce = (src) => new Promise((resolve, reject) => {
@@ -109,6 +73,11 @@
         const script = document.createElement('script');
         script.src = src;
         script.defer = true;
+        if (/^https:\/\//i.test(src)) {
+            script.crossOrigin = 'anonymous';
+            script.referrerPolicy = 'no-referrer';
+            if (src === SUPABASE_SDK_URL) script.integrity = SUPABASE_SDK_INTEGRITY;
+        }
         script.onload = () => resolve();
         script.onerror = () => reject(new Error(`Script load failed: ${src}`));
         document.head.appendChild(script);
@@ -128,6 +97,10 @@
             url: config.url || '',
             anonKey: config.anonKey || '',
             bucket: config.bucket || config.storage?.privateBucket || DEFAULT_BUCKET,
+            storage: {
+                signedUrlExpiresIn: Number(config.storage?.signedUrlExpiresIn),
+                sensitiveSignedUrlExpiresIn: Number(config.storage?.sensitiveSignedUrlExpiresIn)
+            },
             tables: {
                 records: 'class_records',
                 people: 'class_people',
@@ -216,6 +189,26 @@
         if (raw.split('/').some((segment) => !segment || segment === '.' || segment === '..')) return '';
         if (!raw.startsWith('images/quiz/')) return '';
         return /\.(?:png|jpe?g|webp|gif)$/i.test(raw) ? raw : '';
+    };
+
+    const isSensitiveStoragePath = (path) => {
+        const safePath = normalizePrivateStoragePath(path).replace(/\\/g, '/');
+        return safePath.startsWith('hidden/') || safePath.startsWith('images/quiz/');
+    };
+
+    const getSignedUrlLifetime = (path, requestedLifetime, config) => {
+        const configured = isSensitiveStoragePath(path)
+            ? config.storage.sensitiveSignedUrlExpiresIn
+            : config.storage.signedUrlExpiresIn;
+        const safeConfigured = Math.min(MAX_SIGNED_URL_SECONDS, Math.max(MIN_SIGNED_URL_SECONDS, Number(configured) || MIN_SIGNED_URL_SECONDS));
+        const requested = Number(requestedLifetime);
+        if (!Number.isFinite(requested) || requested <= 0) return safeConfigured;
+        return Math.min(safeConfigured, Math.max(MIN_SIGNED_URL_SECONDS, Math.round(requested)));
+    };
+
+    const getSignedUrlRefreshAt = (now, lifetime) => {
+        const refreshBuffer = Math.min(30 * 1000, Math.max(5 * 1000, lifetime * 1000 * 0.2));
+        return now + lifetime * 1000 - refreshBuffer;
     };
 
     const normalizeRecord = (row, fallbackIndex = 0) => {
@@ -525,10 +518,11 @@
     const signAssetUrl = async (path, { expiresIn, quiet = false, forceRefresh = false, transform = null } = {}) => {
         const safePath = normalizePrivateStoragePath(path);
         if (!safePath || /^https?:\/\//i.test(safePath)) return safePath;
+        const config = await getConfig();
         const imageTransform = imageTransformationsUnavailable ? null : normalizeImageTransform(transform);
         const cacheKey = getAssetCacheKey(safePath, imageTransform);
         const now = Date.now();
-        const lifetime = expiresIn || 60 * 30;
+        const lifetime = getSignedUrlLifetime(safePath, expiresIn, config);
         if (forceRefresh) {
             signedUrlCache.delete(cacheKey);
             failedSignCache.delete(cacheKey);
@@ -539,9 +533,8 @@
             throw new Error(`Storage asset unavailable: ${safePath}`);
         }
         const cached = signedUrlCache.get(cacheKey);
-        if (cached && cached.expiresAt - SIGNED_URL_REFRESH_BUFFER > now) return cached.promise;
+        if (cached && cached.refreshAt > now) return cached.promise;
         if (cached) signedUrlCache.delete(cacheKey);
-        const config = await getConfig();
         const client = await getClient();
         const options = imageTransform ? { transform: imageTransform } : undefined;
         const promise = client.storage.from(config.bucket).createSignedUrl(safePath, lifetime, options)
@@ -552,7 +545,6 @@
                 const item = signedUrlCache.get(cacheKey);
                 if (item && url) {
                     item.url = url;
-                    persistSignedUrls();
                 }
                 return url;
             })
@@ -562,16 +554,21 @@
                 if (quiet) return '';
                 throw error;
             });
-        signedUrlCache.set(cacheKey, { promise, expiresAt: now + lifetime * 1000 });
+        signedUrlCache.set(cacheKey, {
+            promise,
+            expiresAt: now + lifetime * 1000,
+            refreshAt: getSignedUrlRefreshAt(now, lifetime)
+        });
         return promise;
     };
 
-    const signAssetUrls = async (paths, { expiresIn = 60 * 30, quiet = true } = {}) => {
+    const signAssetUrls = async (paths, { expiresIn, quiet = true } = {}) => {
         const originals = [...new Set((paths || []).filter(Boolean))];
         const result = new Map();
         const cachedLoads = [];
         const uncached = [];
         const now = Date.now();
+        const config = await getConfig();
         originals.forEach((original) => {
             const safePath = normalizePrivateStoragePath(original);
             if (!safePath || /^https?:\/\//i.test(safePath)) {
@@ -579,45 +576,53 @@
                 return;
             }
             const cached = signedUrlCache.get(safePath);
-            if (cached && cached.expiresAt - SIGNED_URL_REFRESH_BUFFER > now) {
+            if (cached && cached.refreshAt > now) {
                 cachedLoads.push(cached.promise.then((url) => { if (url) result.set(original, url); }));
                 return;
             }
             if (!failedSignCache.has(safePath) || now - failedSignCache.get(safePath) >= FAILED_SIGN_TTL) {
-                uncached.push({ original, safePath });
+                uncached.push({ original, safePath, lifetime: getSignedUrlLifetime(safePath, expiresIn, config) });
             }
         });
         await Promise.allSettled(cachedLoads);
         if (uncached.length) {
-            try {
-                const config = await getConfig();
-                const client = await getClient();
+            const client = await getClient();
+            const groups = new Map();
+            uncached.forEach((item) => {
+                if (!groups.has(item.lifetime)) groups.set(item.lifetime, []);
+                groups.get(item.lifetime).push(item);
+            });
+            const groupResults = await Promise.allSettled([...groups.entries()].map(async ([lifetime, candidates]) => {
                 const { data, error } = await client.storage
                     .from(config.bucket)
-                    .createSignedUrls(uncached.map((item) => item.safePath), expiresIn);
+                    .createSignedUrls(candidates.map((item) => item.safePath), lifetime);
                 if (error) throw error;
                 (data || []).forEach((item, index) => {
-                    const candidate = uncached[index];
-                    const url = item?.signedUrl || '';
-                    if (!candidate || !url || item?.error) {
+                    const candidate = candidates[index];
+                    const signedUrl = item?.signedUrl || '';
+                    if (!candidate || !signedUrl || item?.error) {
                         if (candidate) markAssetFailed(candidate.safePath);
                         return;
                     }
                     clearAssetFailure(candidate.safePath);
                     signedUrlCache.set(candidate.safePath, {
-                        url,
-                        promise: Promise.resolve(url),
-                        expiresAt: now + expiresIn * 1000
+                        url: signedUrl,
+                        promise: Promise.resolve(signedUrl),
+                        expiresAt: now + lifetime * 1000,
+                        refreshAt: getSignedUrlRefreshAt(now, lifetime)
                     });
-                    result.set(candidate.original, url);
+                    result.set(candidate.original, signedUrl);
                 });
-                persistSignedUrls();
-            } catch (error) {
-                const fallback = await Promise.allSettled(uncached.map(async ({ original, safePath }) => {
-                    const url = await signAssetUrl(safePath, { expiresIn, quiet });
+            }));
+            const failedGroups = groupResults.filter((item) => item.status === 'rejected');
+            if (failedGroups.length) {
+                const failedLifetimes = new Set([...groups.keys()].filter((_, index) => groupResults[index]?.status === 'rejected'));
+                const fallbackCandidates = uncached.filter((item) => failedLifetimes.has(item.lifetime));
+                const fallback = await Promise.allSettled(fallbackCandidates.map(async ({ original, safePath, lifetime }) => {
+                    const url = await signAssetUrl(safePath, { expiresIn: lifetime, quiet });
                     if (url) result.set(original, url);
                 }));
-                if (!quiet && fallback.every((item) => item.status === 'rejected')) throw error;
+                if (!quiet && fallback.length && fallback.every((item) => item.status === 'rejected')) throw failedGroups[0].reason;
             }
         }
         return result;
@@ -710,7 +715,7 @@
             ...linkNodes.map((node) => node.getAttribute('data-secure-href'))
         ].filter(Boolean);
         const signed = await signAssetUrls(paths).catch((error) => {
-            console.warn('Secure asset signing failed:', error);
+            window.ClassRecordDiagnostics?.warn('Secure asset signing failed', error);
             return new Map();
         });
         const assignImage = (node, src) => {
@@ -749,7 +754,7 @@
         }
     };
 
-    window.addEventListener('classrecordcacheclearing', () => {
+    const clearSecureResourceState = () => {
         recordPromises.clear();
         peoplePromise = null;
         recordPagePromises.clear();
@@ -764,7 +769,16 @@
         imagePreloadCache.clear();
         imagePreloadResults.clear();
         imageTransformationsUnavailable = false;
-    });
+        try {
+            sessionStorage.removeItem(SIGNED_URL_SESSION_KEY);
+            sessionStorage.removeItem(FAILED_ASSET_SESSION_KEY);
+        } catch (error) {
+            // Memory caches were still cleared.
+        }
+    };
+
+    window.addEventListener('classrecordcacheclearing', clearSecureResourceState);
+    window.addEventListener('pagehide', clearSecureResourceState);
 
     window.ClassRecordData = {
         displayTransforms,
@@ -785,6 +799,7 @@
         normalizePrivateStoragePath,
         preloadAsset,
         signAssetUrl,
-        signAssetUrls
+        signAssetUrls,
+        clearSecureResourceState
     };
 })();

@@ -22,7 +22,8 @@ window.CLASS_RECORD_SUPABASE = {
     },
     storage: {
         privateBucket: "classrecord-private",
-        signedUrlExpiresIn: 600
+        signedUrlExpiresIn: 600,
+        sensitiveSignedUrlExpiresIn: 180
     },
     useSecureContent: true
 };

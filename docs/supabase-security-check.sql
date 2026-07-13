@@ -27,7 +27,10 @@ required_functions(function_name, arg_types, should_be_public_executable) as (
         ('verify_invite_code', 'text', true),
         ('refresh_invite_access', 'text', true),
         ('has_class_record_access', '', true),
-        ('has_class_record_admin_access', '', true)
+        ('has_class_record_admin_access', '', true),
+        ('revoke_invite_access_session', 'uuid', false),
+        ('revoke_all_invite_access_sessions', '', false),
+        ('cleanup_invite_code_attempts', '', false)
 ),
 table_state as (
     select
@@ -234,7 +237,25 @@ invite_schema as (
             where schemaname = 'public'
               and tablename = 'invite_code_attempts'
               and indexname = 'invite_code_attempts_recent_idx'
-        ) as attempts_recent_index_exists
+        ) as attempts_recent_index_exists,
+        exists (
+            select 1
+            from pg_indexes
+            where schemaname = 'public'
+              and tablename = 'invite_code_attempts'
+              and indexname = 'invite_code_attempts_cleanup_idx'
+        ) as attempts_cleanup_index_exists
+),
+invite_hardening as (
+    select
+        pg_get_functiondef(to_regprocedure('public.invite_request_fingerprint()')) as fingerprint_definition,
+        pg_get_functiondef(to_regprocedure('public.verify_invite_code(text)')) as verify_definition,
+        pg_get_functiondef(to_regprocedure('public.refresh_invite_access(text)')) as refresh_definition,
+        pg_get_functiondef(to_regprocedure('public.has_class_record_access()')) as access_definition,
+        pg_get_functiondef(to_regprocedure('public.has_class_record_admin_access()')) as admin_definition,
+        coalesce(has_function_privilege('service_role', to_regprocedure('public.revoke_invite_access_session(uuid)'), 'execute'), false) as service_can_revoke_one,
+        coalesce(has_function_privilege('service_role', to_regprocedure('public.revoke_all_invite_access_sessions()'), 'execute'), false) as service_can_revoke_all,
+        coalesce(has_function_privilege('service_role', to_regprocedure('public.cleanup_invite_code_attempts()'), 'execute'), false) as service_can_cleanup
 )
 
 select
@@ -485,5 +506,47 @@ select
     case when attempts_recent_index_exists then 'PASS' else 'FAIL' end,
     'invite_code_attempts_recent_idx must exist'
 from invite_schema
+
+union all
+select
+    'invite_schema.attempts_cleanup_index',
+    case when attempts_cleanup_index_exists then 'PASS' else 'FAIL' end,
+    'invite_code_attempts_cleanup_idx must support scheduled cleanup'
+from invite_schema
+
+union all
+select
+    'invite.absolute_session_lifetime',
+    case when refresh_definition ilike '%created_at%365 days%'
+           and access_definition ilike '%created_at%365 days%'
+           and admin_definition ilike '%created_at%365 days%'
+         then 'PASS' else 'FAIL' end,
+    'refresh and access helpers must enforce the 365-day absolute session lifetime'
+from invite_hardening
+
+union all
+select
+    'invite.multi_axis_rate_limit',
+    case when fingerprint_definition ilike '%rate:ip:%'
+           and fingerprint_definition not ilike '%user-agent%'
+           and verify_definition ilike '%rate:code:%'
+           and verify_definition ilike '%rate:global%'
+         then 'PASS' else 'FAIL' end,
+    'verification must rate-limit by trusted proxy IP, attempted code, and global volume without User-Agent dependence'
+from invite_hardening
+
+union all
+select
+    'invite.no_inline_history_cleanup',
+    case when verify_definition not ilike '%delete from public.invite_code_attempts%' then 'PASS' else 'FAIL' end,
+    'verify_invite_code must not delete historical attempts on every request'
+from invite_hardening
+
+union all
+select
+    'invite.service_revocation_and_cleanup',
+    case when service_can_revoke_one and service_can_revoke_all and service_can_cleanup then 'PASS' else 'FAIL' end,
+    'service_role must be able to revoke one/all sessions and run scheduled attempt cleanup'
+from invite_hardening
 
 order by check_item;

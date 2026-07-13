@@ -21,12 +21,14 @@ const listFiles = async (directory = '.') => {
     return output;
 };
 
-const [setupSql, checkSql, migration, secureData, quizApp] = await Promise.all([
+const [setupSql, checkSql, phase2Sql, migration, secureData, quizApp, authGate] = await Promise.all([
     read('docs/supabase-setup.sql'),
     read('docs/supabase-security-check.sql'),
+    read('docs/supabase-phase2-security.sql'),
     read('scripts/migrate-secure-content.mjs'),
     read('js/secureData.js'),
-    read('js/quizApp.js')
+    read('js/quizApp.js'),
+    read('js/authGate.js')
 ]);
 
 assert.match(setupSql, /where n\.nspname = 'storage'[\s\S]*c\.relname = 'objects'[\s\S]*drop policy if exists %I on storage\.objects/, 'setup must remove every historical Storage policy');
@@ -47,6 +49,12 @@ assert.match(checkSql, /content\.no_write_policy/, 'security audit must reject d
 assert.match(checkSql, /private\.no_policy/, 'security audit must reject old policies on private invite tables');
 assert.match(checkSql, /content\.admin_only_policy/, 'security audit must verify admin-only content tables');
 assert.match(checkSql, /schema\.quiz_required_columns/, 'security audit must detect legacy quiz schema drift');
+assert.match(checkSql, /invite\.absolute_session_lifetime/, 'security audit must verify the absolute session lifetime');
+assert.match(checkSql, /invite\.multi_axis_rate_limit/, 'security audit must verify multi-axis invite throttling');
+assert.match(checkSql, /fingerprint_definition ilike '%rate:ip:%'[\s\S]*verify_definition ilike '%rate:code:%'[\s\S]*verify_definition ilike '%rate:global%'/, 'rate-limit audit must inspect the IP helper and verification RPC separately');
+assert.match(phase2Sql, /created_at > now\(\) - interval '365 days'/, 'phase 2 migration must enforce an absolute server-side lifetime');
+assert.match(phase2Sql, /revoke_all_invite_access_sessions/, 'phase 2 migration must provide global session revocation');
+assert.doesNotMatch(phase2Sql.match(/create or replace function public\.verify_invite_code[\s\S]*?\$\$;/)?.[0] || '', /delete from public\.invite_code_attempts/, 'invite verification must not clean history inline');
 
 assert.match(migration, /const storageUploadManifest = new Map\(\)/, 'migration must use an explicit Storage upload manifest');
 assert.match(migration, /await validateDatabaseSchema\(\);[\s\S]*await importRecords\(\)/, 'migration must validate its database schema before writing');
@@ -58,12 +66,18 @@ assert.match(migration, /const remoteFiles = await listStorageObjects\(''\)/, '-
 assert.match(migration, /private-assets\/\$\{storagePath\.slice\('images\/'\.length\)\}/, 'quiz images must be sourced from the ignored private-assets directory');
 
 assert.match(secureData, /normalizeQuizImagePath/, 'quiz Storage paths must be validated');
+assert.doesNotMatch(secureData, /expiresIn\s*=\s*60\s*\*\s*30|expiresIn\s*\|\|\s*60\s*\*\s*30/, 'signed URL lifetime must not be hard-coded to thirty minutes');
+assert.doesNotMatch(secureData, /sessionStorage\.setItem\(SIGNED_URL_SESSION_KEY/, 'signed URLs must remain memory-only');
+assert.match(secureData, /sensitiveSignedUrlExpiresIn/, 'sensitive assets must use a shorter configured lifetime');
 assert.match(secureData, /image: normalizeQuizImagePath/, 'quiz rows must retain only validated private object paths');
 assert.match(quizApp, /data-secure-src="\$\{escapeHtml\(currentQuestion\.imagePath\)\}"/, 'quiz images must be rendered as private Storage references');
 assert.match(quizApp, /ClassRecordData\?\.resolveAssetElements\?\.\(questionText\)/, 'quiz images must be resolved through the signed URL loader');
 assert.doesNotMatch(quizApp, /<img src="\$\{escapeHtml\(currentQuestion\.imagePath\)\}"/, 'quiz images must never use the raw Storage path as a public URL');
 assert.match(quizApp, /if \(!secretAdminAccess\) return \[\]/, 'hidden quiz rows must not load for normal invite sessions');
 assert.match(quizApp, /ClassRecordSupabase\?\.hasAdminAccess/, 'hidden quiz unlock must use the server-verified administrator session');
+assert.match(authGate, /ACCESS_MAX_ABSOLUTE_DAYS = 365/, 'the browser gate must mirror the server absolute lifetime for early cleanup');
+assert.doesNotMatch(authGate, /item\?\.verified\s*!==\s*true/, 'local verified=true must not be treated as authority');
+assert.match(authGate, /refreshInviteAccess/, 'page access must still be confirmed by the server token refresh');
 
 const repositoryFiles = await listFiles();
 const forbiddenPublicFiles = repositoryFiles.filter((file) => (

@@ -264,7 +264,7 @@
             renderResults();
         })
         .catch((error) => {
-            console.warn("全站搜索加载失败：", error);
+            window.ClassRecordDiagnostics?.warn("Search data load failed", error);
             if (summary) summary.textContent = "搜索数据加载失败。";
             renderEmpty("搜索数据加载失败。", "请刷新页面或清空缓存后重试。");
         });

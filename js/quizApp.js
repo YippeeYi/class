@@ -747,7 +747,7 @@
       }
       return questions;
     } catch (error) {
-      console.warn('Hidden lamian questions failed to load from Supabase:', error);
+      window.ClassRecordDiagnostics?.warn('Hidden quiz load failed', error);
       return [];
     }
   }
@@ -1030,7 +1030,7 @@
       renderQuestion();
     })
     .catch((error) => {
-      console.error('Quiz initialization failed:', error);
+      window.ClassRecordDiagnostics?.error('Quiz initialization failed', error);
       setQuizLoading(false);
       questionText.textContent = '\u9898\u5e93\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002';
       questionMeta.textContent = '';

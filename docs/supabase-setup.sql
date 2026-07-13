@@ -100,6 +100,9 @@ create table if not exists public.invite_code_attempts (
 create index if not exists invite_code_attempts_recent_idx
 on public.invite_code_attempts (attempt_hash, attempted_at desc);
 
+create index if not exists invite_code_attempts_cleanup_idx
+on public.invite_code_attempts (attempted_at);
+
 alter table public.invite_codes enable row level security;
 alter table public.invite_access_sessions enable row level security;
 alter table public.invite_code_settings enable row level security;
@@ -177,19 +180,17 @@ as $$
 declare
     headers jsonb;
     ip_value text;
-    ua_value text;
 begin
     headers := nullif(current_setting('request.headers', true), '')::jsonb;
     ip_value := coalesce(
-        split_part(headers->>'x-forwarded-for', ',', 1),
         headers->>'cf-connecting-ip',
         headers->>'x-real-ip',
+        split_part(headers->>'x-forwarded-for', ',', 1),
         'unknown'
     );
-    ua_value := left(coalesce(headers->>'user-agent', 'unknown'), 180);
-    return public.hash_invite_secret(coalesce(ip_value, 'unknown') || ':' || ua_value);
+    return public.hash_invite_secret('rate:ip:' || left(coalesce(ip_value, 'unknown'), 96));
 exception when others then
-    return public.hash_invite_secret('unknown');
+    return public.hash_invite_secret('rate:ip:unknown');
 end;
 $$;
 
@@ -205,12 +206,17 @@ declare
     consumed_access_level text;
     access_token text;
     attempt_hash_value text;
+    code_attempt_hash_value text;
+    global_attempt_hash_value text;
     recent_failures integer;
+    recent_code_failures integer;
+    recent_global_attempts integer;
 begin
     attempt_hash_value := public.invite_request_fingerprint();
+    code_attempt_hash_value := public.hash_invite_secret('rate:code:' || normalized_code);
+    global_attempt_hash_value := public.hash_invite_secret('rate:global');
 
-    delete from public.invite_code_attempts
-     where attempted_at < now() - interval '24 hours';
+    perform pg_advisory_xact_lock(hashtext('classrecord-invite-rate-limit'));
 
     select count(*)::integer
       into recent_failures
@@ -219,15 +225,36 @@ begin
        and success = false
        and attempted_at > now() - interval '15 minutes';
 
-    if recent_failures >= 20 then
+    select count(*)::integer
+      into recent_code_failures
+      from public.invite_code_attempts
+     where attempt_hash = code_attempt_hash_value
+       and success = false
+       and attempted_at > now() - interval '30 minutes';
+
+    select count(*)::integer
+      into recent_global_attempts
+      from public.invite_code_attempts
+     where attempt_hash = global_attempt_hash_value
+       and attempted_at > now() - interval '5 minutes';
+
+    if recent_failures >= 20
+       or recent_code_failures >= 10
+       or recent_global_attempts >= 300 then
         insert into public.invite_code_attempts (attempt_hash, success)
-        values (attempt_hash_value, false);
+        values
+            (attempt_hash_value, false),
+            (code_attempt_hash_value, false),
+            (global_attempt_hash_value, false);
         return jsonb_build_object('ok', false);
     end if;
 
-    if normalized_code = '' then
+    if normalized_code = '' or length(normalized_code) > 64 then
         insert into public.invite_code_attempts (attempt_hash, success)
-        values (attempt_hash_value, false);
+        values
+            (attempt_hash_value, false),
+            (code_attempt_hash_value, false),
+            (global_attempt_hash_value, false);
         return jsonb_build_object('ok', false);
     end if;
 
@@ -246,12 +273,18 @@ begin
         insert into public.invite_access_sessions (token_hash, access_level)
         values (public.hash_invite_secret(access_token), consumed_access_level);
         insert into public.invite_code_attempts (attempt_hash, success)
-        values (attempt_hash_value, true);
+        values
+            (attempt_hash_value, true),
+            (code_attempt_hash_value, true),
+            (global_attempt_hash_value, true);
         return jsonb_build_object('ok', true, 'accessToken', access_token);
     end if;
 
     insert into public.invite_code_attempts (attempt_hash, success)
-    values (attempt_hash_value, false);
+    values
+        (attempt_hash_value, false),
+        (code_attempt_hash_value, false),
+        (global_attempt_hash_value, false);
     return jsonb_build_object('ok', false);
 end;
 $$;
@@ -269,7 +302,7 @@ declare
 begin
     headers := nullif(current_setting('request.headers', true), '')::jsonb;
     access_token := coalesce(headers->>'x-class-record-access', '');
-    if length(access_token) < 32 then
+    if length(access_token) <> 64 then
         return false;
     end if;
     return exists (
@@ -279,6 +312,7 @@ begin
            and access_level = 'admin'
            and revoked_at is null
            and last_seen_at > now() - interval '90 days'
+           and created_at > now() - interval '365 days'
     );
 exception when others then
     return false;
@@ -295,7 +329,7 @@ declare
     target_hash text;
     refreshed_id uuid;
 begin
-    if input_token is null or length(trim(input_token)) < 32 then
+    if input_token is null or length(trim(input_token)) <> 64 then
         return false;
     end if;
     target_hash := public.hash_invite_secret(trim(input_token));
@@ -304,6 +338,7 @@ begin
      where token_hash = target_hash
        and revoked_at is null
        and last_seen_at > now() - interval '90 days'
+       and created_at > now() - interval '365 days'
      returning id into refreshed_id;
     return refreshed_id is not null;
 end;
@@ -322,7 +357,7 @@ declare
 begin
     headers := nullif(current_setting('request.headers', true), '')::jsonb;
     access_token := coalesce(headers->>'x-class-record-access', '');
-    if length(access_token) < 32 then
+    if length(access_token) <> 64 then
         return false;
     end if;
     return exists (
@@ -331,9 +366,60 @@ begin
          where token_hash = public.hash_invite_secret(access_token)
            and revoked_at is null
            and last_seen_at > now() - interval '90 days'
+           and created_at > now() - interval '365 days'
     );
 exception when others then
     return false;
+end;
+$$;
+
+create or replace function public.revoke_invite_access_session(target_session_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+    revoked_id uuid;
+begin
+    update public.invite_access_sessions
+       set revoked_at = coalesce(revoked_at, now())
+     where id = target_session_id
+     returning id into revoked_id;
+    return revoked_id is not null;
+end;
+$$;
+
+create or replace function public.revoke_all_invite_access_sessions()
+returns bigint
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+    revoked_count bigint;
+begin
+    update public.invite_access_sessions
+       set revoked_at = now()
+     where revoked_at is null;
+    get diagnostics revoked_count = row_count;
+    return revoked_count;
+end;
+$$;
+
+create or replace function public.cleanup_invite_code_attempts()
+returns bigint
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+    deleted_count bigint;
+begin
+    delete from public.invite_code_attempts
+     where attempted_at < now() - interval '24 hours';
+    get diagnostics deleted_count = row_count;
+    return deleted_count;
 end;
 $$;
 
@@ -351,6 +437,12 @@ revoke all on function public.has_class_record_access() from public;
 grant execute on function public.has_class_record_access() to anon, authenticated;
 revoke all on function public.has_class_record_admin_access() from public;
 grant execute on function public.has_class_record_admin_access() to anon, authenticated;
+revoke all on function public.revoke_invite_access_session(uuid) from public, anon, authenticated;
+grant execute on function public.revoke_invite_access_session(uuid) to service_role;
+revoke all on function public.revoke_all_invite_access_sessions() from public, anon, authenticated;
+grant execute on function public.revoke_all_invite_access_sessions() to service_role;
+revoke all on function public.cleanup_invite_code_attempts() from public, anon, authenticated;
+grant execute on function public.cleanup_invite_code_attempts() to service_role;
 
 -- ---------------------------------------------------------------------------
 -- Content tables read by the frontend

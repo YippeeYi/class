@@ -109,8 +109,8 @@ cacheReady.then(() => Promise.all([loadAllPeople(), loadAllRecords()])).then(([p
     renderRecordList(participatedRecords, recordContainer);
     renderFilterUI();
 }).catch((error) => {
-    console.warn("Person page load failed:", error);
-    recordContainer.innerHTML = `<div class="record-empty"><strong>页面加载失败。</strong><span>${escapeHtml(error?.message || "")}</span></div>`;
+    window.ClassRecordDiagnostics?.warn("Person page load failed", error);
+    recordContainer.innerHTML = '<div class="record-empty"><strong>页面加载失败。</strong><span>请稍后重试。</span></div>';
 });
 
 switchButtons.forEach((btn) => {

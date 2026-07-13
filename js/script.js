@@ -160,7 +160,7 @@ async function loadRecordPageConfig() {
     recordPageConfigMode = targetMode;
   } catch (error) {
     if (loadToken !== recordPageLoadToken) return;
-    console.warn(targetMode === "hidden" ? "Hidden record page config load failed:" : "Record page config load failed:", error);
+    window.ClassRecordDiagnostics?.warn(targetMode === "hidden" ? "Hidden record page config load failed" : "Record page config load failed", error);
     recordPageConfig = [];
     recordPageConfigMode = targetMode;
   }
@@ -180,7 +180,7 @@ async function loadPageMessages() {
       .catch((error) => {
         pageMessagesPromise = null;
         pageMessageMap = new Map();
-        console.warn("书面记录箴言加载失败：", error);
+        window.ClassRecordDiagnostics?.warn("Written-page quote load failed", error);
         return pageMessageMap;
       });
   }
@@ -210,7 +210,7 @@ async function loadPageSupplements() {
       .catch((error) => {
         pageSupplementsPromise = null;
         pageSupplementMap = new Map();
-        console.warn("书面记录补充记录加载失败：", error);
+        window.ClassRecordDiagnostics?.warn("Written-page supplement load failed", error);
         return pageSupplementMap;
       });
   }
@@ -534,13 +534,13 @@ function renderWrittenView(records) {
       }
       writtenImage.src = src;
     }).catch((error) => {
-      console.warn("书面记录图片加载失败：", error);
+      window.ClassRecordDiagnostics?.warn("Written-page image load failed", error);
       setWrittenImageState(writtenFigure, "error", token);
     });
   }
   if (window.ClassRecordData?.isEnabled()) {
     window.ClassRecordData.resolveAssetElements(container.querySelector(".record-written-records") || container).catch((error) => {
-      console.warn("书面记录页内附件链接加载失败：", error);
+      window.ClassRecordDiagnostics?.warn("Written-page attachment signing failed", error);
     });
   }
   preloadAdjacentWrittenPages(pages, currentPageIndex);
@@ -938,6 +938,6 @@ cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
     });
   })
   .catch((error) => {
-    console.warn("记录加载失败：", error);
+    window.ClassRecordDiagnostics?.warn("Record load failed", error);
     container.innerHTML = '<div class="record-empty"><strong>记录加载失败。</strong><span>请确认 Supabase 数据表和访问权限状态后重试。</span></div>';
   });

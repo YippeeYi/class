@@ -10,7 +10,9 @@
     const ACCESS_KEY = "classRecord:inviteAccess";
     const LAST_VISIT_KEY = "classRecord:lastVisitAt";
     const ACCESS_MAX_IDLE_DAYS = 90;
+    const ACCESS_MAX_ABSOLUTE_DAYS = 365;
     const ACCESS_TTL = ACCESS_MAX_IDLE_DAYS * 24 * 60 * 60 * 1000;
+    const ACCESS_MAX_TTL = ACCESS_MAX_ABSOLUTE_DAYS * 24 * 60 * 60 * 1000;
     const AUTH_PAGE = "auth.html";
     const CONFIG_SCRIPT = "js/supabaseConfig.js";
     const CLIENT_SCRIPT = "js/supabaseClient.js";
@@ -90,24 +92,38 @@
             if (!raw || !lastVisitRaw) return { verified: false, shouldClear: Boolean(raw || lastVisitRaw) };
             const item = JSON.parse(raw);
             const lastVisitAt = Date.parse(lastVisitRaw);
-            if (item?.verified !== true || item?.type !== "invite" || !item?.token || !Number.isFinite(lastVisitAt) || Date.now() - lastVisitAt > ACCESS_TTL) {
+            const authorizedAt = Date.parse(item?.authorizedAt || item?.verifiedAt || "");
+            if (item?.type !== "invite" || !item?.token || !Number.isFinite(lastVisitAt) || !Number.isFinite(authorizedAt)
+                || Date.now() - lastVisitAt > ACCESS_TTL || Date.now() - authorizedAt > ACCESS_MAX_TTL) {
                 return { verified: false, shouldClear: true };
             }
+            // This is only a local candidate. handleGate() must still refresh
+            // the token with Supabase before resolving page access.
             return { verified: true, shouldClear: false };
         } catch (error) {
             return { verified: false, shouldClear: true };
         }
     };
 
-    const saveVerifiedAccess = (token) => {
+    const saveVerifiedAccess = (token, { newAuthorization = false } = {}) => {
         const accessToken = token || window.getInviteAccessToken?.() || "";
+        let existing = {};
+        try {
+            existing = JSON.parse(localStorage.getItem(ACCESS_KEY) || "{}");
+        } catch (error) {
+            existing = {};
+        }
+        const now = new Date().toISOString();
+        const authorizedAt = newAuthorization || existing.token !== accessToken
+            ? now
+            : (existing.authorizedAt || existing.verifiedAt || now);
         localStorage.setItem(ACCESS_KEY, JSON.stringify({
-            verified: true,
             type: "invite",
             token: accessToken,
-            verifiedAt: new Date().toISOString()
+            authorizedAt,
+            lastServerValidatedAt: now
         }));
-        localStorage.setItem(LAST_VISIT_KEY, new Date().toISOString());
+        localStorage.setItem(LAST_VISIT_KEY, now);
     };
 
     const storeRedirectTarget = () => {
@@ -169,7 +185,7 @@
             resolveAccessPromise();
             revealPage();
         } catch (error) {
-            console.warn("访问门禁初始化失败：", error);
+            window.ClassRecordDiagnostics?.warn("Access gate initialization failed", error);
             if (!isAuthPage) {
                 storeRedirectTarget();
                 window.location.replace(AUTH_PAGE);
@@ -190,13 +206,13 @@
             if (!result.accessToken) {
                 return { ok: false, message: "邀请码已验证，但访问凭证生成失败，请稍后重试。" };
             }
-            saveVerifiedAccess(result.accessToken);
+            saveVerifiedAccess(result.accessToken, { newAuthorization: true });
             resolveAccessPromise();
             revealPage();
             return { ok: true };
         } catch (error) {
-            console.warn("邀请码验证失败：", error);
-            return { ok: false, message: error?.message || "邀请码验证请求失败，请稍后重试。" };
+            window.ClassRecordDiagnostics?.warn("Invite verification failed", error);
+            return { ok: false, message: "邀请码验证请求失败，请稍后重试。" };
         }
     };
 

@@ -22,7 +22,7 @@ cacheReady.then(async () => {
     renderQuotes(currentSortKey, currentSortOrder);
   })
   .catch((error) => {
-    console.warn("名言数据加载失败：", error);
+    window.ClassRecordDiagnostics?.warn("Quote data load failed", error);
     container.innerHTML = '<div class="record-empty"><strong>名言加载失败。</strong><span>请刷新页面或检查记录标记。</span></div>';
   });
 
@@ -99,7 +99,7 @@ function bindRowClick() {
         ? "没有找到这条名言对应的记录。"
         : "这条名言匹配到多条记录，请检查记录标记。";
       window.alert(message);
-      console.warn(message, { quoteId, matches });
+      window.ClassRecordDiagnostics?.warn(message, null, { id: quoteId });
     };
   });
 }

@@ -52,6 +52,15 @@ function readImageDimensions(buffer, extension) {
     return null;
 }
 
+function resourceId(value) {
+    let hash = 0x811c9dc5;
+    for (const byte of Buffer.from(String(value), 'utf8')) {
+        hash ^= byte;
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    return `resource_${hash.toString(36).padStart(7, '0')}`;
+}
+
 const jsonFiles = (await listFiles(dataRoot)).filter((file) => extname(file).toLowerCase() === '.json');
 const names = new Set();
 for (const file of jsonFiles) {
@@ -71,7 +80,9 @@ for (const name of [...names].sort((a, b) => a.localeCompare(b, 'en'))) {
         if (!info.isFile()) throw new Error('not a file');
         const size = readImageDimensions(await readFile(file), extname(name).toLowerCase());
         if (!size?.width || !size?.height) throw new Error('unsupported or invalid image header');
-        dimensions[`data/attachments/${name}`] = size;
+        const id = resourceId(`data/attachments/${name}`);
+        if (dimensions[id]) throw new Error(`Illustration resource ID collision: ${id}`);
+        dimensions[id] = size;
     } catch (error) {
         metadataErrors.push(`${relative(root, file)} (${error.message})`);
     }

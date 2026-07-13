@@ -117,7 +117,7 @@
 
         [recordsResult, peopleResult, quotesResult]
             .filter((result) => result.status === 'rejected')
-            .forEach((result) => console.warn('导览统计加载失败：', result.reason));
+            .forEach((result) => window.ClassRecordDiagnostics?.warn('Guide statistics load failed', result.reason));
 
         const valueOrEmpty = (result) => result.status === 'fulfilled' && Array.isArray(result.value) ? result.value : [];
         const setText = (id, value) => {
@@ -203,7 +203,7 @@
 
     waitForAccess()
         .then(() => renderGuideHighlights().catch((error) => {
-            console.warn('导览统计渲染失败，继续显示入口：', error);
+            window.ClassRecordDiagnostics?.warn('Guide statistics render failed', error);
             const wrap = document.getElementById('guide-highlights');
             if (wrap) {
                 wrap.hidden = false;

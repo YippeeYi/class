@@ -584,7 +584,7 @@ document.addEventListener("click", (event) => {
             window.loadAllMaterials().then(() => {
                 if (!materialExists(materialId)) console.warn(`Material not found: ${materialId}`);
             }).catch((error) => {
-                console.warn("Material existence check failed:", error);
+                window.ClassRecordDiagnostics?.warn("Material existence check failed", error, { id: materialId });
             });
         }
         const href = `materials.html?id=${encodeURIComponent(materialId)}`;
@@ -826,7 +826,9 @@ window.ClassRecordResetAutoFocus = () => {
 function renderRecordList(records, container) {
     records.forEach((record) => {
         if (!record.id) {
-            console.warn("发现未初始化 id 的记录：", record);
+            window.ClassRecordDiagnostics?.warn("Record has no initialized ID", null, {
+                id: record?.fileName || record?.recordId || "unknown"
+            });
         }
     });
 
@@ -861,7 +863,7 @@ function renderRecordList(records, container) {
     container.replaceChildren(fragment);
     if (window.ClassRecordData?.isEnabled()) {
         window.ClassRecordData.resolveAssetElements(container).catch((error) => {
-            console.warn("私有附件链接加载失败：", error);
+            window.ClassRecordDiagnostics?.warn("Private attachment signing failed", error);
         });
     }
 
@@ -1151,7 +1153,7 @@ function getInlineMarkerRects(tag) {
 const illustrationPreloadCache = new Map();
 const illustrationReadyCache = new Map();
 const illustrationDimensionCache = new Map();
-const IMAGE_SIZE_STORAGE_KEY = "classRecord:imageSizes:v1";
+const bundledIllustrationDimensions = new Map(Object.entries(window.ClassRecordIllustrationDimensions || {}));
 const ILLUSTRATION_DISPLAY_TRANSFORM = Object.freeze({ width: 960, quality: 76 });
 
 function getIllustrationDisplayTransform() {
@@ -1160,40 +1162,22 @@ function getIllustrationDisplayTransform() {
 
 window.imageSizeCache = window.imageSizeCache || {};
 
-function restoreBundledIllustrationDimensions() {
-    Object.entries(window.ClassRecordIllustrationDimensions || {}).forEach(([src, item]) => {
-        if (item?.width > 0 && item?.height > 0) {
-            const dimensions = { width: Number(item.width), height: Number(item.height) };
-            window.imageSizeCache[src] = dimensions;
-            illustrationDimensionCache.set(src, dimensions);
-        }
-    });
-}
-
-restoreBundledIllustrationDimensions();
-
-try {
-    const storedImageSizes = JSON.parse(localStorage.getItem(IMAGE_SIZE_STORAGE_KEY) || "{}");
-    Object.entries(storedImageSizes).forEach(([src, item]) => {
-        if (item?.width > 0 && item?.height > 0) {
-            window.imageSizeCache[src] = { width: Number(item.width), height: Number(item.height) };
-            illustrationDimensionCache.set(src, window.imageSizeCache[src]);
-        }
-    });
-} catch (error) {
-    // Persistent image metadata is only an optimization.
-}
-
-function persistImageSizeCache() {
-    try {
-        localStorage.setItem(IMAGE_SIZE_STORAGE_KEY, JSON.stringify(window.imageSizeCache || {}));
-    } catch (error) {
-        // Keep the in-memory cache when storage is unavailable.
+function getIllustrationResourceId(value) {
+    const bytes = new TextEncoder().encode(String(value || ""));
+    let hash = 0x811c9dc5;
+    for (const byte of bytes) {
+        hash ^= byte;
+        hash = Math.imul(hash, 0x01000193) >>> 0;
     }
+    return `resource_${hash.toString(36).padStart(7, "0")}`;
 }
 
 function getIllustrationSourceDimensions(path) {
     const sourcePath = String(path || "").trim();
+    const bundled = bundledIllustrationDimensions.get(getIllustrationResourceId(sourcePath));
+    if (bundled?.width > 0 && bundled?.height > 0) {
+        return { width: Number(bundled.width), height: Number(bundled.height) };
+    }
     return illustrationDimensionCache.get(sourcePath) || window.imageSizeCache?.[sourcePath] || null;
 }
 
@@ -1202,7 +1186,6 @@ function rememberIllustrationDimensions(path, width, height) {
     const dimensions = { width, height };
     illustrationDimensionCache.set(path, dimensions);
     window.imageSizeCache[path] = dimensions;
-    persistImageSizeCache();
 }
 
 window.getIllustrationSourceDimensions = getIllustrationSourceDimensions;
@@ -1212,7 +1195,6 @@ window.addEventListener("classrecordcacheclearing", () => {
     illustrationReadyCache.clear();
     illustrationDimensionCache.clear();
     window.imageSizeCache = {};
-    restoreBundledIllustrationDimensions();
 });
 
 function resolveIllustrationUrl(path) {

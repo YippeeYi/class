@@ -12,6 +12,10 @@ const createSignedUrl = async (path, expiresIn, options) => {
     const variant = options?.transform ? `preview-${options.transform.width}` : 'original';
     return { data: { signedUrl: `https://storage.example.test/${variant}/${path}` }, error: null };
 };
+const createSignedUrls = async (paths, expiresIn) => ({
+    data: paths.map((path) => ({ signedUrl: `https://storage.example.test/batch/${path}` })),
+    error: null
+});
 
 class MockImage {
     set src(value) {
@@ -28,11 +32,15 @@ const window = {
     CLASS_RECORD_SUPABASE: {
         url: 'https://project.supabase.co',
         anonKey: 'public-anon-key',
-        storage: { privateBucket: 'classrecord-private' }
+        storage: {
+            privateBucket: 'classrecord-private',
+            signedUrlExpiresIn: 600,
+            sensitiveSignedUrlExpiresIn: 180
+        }
     },
     ClassRecordSupabase: {
         getClient: async () => ({
-            storage: { from: () => ({ createSignedUrl }) },
+            storage: { from: () => ({ createSignedUrl, createSignedUrls }) },
             from: () => ({
                 select: () => ({
                     order: async () => {
@@ -65,7 +73,8 @@ const context = vm.createContext({
     document: { scripts: [], head: { appendChild() {} }, createElement() { return {}; } },
     sessionStorage: {
         getItem(key) { return storage.get(key) || null; },
-        setItem(key, value) { storage.set(key, value); }
+        setItem(key, value) { storage.set(key, value); },
+        removeItem(key) { storage.delete(key); }
     },
     setTimeout,
     clearTimeout
@@ -88,12 +97,17 @@ const originalUrl = await data.signAssetUrl(path);
 assert.match(originalUrl, /\/original\//);
 assert.notEqual(originalUrl, previewUrl);
 assert.equal(signedRequests[1].options, undefined);
+assert.equal(signedRequests[1].expiresIn, 600, 'ordinary assets must use the configured ten-minute lifetime');
 assert.equal(await data.signAssetUrl(path), originalUrl);
 assert.equal(signedRequests.length, 2, 'original and preview URLs must use separate caches');
 
 await data.signAssetUrl(path, { forceRefresh: true });
 assert.equal(signedRequests.length, 3, 'forced original refresh must bypass only the original cache');
 assert.equal(signedRequests[2].options, undefined);
+
+await data.signAssetUrl('images/quiz/lamian/01.png');
+assert.equal(signedRequests.at(-1).expiresIn, 180, 'admin-only quiz assets must use the shorter configured lifetime');
+assert.equal(storage.has('classRecordSignedUrls.v1'), false, 'signed URLs must never persist in sessionStorage');
 
 const fallbackUrl = await data.preloadAsset('images/record-pages/fallback.jpeg', {
     transform: data.displayTransforms.written
@@ -110,5 +124,10 @@ assert.equal(hiddenQuestions.length, 1, 'question_group must remain a valid hidd
 assert.equal(hiddenQuestions[0].image, 'images/quiz/lamian/01.png');
 await data.loadQuizQuestions('lamian', { force: true });
 assert.equal(quizRequests, 2, 'forced hidden-pool retry must bypass the cached query');
+
+const requestsBeforeCleanup = signedRequests.length;
+data.clearSecureResourceState();
+await data.signAssetUrl(path);
+assert.equal(signedRequests.length, requestsBeforeCleanup + 1, 'unified resource cleanup must invalidate in-memory signed URLs');
 
 console.log('Passed secure image variants and hidden quiz loader retry checks.');
