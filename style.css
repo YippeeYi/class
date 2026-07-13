@@ -6331,8 +6331,6 @@ body.hidden-record-mode .hidden-record-banner {
   border-radius: 12px;
   object-fit: contain;
   box-shadow: var(--overlay-card-shadow);
-  transform-origin: center center;
-  will-change: transform;
   user-select: none;
   -webkit-user-drag: none;
 }
@@ -6343,6 +6341,10 @@ body.hidden-record-mode .hidden-record-banner {
 
 .image-viewer-frame.is-dragging {
   cursor: grabbing;
+}
+
+.image-viewer-frame.is-dragging img {
+  will-change: transform;
 }
 
 .image-viewer-close {

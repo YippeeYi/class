@@ -1333,23 +1333,38 @@ function calculateImageViewerFit(naturalWidth, naturalHeight, availableWidth, av
     return { width: width * scale, height: height * scale };
 }
 
+function calculateImageViewerRenderSize(baseWidth, baseHeight, scale) {
+    const safeScale = Math.max(IMAGE_VIEWER_MIN_SCALE, Number(scale) || 1);
+    return {
+        width: Math.max(1, Number(baseWidth) || 1) * safeScale,
+        height: Math.max(1, Number(baseHeight) || 1) * safeScale
+    };
+}
+
 function createImageViewerInteraction(frame, image) {
     let scale = 1;
     let panX = 0;
     let panY = 0;
     let drag = null;
     let renderFrame = 0;
+    let baseWidth = 1;
+    let baseHeight = 1;
+    let availableWidth = 1;
+    let availableHeight = 1;
 
     const getPanBounds = () => ({
-        x: Math.max(0, (image.offsetWidth * scale - frame.clientWidth) / 2),
-        y: Math.max(0, (image.offsetHeight * scale - frame.clientHeight) / 2)
+        x: Math.max(0, (image.offsetWidth - availableWidth) / 2),
+        y: Math.max(0, (image.offsetHeight - availableHeight) / 2)
     });
     const render = () => {
         renderFrame = 0;
+        const rendered = calculateImageViewerRenderSize(baseWidth, baseHeight, scale);
+        image.style.width = `${rendered.width}px`;
+        image.style.height = `${rendered.height}px`;
         const bounds = getPanBounds();
         panX = clamp(panX, -bounds.x, bounds.x);
         panY = clamp(panY, -bounds.y, bounds.y);
-        image.style.transform = `translate3d(${panX}px, ${panY}px, 0) scale(${scale})`;
+        image.style.transform = `translate3d(${panX}px, ${panY}px, 0)`;
         const canDrag = bounds.x > 0.5 || bounds.y > 0.5;
         frame.classList.toggle("can-drag", canDrag);
         frame.dataset.scale = scale.toFixed(3);
@@ -1359,11 +1374,11 @@ function createImageViewerInteraction(frame, image) {
     };
     const fitImage = () => {
         const style = getComputedStyle(frame);
-        const availableWidth = frame.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-        const availableHeight = frame.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+        availableWidth = frame.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        availableHeight = frame.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
         const fitted = calculateImageViewerFit(image.naturalWidth, image.naturalHeight, availableWidth, availableHeight);
-        image.style.width = `${fitted.width}px`;
-        image.style.height = `${fitted.height}px`;
+        baseWidth = fitted.width;
+        baseHeight = fitted.height;
         scheduleRender();
     };
     const onWheel = (event) => {

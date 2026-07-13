@@ -55,6 +55,8 @@ assert.match(secureData, /getAssetCacheKey\(safePath,\s*imageTransform\)/, 'orig
 assert.match(recordScript, /preloadAsset\(sourcePath,\s*\{[^}]*transform:\s*getWrittenImageDisplayTransform\(\)/s, 'written page images must request a display-sized transform');
 assert.match(recordRenderer, /preloadAsset\(sourcePath,\s*\{[^}]*transform:\s*getIllustrationDisplayTransform\(\)/s, 'inline illustrations must request a display-sized transform');
 assert.doesNotMatch(recordRenderer, /ClassRecordImageViewer\.open\(tooltipImage\.dataset\.previewSrc,[\s\S]{0,180}resolvedUrl:/, 'illustration viewer must not pass its display-sized URL as the original');
+assert.match(recordRenderer, /image\.style\.width\s*=\s*`\$\{rendered\.width\}px`[^}]*image\.style\.height\s*=\s*`\$\{rendered\.height\}px`/s, 'image viewer zoom must increase the real render size');
+assert.doesNotMatch(recordRenderer, /image\.style\.transform\s*=\s*`[^`]*scale\(\$\{scale\}\)/, 'image viewer must not upscale a low-resolution composited layer');
 assert.match(stylesheet, /\.image-viewer-frame\s*\{[^}]*border:\s*1px solid color-mix\([^}]*var\(--theme-accent-strong\)[^}]*background:[^}]*var\(--theme-surface\)/s, 'image viewer frame must use the active theme for its visual boundary');
 
 const quizPage = await readFile(resolve(root, 'quiz.html'), 'utf8');

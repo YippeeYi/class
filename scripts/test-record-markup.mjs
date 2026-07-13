@@ -24,7 +24,7 @@ const context = vm.createContext({
 });
 
 const source = await readFile(new URL('../js/recordRenderer.js', import.meta.url), 'utf8');
-vm.runInContext(`${source}\nthis.renderMarkupForTest = parseContent; this.buildRecordBodyForTest = buildRecordBody; this.calculateImageViewerBoundsForTest = calculateImageViewerBounds; this.calculateImageViewerZoomForTest = calculateImageViewerZoom; this.calculateImageViewerFitForTest = calculateImageViewerFit; this.resolveImageViewerUrlForTest = resolveImageViewerUrl; this.resolveImageViewerFallbackUrlForTest = resolveImageViewerFallbackUrl;`, context);
+vm.runInContext(`${source}\nthis.renderMarkupForTest = parseContent; this.buildRecordBodyForTest = buildRecordBody; this.calculateImageViewerBoundsForTest = calculateImageViewerBounds; this.calculateImageViewerZoomForTest = calculateImageViewerZoom; this.calculateImageViewerFitForTest = calculateImageViewerFit; this.calculateImageViewerRenderSizeForTest = calculateImageViewerRenderSize; this.resolveImageViewerUrlForTest = resolveImageViewerUrl; this.resolveImageViewerFallbackUrlForTest = resolveImageViewerFallbackUrl;`, context);
 const render = context.renderMarkupForTest;
 const buildRecordBody = context.buildRecordBodyForTest;
 const extractPeople = context.window.extractMentionedPersonIds;
@@ -36,6 +36,7 @@ const calculateTooltipPosition = context.window.calculateInlineTooltipPosition;
 const calculateImageViewerBounds = context.calculateImageViewerBoundsForTest;
 const calculateImageViewerZoom = context.calculateImageViewerZoomForTest;
 const calculateImageViewerFit = context.calculateImageViewerFitForTest;
+const calculateImageViewerRenderSize = context.calculateImageViewerRenderSizeForTest;
 const resolveImageViewerUrl = context.resolveImageViewerUrlForTest;
 const resolveImageViewerFallbackUrl = context.resolveImageViewerFallbackUrlForTest;
 const extractIllustrations = context.window.extractIllustrationPaths;
@@ -133,6 +134,7 @@ assert.deepEqual({ ...calculateImageViewerBounds(900, 500) }, { width: 846, heig
 const tallImageFit = calculateImageViewerFit(1200, 5000, 818, 418);
 assert.ok(Math.abs(tallImageFit.width - 100.32) < 0.0001 && Math.abs(tallImageFit.height - 418) < 0.0001);
 assert.deepEqual({ ...calculateImageViewerFit(200, 100, 818, 418) }, { width: 200, height: 100 });
+assert.deepEqual({ ...calculateImageViewerRenderSize(400, 600, 4) }, { width: 1600, height: 2400 });
 const zoomedAroundPointer = { ...calculateImageViewerZoom({ scale: 1, panX: 0, panY: 0, pointX: 100, pointY: -50, deltaY: -1000 }) };
 assert.ok(zoomedAroundPointer.scale > 1);
 assert.ok(Math.abs((100 - zoomedAroundPointer.panX) / zoomedAroundPointer.scale - 100) < 0.0001);
