@@ -1238,9 +1238,7 @@ function updateImageViewerBounds(overlay) {
     imageViewerState.interaction?.refresh();
 }
 
-async function resolvePreviewImageUrl(sourcePath, resolvedUrl = "") {
-    const readyUrl = String(resolvedUrl || "").trim();
-    if (readyUrl) return readyUrl;
+async function resolveOriginalImageUrl(sourcePath) {
     const direct = String(sourcePath || "").trim();
     if (!direct) return "";
     if (/^(?:https?:|data:|blob:)/i.test(direct)) return direct;
@@ -1249,8 +1247,9 @@ async function resolvePreviewImageUrl(sourcePath, resolvedUrl = "") {
 }
 
 async function resolveImageViewerUrl(sourcePath, { resolvedUrl = "", urlPromise = null } = {}) {
+    const originalUrl = await resolveOriginalImageUrl(sourcePath).catch(() => "");
+    if (originalUrl) return originalUrl;
     const readyUrl = String(resolvedUrl || "").trim();
-    if (readyUrl) return readyUrl;
     if (urlPromise) {
         try {
             const pendingUrl = await (typeof urlPromise === "function" ? urlPromise() : urlPromise);
@@ -1259,7 +1258,7 @@ async function resolveImageViewerUrl(sourcePath, { resolvedUrl = "", urlPromise 
             // Fall through to a fresh resolution attempt before reporting an error.
         }
     }
-    return resolvePreviewImageUrl(sourcePath);
+    return readyUrl;
 }
 
 function setImageViewerStatus(overlay, frame, state) {
@@ -1285,6 +1284,13 @@ function calculateImageViewerZoom({ scale, panX, panY, pointX, pointY, deltaY })
     };
 }
 
+function calculateImageViewerFit(naturalWidth, naturalHeight, availableWidth, availableHeight) {
+    const width = Math.max(1, Number(naturalWidth) || 1);
+    const height = Math.max(1, Number(naturalHeight) || 1);
+    const scale = Math.min(1, Math.max(1, Number(availableWidth) || 1) / width, Math.max(1, Number(availableHeight) || 1) / height);
+    return { width: width * scale, height: height * scale };
+}
+
 function createImageViewerInteraction(frame, image) {
     let scale = 1;
     let panX = 0;
@@ -1308,6 +1314,15 @@ function createImageViewerInteraction(frame, image) {
     };
     const scheduleRender = () => {
         if (!renderFrame) renderFrame = requestAnimationFrame(render);
+    };
+    const fitImage = () => {
+        const style = getComputedStyle(frame);
+        const availableWidth = frame.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        const availableHeight = frame.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+        const fitted = calculateImageViewerFit(image.naturalWidth, image.naturalHeight, availableWidth, availableHeight);
+        image.style.width = `${fitted.width}px`;
+        image.style.height = `${fitted.height}px`;
+        scheduleRender();
     };
     const onWheel = (event) => {
         event.preventDefault();
@@ -1352,10 +1367,10 @@ function createImageViewerInteraction(frame, image) {
     frame.addEventListener("pointerup", finishDrag);
     frame.addEventListener("pointercancel", finishDrag);
     image.addEventListener("dragstart", preventNativeDrag);
-    render();
+    fitImage();
 
     return {
-        refresh: scheduleRender,
+        refresh: fitImage,
         destroy() {
             if (renderFrame) cancelAnimationFrame(renderFrame);
             finishDrag();
@@ -1443,7 +1458,7 @@ async function openImageViewer(sourcePath, { alt = "image preview", resolvedUrl 
             return;
         }
         attemptedFreshUrl = true;
-        resolvePreviewImageUrl(sourcePath).then((freshUrl) => {
+        resolveOriginalImageUrl(sourcePath).then((freshUrl) => {
             if (!freshUrl || freshUrl === image.src || imageViewerState.overlay !== overlay) {
                 showFailure();
                 return;

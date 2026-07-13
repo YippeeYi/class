@@ -24,7 +24,7 @@ const context = vm.createContext({
 });
 
 const source = await readFile(new URL('../js/recordRenderer.js', import.meta.url), 'utf8');
-vm.runInContext(`${source}\nthis.renderMarkupForTest = parseContent; this.buildRecordBodyForTest = buildRecordBody; this.calculateImageViewerBoundsForTest = calculateImageViewerBounds; this.calculateImageViewerZoomForTest = calculateImageViewerZoom; this.resolveImageViewerUrlForTest = resolveImageViewerUrl;`, context);
+vm.runInContext(`${source}\nthis.renderMarkupForTest = parseContent; this.buildRecordBodyForTest = buildRecordBody; this.calculateImageViewerBoundsForTest = calculateImageViewerBounds; this.calculateImageViewerZoomForTest = calculateImageViewerZoom; this.calculateImageViewerFitForTest = calculateImageViewerFit; this.resolveImageViewerUrlForTest = resolveImageViewerUrl;`, context);
 const render = context.renderMarkupForTest;
 const buildRecordBody = context.buildRecordBodyForTest;
 const extractPeople = context.window.extractMentionedPersonIds;
@@ -35,6 +35,7 @@ const countTextCharacters = context.window.countRecordTextCharacters;
 const calculateTooltipPosition = context.window.calculateInlineTooltipPosition;
 const calculateImageViewerBounds = context.calculateImageViewerBoundsForTest;
 const calculateImageViewerZoom = context.calculateImageViewerZoomForTest;
+const calculateImageViewerFit = context.calculateImageViewerFitForTest;
 const resolveImageViewerUrl = context.resolveImageViewerUrlForTest;
 const extractIllustrations = context.window.extractIllustrationPaths;
 const extractTokens = context.window.extractRecordMarkupTokens;
@@ -128,6 +129,9 @@ assert.equal(calculateTooltipPosition({ tagRects: [{ left: 20, right: 180, top: 
 assert.deepEqual({ ...calculateImageViewerBounds(1366, 768) }, { width: 1280, height: 712 });
 assert.deepEqual({ ...calculateImageViewerBounds(390, 844) }, { width: 362, height: 816 });
 assert.deepEqual({ ...calculateImageViewerBounds(900, 500) }, { width: 846, height: 446 });
+const tallImageFit = calculateImageViewerFit(1200, 5000, 818, 418);
+assert.ok(Math.abs(tallImageFit.width - 100.32) < 0.0001 && Math.abs(tallImageFit.height - 418) < 0.0001);
+assert.deepEqual({ ...calculateImageViewerFit(200, 100, 818, 418) }, { width: 200, height: 100 });
 const zoomedAroundPointer = { ...calculateImageViewerZoom({ scale: 1, panX: 0, panY: 0, pointX: 100, pointY: -50, deltaY: -1000 }) };
 assert.ok(zoomedAroundPointer.scale > 1);
 assert.ok(Math.abs((100 - zoomedAroundPointer.panX) / zoomedAroundPointer.scale - 100) < 0.0001);
@@ -136,13 +140,22 @@ assert.deepEqual({ ...calculateImageViewerZoom({ scale: 2, panX: 40, panY: 20, p
 let resolvePendingViewerUrl;
 let pendingViewerState = 'loading';
 const pendingViewerUrl = new Promise((resolve) => { resolvePendingViewerUrl = resolve; });
-const pendingViewerResult = resolveImageViewerUrl('private/image.jpeg', { urlPromise: pendingViewerUrl })
+const pendingViewerResult = resolveImageViewerUrl('', { urlPromise: pendingViewerUrl })
     .then((url) => { pendingViewerState = 'success'; return url; });
 await Promise.resolve();
 assert.equal(pendingViewerState, 'loading');
 resolvePendingViewerUrl('https://example.test/image.jpeg');
 assert.equal(await pendingViewerResult, 'https://example.test/image.jpeg');
 assert.equal(pendingViewerState, 'success');
+context.window.ClassRecordData = {
+    isEnabled: () => true,
+    signAssetUrl: async (path) => `https://storage.example.test/original/${path}`
+};
+assert.equal(
+    await resolveImageViewerUrl('private/original.jpeg', { resolvedUrl: 'https://storage.example.test/thumbnail.jpeg' }),
+    'https://storage.example.test/original/private/original.jpeg'
+);
+delete context.window.ClassRecordData;
 assert.equal([...fixedScale(8, 12, 3)].join(','), '12,9,6,3,0');
 assert.equal([...fixedScale(72, 100, 25)].join(','), '100,75,50,25,0');
 assert.equal([...fixedScale(1200, 3000, 750)].join(','), '3000,2250,1500,750,0');
