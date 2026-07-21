@@ -57,6 +57,7 @@ const recordScript = await readFile(resolve(root, 'js/script.js'), 'utf8');
 const recordRenderer = await readFile(resolve(root, 'js/recordRenderer.js'), 'utf8');
 const secureData = await readFile(resolve(root, 'js/secureData.js'), 'utf8');
 const supabaseClient = await readFile(resolve(root, 'js/supabaseClient.js'), 'utf8');
+const authGate = await readFile(resolve(root, 'js/authGate.js'), 'utf8');
 const backgroundSwitcher = await readFile(resolve(root, 'js/backgroundSwitcher.js'), 'utf8');
 const themeBootstrap = await readFile(resolve(root, 'js/themeBootstrap.js'), 'utf8');
 const materialsScript = await readFile(resolve(root, 'js/materials.js'), 'utf8');
@@ -86,6 +87,8 @@ assert.equal(
 );
 assert.match(secureData, /getAssetCacheKey\(safePath,\s*imageTransform\)/, 'original and transformed Storage URLs must use variant-aware cache keys');
 assert.match(secureData, /preloadAdminQuizImages[\s\S]*hasAdminAccess[\s\S]*loadAllQuizQuestions[\s\S]*preloadAsset\(path, \{ priority: 'low' \}\)/, 'administrator initialization must asynchronously preload every hidden quiz image');
+assert.match(secureData, /addEventListener\('pageshow',[\s\S]*event\.persisted[\s\S]*removeAttribute\('data-secure-bound'\)[\s\S]*resolveAssetElements\(document\)/, 'bfcache restores must re-sign previously bound private images');
+assert.match(authGate, /addEventListener\("pageshow",[\s\S]*event\.persisted[\s\S]*handleGate\(\)/, 'bfcache restores must revalidate invite access before restored content continues');
 assert.match(recordScript, /preloadAsset\(sourcePath,\s*\{[^}]*transform:\s*getWrittenImageDisplayTransform\(\)/s, 'written page images must request a display-sized transform');
 assert.match(recordRenderer, /preloadAsset\(sourcePath,\s*\{[^}]*transform:\s*getIllustrationDisplayTransform\(\)/s, 'inline illustrations must request a display-sized transform');
 assert.doesNotMatch(recordRenderer, /ClassRecordImageViewer\.open\(tooltipImage\.dataset\.previewSrc,[\s\S]{0,180}resolvedUrl:/, 'illustration viewer must not pass its display-sized URL as the original');

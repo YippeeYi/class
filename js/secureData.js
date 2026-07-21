@@ -823,6 +823,18 @@
 
     window.addEventListener('classrecordcacheclearing', clearSecureResourceState);
     window.addEventListener('pagehide', clearSecureResourceState);
+    window.addEventListener('pageshow', (event) => {
+        // `pagehide` clears signed URLs so a bfcache entry cannot retain
+        // private URLs in memory. Restore its already-rendered image nodes
+        // with fresh signatures when the browser brings that entry back.
+        if (!event.persisted || !document.querySelectorAll) return;
+        document.querySelectorAll('img[data-secure-src][data-secure-bound]').forEach((node) => {
+            node.removeAttribute('data-secure-bound');
+        });
+        resolveAssetElements(document).catch((error) => {
+            window.ClassRecordDiagnostics?.warn('Secure asset restore failed', error);
+        });
+    });
 
     window.ClassRecordData = {
         displayTransforms,

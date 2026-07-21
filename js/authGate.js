@@ -236,4 +236,13 @@
     window.clearAccessKey = window.clearInviteAccess;
 
     handleGate();
+
+    // A page restored from the browser back/forward cache does not run this
+    // script again. Revalidate the bearer token before the restored UI can
+    // continue using previously rendered private content.
+    window.addEventListener("pageshow", (event) => {
+        if (event.persisted && !isAuthPage) {
+            handleGate();
+        }
+    });
 })();

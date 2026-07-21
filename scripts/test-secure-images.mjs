@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
 const signedRequests = [];
+const batchSignedRequests = [];
 let quizRequests = 0;
 const createSignedUrl = async (path, expiresIn, options) => {
     signedRequests.push({ path, expiresIn, options });
@@ -12,10 +13,13 @@ const createSignedUrl = async (path, expiresIn, options) => {
     const variant = options?.transform ? `preview-${options.transform.width}` : 'original';
     return { data: { signedUrl: `https://storage.example.test/${variant}/${path}` }, error: null };
 };
-const createSignedUrls = async (paths, expiresIn) => ({
-    data: paths.map((path) => ({ signedUrl: `https://storage.example.test/batch/${path}` })),
-    error: null
-});
+const createSignedUrls = async (paths, expiresIn) => {
+    batchSignedRequests.push({ paths, expiresIn });
+    return {
+        data: paths.map((path) => ({ signedUrl: `https://storage.example.test/batch/${path}` })),
+        error: null
+    };
+};
 
 class MockImage {
     set src(value) {
@@ -28,6 +32,7 @@ class MockImage {
 }
 
 const storage = new Map();
+const eventHandlers = new Map();
 const window = {
     CLASS_RECORD_SUPABASE: {
         url: 'https://project.supabase.co',
@@ -64,13 +69,39 @@ const window = {
             })
         })
     },
-    addEventListener() {}
+    addEventListener(type, handler) { eventHandlers.set(type, handler); }
+};
+const restoredImage = {
+    loading: 'eager',
+    isConnected: true,
+    dataset: { secureBound: 'true' },
+    removedBindings: 0,
+    getAttribute(name) {
+        return name === 'data-secure-src' ? 'images/record-pages/restored.jpeg' : '';
+    },
+    removeAttribute(name) {
+        if (name === 'data-secure-bound') {
+            this.removedBindings += 1;
+            delete this.dataset.secureBound;
+        }
+    },
+    dispatchEvent() {},
+    set src(value) { this._src = value; },
+    get src() { return this._src; }
 };
 const context = vm.createContext({
     console,
     window,
     Image: MockImage,
-    document: { scripts: [], head: { appendChild() {} }, createElement() { return {}; } },
+    document: {
+        scripts: [],
+        head: { appendChild() {} },
+        createElement() { return {}; },
+        querySelectorAll(selector) {
+            if (selector.startsWith('img[')) return [restoredImage];
+            return [];
+        }
+    },
     sessionStorage: {
         getItem(key) { return storage.get(key) || null; },
         setItem(key, value) { storage.set(key, value); },
@@ -141,5 +172,14 @@ const requestsBeforeCleanup = signedRequests.length;
 data.clearSecureResourceState();
 await data.signAssetUrl(path);
 assert.equal(signedRequests.length, requestsBeforeCleanup + 1, 'unified resource cleanup must invalidate in-memory signed URLs');
+
+const requestsBeforeRestore = signedRequests.length;
+const batchRequestsBeforeRestore = batchSignedRequests.length;
+eventHandlers.get('pageshow')?.({ persisted: true });
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(restoredImage.removedBindings, 1, 'bfcache restore must invalidate old image bindings');
+assert.match(restoredImage.src, /restored\.jpeg$/, 'bfcache restore must assign a newly signed image URL');
+assert.equal(signedRequests.length, requestsBeforeRestore, 'bfcache restore may use the batched signer for visible images');
+assert.equal(batchSignedRequests.length, batchRequestsBeforeRestore + 1, 'bfcache restore must request a fresh URL rather than reuse cleared memory');
 
 console.log('Passed secure image variants and hidden quiz loader retry checks.');
