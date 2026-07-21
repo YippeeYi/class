@@ -563,6 +563,9 @@ body>#quotes-list {
   .switch-btn):disabled {
   border-color: var(--control-border-disabled);
   cursor: not-allowed;
+  opacity: 0.56;
+  box-shadow: none;
+  transform: none;
 }
 
 .record-filter .filter-actions {
@@ -2827,6 +2830,16 @@ body>.archive-tool-shell {
   gap: 8px;
 }
 
+.timeline-page .archive-tool-actions {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+}
+
+.timeline-page .timeline-metric-control {
+  justify-content: flex-end;
+}
+
 .archive-overview {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -2968,6 +2981,19 @@ body>.archive-tool-shell {
   color: var(--control-text);
   background: var(--control-bg);
   cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.timeline-chip:hover {
+  transform: translateY(-1px);
+  border-color: var(--control-border-hover);
+  background: var(--control-hover-bg);
+  box-shadow: var(--control-shadow-hover);
+}
+
+.timeline-chip:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .timeline-chip span {
@@ -3085,6 +3111,15 @@ body>.archive-tool-shell {
   .archive-tool-actions,
   .shop-card-foot,
   .shop-unlock-actions {
+    justify-content: flex-start;
+  }
+
+  .timeline-page .archive-tool-actions {
+    width: 100%;
+    justify-items: start;
+  }
+
+  .timeline-page .timeline-metric-control {
     justify-content: flex-start;
   }
 
@@ -4792,7 +4827,7 @@ body>.archive-tool-shell {
   align-self: center;
   width: 13px;
   height: 13px;
-  border-radius: 3px;
+  border-radius: 50%;
   background: var(--legend-color);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, white 24%, transparent);
   transition: filter 180ms ease-out, box-shadow 180ms ease-out;
@@ -6550,9 +6585,13 @@ body.materials-page {
   transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
-.material-list-item:hover,
-.material-list-item.is-active {
+.material-list-item:hover {
   border-color: var(--control-border-hover);
+  background: color-mix(in srgb, var(--theme-surface-strong) 72%, var(--theme-accent) 18%);
+}
+
+.material-list-item.is-active {
+  border-color: var(--control-border-active);
   background: color-mix(in srgb, var(--theme-surface-strong) 72%, var(--theme-accent) 18%);
 }
 

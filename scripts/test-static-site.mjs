@@ -57,6 +57,9 @@ const recordScript = await readFile(resolve(root, 'js/script.js'), 'utf8');
 const recordRenderer = await readFile(resolve(root, 'js/recordRenderer.js'), 'utf8');
 const secureData = await readFile(resolve(root, 'js/secureData.js'), 'utf8');
 const supabaseClient = await readFile(resolve(root, 'js/supabaseClient.js'), 'utf8');
+const backgroundSwitcher = await readFile(resolve(root, 'js/backgroundSwitcher.js'), 'utf8');
+const themeBootstrap = await readFile(resolve(root, 'js/themeBootstrap.js'), 'utf8');
+const materialsScript = await readFile(resolve(root, 'js/materials.js'), 'utf8');
 const vendoredSdk = await readFile(resolve(root, 'vendor/supabase-js-2.45.0.js'));
 assert.doesNotMatch(recordScript, /ClassRecordImageViewer\.open\(imagePath,[\s\S]{0,240}resolvedUrl:/, 'written image viewer must not pass its display-sized URL as the original');
 assert.match(recordRenderer, /openImageViewer\(sourcePath,\s*\{[^}]*resolvedUrl\s*=\s*""[^}]*urlPromise\s*=\s*null/s, 'shared image viewer must retain guarded fallback support');
@@ -66,7 +69,9 @@ assert.match(recordScript, /if \(window\.ClassRecordData\?\.isEnabled\?\.\(\)\) 
 assert.match(secureData, /signAssetUrl\s*=\s*async \(path,\s*\{[^}]*forceRefresh\s*=\s*false/, 'Storage signer must support refreshing an expired signed URL');
 assert.doesNotMatch(recordRenderer, /ClassRecordIllustrationDimensions|bundledIllustrationDimensions|getIllustrationResourceId/, 'inline illustration sizing must not depend on a generated hard-coded table');
 assert.match(recordRenderer, /loadRecords\?\.\(\{ hidden: false \}\)[\s\S]*loadPageMessages\?\.\(\)[\s\S]*loadPageSupplements\?\.\(\{ hidden: false \}\)[\s\S]*loadMaterials\?\.\(\)/, 'illustration metadata preload must scan records, page messages, supplements, and materials');
-assert.match(recordRenderer, /extractIllustrationPaths\(value\)[\s\S]*preloadAsset\(path, \{ priority: "low" \}\)/, 'illustration paths must be parsed from data and measured from the original image at runtime');
+assert.match(recordRenderer, /function warmIllustrationAsset\(path,[\s\S]*preloadAsset\(sourcePath, \{ priority \}\)/, 'illustration dimensions and original resources must be warmed through one runtime cache');
+assert.match(recordRenderer, /window\.preloadIllustrationsFromContent[\s\S]*warmIllustrationPaths\(extractIllustrationPaths\(value\)/, 'illustration paths must be parsed from data and passed to the shared runtime warmer');
+assert.match(materialsScript, /preloadIllustrationsFromContent\?\.\(item\.content \|\| ""\)/, 'material rendering must warm its active illustration content through the shared cache');
 assert.match(recordRenderer, /1 - Math\.pow\(1 - progress, 4\)/, 'record jumps must use the shared long-tail ease-out curve');
 assert.doesNotMatch(recordScript, /window\.scrollTo\(\{[^}]*behavior:\s*["']smooth["']/, 'record navigation must not fall back to a different browser-native smooth curve');
 assert.doesNotMatch(recordRenderer, /classRecord:imageSizes|localStorage\.setItem\(IMAGE_SIZE_STORAGE_KEY/, 'real illustration paths must not persist in localStorage');
@@ -89,6 +94,14 @@ assert.doesNotMatch(recordRenderer, /image\.style\.transform\s*=\s*`[^`]*scale\(
 assert.match(recordRenderer, /translate3d\(calc\(-50% \+ \$\{panX\}px\),\s*calc\(-50% \+ \$\{panY\}px\),\s*0\)/, 'image viewer pan coordinates must share the same centered origin as its bounds');
 assert.match(stylesheet, /\.image-viewer-frame\s*\{[^}]*border:\s*1px solid color-mix\([^}]*var\(--theme-accent-strong\)[^}]*background:[^}]*var\(--theme-surface\)/s, 'image viewer frame must use the active theme for its visual boundary');
 assert.match(stylesheet, /\.image-viewer-frame img\s*\{[^}]*position:\s*absolute[^}]*top:\s*50%[^}]*left:\s*50%/s, 'image viewer images must use an explicit centered coordinate system');
+assert.match(stylesheet, /--control-border:\s*color-mix\(in srgb, var\(--theme-accent-strong\) 22%, #d8d0c6\)/, 'button strokes must have one opaque shared default variable');
+assert.match(stylesheet, /\.material-list-item\.is-active\s*\{[^}]*border-color:\s*var\(--control-border-active\)/s, 'active material choices must use the shared active button stroke');
+assert.match(stylesheet, /\.timeline-chip:hover\s*\{[^}]*border-color:\s*var\(--control-border-hover\)/s, 'timeline selection hover must use the shared button hover stroke');
+assert.match(stylesheet, /\.timeline-page \.archive-tool-actions\s*\{[^}]*display:\s*grid[^}]*justify-items:\s*end/s, 'timeline metrics and page action must be separated into stacked controls');
+assert.match(stylesheet, /\.timeline-author-legend li i\s*\{[^}]*border-radius:\s*50%/s, 'timeline author legend markers must be circular');
+assert.doesNotMatch(backgroundSwitcher, /"--control-border"\s*:/, 'background palettes must not override the shared button stroke');
+assert.doesNotMatch(themeBootstrap, /"--control-border"\s*:/, 'theme bootstrap palettes must not override the shared button stroke');
+assert.match(backgroundSwitcher + themeBootstrap, /legacyControlBorderVariables/, 'legacy cached stroke variables must be cleared before palette application');
 
 const searchScript = await readFile(resolve(root, 'js/search.js'), 'utf8');
 assert.doesNotMatch(searchScript, /\.slice\(0,\s*80\)/, 'search results must not be truncated');

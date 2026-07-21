@@ -15,6 +15,12 @@
     const paletteSessionKey = "classRecordBackgroundPaletteSession.v1";
     const activeThemeSnapshotKey = "classRecordActiveTheme.v1";
     const categoryOrder = ["基础", "影像", "风景", "其他"];
+    const legacyControlBorderVariables = new Set([
+        "--control-border",
+        "--control-border-hover",
+        "--control-border-active",
+        "--control-border-disabled"
+    ]);
 
     const storage = {
         get() {
@@ -118,7 +124,7 @@
     const applyDefaultTheme = () => {
         [
             "--theme-accent", "--theme-accent-strong", "--theme-surface", "--theme-surface-strong", "--theme-rgb",
-            "--page-bg-base", "--page-bg-overlay", "--control-bg", "--control-hover-bg", "--control-border",
+            "--page-bg-base", "--page-bg-overlay", "--control-bg", "--control-hover-bg",
             "--panel-border", "--panel-bg", "--nav-bg", "--nav-border", "--control-gradient", "--control-gradient-hover",
             "--control-active-gradient", "--control-active-glow", "--control-shadow", "--control-shadow-hover",
             "--control-shadow-pressed", "--focus-ring", "--control-text", "--control-active-text", "--accent-dark",
@@ -127,6 +133,7 @@
             "--table-row-hover-bg", "--table-row-hover-edge", "--table-row-hover-border", "--important-border", "--important-bg",
             "--attachment-bg", "--attachment-border", "--tooltip-bg", "--link-soft-bg", "--quote-soft-bg"
         ].forEach((name) => root.style.removeProperty(name));
+        legacyControlBorderVariables.forEach((name) => root.style.removeProperty(name));
     };
 
     const commitThemeChange = () => {
@@ -143,7 +150,10 @@
             return;
         }
 
-        Object.entries(palette).forEach(([name, value]) => root.style.setProperty(name, value));
+        legacyControlBorderVariables.forEach((name) => root.style.removeProperty(name));
+        Object.entries(palette)
+            .filter(([name]) => !legacyControlBorderVariables.has(name))
+            .forEach(([name, value]) => root.style.setProperty(name, value));
         commitThemeChange();
     };
 
@@ -201,7 +211,6 @@
             "--page-bg-overlay": "none",
             "--control-bg": `rgba(${toRgbString(surface)}, 0.42)`,
             "--control-hover-bg": `rgba(${toRgbString(surfaceStrong)}, 0.56)`,
-            "--control-border": `rgba(${toRgbString(accentStrong)}, 0.2)`,
             "--panel-border": `2px solid rgba(${toRgbString(accentStrong)}, 0.16)`,
             "--panel-bg": `rgba(${toRgbString(surface)}, 0.4)`,
             "--nav-bg": `rgba(${toRgbString(surface)}, 0.4)`,

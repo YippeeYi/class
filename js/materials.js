@@ -31,6 +31,7 @@
                 <div class="material-detail-content">${formatContent(item.content || "")}</div>
             </article>
         `;
+        window.preloadIllustrationsFromContent?.(item.content || "");
     }
 
     listHost.addEventListener("click", (event) => {

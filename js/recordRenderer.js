@@ -1156,6 +1156,7 @@ function getInlineMarkerRects(tag) {
 const illustrationPreloadCache = new Map();
 const illustrationReadyCache = new Map();
 const illustrationDimensionCache = new Map();
+const illustrationWarmPromises = new Map();
 const ILLUSTRATION_DISPLAY_TRANSFORM = Object.freeze({ width: 960, quality: 76 });
 
 function getIllustrationDisplayTransform() {
@@ -1182,6 +1183,7 @@ window.addEventListener("classrecordcacheclearing", () => {
     illustrationPreloadCache.clear();
     illustrationReadyCache.clear();
     illustrationDimensionCache.clear();
+    illustrationWarmPromises.clear();
     window.imageSizeCache = {};
     window.ClassRecordIllustrationMetadataPromise = null;
 });
@@ -1189,6 +1191,9 @@ window.addEventListener("classrecordcacheclearing", () => {
 function resolveIllustrationUrl(path) {
     const sourcePath = String(path || "").trim();
     if (!sourcePath) return Promise.resolve(null);
+    if (illustrationWarmPromises.has(sourcePath)) {
+        return illustrationWarmPromises.get(sourcePath).then((item) => item?.url || null);
+    }
     if (illustrationPreloadCache.has(sourcePath)) return illustrationPreloadCache.get(sourcePath);
     const promise = window.ClassRecordData?.isEnabled?.()
         ? window.ClassRecordData.preloadAsset(sourcePath, {
@@ -1201,6 +1206,41 @@ function resolveIllustrationUrl(path) {
     });
     illustrationPreloadCache.set(sourcePath, reusable);
     return reusable;
+}
+
+function warmIllustrationAsset(path, { priority = "low" } = {}) {
+    const sourcePath = String(path || "").trim();
+    if (!sourcePath) return Promise.resolve(null);
+    if (illustrationReadyCache.has(sourcePath)) return Promise.resolve(illustrationReadyCache.get(sourcePath));
+    if (illustrationWarmPromises.has(sourcePath)) return illustrationWarmPromises.get(sourcePath);
+    const promise = (async () => {
+        const data = window.ClassRecordData;
+        if (!data?.isEnabled?.()) return null;
+        const url = await data.preloadAsset(sourcePath, { priority });
+        const ready = data.getPreloadedAsset(sourcePath);
+        if (!url || !ready?.width || !ready?.height) return null;
+        rememberIllustrationDimensions(sourcePath, ready.width, ready.height);
+        illustrationReadyCache.set(sourcePath, ready);
+        return ready;
+    })().catch(() => null).finally(() => {
+        illustrationWarmPromises.delete(sourcePath);
+    });
+    illustrationWarmPromises.set(sourcePath, promise);
+    return promise;
+}
+
+function warmIllustrationPaths(paths, { priority = "low" } = {}) {
+    const queue = [...new Set(paths || [])].filter(Boolean);
+    let nextIndex = 0;
+    let loaded = 0;
+    const worker = async () => {
+        while (nextIndex < queue.length) {
+            const path = queue[nextIndex++];
+            if (await warmIllustrationAsset(path, { priority })) loaded += 1;
+        }
+    };
+    return Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker))
+        .then(() => ({ total: queue.length, loaded }));
 }
 
 function collectIllustrationPathsFromData(value, paths, seen = new WeakSet()) {
@@ -1235,26 +1275,7 @@ function preloadIllustrationDimensionsFromData() {
         sources.forEach((result) => {
             if (result.status === "fulfilled") collectIllustrationPathsFromData(result.value, paths);
         });
-        const queue = [...paths];
-        let nextIndex = 0;
-        let loaded = 0;
-        const worker = async () => {
-            while (nextIndex < queue.length) {
-                const path = queue[nextIndex++];
-                try {
-                    const url = await data.preloadAsset(path, { priority: "low" });
-                    const ready = data.getPreloadedAsset(path);
-                    if (!url || !ready?.width || !ready?.height) continue;
-                    rememberIllustrationDimensions(path, ready.width, ready.height);
-                    illustrationReadyCache.set(path, ready);
-                    loaded += 1;
-                } catch (error) {
-                    // A missing illustration must not block other metadata or page startup.
-                }
-            }
-        };
-        await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
-        return { total: queue.length, loaded };
+        return warmIllustrationPaths(paths, { priority: "low" });
     })();
     window.ClassRecordIllustrationMetadataPromise = promise;
     return promise;
@@ -1264,14 +1285,11 @@ function scheduleIllustrationDimensionPreload() {
     const start = () => preloadIllustrationDimensionsFromData().catch((error) => {
         window.ClassRecordDiagnostics?.warn("Illustration metadata preload failed", error);
     });
-    if (typeof window.requestIdleCallback === "function") {
-        window.requestIdleCallback(start, { timeout: 1500 });
-    } else {
-        setTimeout(start, 0);
-    }
+    setTimeout(start, 0);
 }
 
 window.preloadIllustrationDimensionsFromData = preloadIllustrationDimensionsFromData;
+window.preloadIllustrationsFromContent = (value) => warmIllustrationPaths(extractIllustrationPaths(value), { priority: "low" });
 scheduleIllustrationDimensionPreload();
 
 const imageViewerState = {

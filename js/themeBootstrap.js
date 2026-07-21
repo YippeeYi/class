@@ -2,6 +2,12 @@
     const root = document.documentElement;
     const backgroundKey = "classRecordBackgroundId";
     const snapshotKey = "classRecordActiveTheme.v1";
+    const legacyControlBorderVariables = new Set([
+        "--control-border",
+        "--control-border-hover",
+        "--control-border-active",
+        "--control-border-disabled"
+    ]);
     const backgroundImages = {
         "your-name": "images/backgrounds/your-name.png",
         "weathering-with-you": "images/backgrounds/weathering-with-you.png",
@@ -40,7 +46,6 @@
             "--page-bg-base": `radial-gradient(circle at 20% -10%, rgba(${rgbText(surface)}, .98), rgba(${rgbText(surfaceStrong)}, .95))`,
             "--control-bg": `rgba(${rgbText(surface)}, .52)`,
             "--control-hover-bg": `rgba(${rgbText(surfaceStrong)}, .68)`,
-            "--control-border": `rgba(${rgbText(strong)}, .22)`,
             "--control-gradient": `linear-gradient(145deg, rgba(${rgbText(surface)}, .98), rgba(${rgbText(surfaceStrong)}, .96))`,
             "--control-gradient-hover": `linear-gradient(145deg, #fff, rgba(${rgbText(surfaceStrong)}, .98))`,
             "--control-active-gradient": `linear-gradient(135deg, ${hex(strong)}, ${hex(accent)})`,
@@ -96,8 +101,11 @@
             ? snapshot.palette
             : window.ClassRecordThemePresets[backgroundId];
         if (palette && typeof palette === "object") {
+            legacyControlBorderVariables.forEach((name) => root.style.removeProperty(name));
             Object.entries(palette).forEach(([name, value]) => {
-                if (name.startsWith("--") && typeof value === "string") root.style.setProperty(name, value);
+                if (!legacyControlBorderVariables.has(name) && name.startsWith("--") && typeof value === "string") {
+                    root.style.setProperty(name, value);
+                }
             });
             root.dataset.backgroundThemeReady = "true";
         }
