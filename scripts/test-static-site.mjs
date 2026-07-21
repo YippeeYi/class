@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pages = [
     '404.html', 'auth.html', 'credits.html', 'index.html', 'materials.html',
-    'people.html', 'person.html', 'quiz.html', 'quotes.html', 'record.html',
+    'people.html', 'person.html', 'quiz.html', 'quotes.html', 'record.html', 'admissions.html',
     'search.html', 'shop.html', 'timeline.html'
 ];
 const protectedPages = pages.filter((page) => !['404.html', 'auth.html'].includes(page));
@@ -116,5 +116,9 @@ assert.match(quizScript, /data-secure-src/, 'quiz images must use private Storag
 assert.match(quizScript, /resolveAssetElements/, 'quiz images must be signed before display');
 assert.match(quizScript, /if \(!secretAdminAccess\)/, 'lamian unlock must be disabled without administrator access');
 assert.match(quizScript, /hasAdminAccess/, 'lamian unlock must verify administrator access with Supabase');
+const admissionsApp = await readFile(resolve(root, 'js/admissions/app.mjs'), 'utf8');
+const admissionsData = await readFile(resolve(root, 'js/admissions/data.mjs'), 'utf8');
+assert.match(admissionsData, /rpc\('get_class_admission_map'\)/, 'admissions must use its protected RPC instead of table reads');
+assert.doesNotMatch(admissionsApp, /person_id|SUPABASE_SERVICE_ROLE_KEY/, 'admissions UI must not expose person IDs or service-role credentials');
 
 console.log(`Passed static checks for ${pages.length} pages.`);

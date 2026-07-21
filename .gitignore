@@ -2,6 +2,10 @@ data/
 images/record-pages/
 images/quiz/lamian/
 private-assets/
+private-exports/
+admissions-output/
+admissions-frames/
+.admissions-video-token
 .env
 .env.*
 !.env.example
