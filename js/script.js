@@ -655,7 +655,7 @@ async function returnFromRecordJump(origin) {
     if (typeof window.ClassRecordAnimateScrollTo === "function") {
       await window.ClassRecordAnimateScrollTo(origin.scrollY, { behavior: "smooth" });
     } else {
-      window.scrollTo({ top: origin.scrollY, behavior: "smooth" });
+      window.scrollTo(0, origin.scrollY);
     }
   }
 }

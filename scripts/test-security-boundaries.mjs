@@ -88,6 +88,8 @@ assert.doesNotMatch(secureData, /expiresIn\s*=\s*60\s*\*\s*30|expiresIn\s*\|\|\s
 assert.doesNotMatch(secureData, /sessionStorage\.setItem\(SIGNED_URL_SESSION_KEY/, 'signed URLs must remain memory-only');
 assert.match(secureData, /sensitiveSignedUrlExpiresIn/, 'sensitive assets must use a shorter configured lifetime');
 assert.match(secureData, /image: normalizeQuizImagePath/, 'quiz rows must retain only validated private object paths');
+assert.match(secureData, /preloadAdminQuizImages[\s\S]*hasAdminAccess/, 'quiz image preload must remain guarded by a server-verified administrator check');
+assert.match(authGate, /startAdminAssetPreload[\s\S]*preloadAdminQuizImages/, 'the access gate must start the administrator-only image warmup after entry');
 assert.match(quizApp, /data-secure-src="\$\{escapeHtml\(currentQuestion\.imagePath\)\}"/, 'quiz images must be rendered as private Storage references');
 assert.match(quizApp, /ClassRecordData\?\.resolveAssetElements\?\.\(questionText\)/, 'quiz images must be resolved through the signed URL loader');
 assert.doesNotMatch(quizApp, /<img src="\$\{escapeHtml\(currentQuestion\.imagePath\)\}"/, 'quiz images must never use the raw Storage path as a public URL');

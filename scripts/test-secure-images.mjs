@@ -85,6 +85,13 @@ vm.runInContext(source, context);
 const data = window.ClassRecordData;
 const path = 'images/record-pages/01.jpeg';
 
+window.ClassRecordSupabase.hasAdminAccess = async () => false;
+const normalPreload = await data.preloadAdminQuizImages();
+assert.deepEqual({ ...normalPreload }, { admin: false, total: 0, loaded: 0 });
+assert.equal(quizRequests, 0, 'normal invite initialization must not query hidden quiz rows');
+assert.equal(signedRequests.length, 0, 'normal invite initialization must not request hidden image URLs');
+data.clearSecureResourceState();
+
 const previewUrl = await data.preloadAsset(path, {
     priority: 'high',
     transform: data.displayTransforms.written
@@ -124,6 +131,11 @@ assert.equal(hiddenQuestions.length, 1, 'question_group must remain a valid hidd
 assert.equal(hiddenQuestions[0].image, 'images/quiz/lamian/01.png');
 await data.loadQuizQuestions('lamian', { force: true });
 assert.equal(quizRequests, 2, 'forced hidden-pool retry must bypass the cached query');
+
+window.ClassRecordSupabase.hasAdminAccess = async () => true;
+const quizPreload = await data.preloadAdminQuizImages();
+assert.deepEqual({ ...quizPreload }, { admin: true, total: 1, loaded: 1 });
+assert.equal(data.getPreloadedAsset('images/quiz/lamian/01.png').width, 4000, 'administrator warmup must cache the original hidden quiz image');
 
 const requestsBeforeCleanup = signedRequests.length;
 data.clearSecureResourceState();

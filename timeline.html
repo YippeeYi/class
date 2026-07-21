@@ -29,9 +29,12 @@
                 <p id="timeline-summary">按年份与月份回看记录密度、重要事件、活跃人物和名言热度。</p>
             </div>
             <div class="archive-tool-actions">
-                <div class="timeline-metric-switch switch-group" aria-label="统计对象">
-                    <button type="button" class="switch-btn active" data-timeline-metric="count" aria-pressed="true">记录条数</button>
-                    <button type="button" class="switch-btn" data-timeline-metric="characters" aria-pressed="false">记录字数</button>
+                <div class="timeline-metric-control" role="group" aria-labelledby="timeline-metric-label">
+                    <span id="timeline-metric-label" class="timeline-metric-label">统计指标：</span>
+                    <div class="timeline-metric-switch switch-group">
+                        <button type="button" class="switch-btn active" data-timeline-metric="count" aria-pressed="true">记录条数</button>
+                        <button type="button" class="switch-btn" data-timeline-metric="characters" aria-pressed="false">记录字数</button>
+                    </div>
                 </div>
                 <button type="button" class="btn-action" data-nav-target="record.html">查看全部记录</button>
             </div>
@@ -47,7 +50,6 @@
     <script src="js/cacheLoader.js"></script>
     <script src="js/recordStore.js"></script>
     <script src="js/peopleStore.js"></script>
-    <script src="js/illustrationDimensions.js"></script>
     <script src="js/recordRenderer.js"></script>
     <script src="js/quoteStore.js"></script>
     <script src="js/bootstrap.js"></script>

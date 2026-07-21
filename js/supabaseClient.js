@@ -14,6 +14,7 @@
 
     let sdkPromise = null;
     let client = null;
+    let adminAccessPromise = null;
 
     const loadScript = (src) => new Promise((resolve, reject) => {
         const existing = Array.from(document.scripts).find((script) => script.src === src);
@@ -116,10 +117,16 @@
     const hasAdminAccess = async () => {
         const token = window.getInviteAccessToken?.() || "";
         if (!token) return false;
-        const supabase = await getClient();
-        const { data, error } = await supabase.rpc("has_class_record_admin_access", {});
-        if (error) return false;
-        return data === true;
+        if (!adminAccessPromise) {
+            adminAccessPromise = getClient().then(async (supabase) => {
+                const { data, error } = await supabase.rpc("has_class_record_admin_access", {});
+                if (error) return false;
+                return data === true;
+            }).catch(() => false);
+        }
+        const isAdmin = await adminAccessPromise;
+        if (!isAdmin) adminAccessPromise = null;
+        return isAdmin;
     };
 
     window.ClassRecordSupabase = {

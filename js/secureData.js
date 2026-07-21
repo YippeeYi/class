@@ -13,7 +13,8 @@
     let pageMessagesPromise = null;
     let creditsPagePromise = null;
     let materialsPromise = null;
-    const quizQuestionPromises = new Map();
+    let quizQuestionsPromise = null;
+    let adminQuizPreloadPromise = null;
     const assetListPromises = new Map();
     const signedUrlCache = new Map();
     const failedSignCache = new Map();
@@ -479,40 +480,50 @@
         return pageMessagesPromise;
     };
 
-    const loadQuizQuestions = async (contentKey, { force = false } = {}) => {
+    const normalizeQuizQuestion = (row, index = 0) => {
+        const raw = parseRaw(row);
+        const contentKeys = [...new Set([
+            row.content_key,
+            row.question_group,
+            raw.contentKey,
+            raw.content,
+            raw.group
+        ].map((value) => String(value || '').trim()).filter(Boolean))];
+        return {
+            ...raw,
+            id: raw.id || row.id || `quiz-${index + 1}`,
+            contentKey: contentKeys[0] || '',
+            contentKeys,
+            type: row.question_type || raw.type || 'choice',
+            prompt: row.prompt || raw.prompt || '',
+            choices: Array.isArray(row.choices) ? row.choices : (Array.isArray(raw.choices) ? raw.choices : []),
+            answer: row.answer || raw.answer || '',
+            explanation: row.explanation || raw.explanation || '',
+            // Quiz images are private Storage objects. The UI signs this
+            // validated object path only after the invite gate resolves.
+            image: normalizeQuizImagePath(row.image_path || raw.image || raw.imagePath || '')
+        };
+    };
+
+    const loadAllQuizQuestions = async ({ force = false } = {}) => {
         const config = await getConfig();
-        const key = String(contentKey || '').trim();
-        if (force) quizQuestionPromises.delete(key);
-        if (!quizQuestionPromises.has(key)) {
-            const promise = selectAll(config.tables.quizQuestions, '*', 'sort_order')
-                .then((rows) => rows.filter((row) => {
-                    const raw = parseRaw(row);
-                    return [row.content_key, row.question_group, raw.contentKey, raw.content, raw.group]
-                        .some((value) => String(value || '').trim() === key);
-                }))
+        if (force) quizQuestionsPromise = null;
+        if (!quizQuestionsPromise) {
+            quizQuestionsPromise = selectAll(config.tables.quizQuestions, '*', 'sort_order')
+                .then((rows) => rows.map(normalizeQuizQuestion))
                 .catch((error) => {
-                    quizQuestionPromises.delete(key);
+                    quizQuestionsPromise = null;
                     throw error;
                 });
-            quizQuestionPromises.set(key, promise);
         }
-        const rows = await quizQuestionPromises.get(key);
-        if (!rows.length) quizQuestionPromises.delete(key);
-        return rows.map((row, index) => {
-            const raw = parseRaw(row);
-            return {
-                ...raw,
-                id: raw.id || `${contentKey}-${index + 1}`,
-                type: row.question_type || raw.type || 'choice',
-                prompt: row.prompt || raw.prompt || '',
-                choices: Array.isArray(row.choices) ? row.choices : (Array.isArray(raw.choices) ? raw.choices : []),
-                answer: row.answer || raw.answer || '',
-                explanation: row.explanation || raw.explanation || '',
-                // Quiz images are private Storage objects. The UI signs this
-                // validated object path only after the invite gate resolves.
-                image: normalizeQuizImagePath(row.image_path || raw.image || raw.imagePath || '')
-            };
-        });
+        return quizQuestionsPromise;
+    };
+
+    const loadQuizQuestions = async (contentKey, { force = false } = {}) => {
+        const key = String(contentKey || '').trim();
+        const rows = await loadAllQuizQuestions({ force });
+        return rows.filter((row) => (row.contentKeys || [row.contentKey])
+            .some((value) => String(value || '').trim() === key));
     };
 
     const signAssetUrl = async (path, { expiresIn, quiet = false, forceRefresh = false, transform = null } = {}) => {
@@ -681,6 +692,35 @@
         return imagePreloadResults.get(getAssetCacheKey(safePath, requestedTransform)) || null;
     };
 
+    const preloadAdminQuizImages = () => {
+        if (adminQuizPreloadPromise) return adminQuizPreloadPromise;
+        adminQuizPreloadPromise = (async () => {
+            const isAdmin = await window.ClassRecordSupabase?.hasAdminAccess?.();
+            if (!isAdmin) return { admin: false, total: 0, loaded: 0 };
+            const questions = await loadAllQuizQuestions();
+            const paths = [...new Set(questions.map((item) => item.image).filter(Boolean))];
+            let nextIndex = 0;
+            let loaded = 0;
+            const worker = async () => {
+                while (nextIndex < paths.length) {
+                    const path = paths[nextIndex++];
+                    try {
+                        if (await preloadAsset(path, { priority: 'low' })) loaded += 1;
+                    } catch (error) {
+                        // Continue warming the remaining images after an isolated failure.
+                    }
+                }
+            };
+            await Promise.all(Array.from({ length: Math.min(4, paths.length) }, worker));
+            return { admin: true, total: paths.length, loaded };
+        })().catch((error) => {
+            adminQuizPreloadPromise = null;
+            throw error;
+        });
+        window.ClassRecordAdminQuizPreloadPromise = adminQuizPreloadPromise;
+        return adminQuizPreloadPromise;
+    };
+
     const listAssetPaths = async (directory, { search = '', limit = 100 } = {}) => {
         const safeDirectory = normalizePrivateStoragePath(directory).replace(/\/+$/, '');
         const cacheKey = `${safeDirectory}|${search}|${limit}`;
@@ -711,7 +751,9 @@
         const lazyImages = imageNodes.filter((node) => node.loading === 'lazy' && 'IntersectionObserver' in window);
         const immediateImages = imageNodes.filter((node) => !lazyImages.includes(node));
         const paths = [
-            ...immediateImages.map((node) => node.getAttribute('data-secure-src')),
+            ...immediateImages
+                .map((node) => node.getAttribute('data-secure-src'))
+                .filter((path) => !getPreloadedAsset(path)?.url),
             ...linkNodes.map((node) => node.getAttribute('data-secure-href'))
         ].filter(Boolean);
         const signed = await signAssetUrls(paths).catch((error) => {
@@ -726,7 +768,8 @@
             if (node.isConnected) node.dispatchEvent(new Event('error'));
         };
         immediateImages.forEach((node) => {
-            const src = signed.get(node.getAttribute('data-secure-src'));
+            const path = node.getAttribute('data-secure-src');
+            const src = getPreloadedAsset(path)?.url || signed.get(path);
             assignImage(node, src);
             node.dataset.secureBound = 'true';
         });
@@ -761,7 +804,8 @@
         pageSupplementPromises.clear();
         pageMessagesPromise = null;
         materialsPromise = null;
-        quizQuestionPromises.clear();
+        quizQuestionsPromise = null;
+        adminQuizPreloadPromise = null;
         creditsPagePromise = null;
         assetListPromises.clear();
         signedUrlCache.clear();
@@ -791,6 +835,7 @@
         loadMaterials,
         loadPageSupplements,
         loadPeople,
+        loadAllQuizQuestions,
         loadQuizQuestions,
         listAssetPaths,
         loadRecordPages,
@@ -798,6 +843,7 @@
         loadRecords,
         normalizePrivateStoragePath,
         preloadAsset,
+        preloadAdminQuizImages,
         signAssetUrl,
         signAssetUrls,
         clearSecureResourceState

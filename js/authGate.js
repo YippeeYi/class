@@ -43,6 +43,18 @@
 
     const revealPage = () => document.documentElement.classList.remove("auth-pending");
 
+    const startAdminAssetPreload = () => {
+        if (isAuthPage || typeof window.ClassRecordData?.preloadAdminQuizImages !== "function") return;
+        const start = () => window.ClassRecordData.preloadAdminQuizImages().catch((error) => {
+            window.ClassRecordDiagnostics?.warn("Admin quiz image preload failed", error);
+        });
+        if (typeof window.requestIdleCallback === "function") {
+            window.requestIdleCallback(start, { timeout: 1200 });
+        } else {
+            window.setTimeout(start, 0);
+        }
+    };
+
     const resolveAccessPromise = () => {
         if (!resolveAccess) return;
         resolveAccess({ verified: true });
@@ -178,6 +190,7 @@
                 saveVerifiedAccess();
                 resolveAccessPromise();
                 revealPage();
+                startAdminAssetPreload();
                 if (isAuthPage) redirectAfterVerification();
                 return;
             }

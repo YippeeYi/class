@@ -736,7 +736,10 @@ function cancelRecordFocus() {
 }
 
 function easeRecordScroll(t) {
-    return 1 - Math.pow(1 - t, 3);
+    const progress = Math.max(0, Math.min(1, t));
+    // Quartic ease-out: move decisively at the start, then reserve a long,
+    // continuously slowing approach so the final frame never feels abrupt.
+    return 1 - Math.pow(1 - progress, 4);
 }
 
 function animateRecordScrollTo(targetY, { behavior = "smooth" } = {}) {
@@ -753,7 +756,7 @@ function animateRecordScrollTo(targetY, { behavior = "smooth" } = {}) {
         window.scrollTo(0, endY);
         return Promise.resolve(true);
     }
-    const duration = Math.max(420, Math.min(980, 420 + Math.abs(distance) * 0.22));
+    const duration = Math.max(480, Math.min(1120, 480 + Math.abs(distance) * 0.2));
     const start = performance.now();
     return new Promise((resolve) => {
         let frame = 0;
@@ -1153,7 +1156,6 @@ function getInlineMarkerRects(tag) {
 const illustrationPreloadCache = new Map();
 const illustrationReadyCache = new Map();
 const illustrationDimensionCache = new Map();
-const bundledIllustrationDimensions = new Map(Object.entries(window.ClassRecordIllustrationDimensions || {}));
 const ILLUSTRATION_DISPLAY_TRANSFORM = Object.freeze({ width: 960, quality: 76 });
 
 function getIllustrationDisplayTransform() {
@@ -1162,22 +1164,8 @@ function getIllustrationDisplayTransform() {
 
 window.imageSizeCache = window.imageSizeCache || {};
 
-function getIllustrationResourceId(value) {
-    const bytes = new TextEncoder().encode(String(value || ""));
-    let hash = 0x811c9dc5;
-    for (const byte of bytes) {
-        hash ^= byte;
-        hash = Math.imul(hash, 0x01000193) >>> 0;
-    }
-    return `resource_${hash.toString(36).padStart(7, "0")}`;
-}
-
 function getIllustrationSourceDimensions(path) {
     const sourcePath = String(path || "").trim();
-    const bundled = bundledIllustrationDimensions.get(getIllustrationResourceId(sourcePath));
-    if (bundled?.width > 0 && bundled?.height > 0) {
-        return { width: Number(bundled.width), height: Number(bundled.height) };
-    }
     return illustrationDimensionCache.get(sourcePath) || window.imageSizeCache?.[sourcePath] || null;
 }
 
@@ -1195,6 +1183,7 @@ window.addEventListener("classrecordcacheclearing", () => {
     illustrationReadyCache.clear();
     illustrationDimensionCache.clear();
     window.imageSizeCache = {};
+    window.ClassRecordIllustrationMetadataPromise = null;
 });
 
 function resolveIllustrationUrl(path) {
@@ -1213,6 +1202,77 @@ function resolveIllustrationUrl(path) {
     illustrationPreloadCache.set(sourcePath, reusable);
     return reusable;
 }
+
+function collectIllustrationPathsFromData(value, paths, seen = new WeakSet()) {
+    if (typeof value === "string") {
+        extractIllustrationPaths(value).forEach((path) => paths.add(path));
+        return;
+    }
+    if (!value || typeof value !== "object" || seen.has(value)) return;
+    seen.add(value);
+    if (Array.isArray(value)) {
+        value.forEach((item) => collectIllustrationPathsFromData(item, paths, seen));
+        return;
+    }
+    Object.values(value).forEach((item) => collectIllustrationPathsFromData(item, paths, seen));
+}
+
+function preloadIllustrationDimensionsFromData() {
+    if (window.ClassRecordIllustrationMetadataPromise) {
+        return window.ClassRecordIllustrationMetadataPromise;
+    }
+    const promise = (async () => {
+        await window.waitForAccess?.();
+        const data = window.ClassRecordData;
+        if (!data?.isEnabled?.()) return { total: 0, loaded: 0 };
+        const sources = await Promise.allSettled([
+            data.loadRecords?.({ hidden: false }),
+            data.loadPageMessages?.(),
+            data.loadPageSupplements?.({ hidden: false }),
+            data.loadMaterials?.()
+        ]);
+        const paths = new Set();
+        sources.forEach((result) => {
+            if (result.status === "fulfilled") collectIllustrationPathsFromData(result.value, paths);
+        });
+        const queue = [...paths];
+        let nextIndex = 0;
+        let loaded = 0;
+        const worker = async () => {
+            while (nextIndex < queue.length) {
+                const path = queue[nextIndex++];
+                try {
+                    const url = await data.preloadAsset(path, { priority: "low" });
+                    const ready = data.getPreloadedAsset(path);
+                    if (!url || !ready?.width || !ready?.height) continue;
+                    rememberIllustrationDimensions(path, ready.width, ready.height);
+                    illustrationReadyCache.set(path, ready);
+                    loaded += 1;
+                } catch (error) {
+                    // A missing illustration must not block other metadata or page startup.
+                }
+            }
+        };
+        await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
+        return { total: queue.length, loaded };
+    })();
+    window.ClassRecordIllustrationMetadataPromise = promise;
+    return promise;
+}
+
+function scheduleIllustrationDimensionPreload() {
+    const start = () => preloadIllustrationDimensionsFromData().catch((error) => {
+        window.ClassRecordDiagnostics?.warn("Illustration metadata preload failed", error);
+    });
+    if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(start, { timeout: 1500 });
+    } else {
+        setTimeout(start, 0);
+    }
+}
+
+window.preloadIllustrationDimensionsFromData = preloadIllustrationDimensionsFromData;
+scheduleIllustrationDimensionPreload();
 
 const imageViewerState = {
     overlay: null,

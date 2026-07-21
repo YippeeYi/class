@@ -37,9 +37,7 @@ for (const page of pages) {
         const gateIndex = html.indexOf('js/authGate.js');
         assert.ok(cacheIndex >= 0 && gateIndex > cacheIndex, `${page} must initialize cache clearing before the auth gate`);
     }
-    if (html.includes('js/recordRenderer.js')) {
-        assert.ok(html.indexOf('js/illustrationDimensions.js') < html.indexOf('js/recordRenderer.js'), `${page} must load illustration dimensions before the markup renderer`);
-    }
+    assert.doesNotMatch(html, /illustrationDimensions\.js/, `${page} must not load a manually maintained illustration size table`);
 }
 
 const vercel = JSON.parse(await readFile(resolve(root, 'vercel.json'), 'utf8'));
@@ -59,7 +57,6 @@ const recordScript = await readFile(resolve(root, 'js/script.js'), 'utf8');
 const recordRenderer = await readFile(resolve(root, 'js/recordRenderer.js'), 'utf8');
 const secureData = await readFile(resolve(root, 'js/secureData.js'), 'utf8');
 const supabaseClient = await readFile(resolve(root, 'js/supabaseClient.js'), 'utf8');
-const illustrationDimensions = await readFile(resolve(root, 'js/illustrationDimensions.js'), 'utf8');
 const vendoredSdk = await readFile(resolve(root, 'vendor/supabase-js-2.45.0.js'));
 assert.doesNotMatch(recordScript, /ClassRecordImageViewer\.open\(imagePath,[\s\S]{0,240}resolvedUrl:/, 'written image viewer must not pass its display-sized URL as the original');
 assert.match(recordRenderer, /openImageViewer\(sourcePath,\s*\{[^}]*resolvedUrl\s*=\s*""[^}]*urlPromise\s*=\s*null/s, 'shared image viewer must retain guarded fallback support');
@@ -67,8 +64,11 @@ assert.match(recordRenderer, /const originalUrl\s*=\s*await resolveOriginalImage
 assert.match(recordRenderer, /ClassRecordData\?\.isEnabled\?\.\(\)[^}]*signAssetUrl\(direct,\s*\{\s*quiet:\s*true,\s*forceRefresh\s*\}/s, 'secure image viewer paths must use signed Storage URLs before local image paths');
 assert.match(recordScript, /if \(window\.ClassRecordData\?\.isEnabled\?\.\(\)\) return "";[^}]*images\\\//s, 'written image preload must not probe private Storage paths as local images');
 assert.match(secureData, /signAssetUrl\s*=\s*async \(path,\s*\{[^}]*forceRefresh\s*=\s*false/, 'Storage signer must support refreshing an expired signed URL');
-assert.doesNotMatch(illustrationDimensions, /data\/attachments\/|\.(?:png|jpe?g|gif|webp|svg)"\s*:/i, 'public illustration dimensions must not expose real object paths or filenames');
-assert.match(illustrationDimensions, /"resource_[a-z0-9]+"/, 'public illustration dimensions must use opaque resource IDs');
+assert.doesNotMatch(recordRenderer, /ClassRecordIllustrationDimensions|bundledIllustrationDimensions|getIllustrationResourceId/, 'inline illustration sizing must not depend on a generated hard-coded table');
+assert.match(recordRenderer, /loadRecords\?\.\(\{ hidden: false \}\)[\s\S]*loadPageMessages\?\.\(\)[\s\S]*loadPageSupplements\?\.\(\{ hidden: false \}\)[\s\S]*loadMaterials\?\.\(\)/, 'illustration metadata preload must scan records, page messages, supplements, and materials');
+assert.match(recordRenderer, /extractIllustrationPaths\(value\)[\s\S]*preloadAsset\(path, \{ priority: "low" \}\)/, 'illustration paths must be parsed from data and measured from the original image at runtime');
+assert.match(recordRenderer, /1 - Math\.pow\(1 - progress, 4\)/, 'record jumps must use the shared long-tail ease-out curve');
+assert.doesNotMatch(recordScript, /window\.scrollTo\(\{[^}]*behavior:\s*["']smooth["']/, 'record navigation must not fall back to a different browser-native smooth curve');
 assert.doesNotMatch(recordRenderer, /classRecord:imageSizes|localStorage\.setItem\(IMAGE_SIZE_STORAGE_KEY/, 'real illustration paths must not persist in localStorage');
 assert.match(supabaseClient, /vendor\/supabase-js-2\.45\.0\.js/, 'runtime Supabase SDK must be self-hosted at an exact version');
 assert.doesNotMatch(supabaseClient + secureData, /cdn\.jsdelivr\.net/, 'runtime code must not load third-party scripts that could read the bearer token');
@@ -80,6 +80,7 @@ assert.equal(
     'vendored Supabase SDK bytes must match the reviewed 2.45.0 release'
 );
 assert.match(secureData, /getAssetCacheKey\(safePath,\s*imageTransform\)/, 'original and transformed Storage URLs must use variant-aware cache keys');
+assert.match(secureData, /preloadAdminQuizImages[\s\S]*hasAdminAccess[\s\S]*loadAllQuizQuestions[\s\S]*preloadAsset\(path, \{ priority: 'low' \}\)/, 'administrator initialization must asynchronously preload every hidden quiz image');
 assert.match(recordScript, /preloadAsset\(sourcePath,\s*\{[^}]*transform:\s*getWrittenImageDisplayTransform\(\)/s, 'written page images must request a display-sized transform');
 assert.match(recordRenderer, /preloadAsset\(sourcePath,\s*\{[^}]*transform:\s*getIllustrationDisplayTransform\(\)/s, 'inline illustrations must request a display-sized transform');
 assert.doesNotMatch(recordRenderer, /ClassRecordImageViewer\.open\(tooltipImage\.dataset\.previewSrc,[\s\S]{0,180}resolvedUrl:/, 'illustration viewer must not pass its display-sized URL as the original');
