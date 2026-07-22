@@ -4,7 +4,7 @@
   "scripts": {
     "generate-invite-codes": "node scripts/generate-invite-codes.mjs",
     "verify-security-live": "node scripts/verify-live-security.mjs",
-    "test": "node scripts/test-security-boundaries.mjs && node scripts/test-secure-images.mjs && node scripts/test-illustration-preload.mjs && node scripts/test-record-markup.mjs && node scripts/test-record-view.mjs && node scripts/test-quiz-core.mjs && node scripts/test-search.mjs && node scripts/test-admissions-core.mjs && node scripts/test-static-site.mjs"
+    "test": "node scripts/test-security-boundaries.mjs && node scripts/test-secure-images.mjs && node scripts/test-illustration-preload.mjs && node scripts/test-record-markup.mjs && node scripts/test-record-view.mjs && node scripts/test-quiz-core.mjs && node scripts/test-search.mjs && node scripts/test-static-site.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0"

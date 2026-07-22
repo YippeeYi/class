@@ -621,36 +621,3 @@ select
 from invite_hardening
 
 order by check_item;
-
--- Admissions module audit (run after supabase-admissions.sql).
-select
-  'admissions.private_tables_and_rpc' as check_item,
-  case when
-    to_regclass('public.class_universities') is not null
-    and to_regclass('public.class_admissions') is not null
-    and not has_table_privilege('anon', 'public.class_admissions', 'select')
-    and not has_table_privilege('anon', 'public.class_universities', 'select')
-    and (select relrowsecurity from pg_class where oid = 'public.class_admissions'::regclass)
-    and (select relrowsecurity from pg_class where oid = 'public.class_universities'::regclass)
-    and has_function_privilege('anon', 'public.get_class_admission_map()', 'execute')
-    and pg_get_functiondef('public.get_class_admission_map()'::regprocedure) ilike '%has_class_record_access()%'
-    -- pg_get_functiondef() serializes SET as "TO 'public', 'extensions'" on
-    -- current PostgreSQL, so inspect pg_proc.proconfig instead of comparing
-    -- its presentation-only output.
-    and exists (
-      select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-       where n.nspname = 'public' and p.proname = 'get_class_admission_map'
-         and p.prosecdef
-         and coalesce(array_to_string(p.proconfig, '|'), '') like '%search_path=public, extensions%'
-    )
-  then 'PASS' else 'FAIL' end as status,
-  'admissions tables require private direct access; only the checked display RPC is callable' as detail
-union all
-select
-  'admissions.private_logo_storage',
-  case when exists (
-    select 1 from pg_policy p join pg_class c on c.oid = p.polrelid join pg_namespace n on n.oid = c.relnamespace
-     where n.nspname = 'storage' and c.relname = 'objects' and p.polname = 'classrecord_private_read'
-       and pg_get_expr(p.polqual, p.polrelid) ilike '%images/admissions/%'
-  ) then 'PASS' else 'FAIL' end,
-  'admissions logos must be protected by the existing invite-token Storage policy';

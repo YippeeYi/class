@@ -21,26 +21,20 @@ const listFiles = async (directory = '.') => {
     return output;
 };
 
-const [setupSql, checkSql, phase2Sql, finalAccessSql, storageRepairSql, storageDiagnoseSql, admissionsSql, migration, secureData, quizApp, authGate, siteCache] = await Promise.all([
+const [setupSql, checkSql, phase2Sql, finalAccessSql, storageRepairSql, storageDiagnoseSql, decommissionSql, migration, secureData, quizApp, authGate, siteCache] = await Promise.all([
     read('docs/supabase-setup.sql'),
     read('docs/supabase-security-check.sql'),
     read('docs/supabase-phase2-security.sql'),
     read('docs/supabase-final-access-security.sql'),
     read('docs/supabase-storage-policy-repair.sql'),
     read('docs/supabase-storage-policy-diagnose.sql'),
-    read('docs/supabase-admissions.sql'),
+    read('docs/supabase-decommission-legacy-map.sql'),
     read('scripts/migrate-secure-content.mjs'),
     read('js/secureData.js'),
     read('js/quizApp.js'),
     read('js/authGate.js'),
     read('js/siteCache.js')
 ]);
-
-assert.match(admissionsSql, /class_admissions_one_final_destination unique \(person_id\)/, 'admissions must enforce one final result per person');
-assert.match(admissionsSql, /alter table public\.class_admissions enable row level security/, 'admissions must enable RLS');
-assert.match(admissionsSql, /revoke all on public\.class_admissions from public, anon, authenticated/, 'admissions must not grant direct browser table access');
-assert.match(admissionsSql, /get_class_admission_map\(\)[\s\S]*security definer[\s\S]*set search_path = public, extensions[\s\S]*has_class_record_access\(\)/s, 'admissions RPC must verify invite access with a fixed search path');
-assert.match(admissionsSql, /name ~ '\^images\/admissions\//, 'admissions logos must remain in the private Storage policy');
 
 assert.match(setupSql, /where n\.nspname = 'storage'[\s\S]*c\.relname = 'objects'[\s\S]*drop policy if exists %I on storage\.objects/, 'setup must remove every historical Storage policy');
 assert.match(setupSql, /create policy "classrecord_private_read"[\s\S]*bucket_id = 'classrecord-private'[\s\S]*has_class_record_access\(\)[\s\S]*name !~ '\^hidden\/'[\s\S]*has_class_record_admin_access\(\)/, 'the only Storage read policy must enforce invite and hidden-prefix admin access');
@@ -59,10 +53,11 @@ assert.match(storageDiagnoseSql, /using_expression[\s\S]*storage\.policy_details
 assert.match(storageDiagnoseSql, /relrowsecurity[\s\S]*storage\.objects_rls_enabled/, 'diagnosis must check Storage RLS state without mutating the managed table');
 assert.match(storageDiagnoseSql, /access\.no_header_has_access/, 'diagnosis must report no-token access helper behavior');
 assert.match(storageDiagnoseSql, /has_class_record_access\(\)/, 'diagnosis must call the no-token access helper');
+assert.match(decommissionSql, /delete from storage\.objects[\s\S]*images\/admissions\/[\s\S]*drop table if exists public\.class_admissions cascade[\s\S]*drop table if exists public\.class_universities cascade/, 'decommission SQL must remove retired Storage objects and tables');
+assert.match(decommissionSql, /drop function if exists public\.get_class_admission_map\(\)/, 'decommission SQL must remove the retired RPC');
+assert.match(decommissionSql, /create policy "classrecord_private_read"[\s\S]*images\/quiz\/[\s\S]*has_class_record_admin_access\(\)/, 'decommission SQL must restore the current guarded Storage policy');
 
 assert.match(checkSql, /storage_select_policy_count = 1 and storage_only_allowed_policy_ok/, 'security audit must require exactly one allowed Storage SELECT policy');
-assert.match(checkSql, /admissions\.private_tables_and_rpc/, 'security audit must include admissions table/RPC isolation');
-assert.match(checkSql, /admissions\.private_logo_storage/, 'security audit must include private admissions logo Storage policy');
 assert.match(checkSql, /storage\.no_extra_select_policy/, 'security audit must fail additional Storage SELECT policies');
 assert.match(checkSql, /content\.no_anon_write_grant/, 'security audit must check anon database write grants');
 assert.match(checkSql, /content\.no_write_policy/, 'security audit must reject database write policies');
@@ -85,15 +80,12 @@ assert.match(finalAccessSql, /revoke all on function public\.list_invite_access_
 
 assert.match(migration, /const storageUploadManifest = new Map\(\)/, 'migration must use an explicit Storage upload manifest');
 assert.match(migration, /await validateDatabaseSchema\(\);[\s\S]*await importRecords\(\)/, 'migration must validate its database schema before writing');
-assert.match(migration, /allowedStorageRoots = \['data\/attachments\/', 'images\/record-pages\/', 'images\/quiz\/', 'images\/admissions\/'\]/, 'migration must use a narrow binary asset root allowlist');
+assert.match(migration, /allowedStorageRoots = \['data\/attachments\/', 'images\/record-pages\/', 'images\/quiz\/'\]/, 'migration must use a narrow binary asset root allowlist');
 assert.match(migration, /source JSON is never copied to Storage/, 'migration must document that JSON is database-only');
 assert.doesNotMatch(migration, /\.\.\.await walkFiles\('data'\)/, 'migration must not upload the data directory recursively');
 assert.doesNotMatch(migration, /if \(ext === '\.json'\) return 'application\/json'/, 'JSON must not be an allowed Storage upload type');
-assert.match(migration, /const remoteFiles = await listStorageObjects\(prunePrefix\)/, '--prune must scope admissions-only runs to their own private prefix');
 assert.match(migration, /private-assets\/\$\{storagePath\.slice\('images\/'\.length\)\}/, 'quiz images must be sourced from the ignored private-assets directory');
-assert.match(migration, /ADMISSIONS_DATA_DIR/, 'admissions import must require an external private directory');
-assert.match(migration, /--confirm-prune/, 'admissions pruning must require explicit confirmation');
-assert.doesNotMatch(migration, /console\.log\([^\n]*(?:displayNameOverride|major)/, 'admissions importer must not log names or majors');
+assert.match(migration, /--confirm-prune/, 'destructive migration pruning must require explicit confirmation');
 
 assert.match(secureData, /normalizeQuizImagePath/, 'quiz Storage paths must be validated');
 assert.doesNotMatch(secureData, /expiresIn\s*=\s*60\s*\*\s*30|expiresIn\s*\|\|\s*60\s*\*\s*30/, 'signed URL lifetime must not be hard-coded to thirty minutes');
@@ -122,7 +114,6 @@ assert.deepEqual(forbiddenPublicFiles, [], `sensitive source files must not exis
 
 const gitignore = await read('.gitignore');
 assert.match(gitignore, /^data\/$/m, 'database source JSON directory must be ignored');
-assert.match(gitignore, /^ADMISSIONS_DATA_DIR\/$/m, 'admissions import data directory must be ignored');
 assert.match(gitignore, /^images\/record-pages\/$/m, 'private record page source directory must be ignored');
 assert.match(gitignore, /^images\/quiz\/lamian\/$/m, 'private quiz source directory must be ignored');
 assert.match(gitignore, /^private-assets\/$/m, 'all local private migration sources must be ignored');
@@ -146,7 +137,6 @@ try {
     trackedFiles = existing.filter(Boolean);
     const forbiddenTracked = trackedFiles.filter((file) => (
         file.startsWith('data/')
-        || file.startsWith('ADMISSIONS_DATA_DIR/')
         || file.startsWith('images/record-pages/')
         || file.startsWith('images/quiz/lamian/')
         || file.startsWith('private-assets/')

@@ -44,10 +44,6 @@
       "destination": "/404.html"
     },
     {
-      "source": "/ADMISSIONS_DATA_DIR/(.*)",
-      "destination": "/404.html"
-    },
-    {
       "source": "/images/record-pages/(.*)",
       "destination": "/404.html"
     },

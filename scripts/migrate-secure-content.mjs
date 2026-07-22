@@ -38,25 +38,18 @@ const shouldPrune = argv.has('--prune');
 const validateOnly = argv.has('--validate-only');
 const dryRun = argv.has('--dry-run');
 const confirmPrune = argv.has('--confirm-prune');
-const admissionsDataDir = String(process.env.ADMISSIONS_DATA_DIR || '').trim();
 const hiddenStoragePrefix = 'hidden/';
-const allowedStorageRoots = ['data/attachments/', 'images/record-pages/', 'images/quiz/', 'images/admissions/'];
+const allowedStorageRoots = ['data/attachments/', 'images/record-pages/', 'images/quiz/'];
 const allowedStorageExtensions = new Set([
     '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg',
     '.pdf', '.txt', '.zip', '.mp3', '.wav', '.ogg', '.mp4', '.webm'
 ]);
 const storageUploadManifest = new Map();
-const admissionsRemoteFiles = new Set();
 const requiredDatabaseColumns = {
     class_quiz_questions: [
         'id', 'content_key', 'question_group', 'question_type', 'prompt',
         'choices', 'answer', 'explanation', 'image_path', 'sort_order', 'raw'
     ]
-};
-
-const admissionsRequiredColumns = {
-    class_universities: ['id', 'name', 'province_code', 'province_name', 'city_code', 'city_name', 'logo_path', 'brand_path', 'province_display_order'],
-    class_admissions: ['id', 'person_id', 'university_id', 'display_name_override', 'major']
 };
 
 if (!url || !serviceRoleKey) {
@@ -104,8 +97,7 @@ const validateDatabaseSchema = async () => {
     const definitions = specification?.definitions || specification?.components?.schemas || {};
     const missing = [];
 
-    const specificationByTable = { ...requiredDatabaseColumns, ...(admissionsDataDir ? admissionsRequiredColumns : {}) };
-    for (const [table, requiredColumns] of Object.entries(specificationByTable)) {
+    for (const [table, requiredColumns] of Object.entries(requiredDatabaseColumns)) {
         const properties = definitions?.[table]?.properties || {};
         for (const column of requiredColumns) {
             if (!Object.prototype.hasOwnProperty.call(properties, column)) {
@@ -120,11 +112,6 @@ const validateDatabaseSchema = async () => {
             + 'Run docs/supabase-setup.sql in Supabase SQL Editor, then retry this command.'
         );
     }
-};
-
-const admissionsLog = (label, fields = {}) => {
-    // Never include student display names, majors, bearer tokens, or signed URLs.
-    console.log(label, Object.entries(fields).map(([key, value]) => `${key}=${String(value)}`).join(' '));
 };
 
 const exists = async (relativePath) => {
@@ -165,15 +152,6 @@ const fileBaseNameWithoutExt = (file) => {
         .split('/')
         .pop()
         .replace(/\.json$/i, '');
-};
-
-const readExternalJson = async (fileName) => {
-    const directory = path.resolve(admissionsDataDir);
-    const absolute = path.resolve(directory, fileName);
-    if (!admissionsDataDir || !absolute.startsWith(`${directory}${path.sep}`)) {
-        throw new Error(`Invalid admissions data path: ${fileName}`);
-    }
-    return JSON.parse(await fs.readFile(absolute, 'utf8'));
 };
 
 const parsePageSupplementFileName = (file) => {
@@ -233,160 +211,6 @@ const registerStorageAsset = (value, { hidden = false, fallbackRoot = '', localP
     const sourcePath = normalizeSlash(localPath || getDefaultLocalAssetPath(storagePath));
     storageUploadManifest.set(remotePath, { localPath: sourcePath, remotePath });
     return remotePath;
-};
-
-const admissionsStoragePath = (id, sourceFile) => {
-    const extension = path.extname(String(sourceFile || '')).toLowerCase();
-    if (!['.png', '.jpg', '.jpeg', '.webp', '.svg'].includes(extension)) {
-        throw new Error(`Admissions logo has an unsupported extension for university ID ${id}`);
-    }
-    return `images/admissions/${id}${extension === '.jpg' ? '.jpeg' : extension}`;
-};
-
-const admissionsBrandStoragePath = (id, sourceFile) => {
-    const extension = path.extname(String(sourceFile || '')).toLowerCase();
-    if (!['.png', '.jpg', '.jpeg', '.webp', '.svg'].includes(extension)) throw new Error(`Admissions brand image has an unsupported extension for university ID ${id}`);
-    return `images/admissions/${id}-brand${extension === '.jpg' ? '.jpeg' : extension}`;
-};
-
-const validateAdmissionsLogo = async (id, logoFile) => {
-    const absoluteDirectory = path.resolve(admissionsDataDir);
-    const absolute = path.resolve(absoluteDirectory, String(logoFile || ''));
-    if (!absolute.startsWith(`${absoluteDirectory}${path.sep}`)) throw new Error(`Admissions logo escaped ADMISSIONS_DATA_DIR for university ID ${id}`);
-    const info = await fs.stat(absolute).catch(() => null);
-    if (!info?.isFile()) throw new Error(`Admissions logo file is missing for university ID ${id}`);
-    if (info.size > 2 * 1024 * 1024) throw new Error(`Admissions logo is larger than 2 MiB for university ID ${id}`);
-    const extension = path.extname(absolute).toLowerCase();
-    if (!['.png', '.jpg', '.jpeg', '.webp', '.svg'].includes(extension)) throw new Error(`Admissions logo has an unsupported type for university ID ${id}`);
-    if (extension === '.svg') {
-        const contents = await fs.readFile(absolute, 'utf8');
-        if (/<(?:script|foreignObject)\b|\bon[a-z]+\s*=|(?:href|xlink:href)\s*=\s*["']\s*(?:https?:|javascript:)/i.test(contents)) {
-            throw new Error(`Admissions SVG is unsafe for university ID ${id}`);
-        }
-    }
-    const bytes = await fs.readFile(absolute);
-    const looksLikePng = bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
-    const looksLikeJpeg = bytes.subarray(0, 3).equals(Buffer.from([255, 216, 255]));
-    const looksLikeWebp = bytes.subarray(0, 12).toString('ascii', 0, 4) === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP';
-    if ((extension === '.png' && !looksLikePng) || ((extension === '.jpg' || extension === '.jpeg') && !looksLikeJpeg) || (extension === '.webp' && !looksLikeWebp)) {
-        throw new Error(`Admissions logo MIME signature does not match its extension for university ID ${id}`);
-    }
-    return { absolute, extension };
-};
-
-const loadMapProvinceCodes = async () => {
-    const mapPath = path.join(root, 'maps', 'china-provinces.geojson');
-    const map = JSON.parse(await fs.readFile(mapPath, 'utf8').catch(() => {
-        throw new Error('Missing maps/china-provinces.geojson. Install a reviewed, authoritative GeoJSON before importing admissions.');
-    }));
-    if (map?.type !== 'FeatureCollection' || !Array.isArray(map.features)) throw new Error('Map GeoJSON must be a FeatureCollection.');
-    const codeForFeature = (feature) => {
-        const properties = feature?.properties || {};
-        const direct = String(properties.adcode || '').trim();
-        if (/^\d{6}$/.test(direct)) return direct;
-        const match = /^156(\d{6})$/.exec(String(properties.gb || '').trim());
-        return match ? match[1] : '';
-    };
-    const provinces = new Map(map.features.map((feature) => [codeForFeature(feature), String(feature?.properties?.name || '').trim()]).filter(([code, name]) => /^\d{6}$/.test(code) && name));
-    if (!provinces.size) throw new Error('Map GeoJSON contains neither six-digit properties.adcode nor Tianditu properties.gb codes.');
-    return provinces;
-};
-
-const loadMapCities = async () => {
-    const mapPath = path.join(root, 'maps', 'china-cities.geojson');
-    const map = JSON.parse(await fs.readFile(mapPath, 'utf8').catch(() => { throw new Error('Missing maps/china-cities.geojson. Install the reviewed city-boundary GeoJSON before importing admissions.'); }));
-    if (map?.type !== 'FeatureCollection' || !Array.isArray(map.features)) throw new Error('City GeoJSON must be a FeatureCollection.');
-    const cities = new Map();
-    map.features.forEach((feature) => {
-        const properties = feature?.properties || {}; const direct = String(properties.adcode || '').trim(); const match = /^156(\d{6})$/.exec(String(properties.gb || '').trim()); const code = /^\d{6}$/.test(direct) ? direct : (match?.[1] || ''); const name = String(properties.name || '').trim();
-        if (/^\d{6}$/.test(code) && name) cities.set(code, name);
-    });
-    if (!cities.size) throw new Error('City GeoJSON contains no usable city codes.');
-    return cities;
-};
-
-const importAdmissions = async () => {
-    if (!admissionsDataDir) return;
-    const dataDirectory = path.resolve(admissionsDataDir);
-    const directoryInfo = await fs.stat(dataDirectory).catch(() => null);
-    if (!directoryInfo?.isDirectory()) throw new Error('ADMISSIONS_DATA_DIR does not exist or is not a directory.');
-    const [universityDocument, admissionsDocument, mapCodes, cityMap] = await Promise.all([
-        readExternalJson('universities.json'), readExternalJson('admissions.json'), loadMapProvinceCodes(), loadMapCities()
-    ]);
-    const universities = Array.isArray(universityDocument) ? universityDocument : universityDocument?.universities;
-    const admissions = Array.isArray(admissionsDocument) ? admissionsDocument : admissionsDocument?.admissions;
-    if (!Array.isArray(universities) || !universities.length) throw new Error('universities.json must contain a non-empty universities array.');
-    if (!Array.isArray(admissions) || !admissions.length) throw new Error('admissions.json must contain a non-empty admissions array. Refusing to import or prune.');
-
-    const universityRows = [];
-    const universityIds = new Set();
-    for (const source of universities) {
-        const id = String(source?.id || '').trim();
-        const provinceCode = String(source?.provinceCode || source?.province_code || '').trim();
-        const cityCode = String(source?.cityCode || source?.city_code || '').trim();
-        if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(id)) throw new Error('University ID must be lowercase ASCII slug.');
-        if (universityIds.has(id)) throw new Error(`Duplicate university ID: ${id}`);
-        universityIds.add(id);
-        if (!mapCodes.has(provinceCode)) throw new Error(`University province code does not match map data: ${provinceCode}`);
-        if (!String(source?.name || '').trim() || !/^\d{6}$/.test(cityCode) || !cityCode.startsWith(provinceCode.slice(0, 2)) || !cityMap.has(cityCode)) throw new Error(`University cityCode is invalid or does not match map data for ID ${id}`);
-        let logoPath = null;
-        let brandPath = null;
-        if (source?.logo) {
-            const checked = await validateAdmissionsLogo(id, source.logo);
-            logoPath = admissionsStoragePath(id, source.logo);
-            admissionsRemoteFiles.add(logoPath);
-            storageUploadManifest.set(logoPath, { localPath: checked.absolute, remotePath: logoPath, external: true });
-        }
-        if (source?.brandImage || source?.brand_image) {
-            const brandSource = source.brandImage || source.brand_image;
-            const checked = await validateAdmissionsLogo(id, brandSource);
-            brandPath = admissionsBrandStoragePath(id, brandSource);
-            admissionsRemoteFiles.add(brandPath);
-            storageUploadManifest.set(brandPath, { localPath: checked.absolute, remotePath: brandPath, external: true });
-        }
-        universityRows.push({
-            id, name: String(source.name).trim(), short_name: String(source.shortName || source.short_name || '').trim() || null,
-            province_code: provinceCode, province_name: mapCodes.get(provinceCode),
-            city_code: cityCode, city_name: cityMap.get(cityCode), campus: String(source.campus || '').trim() || null,
-            logo_path: logoPath, brand_path: brandPath,
-            province_display_order: Number.isFinite(Number(source.provinceDisplayOrder)) ? Number(source.provinceDisplayOrder) : 0,
-            display_order: Number.isFinite(Number(source.displayOrder)) ? Number(source.displayOrder) : 0
-        });
-    }
-    const personIds = new Set();
-    const admissionRows = admissions.map((source, index) => {
-        const personId = String(source?.personId || source?.person_id || '').trim();
-        const universityId = String(source?.universityId || source?.university_id || '').trim();
-        if (!personId || !universityId || !universityIds.has(universityId)) throw new Error(`Admission record ${index + 1} has an unknown person or university ID.`);
-        if (personIds.has(personId)) throw new Error(`Duplicate final admission person ID: ${personId}`);
-        personIds.add(personId);
-        return { person_id: personId, university_id: universityId, display_name_override: String(source.displayNameOverride || source.display_name_override || '').trim() || null, major: String(source.major || '').trim() || null, display_order: 0 };
-    });
-    // Validate references without exposing names. Service-role access is used only in this local script.
-    const people = await request(`/rest/v1/class_people?select=id&id=in.${encodeURIComponent(quoteList([...personIds]))}`);
-    const found = new Set((people || []).map((row) => String(row.id)));
-    const missing = [...personIds].filter((id) => !found.has(id));
-    if (missing.length) throw new Error(`Admissions reference ${missing.length} person IDs that do not exist in class_people.`);
-    admissionsLog('Validated admissions import', { universities: universityRows.length, admissions: admissionRows.length, logos: admissionsRemoteFiles.size });
-    // Store logos before their database references are visible. If this step
-    // fails, no admission/university rows are written. Existing orphaned logos
-    // are safely handled by the explicit prune pass.
-    await uploadAdmissionsAssets();
-    await upsert('class_universities', universityRows, 'id');
-    await upsert('class_admissions', admissionRows, 'person_id');
-    if (shouldPrune) {
-        if (!confirmPrune) throw new Error('--prune requires --confirm-prune. No deletion was performed.');
-        await pruneTable('class_admissions', 'person_id', [...personIds]);
-        // Universities referenced by historical admissions are protected by FK; remove only unreferenced rows via a server-side safe condition.
-        if (!validateOnly && !dryRun) {
-            const referenced = await request('/rest/v1/class_admissions?select=university_id');
-            const protectedIds = new Set((referenced || []).map((row) => String(row.university_id)));
-            const allUniversities = await request('/rest/v1/class_universities?select=id');
-            const deletable = (allUniversities || []).map((row) => String(row.id)).filter((id) => !universityIds.has(id) && !protectedIds.has(id));
-            if (deletable.length) await request(`/rest/v1/class_universities?id=in.${encodeURIComponent(quoteList(deletable))}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
-            admissionsLog('Pruned unreferenced universities', { deleted: deletable.length, retained: protectedIds.size });
-        }
-    }
 };
 
 const rewriteMarkupAssets = (value, { hidden = false } = {}) => {
@@ -495,7 +319,7 @@ const upsert = async (table, rows, onConflict) => {
     assertUnique(rows, onConflict, table);
 
     if (validateOnly || dryRun) {
-        admissionsLog('Validated table write', { table, rows: rows.length, mode: validateOnly ? 'validate-only' : 'dry-run' });
+        console.log(`Validated table write: ${table}, rows=${rows.length}, mode=${validateOnly ? 'validate-only' : 'dry-run'}`);
         return;
     }
 
@@ -521,7 +345,7 @@ const pruneTable = async (table, keyColumn, keepValues) => {
     if (!shouldPrune) return;
 
     if (validateOnly || dryRun) {
-        admissionsLog('Validated table prune', { table, keep: keepValues.length, mode: validateOnly ? 'validate-only' : 'dry-run' });
+        console.log(`Validated table prune: ${table}, keep=${keepValues.length}, mode=${validateOnly ? 'validate-only' : 'dry-run'}`);
         return;
     }
 
@@ -873,11 +697,7 @@ const pruneStorage = async (allowedRemoteFiles) => {
     }
     const keep = new Set(allowedRemoteFiles);
 
-    // Admissions imports may be run without the rest of the site's private
-    // source tree. In that mode prune only its own prefix; it must never turn
-    // a missing unrelated source directory into a bucket-wide deletion.
-    const prunePrefix = admissionsDataDir ? 'images/admissions' : '';
-    const remoteFiles = await listStorageObjects(prunePrefix);
+    const remoteFiles = await listStorageObjects();
 
     const stale = remoteFiles.filter((file) => !keep.has(file));
 
@@ -937,26 +757,10 @@ const uploadPrivateFiles = async () => {
             body
         });
         item.uploaded = true;
-        admissionsLog('Uploaded private asset', { current: index + 1, total: uploadable.length, file: path.basename(item.remotePath) });
+        console.log(`Uploaded private asset: ${index + 1} / ${uploadable.length}`);
     }
 
     await pruneStorage([...storageUploadManifest.values()].map((item) => item.remotePath));
-};
-
-const uploadAdmissionsAssets = async () => {
-    const candidates = [...storageUploadManifest.values()].filter((item) => item.external && !item.uploaded);
-    if (!candidates.length || validateOnly || dryRun) return;
-    for (const [index, item] of candidates.entries()) {
-        const info = await fs.stat(item.localPath).catch(() => null);
-        if (!info?.isFile()) throw new Error('Validated admissions logo disappeared before upload.');
-        await request(`/storage/v1/object/${bucket}/${item.remotePath}`, {
-            method: 'POST',
-            headers: { 'Content-Type': contentTypeFor(item.localPath), 'Cache-Control': '300', 'x-upsert': 'true' },
-            body: await fs.readFile(item.localPath)
-        });
-        item.uploaded = true;
-        admissionsLog('Uploaded admissions logo', { current: index + 1, total: candidates.length, file: path.basename(item.remotePath) });
-    }
 };
 
 await validateDatabaseSchema();
@@ -968,7 +772,6 @@ await importPageSupplements();
 await importMaterials();
 await importQuiz();
 await importCreditsPage();
-await importAdmissions();
 await uploadPrivateFiles();
 
 console.log(shouldPrune ? 'Migration complete. Remote stale data/files were pruned.' : 'Migration complete.');

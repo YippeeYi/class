@@ -141,7 +141,6 @@ node scripts/migrate-secure-content.mjs --prune
 文件名建议使用稳定的英文、数字、短横线或下划线，例如：
 
 ```text
-school-map.json
 exam-rules.json
 chemistry-notes.json
 ```
