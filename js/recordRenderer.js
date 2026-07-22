@@ -1158,6 +1158,7 @@ const illustrationDimensionCache = new Map();
 const illustrationWarmPromises = new Map();
 const illustrationPreviewWarmPromises = new Map();
 const ILLUSTRATION_DISPLAY_TRANSFORM = Object.freeze({ width: 960, quality: 76 });
+const ILLUSTRATION_METADATA_RANGE_BYTES = 64 * 1024;
 
 function getIllustrationDisplayTransform() {
     return window.ClassRecordData?.displayTransforms?.illustration || ILLUSTRATION_DISPLAY_TRANSFORM;
@@ -1194,6 +1195,81 @@ window.addEventListener("classrecordcacheclearing", () => {
     window.ClassRecordIllustrationMetadataPromise = null;
 });
 
+function validIllustrationDimensions(width, height) {
+    return Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
+}
+
+function parseIllustrationDimensions(bytes, contentType = "") {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const has = (offset, values) => values.every((value, index) => bytes[offset + index] === value);
+    const readU24LE = (offset) => bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16);
+    if (bytes.length >= 24 && has(0, [137, 80, 78, 71, 13, 10, 26, 10])) return { width: view.getUint32(16), height: view.getUint32(20) };
+    if (bytes.length >= 10 && (has(0, [71, 73, 70, 56, 55, 97]) || has(0, [71, 73, 70, 56, 57, 97]))) return { width: view.getUint16(6, true), height: view.getUint16(8, true) };
+    if (bytes.length >= 12 && has(0, [82, 73, 70, 70]) && has(8, [87, 69, 66, 80])) {
+        const chunk = String.fromCharCode(...bytes.slice(12, 16));
+        if (chunk === "VP8X" && bytes.length >= 31) return { width: readU24LE(24) + 1, height: readU24LE(27) + 1 };
+        if (chunk === "VP8 " && bytes.length >= 30 && has(23, [157, 1, 42])) return { width: view.getUint16(26, true) & 0x3fff, height: view.getUint16(28, true) & 0x3fff };
+        if (chunk === "VP8L" && bytes.length >= 25 && bytes[20] === 0x2f) return { width: 1 + (bytes[21] | ((bytes[22] & 0x3f) << 8)), height: 1 + ((bytes[22] >> 6) | (bytes[23] << 2) | ((bytes[24] & 0x0f) << 10)) };
+    }
+    if (bytes.length >= 10 && has(0, [255, 216])) {
+        const sofMarkers = new Set([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf]);
+        for (let offset = 2; offset + 9 < bytes.length;) {
+            if (bytes[offset] !== 0xff) { offset += 1; continue; }
+            while (bytes[offset] === 0xff) offset += 1;
+            const marker = bytes[offset];
+            if (marker === 0xd8 || marker === 0xd9) { offset += 1; continue; }
+            const segmentLength = view.getUint16(offset + 1);
+            if (segmentLength < 2 || offset + 1 + segmentLength > bytes.length) break;
+            if (sofMarkers.has(marker)) return { width: view.getUint16(offset + 6), height: view.getUint16(offset + 4) };
+            offset += 1 + segmentLength;
+        }
+    }
+    if (/svg/i.test(contentType) || String.fromCharCode(...bytes.slice(0, Math.min(bytes.length, 256))).includes("<svg")) {
+        const source = new TextDecoder().decode(bytes);
+        const tag = /<svg\b[^>]*>/i.exec(source)?.[0] || "";
+        const width = Number.parseFloat(/\bwidth\s*=\s*["']\s*([\d.]+)/i.exec(tag)?.[1] || "");
+        const height = Number.parseFloat(/\bheight\s*=\s*["']\s*([\d.]+)/i.exec(tag)?.[1] || "");
+        if (validIllustrationDimensions(width, height)) return { width, height };
+        const viewBox = /\bviewBox\s*=\s*["']\s*[-\d.]+[ ,]+[-\d.]+[ ,]+([\d.]+)[ ,]+([\d.]+)/i.exec(tag);
+        if (viewBox) return { width: Number(viewBox[1]), height: Number(viewBox[2]) };
+    }
+    return null;
+}
+
+async function loadIllustrationMetadata(path, { priority = "low" } = {}) {
+    const sourcePath = String(path || "").trim();
+    const data = window.ClassRecordData;
+    const url = data?.isEnabled?.()
+        ? await Promise.resolve(data.signAssetUrl?.(sourcePath, { quiet: true })).catch(() => "")
+        : sourcePath;
+    if (!url || typeof fetch !== "function") return null;
+    try {
+        const response = await fetch(url, { headers: { Range: `bytes=0-${ILLUSTRATION_METADATA_RANGE_BYTES - 1}` }, priority });
+        if (!response.ok) return null;
+        const dimensions = parseIllustrationDimensions(new Uint8Array(await response.arrayBuffer()), response.headers.get("content-type") || "");
+        return dimensions && validIllustrationDimensions(dimensions.width, dimensions.height) ? dimensions : null;
+    } catch {
+        return null;
+    }
+}
+
+function loadIllustrationMetadataWithImage(path, { priority = "low" } = {}) {
+    const sourcePath = String(path || "").trim();
+    const data = window.ClassRecordData;
+    const urlPromise = data?.isEnabled?.()
+        ? Promise.resolve(data.signAssetUrl?.(sourcePath, { quiet: true })).catch(() => "")
+        : Promise.resolve(sourcePath);
+    return Promise.resolve(urlPromise).then((url) => new Promise((resolve) => {
+        if (!url) { resolve(null); return; }
+        const image = new Image();
+        image.decoding = "async";
+        image.fetchPriority = priority;
+        image.onload = () => resolve(validIllustrationDimensions(image.naturalWidth, image.naturalHeight) ? { width: image.naturalWidth, height: image.naturalHeight } : null);
+        image.onerror = () => resolve(null);
+        image.src = url;
+    }));
+}
+
 function warmIllustrationPreview(path, { priority = "low" } = {}) {
     const sourcePath = String(path || "").trim();
     if (!sourcePath) return Promise.resolve(null);
@@ -1221,36 +1297,12 @@ function warmIllustrationAsset(path, { priority = "low" } = {}) {
     if (getIllustrationSourceDimensions(sourcePath)) return Promise.resolve(getIllustrationSourceDimensions(sourcePath));
     if (illustrationWarmPromises.has(sourcePath)) return illustrationWarmPromises.get(sourcePath);
     const promise = (async () => {
-        const data = window.ClassRecordData;
-        if (!data?.isEnabled?.()) {
-            // Development/static deployments follow the same contract: read
-            // dimensions during initialization, never during a hover.
-            const local = await new Promise((resolve) => {
-                const image = new Image();
-                image.decoding = "async";
-                image.fetchPriority = priority;
-                image.onload = () => resolve(image.naturalWidth > 0 && image.naturalHeight > 0 ? image : null);
-                image.onerror = () => resolve(null);
-                image.src = sourcePath;
-            });
-            if (!local) return null;
-            rememberIllustrationDimensions(sourcePath, local.naturalWidth, local.naturalHeight);
-            illustrationReadyCache.set(sourcePath, { url: sourcePath, width: local.naturalWidth, height: local.naturalHeight });
-            return getIllustrationSourceDimensions(sourcePath);
-        }
-        // Metadata deliberately comes from the original asset. A transformed
-        // thumbnail may have a different pixel size even though it has the
-        // same aspect ratio, so it cannot satisfy the source-dimension cache.
-        const metadata = (async () => {
-            const url = await data.preloadAsset(sourcePath, { priority, transform: null });
-            const original = data.getPreloadedAsset(sourcePath, { transform: null });
-            if (!url || !original?.width || !original?.height) return null;
-            rememberIllustrationDimensions(sourcePath, original.width, original.height);
-            return getIllustrationSourceDimensions(sourcePath);
-        })();
-        // The display variant is warmed in parallel. Its URL is optional for
-        // sizing: the frame already uses the original metadata above.
-        const [dimensions] = await Promise.all([metadata, warmIllustrationPreview(sourcePath, { priority })]);
+        // Read only enough of the original file to parse its intrinsic size.
+        // A full Image decode is a compatibility fallback, not a preview warmup.
+        const dimensions = await loadIllustrationMetadata(sourcePath, { priority })
+            || await loadIllustrationMetadataWithImage(sourcePath, { priority });
+        if (!dimensions) return null;
+        rememberIllustrationDimensions(sourcePath, dimensions.width, dimensions.height);
         return dimensions;
     })().catch(() => null).finally(() => {
         illustrationWarmPromises.delete(sourcePath);
@@ -1677,21 +1729,30 @@ function setIllustrationFailure(tooltip) {
     tooltip.appendChild(message);
 }
 
-function setIllustrationFrameSize(tooltip, image, naturalWidth, naturalHeight) {
-    const maxWidth = Math.min(360, window.innerWidth * 0.8);
-    const maxHeight = Math.min(280, window.innerHeight * 0.6);
+function calculateIllustrationPreviewFrame(naturalWidth, naturalHeight, { viewportWidth = window.innerWidth, viewportHeight = window.innerHeight, horizontalChrome = 0, verticalChrome = 0 } = {}) {
+    const maxWidth = Math.max(1, Math.min(360, viewportWidth - 24 - horizontalChrome));
+    const maxHeight = Math.max(1, Math.min(280, viewportHeight - 24 - verticalChrome));
     const scale = Math.min(1, maxWidth / naturalWidth, maxHeight / naturalHeight);
-    const width = Math.max(1, Math.round(naturalWidth * scale));
-    const height = Math.max(1, Math.round(naturalHeight * scale));
+    // Keep fractional CSS pixels: rounding each axis independently would
+    // introduce a small but avoidable aspect-ratio error for tall images.
+    const width = Math.max(1, naturalWidth * scale);
+    const height = Math.max(1, naturalHeight * scale);
+    return { width, height, tooltipWidth: width + horizontalChrome, tooltipHeight: height + verticalChrome, ratio: width / height };
+}
+
+window.calculateIllustrationPreviewFrame = calculateIllustrationPreviewFrame;
+
+function setIllustrationFrameSize(tooltip, image, naturalWidth, naturalHeight) {
     const style = getComputedStyle(tooltip);
     const horizontalChrome = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
         + parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
     const verticalChrome = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
         + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
-    tooltip.style.width = `${width + horizontalChrome}px`;
-    tooltip.style.height = `${height + verticalChrome}px`;
-    image.style.width = `${width}px`;
-    image.style.height = `${height}px`;
+    const frame = calculateIllustrationPreviewFrame(naturalWidth, naturalHeight, { horizontalChrome, verticalChrome });
+    tooltip.style.width = `${frame.tooltipWidth}px`;
+    tooltip.style.height = `${frame.tooltipHeight}px`;
+    image.style.width = `${frame.width}px`;
+    image.style.height = `${frame.height}px`;
 }
 
 function calculateInlineTooltipPosition({ tagRects, tagRect, tooltipRect, viewportWidth, viewportHeight, pointer, padding = 12, gap = 8 }) {

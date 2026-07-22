@@ -4,16 +4,25 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
-const requested = [];
+const metadataRequests = [];
 const sourceCalls = [];
 const ready = new Map();
 const sourceSizes = new Map([
     ['data/attachments/record.png', { width: 2400, height: 1350 }],
+    ['hidden/data/attachments/hidden-record.png', { width: 1024, height: 768 }],
     ['data/attachments/message.jpg', { width: 900, height: 1600 }],
     ['data/attachments/supplement.webp', { width: 1280, height: 720 }],
+    ['hidden/data/attachments/hidden-supplement.webp', { width: 720, height: 1280 }],
     ['data/attachments/material.gif', { width: 640, height: 640 }]
 ]);
-const variantKey = (path, options = {}) => `${path}::${options.transform ? 'preview' : 'original'}`;
+const pngHeader = ({ width, height }) => {
+    const bytes = new Uint8Array(24);
+    bytes.set([137, 80, 78, 71, 13, 10, 26, 10]);
+    const view = new DataView(bytes.buffer);
+    view.setUint32(16, width);
+    view.setUint32(20, height);
+    return bytes;
+};
 const makeLoader = (name, value) => async () => {
     sourceCalls.push(name);
     return value;
@@ -24,21 +33,17 @@ const window = {
     PeopleStore: { people: [] },
     ClassRecordData: {
         isEnabled: () => true,
-        loadRecords: makeLoader('records', [{ content: '[[illu:record.png|记录插图]]' }]),
-        loadPageMessages: makeLoader('messages', [{ content: '[[illu:message.jpg|箴言插图]]' }]),
-        loadPageSupplements: makeLoader('supplements', [{ content: '[[illu:supplement.webp|补充插图]]' }]),
-        loadMaterials: makeLoader('materials', [{ content: '[[illu:material.gif|资料插图]][[illu:record.png|重复]]' }]),
-        preloadAsset: async (path, options) => {
-            requested.push({ path, options });
-            const original = sourceSizes.get(path);
-            const preview = options.transform
-                ? { width: Math.min(960, original.width), height: Math.round(Math.min(960, original.width) * original.height / original.width) }
-                : original;
-            const asset = { url: `https://storage.test/${options.transform ? 'preview/' : ''}${path}`, ...preview };
-            ready.set(variantKey(path, options), asset);
-            return asset.url;
+        loadRecords: async ({ hidden }) => {
+            sourceCalls.push(hidden ? 'hidden-records' : 'records');
+            return [{ content: hidden ? '[[illu:hidden/hidden-record.png|隐藏记录插图]]' : '[[illu:record.png|记录插图]]' }];
         },
-        getPreloadedAsset: (path, options) => ready.get(variantKey(path, options)) || null
+        loadPageMessages: makeLoader('messages', [{ content: '[[illu:message.jpg|箴言插图]]' }]),
+        loadPageSupplements: async ({ hidden }) => {
+            sourceCalls.push(hidden ? 'hidden-supplements' : 'supplements');
+            return [{ content: hidden ? '[[illu:hidden/hidden-supplement.webp|隐藏补充插图]]' : '[[illu:supplement.webp|补充插图]]' }];
+        },
+        loadMaterials: makeLoader('materials', [{ content: '[[illu:material.gif|资料插图]][[illu:record.png|重复]]' }]),
+        signAssetUrl: async (path) => `https://storage.test/${path}`
     }
 };
 
@@ -55,6 +60,16 @@ const context = vm.createContext({
         getElementById() { return null; }
     },
     requestAnimationFrame() {},
+    fetch: async (url, options) => {
+        const path = new URL(url).pathname.slice(1);
+        metadataRequests.push({ path, options });
+        const bytes = pngHeader(sourceSizes.get(path));
+        return {
+            ok: true,
+            arrayBuffer: async () => bytes.buffer,
+            headers: { get: () => 'image/png' }
+        };
+    },
     setTimeout(callback) { callback(); return 1; },
     clearTimeout() {}
 });
@@ -63,21 +78,28 @@ const source = await readFile(new URL('../js/recordRenderer.js', import.meta.url
 vm.runInContext(source, context);
 const result = await window.ClassRecordIllustrationMetadataPromise;
 
-assert.deepEqual(sourceCalls.sort(), ['materials', 'messages', 'records', 'records', 'supplements', 'supplements']);
-assert.deepEqual([...new Set(requested.map((item) => item.path))].sort(), [
+assert.deepEqual(sourceCalls.sort(), ['hidden-records', 'hidden-supplements', 'materials', 'messages', 'records', 'supplements']);
+assert.deepEqual(metadataRequests.map((item) => item.path).sort(), [
     'data/attachments/material.gif',
     'data/attachments/message.jpg',
     'data/attachments/record.png',
-    'data/attachments/supplement.webp'
+    'data/attachments/supplement.webp',
+    'hidden/data/attachments/hidden-record.png',
+    'hidden/data/attachments/hidden-supplement.webp'
 ]);
-assert.ok(requested.every((item) => item.options.priority === 'low'), 'all illustration preloads must remain low-priority startup work');
-assert.ok(requested.some((item) => item.options.transform === null), 'metadata warmup must obtain dimensions from original assets');
-assert.ok(requested.some((item) => item.options.transform?.width === 960), 'display thumbnails may warm in parallel with original metadata');
-assert.equal(requested.filter((item) => item.options.transform === null).length, 4, 'every unique illustration must have one original metadata request');
-assert.equal(requested.filter((item) => item.options.transform?.width === 960).length, 4, 'every unique illustration may warm one display preview in parallel');
-assert.deepEqual({ ...result }, { total: 4, loaded: 4 });
+assert.ok(metadataRequests.every((item) => item.options.headers.Range === 'bytes=0-65535'), 'metadata warmup must request only the bounded image header range');
+assert.equal(metadataRequests.length, 6, 'every unique illustration must have one metadata request and no preview-image warmup');
+assert.deepEqual({ ...result }, { total: 6, loaded: 6 });
 assert.deepEqual({ ...window.getIllustrationSourceDimensions('data/attachments/record.png') }, { width: 2400, height: 1350, ratio: 16 / 9 });
 assert.deepEqual({ ...window.getIllustrationSourceDimensions('data/attachments/message.jpg') }, { width: 900, height: 1600, ratio: 9 / 16 });
+assert.deepEqual({ ...window.getIllustrationSourceDimensions('hidden/data/attachments/hidden-record.png') }, { width: 1024, height: 768, ratio: 4 / 3 });
 assert.deepEqual({ ...window.illuSizeCache.get('data/attachments/record.png') }, { width: 2400, height: 1350, ratio: 16 / 9 });
+const wideFrame = window.calculateIllustrationPreviewFrame(2400, 1350, { viewportWidth: 1200, viewportHeight: 800, horizontalChrome: 22, verticalChrome: 22 });
+const tallFrame = window.calculateIllustrationPreviewFrame(900, 1600, { viewportWidth: 1200, viewportHeight: 800, horizontalChrome: 22, verticalChrome: 22 });
+const squareFrame = window.calculateIllustrationPreviewFrame(640, 640, { viewportWidth: 390, viewportHeight: 280, horizontalChrome: 22, verticalChrome: 22 });
+assert.equal(wideFrame.ratio, 16 / 9, 'wide previews must retain their cached source ratio');
+assert.equal(tallFrame.ratio, 9 / 16, 'tall previews must retain their cached source ratio');
+assert.equal(squareFrame.ratio, 1, 'small-screen previews must retain square source ratio');
+assert.ok(squareFrame.tooltipWidth <= 366 && squareFrame.tooltipHeight <= 256, 'the fixed frame must remain wholly inside a narrow viewport without cropping');
 
 console.log('Passed all-source illustration metadata and mixed-aspect preload checks.');
