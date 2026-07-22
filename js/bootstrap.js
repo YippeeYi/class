@@ -58,9 +58,10 @@ window.cacheReadyPromise = (async () => {
     await waitForAccess();
 
     const criticalLoaders = detectCriticalLoaders();
-    if (criticalLoaders.length === 0) {
-        return;
-    }
-
-    await Promise.all(criticalLoaders.map((loader) => loader()));
+    const critical = criticalLoaders.length === 0
+        ? Promise.resolve()
+        : Promise.all(criticalLoaders.map((loader) => loader()));
+    // recordRenderer can load before this bootstrap on several pages. Keep its
+    // all-source illustration metadata pass in the page initialization gate.
+    await Promise.all([critical, window.ClassRecordIllustrationMetadataPromise || Promise.resolve()]);
 })();

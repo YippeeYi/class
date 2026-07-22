@@ -6755,7 +6755,7 @@ body.admissions-page { background: #fff !important; background-image: none !impo
 .admissions-actions, .admissions-detail-actions { gap: 17px; }
 .admissions-status { min-height: 0; margin: 0; color: #bd4848; font-size: .86rem; }
 .admissions-national { position: relative; min-height: 0; }
-.admissions-map-svg { display: block; width: 100%; height: auto; max-width: 100%; overflow: visible; }
+.admissions-map-svg { display: block; flex: none; width: 100%; height: auto; aspect-ratio: 1440 / 900; max-width: 100%; overflow: visible; }
 /* Shape transforms are SVG attributes (translate + one uniform scale), never CSS transforms. */
 .admissions-map-shape-layer { transition: none; }
 .admissions-province { transition: opacity 480ms ease, filter 480ms ease, fill 300ms ease; }

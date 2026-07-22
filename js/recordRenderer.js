@@ -1153,10 +1153,10 @@ function getInlineMarkerRects(tag) {
     return rects.length ? rects : [tag.getBoundingClientRect()];
 }
 
-const illustrationPreloadCache = new Map();
 const illustrationReadyCache = new Map();
 const illustrationDimensionCache = new Map();
 const illustrationWarmPromises = new Map();
+const illustrationPreviewWarmPromises = new Map();
 const ILLUSTRATION_DISPLAY_TRANSFORM = Object.freeze({ width: 960, quality: 76 });
 
 function getIllustrationDisplayTransform() {
@@ -1164,65 +1164,94 @@ function getIllustrationDisplayTransform() {
 }
 
 window.imageSizeCache = window.imageSizeCache || {};
+window.illuSizeCache = window.illuSizeCache instanceof Map ? window.illuSizeCache : new Map();
 
 function getIllustrationSourceDimensions(path) {
     const sourcePath = String(path || "").trim();
-    return illustrationDimensionCache.get(sourcePath) || window.imageSizeCache?.[sourcePath] || null;
+    return illustrationDimensionCache.get(sourcePath)
+        || window.illuSizeCache.get(sourcePath)
+        || window.imageSizeCache?.[sourcePath]
+        || null;
 }
 
 function rememberIllustrationDimensions(path, width, height) {
     if (!path || width <= 0 || height <= 0) return;
-    const dimensions = { width, height };
+    const dimensions = { width, height, ratio: width / height };
     illustrationDimensionCache.set(path, dimensions);
+    window.illuSizeCache.set(path, dimensions);
     window.imageSizeCache[path] = dimensions;
 }
 
 window.getIllustrationSourceDimensions = getIllustrationSourceDimensions;
 
 window.addEventListener("classrecordcacheclearing", () => {
-    illustrationPreloadCache.clear();
     illustrationReadyCache.clear();
     illustrationDimensionCache.clear();
     illustrationWarmPromises.clear();
+    illustrationPreviewWarmPromises.clear();
+    window.illuSizeCache.clear();
     window.imageSizeCache = {};
     window.ClassRecordIllustrationMetadataPromise = null;
 });
 
-function resolveIllustrationUrl(path) {
+function warmIllustrationPreview(path, { priority = "low" } = {}) {
     const sourcePath = String(path || "").trim();
     if (!sourcePath) return Promise.resolve(null);
-    if (illustrationWarmPromises.has(sourcePath)) {
-        return illustrationWarmPromises.get(sourcePath).then((item) => item?.url || null);
-    }
-    if (illustrationPreloadCache.has(sourcePath)) return illustrationPreloadCache.get(sourcePath);
-    const promise = window.ClassRecordData?.isEnabled?.()
-        ? window.ClassRecordData.preloadAsset(sourcePath, {
-            priority: "low",
-            transform: getIllustrationDisplayTransform()
-        }).catch(() => null)
-        : Promise.resolve(sourcePath);
-    const reusable = promise.finally(() => {
-        if (illustrationPreloadCache.get(sourcePath) === reusable) illustrationPreloadCache.delete(sourcePath);
+    if (illustrationReadyCache.has(sourcePath)) return Promise.resolve(illustrationReadyCache.get(sourcePath));
+    if (illustrationPreviewWarmPromises.has(sourcePath)) return illustrationPreviewWarmPromises.get(sourcePath);
+    const promise = (async () => {
+        const data = window.ClassRecordData;
+        if (!data?.isEnabled?.()) return { url: sourcePath };
+        const transform = getIllustrationDisplayTransform();
+        const url = await data.preloadAsset(sourcePath, { priority, transform });
+        const ready = data.getPreloadedAsset(sourcePath, { transform });
+        if (!url || !ready?.url) return null;
+        illustrationReadyCache.set(sourcePath, ready);
+        return ready;
+    })().catch(() => null).finally(() => {
+        illustrationPreviewWarmPromises.delete(sourcePath);
     });
-    illustrationPreloadCache.set(sourcePath, reusable);
-    return reusable;
+    illustrationPreviewWarmPromises.set(sourcePath, promise);
+    return promise;
 }
 
 function warmIllustrationAsset(path, { priority = "low" } = {}) {
     const sourcePath = String(path || "").trim();
     if (!sourcePath) return Promise.resolve(null);
-    if (illustrationReadyCache.has(sourcePath)) return Promise.resolve(illustrationReadyCache.get(sourcePath));
+    if (getIllustrationSourceDimensions(sourcePath)) return Promise.resolve(getIllustrationSourceDimensions(sourcePath));
     if (illustrationWarmPromises.has(sourcePath)) return illustrationWarmPromises.get(sourcePath);
     const promise = (async () => {
         const data = window.ClassRecordData;
-        if (!data?.isEnabled?.()) return null;
-        const transform = getIllustrationDisplayTransform();
-        const url = await data.preloadAsset(sourcePath, { priority, transform });
-        const ready = data.getPreloadedAsset(sourcePath, { transform });
-        if (!url || !ready?.width || !ready?.height) return null;
-        rememberIllustrationDimensions(sourcePath, ready.width, ready.height);
-        illustrationReadyCache.set(sourcePath, ready);
-        return ready;
+        if (!data?.isEnabled?.()) {
+            // Development/static deployments follow the same contract: read
+            // dimensions during initialization, never during a hover.
+            const local = await new Promise((resolve) => {
+                const image = new Image();
+                image.decoding = "async";
+                image.fetchPriority = priority;
+                image.onload = () => resolve(image.naturalWidth > 0 && image.naturalHeight > 0 ? image : null);
+                image.onerror = () => resolve(null);
+                image.src = sourcePath;
+            });
+            if (!local) return null;
+            rememberIllustrationDimensions(sourcePath, local.naturalWidth, local.naturalHeight);
+            illustrationReadyCache.set(sourcePath, { url: sourcePath, width: local.naturalWidth, height: local.naturalHeight });
+            return getIllustrationSourceDimensions(sourcePath);
+        }
+        // Metadata deliberately comes from the original asset. A transformed
+        // thumbnail may have a different pixel size even though it has the
+        // same aspect ratio, so it cannot satisfy the source-dimension cache.
+        const metadata = (async () => {
+            const url = await data.preloadAsset(sourcePath, { priority, transform: null });
+            const original = data.getPreloadedAsset(sourcePath, { transform: null });
+            if (!url || !original?.width || !original?.height) return null;
+            rememberIllustrationDimensions(sourcePath, original.width, original.height);
+            return getIllustrationSourceDimensions(sourcePath);
+        })();
+        // The display variant is warmed in parallel. Its URL is optional for
+        // sizing: the frame already uses the original metadata above.
+        const [dimensions] = await Promise.all([metadata, warmIllustrationPreview(sourcePath, { priority })]);
+        return dimensions;
     })().catch(() => null).finally(() => {
         illustrationWarmPromises.delete(sourcePath);
     });
@@ -1274,6 +1303,7 @@ function preloadIllustrationDimensionsFromData() {
             data.loadRecords?.({ hidden: true }),
             data.loadPageMessages?.(),
             data.loadPageSupplements?.({ hidden: false }),
+            data.loadPageSupplements?.({ hidden: true }),
             data.loadMaterials?.()
         ]);
         const paths = new Set();
@@ -1286,11 +1316,17 @@ function preloadIllustrationDimensionsFromData() {
     return promise;
 }
 
-function scheduleIllustrationDimensionPreload() {
-    const start = () => preloadIllustrationDimensionsFromData().catch((error) => {
+function startIllustrationDimensionPreload() {
+    const promise = preloadIllustrationDimensionsFromData().catch((error) => {
         window.ClassRecordDiagnostics?.warn("Illustration metadata preload failed", error);
     });
-    setTimeout(start, 0);
+    // Pages that already expose a startup promise must not render marker text
+    // before every source has been scanned and its original dimensions read.
+    if (window.cacheReadyPromise) {
+        const pageReady = window.cacheReadyPromise;
+        window.cacheReadyPromise = Promise.all([pageReady, promise]).then(([result]) => result);
+    }
+    return promise;
 }
 
 window.preloadIllustrationDimensionsFromData = preloadIllustrationDimensionsFromData;
@@ -1300,7 +1336,7 @@ function illustrationLabel(tag) {
     return String(tag?.dataset.imageLabel || tag?.textContent || "插图").trim() || "插图";
 }
 
-scheduleIllustrationDimensionPreload();
+startIllustrationDimensionPreload();
 
 const imageViewerState = {
     overlay: null,
@@ -1913,59 +1949,36 @@ illustrationTooltipController = createInlineTooltipController({
         const label = illustrationLabel(tag);
         tooltip.setAttribute("aria-label", `${label}预览`);
         const sourcePath = String(tag.dataset.imageSrc || "").trim();
-        let readyImage = illustrationReadyCache.get(sourcePath)
-            || window.ClassRecordData?.getPreloadedAsset?.(sourcePath, {
-                transform: getIllustrationDisplayTransform()
-            });
-        if (!readyImage && sourcePath && !window.ClassRecordData?.isEnabled?.()) {
-            const cachedImage = new Image();
-            cachedImage.src = sourcePath;
-            if (cachedImage.complete && cachedImage.naturalWidth > 0) {
-                readyImage = {
-                    url: sourcePath,
-                    width: cachedImage.naturalWidth,
-                    height: cachedImage.naturalHeight
-                };
-            }
-        }
-        if (readyImage) {
-            illustrationReadyCache.set(sourcePath, readyImage);
-            const image = document.createElement("img");
-            image.alt = label;
-            image.decoding = "async";
-            image.width = readyImage.width;
-            image.height = readyImage.height;
-            image.dataset.previewSrc = sourcePath;
-            image.src = readyImage.url;
-            setIllustrationFrameSize(tooltip, image, readyImage.width, readyImage.height);
-            image.addEventListener("error", () => {
-                illustrationReadyCache.delete(sourcePath);
-                if (isCurrent()) setIllustrationFailure(tooltip);
-            }, { once: true });
-            tooltip.replaceChildren(image);
-            reveal();
-            return;
-        }
+        const sourceDimensions = getIllustrationSourceDimensions(sourcePath);
         const image = document.createElement("img");
         image.alt = label;
         image.decoding = "async";
         image.fetchPriority = "high";
         image.dataset.previewSrc = sourcePath;
-        const sourceDimensions = getIllustrationSourceDimensions(sourcePath);
-        if (sourceDimensions) {
-            setIllustrationFrameSize(tooltip, image, sourceDimensions.width, sourceDimensions.height);
-        } else tooltip.classList.add("is-loading-frame");
+        // Marker rendering is gated by the site-wide metadata pass. Therefore
+        // a hover always knows the source frame before it asks for an image URL.
+        // The fallback is only for a failed/externally injected marker, and it
+        // intentionally stays a stable failure placeholder instead of resizing.
+        if (!sourceDimensions) {
+            setIllustrationFailure(tooltip);
+            reveal();
+            return;
+        }
+        setIllustrationFrameSize(tooltip, image, sourceDimensions.width, sourceDimensions.height);
         image.classList.add("is-pending");
         const loading = document.createElement("span");
         loading.className = "record-written-image-loading illustration-tooltip-loading";
         loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
         tooltip.replaceChildren(image, loading);
         reveal();
-        const url = await resolveIllustrationUrl(sourcePath);
+        const readyImage = illustrationReadyCache.get(sourcePath)
+            || window.ClassRecordData?.getPreloadedAsset?.(sourcePath, {
+                transform: getIllustrationDisplayTransform()
+            })
+            || await warmIllustrationPreview(sourcePath, { priority: "high" });
         if (!isCurrent()) return;
-        if (!url) {
+        if (!readyImage?.url) {
             setIllustrationFailure(tooltip);
-            reveal();
             return;
         }
         const loaded = await new Promise((resolve) => {
@@ -1975,7 +1988,7 @@ illustrationTooltipController = createInlineTooltipController({
             image.onerror = () => {
                 resolve(false);
             };
-            image.src = url;
+            image.src = readyImage.url;
         });
         if (!isCurrent()) return;
         if (!loaded) {
@@ -1983,17 +1996,10 @@ illustrationTooltipController = createInlineTooltipController({
             reveal();
             return;
         }
-        illustrationReadyCache.set(sourcePath, {
-            url,
-            width: image.naturalWidth,
-            height: image.naturalHeight
-        });
-        rememberIllustrationDimensions(sourcePath, image.naturalWidth, image.naturalHeight);
-        // Never resize an already-visible loading frame. If metadata was not
-        // ready at hover time, the fixed preview viewport remains stable and
-        // the image is contained inside it at its natural aspect ratio.
-        if (sourceDimensions) tooltip.classList.remove("is-loading-frame");
-        else { image.style.width = '100%'; image.style.height = '100%'; }
+        illustrationReadyCache.set(sourcePath, readyImage);
+        // Do not derive or overwrite metadata here: the displayed asset can
+        // be transformed. The already-set original-dimension frame never
+        // changes when this image finishes loading.
         image.classList.remove("is-pending");
         tooltip.querySelector(".illustration-tooltip-loading")?.remove();
     }

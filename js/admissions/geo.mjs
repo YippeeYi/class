@@ -6,6 +6,7 @@ const cityBoundaryCache = new Map();
 let cityFeaturesPromise = null;
 let provinceFeaturesPromise = null;
 const number = (value) => Number(value);
+const DEGREES_TO_RADIANS = Math.PI / 180;
 // Tianditu's administrative-division download encodes a provincial GB code as
 // `156` + six-digit administrative code. Keep the original GeoJSON untouched
 // and normalize this documented source representation at the read boundary.
@@ -72,9 +73,19 @@ export const boundsForFeatures = (features) => {
   return bounds;
 };
 export const createProjection = (features, width, height, padding = 28) => {
-  const [minX, minY, maxX, maxY] = boundsForFeatures(features); const scale = Math.min((width - padding * 2) / (maxX - minX), (height - padding * 2) / (maxY - minY));
-  const offsetX = (width - (maxX - minX) * scale) / 2, offsetY = (height - (maxY - minY) * scale) / 2;
-  return ([longitude, latitude]) => [offsetX + (longitude - minX) * scale, height - (offsetY + (latitude - minY) * scale)];
+  const [minLongitude, minLatitude, maxLongitude, maxLatitude] = boundsForFeatures(features);
+  // GeoJSON stores longitude/latitude in angular degrees, not equal planar
+  // distances. Drawing the two degree axes 1:1 makes east-west distances too
+  // large around China and visually squashes the country vertically. Use one
+  // local equirectangular reference latitude, then use one *single* SVG scale
+  // for both resulting axes. This is a projection, never non-uniform scaling.
+  const referenceLatitude = (minLatitude + maxLatitude) / 2;
+  const longitudeUnit = Math.cos(referenceLatitude * DEGREES_TO_RADIANS);
+  const projectLongitude = (longitude) => longitude * longitudeUnit;
+  const minX = projectLongitude(minLongitude), maxX = projectLongitude(maxLongitude);
+  const scale = Math.min((width - padding * 2) / (maxX - minX), (height - padding * 2) / (maxLatitude - minLatitude));
+  const offsetX = (width - (maxX - minX) * scale) / 2, offsetY = (height - (maxLatitude - minLatitude) * scale) / 2;
+  return ([longitude, latitude]) => [offsetX + (projectLongitude(longitude) - minX) * scale, height - (offsetY + (latitude - minLatitude) * scale)];
 };
 const ringPath = (ring, project) => ring.map((point, index) => `${index ? 'L' : 'M'}${project(point).map((value) => value.toFixed(2)).join(',')}`).join('') + 'Z';
 export const featurePath = (feature, project) => (feature.geometry.type === 'Polygon' ? feature.geometry.coordinates : feature.geometry.coordinates.flat()).map((ring) => ringPath(ring, project)).join('');

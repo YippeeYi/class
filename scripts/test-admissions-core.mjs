@@ -30,7 +30,25 @@ const projected = createProjection(provinceFeatures, 760, 812, 14);
 const [originX, originY] = projected([projectionBounds[0], projectionBounds[1]]);
 const [longitudeX, longitudeY] = projected([projectionBounds[0] + 1, projectionBounds[1]]);
 const [latitudeX, latitudeY] = projected([projectionBounds[0], projectionBounds[1] + 1]);
-assert.ok(Math.abs((longitudeX - originX) - Math.abs(latitudeY - originY)) < 1e-8 && longitudeY === originY && latitudeX === originX, 'map projection must use exactly one uniform scale for longitude and latitude');
+const referenceLatitude = (projectionBounds[1] + projectionBounds[3]) / 2;
+assert.ok(Math.abs((longitudeX - originX) / Math.abs(latitudeY - originY) - Math.cos(referenceLatitude * Math.PI / 180)) < 1e-8 && longitudeY === originY && latitudeX === originX, 'projection must convert longitude degrees to local planar distance before applying one uniform SVG scale');
+const projectedBounds = [Infinity, Infinity, -Infinity, -Infinity];
+const visitCoordinates = (coordinates) => Array.isArray(coordinates?.[0])
+  ? coordinates.forEach(visitCoordinates)
+  : (() => {
+      const [x, y] = projected(coordinates);
+      projectedBounds[0] = Math.min(projectedBounds[0], x); projectedBounds[1] = Math.min(projectedBounds[1], y);
+      projectedBounds[2] = Math.max(projectedBounds[2], x); projectedBounds[3] = Math.max(projectedBounds[3], y);
+    })();
+provinceFeatures.forEach((feature) => visitCoordinates(feature.geometry.coordinates));
+const projectedAspect = (projectedBounds[2] - projectedBounds[0]) / (projectedBounds[3] - projectedBounds[1]);
+const geographicAspect = ((projectionBounds[2] - projectionBounds[0]) * Math.cos(referenceLatitude * Math.PI / 180)) / (projectionBounds[3] - projectionBounds[1]);
+assert.ok(Math.abs(projectedAspect - geographicAspect) < 1e-10, 'projected feature bounds must preserve the GeoJSON map proportion after geographic conversion');
+for (const viewportWidth of [390, 900, 1366, 1920]) {
+  const renderedWidth = viewportWidth;
+  const renderedHeight = renderedWidth * 900 / 1440;
+  assert.equal(renderedWidth / 1440, renderedHeight / 900, `SVG viewBox must have identical X/Y CSS scale at ${viewportWidth}px`);
+}
 const cityGeo = JSON.parse(await readFile(new URL('../maps/china-cities.geojson', import.meta.url), 'utf8'));
 const cityFeatures = cityGeo.features.filter((feature) => ['Polygon', 'MultiPolygon'].includes(feature?.geometry?.type));
 assert.equal(cityGeo.type, 'FeatureCollection', 'city boundary file must be GeoJSON FeatureCollection');
@@ -44,9 +62,11 @@ const geoModule = await readFile(new URL('../js/admissions/geo.mjs', import.meta
 const mapModule = await readFile(new URL('../js/admissions/map.mjs', import.meta.url), 'utf8');
 assert.match(geoModule, /new URL\('\.\.\/\.\.\/maps\/china-provinces\.geojson', import\.meta\.url\)/, 'map URL must resolve from the module instead of the current document route');
 assert.match(geoModule, /cache: 'no-store'/, 'map reload must not reuse a cached 404 after deployment');
+assert.match(geoModule, /Math\.cos\(referenceLatitude \* DEGREES_TO_RADIANS\)/, 'map projection must account for longitude distance at China latitude');
 assert.match(mapModule, /Math\.min\(650 \/ width, 710 \/ height\)/, 'province focus must size its uniform scale from the selected geometry');
 assert.match(mapModule, /Math\.min\(7\.5, Math\.max\(1\.45/, 'province focus scale must safely enlarge small provinces without distortion');
 assert.match(mapModule, /preserveAspectRatio: 'xMidYMid meet'/, 'SVG must preserve its intrinsic viewBox aspect ratio');
+assert.match(await readFile(new URL('../style.css', import.meta.url), 'utf8'), /\.admissions-map-svg\s*\{[^}]*flex:\s*none[^}]*aspect-ratio:\s*1440\s*\/\s*900/s, 'responsive map CSS must retain the SVG viewBox ratio without flex stretching');
 assert.match(mapModule, /matrix\(\$\{next\}\)/, 'focus animation must use an SVG matrix transform');
 assert.match(mapModule, /const next = `\$\{scale\} 0 0 \$\{scale\}/, 'focus animation matrix must use the identical X/Y scale');
 console.log('Passed admissions data grouping, validation, and Haversine ordering tests.');
