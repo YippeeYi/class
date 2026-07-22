@@ -15,6 +15,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
     const monthsWrap = document.getElementById('timeline-months');
     const detail = document.getElementById('timeline-detail');
     const summary = document.getElementById('timeline-summary');
+    const timelineActions = document.getElementById('timeline-actions');
     if (!overview || !yearsWrap || !yearOverview || !monthsWrap || !detail) return;
 
     let records = [];
@@ -811,6 +812,7 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
             }
             if (summary) summary.textContent = `已整理 ${years.length} 个年份、${months.length} 个月份、${records.length} 条记录。`;
             renderAll();
+            timelineActions?.removeAttribute('hidden');
             detail.setAttribute('aria-busy', 'false');
         })
         .catch((error) => {

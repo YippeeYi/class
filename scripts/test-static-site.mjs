@@ -65,6 +65,8 @@ const materialsScript = await readFile(resolve(root, 'js/materials.js'), 'utf8')
 const materialsPage = await readFile(resolve(root, 'materials.html'), 'utf8');
 const personPage = await readFile(resolve(root, 'person.html'), 'utf8');
 const personScript = await readFile(resolve(root, 'js/person.js'), 'utf8');
+const timelinePage = await readFile(resolve(root, 'timeline.html'), 'utf8');
+const timelineScript = await readFile(resolve(root, 'js/timeline.js'), 'utf8');
 const bootstrap = await readFile(resolve(root, 'js/bootstrap.js'), 'utf8');
 const vendoredSdk = await readFile(resolve(root, 'vendor/supabase-js-2.45.0.js'));
 assert.doesNotMatch(recordScript, /ClassRecordImageViewer\.open\(imagePath,[\s\S]{0,240}resolvedUrl:/, 'written image viewer must not pass its display-sized URL as the original');
@@ -99,6 +101,8 @@ assert.doesNotMatch(stylesheet.match(/\.page-loading\s*\{[^}]*}/s)?.[0] || '', /
 assert.match(stylesheet, /\.quiz-card\.is-loading\s*\{[^}]*background:\s*transparent[^}]*box-shadow:\s*none/s, 'quiz initialization must not show a card frame');
 assert.match(personScript, /const people = await loadAllPeople\(\);[\s\S]*personInfo\?\.removeAttribute\("hidden"\);[\s\S]*ClassRecordIllustrationMetadataPromise[\s\S]*const records = await loadAllRecords\(\)/, 'person profiles must wait for all illustration dimensions before rendering records');
 assert.match(bootstrap, /Promise\.all\(\[[\s\S]*ClassRecordIllustrationMetadataPromise/, 'bootstrap must wait for all illustration dimensions before markup-capable pages render');
+assert.match(timelinePage, /id="timeline-actions"[^>]*hidden/, 'timeline controls must remain hidden until statistics are ready');
+assert.match(timelineScript, /if \(summary\)[\s\S]*renderAll\(\);\s*timelineActions\?\.removeAttribute\('hidden'\);[\s\S]*detail\.setAttribute\('aria-busy', 'false'\)/, 'timeline controls must only appear after successful statistic rendering');
 assert.doesNotMatch(personPage, /quoteStore\.js/, 'person pages must not load the unused quote store');
 assert.match(recordRenderer, /1 - Math\.pow\(1 - progress, 4\)/, 'record jumps must use the shared long-tail ease-out curve');
 assert.doesNotMatch(recordScript, /window\.scrollTo\(\{[^}]*behavior:\s*["']smooth["']/, 'record navigation must not fall back to a different browser-native smooth curve');
