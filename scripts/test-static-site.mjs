@@ -47,6 +47,7 @@ assert.match(csp, /script-src 'self'/, 'production CSP must permit only same-ori
 assert.doesNotMatch(csp, /cdn\.jsdelivr\.net|https:\/\/\*\.supabase\.co/, 'production CSP must not trust a CDN or wildcard Supabase projects');
 assert.match(csp, /frame-ancestors 'none'/, 'production CSP must prevent framing');
 assert.ok(Array.isArray(vercel.rewrites) && vercel.rewrites.some((item) => item.source === '/data/(.*)'), 'local data must not be publicly served');
+assert.ok(vercel.rewrites.some((item) => item.source === '/ADMISSIONS_DATA_DIR/(.*)'), 'admissions import data must not be publicly served');
 assert.ok(vercel.rewrites.some((item) => item.source === '/images/quiz/(.*)'), 'local quiz images must not be publicly served');
 
 const stylesheet = await readFile(resolve(root, 'style.css'), 'utf8');

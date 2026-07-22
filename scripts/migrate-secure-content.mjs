@@ -274,8 +274,15 @@ const loadMapProvinceCodes = async () => {
         throw new Error('Missing maps/china-provinces.geojson. Install a reviewed, authoritative GeoJSON before importing admissions.');
     }));
     if (map?.type !== 'FeatureCollection' || !Array.isArray(map.features)) throw new Error('Map GeoJSON must be a FeatureCollection.');
-    const codes = new Set(map.features.map((feature) => String(feature?.properties?.adcode || '')).filter((value) => /^\d{6}$/.test(value)));
-    if (!codes.size) throw new Error('Map GeoJSON contains no six-digit properties.adcode values.');
+    const codeForFeature = (feature) => {
+        const properties = feature?.properties || {};
+        const direct = String(properties.adcode || '').trim();
+        if (/^\d{6}$/.test(direct)) return direct;
+        const match = /^156(\d{6})$/.exec(String(properties.gb || '').trim());
+        return match ? match[1] : '';
+    };
+    const codes = new Set(map.features.map(codeForFeature).filter((value) => /^\d{6}$/.test(value)));
+    if (!codes.size) throw new Error('Map GeoJSON contains neither six-digit properties.adcode nor Tianditu properties.gb codes.');
     return codes;
 };
 

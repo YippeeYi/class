@@ -1,11 +1,22 @@
 const mapUrl = 'maps/china-provinces.geojson';
 const number = (value) => Number(value);
+// Tianditu's administrative-division download encodes a provincial GB code as
+// `156` + six-digit administrative code. Keep the original GeoJSON untouched
+// and normalize this documented source representation at the read boundary.
+export const featureAdcode = (feature) => {
+  const properties = feature?.properties || {};
+  const direct = String(properties.adcode || '').trim();
+  if (/^\d{6}$/.test(direct)) return direct;
+  const gb = String(properties.gb || '').trim();
+  const match = /^156(\d{6})$/.exec(gb);
+  return match ? match[1] : '';
+};
 export const loadGeo = async () => {
   const response = await fetch(mapUrl, { cache: 'force-cache', credentials: 'same-origin' });
   if (!response.ok) throw new Error('未找到经审核的省级地图文件。请按 docs/admissions-map-source.md 配置 maps/china-provinces.geojson。');
   const geo = await response.json();
   if (geo?.type !== 'FeatureCollection' || !Array.isArray(geo.features)) throw new Error('地图文件格式错误：应为 GeoJSON FeatureCollection。');
-  const features = geo.features.filter((feature) => ['Polygon', 'MultiPolygon'].includes(feature?.geometry?.type)).map((feature) => ({ ...feature, code: String(feature.properties?.adcode || ''), name: String(feature.properties?.name || '') }));
+  const features = geo.features.filter((feature) => ['Polygon', 'MultiPolygon'].includes(feature?.geometry?.type)).map((feature) => ({ ...feature, code: featureAdcode(feature), name: String(feature.properties?.name || '') }));
   if (!features.length || features.some((feature) => !/^\d{6}$/.test(feature.code) || !feature.name)) throw new Error('地图文件缺少 properties.adcode 或 properties.name。');
   return features;
 };

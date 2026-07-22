@@ -122,6 +122,7 @@ assert.deepEqual(forbiddenPublicFiles, [], `sensitive source files must not exis
 
 const gitignore = await read('.gitignore');
 assert.match(gitignore, /^data\/$/m, 'database source JSON directory must be ignored');
+assert.match(gitignore, /^ADMISSIONS_DATA_DIR\/$/m, 'admissions import data directory must be ignored');
 assert.match(gitignore, /^images\/record-pages\/$/m, 'private record page source directory must be ignored');
 assert.match(gitignore, /^images\/quiz\/lamian\/$/m, 'private quiz source directory must be ignored');
 assert.match(gitignore, /^private-assets\/$/m, 'all local private migration sources must be ignored');
@@ -145,6 +146,7 @@ try {
     trackedFiles = existing.filter(Boolean);
     const forbiddenTracked = trackedFiles.filter((file) => (
         file.startsWith('data/')
+        || file.startsWith('ADMISSIONS_DATA_DIR/')
         || file.startsWith('images/record-pages/')
         || file.startsWith('images/quiz/lamian/')
         || file.startsWith('private-assets/')

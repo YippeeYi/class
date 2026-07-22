@@ -4,6 +4,8 @@
 
 管理员应从自然资源部标准地图服务系统取得经确认可用于该交互场景的省级矢量数据，或取得该系统/有资质单位书面提供的矢量文件。标准地图服务说明其下载地图依据国界线画法标准编制，直接使用的标准地图需标注审图号；该站常见公开下载格式为 JPG/EPS，不能把其图片自动描边成 GeoJSON。来源入口：[自然资源部标准地图服务系统](https://bzdt.tianditu.gov.cn/)。获取日期、审图号、版本和许可条件必须由下载人填写到下表。
 
+已提供的 `maps/china-provinces.geojson` 来源记录在 `maps/SOURCE.md`。该天地图下载使用 `properties.gb`（格式为 `156` 加六码行政区代码）而非 `adcode`；项目读取层会将其规范化为六码代码，且只使用面要素，完全不改写原始 GeoJSON。
+
 将审核后的原始 GeoJSON 放在 `maps/china-provinces.geojson`（部署时作为本地静态文件），并新增 `maps/china-provinces.geojson.provenance.json`：
 
 ```json
@@ -18,4 +20,4 @@
 }
 ```
 
-文件必须为 WGS-84 GeoJSON `FeatureCollection`，每个省级 `Feature` 的 `properties` 必须包含 `adcode`（六位行政区代码）和 `name`。不要自行修改港澳台、南海诸岛、国界或省界；页面会按该文件原样渲染。部署前以权威标准地图人工比对，并按数据许可要求处理审图号/署名。
+文件必须为经纬度 GeoJSON `FeatureCollection`，每个省级面 `Feature` 的 `properties` 必须包含 `name`，并包含六位 `adcode` 或天地图格式 `gb: 156<六码代码>`。不要自行修改港澳台、南海诸岛、国界或省界；页面会按该文件原样渲染。部署前以权威标准地图人工比对，并按数据许可要求处理审图号/署名。
