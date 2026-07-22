@@ -25,6 +25,10 @@
         `;
     };
 
+    const renderLoading = (title) => {
+        root.innerHTML = `<div class="page-loading" role="status"><strong>${escapeHtml(title)}</strong></div>`;
+    };
+
     const renderTextItems = (items, tagName = 'p') => {
         return (items || [])
             .map((item) => `<${tagName}>${renderContent(item)}</${tagName}>`)
@@ -88,7 +92,7 @@
     };
 
     const loadCredits = async () => {
-        renderStatus('正在加载制作组与致谢内容...');
+        renderLoading('正在加载制作组与致谢内容...');
         try {
             await window.waitForAccess?.();
             if (!window.ClassRecordData?.isEnabled?.() || typeof window.ClassRecordData.loadCreditsPage !== 'function') {

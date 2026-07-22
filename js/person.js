@@ -82,6 +82,7 @@ const cacheReady = window.cacheReadyPromise || Promise.resolve();
 function showPersonLoadError(title, detail) {
     if (personLoading) {
         personLoading.hidden = false;
+        personLoading.className = "record-empty person-loading";
         personLoading.innerHTML = `<strong>${escapeHtml(title)}</strong>${detail ? `<span>${escapeHtml(detail)}</span>` : ""}`;
     }
     personInfo?.setAttribute("hidden", "");

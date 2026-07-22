@@ -89,12 +89,13 @@ assert.doesNotMatch(illustrationTooltipPopulate.slice(illustrationTooltipPopulat
 assert.doesNotMatch(recordRenderer, /inline-illustration-thumbnail/, 'marker text must not render images before the user hovers it');
 assert.match(recordRenderer, /window\.preloadIllustrationsFromContent[\s\S]*warmIllustrationPaths\(extractIllustrationPaths\(value\)/, 'illustration paths must be parsed from data and passed to the shared runtime warmer');
 assert.match(materialsScript, /preloadIllustrationsFromContent\?\.\(item\.content \|\| ""\)/, 'material rendering must warm its active illustration content through the shared cache');
-assert.equal((materialsPage.match(/class="materials-placeholder"/g) || []).length, 1, 'materials pages must provide exactly one loading placeholder');
+assert.equal((materialsPage.match(/class="page-loading" role="status"/g) || []).length, 1, 'materials pages must provide exactly one centered loading placeholder');
 assert.match(personPage, /id="person-loading"[^>]*role="status"/, 'person pages must provide a neutral loading state before profile data is available');
 assert.match(personPage, /id="person-info"[^>]*hidden/, 'person aliases and introductions must remain hidden until data is available');
 assert.match(stylesheet, /\[hidden\]\s*\{\s*display:\s*none !important;/, 'native hidden state must not be overridden by component layout styles');
-assert.match(stylesheet, /\.record-empty\[role="status"\]\s*\{[^}]*width:\s*calc\(100% - \(2 \* var\(--page-status-inline-gap\)\)\)/s, 'record loading cards must keep balanced inline gutters');
-assert.match(stylesheet, /\.credits-status,\s*\.materials-placeholder\[role="status"\]\s*\{[^}]*width:\s*calc\(100% - \(2 \* var\(--page-status-inline-gap\)\)\)/s, 'non-image loading cards must share balanced inline gutters');
+assert.match(stylesheet, /\.page-loading\s*\{[^}]*min-height:\s*clamp\(220px, 48vh, 460px\)[^}]*justify-items:\s*center/s, 'initial data loading must be centered without a card frame');
+assert.doesNotMatch(stylesheet.match(/\.page-loading\s*\{[^}]*}/s)?.[0] || '', /border:|background:|box-shadow:/, 'initial data loading must not show a box');
+assert.match(stylesheet, /\.quiz-card\.is-loading\s*\{[^}]*background:\s*transparent[^}]*box-shadow:\s*none/s, 'quiz initialization must not show a card frame');
 assert.match(personScript, /const people = await loadAllPeople\(\);[\s\S]*personInfo\?\.removeAttribute\("hidden"\);[\s\S]*const records = await loadAllRecords\(\)/, 'person profiles must render before their record collection is loaded');
 assert.match(bootstrap, /isPersonPage[\s\S]*record-list[^\n]*!isPersonPage/, 'bootstrap must avoid making person profiles wait for all records');
 assert.doesNotMatch(personPage, /quoteStore\.js/, 'person pages must not load the unused quote store');

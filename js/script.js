@@ -824,7 +824,7 @@ async function enterHiddenRecordMode() {
   window.ClassRecordHiddenModeActive = true;
   document.body.classList.add("hidden-record-mode");
   resetCriteriaForHiddenMode();
-  container.innerHTML = '<div class="record-empty"><strong>正在加载隐藏记录···</strong><span>仅本次会话可见，刷新后恢复普通记录。</span></div>';
+  container.innerHTML = '<div class="page-loading" role="status"><strong>正在加载隐藏记录···</strong><span>仅本次会话可见，刷新后恢复普通记录。</span></div>';
   renderHiddenModeBanner("正在加载隐藏记录···", "info");
   try {
     const records = await window.loadHiddenRecords();
