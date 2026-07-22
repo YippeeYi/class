@@ -483,7 +483,7 @@ function renderSquareMarkup(body, raw, context) {
         const safePath = normalizeIllustrationPath(first);
         const label = render(second);
         if (asText || context.tooltipContext || !safePath) return label;
-        return `<span class="inline-illustration" data-image-src="${escapeRecordAttribute(safePath)}" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false">${label}</span>`;
+        return `<span class="inline-illustration" data-image-src="${escapeRecordAttribute(safePath)}" data-image-label="${escapeRecordAttribute(parseInlineMarkup(second, { mode: "text" }))}" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false"><span class="inline-illustration-thumbnail" aria-hidden="true"><i></i></span><span class="inline-illustration-label">${label}</span></span>`;
     }
 
     return asText ? raw : escapeRecordText(raw);
@@ -1216,8 +1216,9 @@ function warmIllustrationAsset(path, { priority = "low" } = {}) {
     const promise = (async () => {
         const data = window.ClassRecordData;
         if (!data?.isEnabled?.()) return null;
-        const url = await data.preloadAsset(sourcePath, { priority });
-        const ready = data.getPreloadedAsset(sourcePath);
+        const transform = getIllustrationDisplayTransform();
+        const url = await data.preloadAsset(sourcePath, { priority, transform });
+        const ready = data.getPreloadedAsset(sourcePath, { transform });
         if (!url || !ready?.width || !ready?.height) return null;
         rememberIllustrationDimensions(sourcePath, ready.width, ready.height);
         illustrationReadyCache.set(sourcePath, ready);
@@ -1290,6 +1291,64 @@ function scheduleIllustrationDimensionPreload() {
 
 window.preloadIllustrationDimensionsFromData = preloadIllustrationDimensionsFromData;
 window.preloadIllustrationsFromContent = (value) => warmIllustrationPaths(extractIllustrationPaths(value), { priority: "low" });
+
+function illustrationLabel(tag) {
+    return String(tag?.dataset.imageLabel || tag?.textContent || "插图").trim() || "插图";
+}
+
+function hydrateIllustrationThumbnail(tag) {
+    if (!tag || tag.dataset.thumbnailState) return;
+    const sourcePath = String(tag.dataset.imageSrc || "").trim();
+    const host = tag.querySelector(".inline-illustration-thumbnail");
+    if (!sourcePath || !host) return;
+    tag.dataset.thumbnailState = "loading";
+    const image = document.createElement("img");
+    image.alt = "";
+    image.decoding = "async";
+    image.loading = "lazy";
+    image.className = "is-pending";
+    resolveIllustrationUrl(sourcePath).then((url) => {
+        if (!tag.isConnected || !url) throw new Error("Illustration thumbnail is unavailable");
+        image.addEventListener("load", () => {
+            if (!tag.isConnected) return;
+            image.classList.remove("is-pending");
+            host.replaceChildren(image);
+            tag.dataset.thumbnailState = "ready";
+        }, { once: true });
+        image.addEventListener("error", () => {
+            if (!tag.isConnected) return;
+            host.classList.add("has-error");
+            host.replaceChildren();
+            tag.dataset.thumbnailState = "error";
+        }, { once: true });
+        image.src = url;
+    }).catch(() => {
+        if (!tag.isConnected) return;
+        host.classList.add("has-error");
+        host.replaceChildren();
+        tag.dataset.thumbnailState = "error";
+    });
+}
+
+function hydrateIllustrationThumbnails(root = document) {
+    root.querySelectorAll?.(".inline-illustration[data-image-src]").forEach(hydrateIllustrationThumbnail);
+}
+
+window.hydrateIllustrationThumbnails = hydrateIllustrationThumbnails;
+if (document.documentElement) {
+    const observeIllustrations = () => {
+        hydrateIllustrationThumbnails();
+        new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {
+                if (node.nodeType !== Node.ELEMENT_NODE) return;
+                if (node.matches?.(".inline-illustration[data-image-src]")) hydrateIllustrationThumbnail(node);
+                hydrateIllustrationThumbnails(node);
+            }));
+        }).observe(document.body, { childList: true, subtree: true });
+    };
+    if (document.body) observeIllustrations();
+    else document.addEventListener("DOMContentLoaded", observeIllustrations, { once: true });
+}
 scheduleIllustrationDimensionPreload();
 
 const imageViewerState = {
@@ -1900,7 +1959,8 @@ illustrationTooltipController = createInlineTooltipController({
     pointerAnchor: true,
     beforeShow: () => annotationTooltipController.hide(true),
     populate: async ({ tag, tooltip, reveal, isCurrent }) => {
-        tooltip.setAttribute("aria-label", `${tag.textContent?.trim() || "插图"}预览`);
+        const label = illustrationLabel(tag);
+        tooltip.setAttribute("aria-label", `${label}预览`);
         const sourcePath = String(tag.dataset.imageSrc || "").trim();
         let readyImage = illustrationReadyCache.get(sourcePath)
             || window.ClassRecordData?.getPreloadedAsset?.(sourcePath, {
@@ -1920,7 +1980,7 @@ illustrationTooltipController = createInlineTooltipController({
         if (readyImage) {
             illustrationReadyCache.set(sourcePath, readyImage);
             const image = document.createElement("img");
-            image.alt = tag.textContent?.trim() || "记录插图";
+            image.alt = label;
             image.decoding = "async";
             image.width = readyImage.width;
             image.height = readyImage.height;
@@ -1936,23 +1996,20 @@ illustrationTooltipController = createInlineTooltipController({
             return;
         }
         const image = document.createElement("img");
-        image.alt = tag.textContent?.trim() || "记录插图";
+        image.alt = label;
         image.decoding = "async";
         image.fetchPriority = "high";
         image.dataset.previewSrc = sourcePath;
-        let placeholderShown = false;
-        let dimensionFrame = null;
         const sourceDimensions = getIllustrationSourceDimensions(sourcePath);
         if (sourceDimensions) {
-            placeholderShown = true;
             setIllustrationFrameSize(tooltip, image, sourceDimensions.width, sourceDimensions.height);
-            image.classList.add("is-pending");
-            const loading = document.createElement("span");
-            loading.className = "record-written-image-loading illustration-tooltip-loading";
-            loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
-            tooltip.replaceChildren(image, loading);
-            reveal();
-        }
+        } else tooltip.classList.add("is-loading-frame");
+        image.classList.add("is-pending");
+        const loading = document.createElement("span");
+        loading.className = "record-written-image-loading illustration-tooltip-loading";
+        loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
+        tooltip.replaceChildren(image, loading);
+        reveal();
         const url = await resolveIllustrationUrl(sourcePath);
         if (!isCurrent()) return;
         if (!url) {
@@ -1961,29 +2018,13 @@ illustrationTooltipController = createInlineTooltipController({
             return;
         }
         const loaded = await new Promise((resolve) => {
-            const inspectDimensions = () => {
-                if (!image.complete && !placeholderShown && image.naturalWidth > 0 && image.naturalHeight > 0) {
-                    placeholderShown = true;
-                    setIllustrationFrameSize(tooltip, image, image.naturalWidth, image.naturalHeight);
-                    image.classList.add("is-pending");
-                    const loading = document.createElement("span");
-                    loading.className = "record-written-image-loading illustration-tooltip-loading";
-                    loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
-                    tooltip.replaceChildren(image, loading);
-                    reveal();
-                }
-                if (!image.complete) dimensionFrame = requestAnimationFrame(inspectDimensions);
-            };
             image.onload = () => {
-                cancelAnimationFrame(dimensionFrame);
                 resolve(true);
             };
             image.onerror = () => {
-                cancelAnimationFrame(dimensionFrame);
                 resolve(false);
             };
             image.src = url;
-            inspectDimensions();
         });
         if (!isCurrent()) return;
         if (!loaded) {
@@ -1997,12 +2038,10 @@ illustrationTooltipController = createInlineTooltipController({
             height: image.naturalHeight
         });
         rememberIllustrationDimensions(sourcePath, image.naturalWidth, image.naturalHeight);
-        if (!placeholderShown) {
+        if (!sourceDimensions) {
             setIllustrationFrameSize(tooltip, image, image.naturalWidth, image.naturalHeight);
-            tooltip.replaceChildren(image);
-            reveal();
-            return;
         }
+        tooltip.classList.remove("is-loading-frame");
         image.classList.remove("is-pending");
         tooltip.querySelector(".illustration-tooltip-loading")?.remove();
     }

@@ -1,6 +1,8 @@
 // Resolve from this module, not the document URL. This remains correct when a
 // host serves admissions.html from an extensionless or nested route.
 const mapUrl = new URL('../../maps/china-provinces.geojson', import.meta.url).href;
+const cityMapUrl = new URL('../../maps/china-cities.geojson', import.meta.url).href;
+const cityBoundaryCache = new Map();
 const number = (value) => Number(value);
 // Tianditu's administrative-division download encodes a provincial GB code as
 // `156` + six-digit administrative code. Keep the original GeoJSON untouched
@@ -23,6 +25,22 @@ export const loadGeo = async () => {
   const features = geo.features.filter((feature) => ['Polygon', 'MultiPolygon'].includes(feature?.geometry?.type)).map((feature) => ({ ...feature, code: featureAdcode(feature), name: String(feature.properties?.name || '') }));
   if (!features.length || features.some((feature) => !/^\d{6}$/.test(feature.code) || !feature.name)) throw new Error('地图文件缺少 properties.adcode 或 properties.name。');
   return features;
+};
+export const isCityBoundaryProvince = (code) => !new Set(['110000', '120000', '310000', '500000', '810000', '820000']).has(String(code));
+export const loadCityBoundaries = async (provinceCode) => {
+  const code = String(provinceCode || '');
+  if (!isCityBoundaryProvince(code)) return [];
+  if (!cityBoundaryCache.has(code)) cityBoundaryCache.set(code, (async () => {
+    const response = await fetch(cityMapUrl, { cache: 'force-cache', credentials: 'same-origin' });
+    if (!response.ok) return [];
+    const geo = await response.json();
+    if (geo?.type !== 'FeatureCollection' || !Array.isArray(geo.features)) return [];
+    return geo.features
+      .filter((feature) => ['Polygon', 'MultiPolygon'].includes(feature?.geometry?.type))
+      .map((feature) => ({ ...feature, code: featureAdcode(feature), name: String(feature.properties?.name || '') }))
+      .filter((feature) => feature.code.startsWith(code.slice(0, 2)));
+  })().catch(() => []));
+  return cityBoundaryCache.get(code);
 };
 const walkCoordinates = (coordinates, callback) => Array.isArray(coordinates?.[0]) ? coordinates.forEach((item) => walkCoordinates(item, callback)) : callback(coordinates);
 export const boundsForFeatures = (features) => {

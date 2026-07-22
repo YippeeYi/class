@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { buildProvinceGroups, haversineKm, normalizeRows, orderedProvinces } from '../js/admissions/core.mjs';
-import { featureAdcode } from '../js/admissions/geo.mjs';
+import { featureAdcode, isCityBoundaryProvince } from '../js/admissions/geo.mjs';
 
 const rows = normalizeRows([
   { university_id: 'u-1', university_name: '示例大学甲', province_code: '320000', province_name: '江苏省', city_name: '南京市', longitude: 118.79, latitude: 32.06, display_name: '虚构同学甲' },
@@ -24,6 +24,15 @@ assert.equal(geo.type, 'FeatureCollection', 'checked local map must be GeoJSON F
 assert.equal(provinceFeatures.length, 34, 'checked local map must contain all 34 provincial polygon features');
 assert.equal(provinceFeatures.filter((feature) => /^\d{6}$/.test(featureAdcode(feature))).length, 34, 'every local provincial polygon must map to a six-digit administrative code');
 assert.ok(featureAdcode(provinceFeatures.find((feature) => feature.properties?.name === '江苏省')) === '320000', 'TianDiTu GB code adapter must resolve Jiangsu correctly');
+const cityGeo = JSON.parse(await readFile(new URL('../maps/china-cities.geojson', import.meta.url), 'utf8'));
+const cityFeatures = cityGeo.features.filter((feature) => ['Polygon', 'MultiPolygon'].includes(feature?.geometry?.type));
+assert.equal(cityGeo.type, 'FeatureCollection', 'city boundary file must be GeoJSON FeatureCollection');
+assert.ok(cityFeatures.length >= 300, 'city boundary file must contain a usable city-level boundary set');
+assert.ok(cityFeatures.every((feature) => /^\d{6}$/.test(featureAdcode(feature))), 'every city boundary must map to a six-digit administrative code');
+assert.ok(cityFeatures.some((feature) => featureAdcode(feature).startsWith('32')), 'city boundaries must include Jiangsu for the focus map');
+assert.equal(isCityBoundaryProvince('320000'), true, 'ordinary provinces must show city boundaries');
+assert.equal(isCityBoundaryProvince('110000'), false, 'municipalities must not show city boundaries');
+assert.equal(isCityBoundaryProvince('810000'), false, 'special administrative regions must not show city boundaries');
 const geoModule = await readFile(new URL('../js/admissions/geo.mjs', import.meta.url), 'utf8');
 assert.match(geoModule, /new URL\('\.\.\/\.\.\/maps\/china-provinces\.geojson', import\.meta\.url\)/, 'map URL must resolve from the module instead of the current document route');
 assert.match(geoModule, /cache: 'no-store'/, 'map reload must not reuse a cached 404 after deployment');

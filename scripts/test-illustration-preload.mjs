@@ -58,7 +58,7 @@ assert.deepEqual(requested.map((item) => item.path).sort(), [
     'data/attachments/record.png',
     'data/attachments/supplement.webp'
 ]);
-assert.ok(requested.every((item) => item.options.priority === 'low' && !item.options.transform), 'metadata warmup must load originals asynchronously at low priority');
+assert.ok(requested.every((item) => item.options.priority === 'low' && item.options.transform?.width === 960), 'metadata warmup must preload the same thumbnail variant used by markers');
 assert.deepEqual({ ...result }, { total: 4, loaded: 4 });
 assert.deepEqual({ ...window.getIllustrationSourceDimensions('data/attachments/record.png') }, { width: 800, height: 600 });
 

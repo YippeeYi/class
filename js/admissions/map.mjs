@@ -35,14 +35,16 @@ export const renderNationalMap = (host, features, groups, { onSelect, onFocus, r
   const project = (point) => { const [x, y] = baseProject(point); return [x + canvas.map.x, y + canvas.map.y]; };
   const svg = element('svg', { class: 'admissions-map-svg', viewBox: `0 0 ${canvas.width} ${canvas.height}`, role: 'img', 'aria-label': '中国省级行政区录取分布图', preserveAspectRatio: 'xMidYMid meet' });
   const max = Math.max(1, ...[...groups.values()].map((item) => item.students));
+  const shapeLayer = element('g', { class: 'admissions-map-shape-layer' });
   features.forEach((feature) => {
     const province = groups.get(feature.code), active = Boolean(province);
     const path = element('path', { d: featurePath(feature, project), class: `admissions-province${active ? ' has-admissions' : ''}`, fill: colorForCount(province?.students || 0, max), tabindex: active ? '0' : '-1', 'data-code': feature.code, 'aria-label': `${feature.name}，${province ? `${province.students} 名同学，${province.universities.length} 所大学，${province.cities.length} 个城市` : '暂无录取信息'}` });
     const activate = () => active && onSelect?.(province, feature, { project, features });
     path.addEventListener('click', activate); path.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } });
     path.addEventListener('focus', () => onFocus?.(province, feature)); path.addEventListener('mouseenter', () => onFocus?.(province, feature));
-    svg.append(path);
+    shapeLayer.append(path);
   });
+  svg.append(shapeLayer);
   const layout = buildAnnotationLayout(groups, project, canvas);
   const lines = element('g', { class: 'admissions-leader-lines', 'aria-hidden': 'true' });
   layout.forEach((item) => {
@@ -63,5 +65,25 @@ export const renderNationalMap = (host, features, groups, { onSelect, onFocus, r
     else if (output?.then) output.then((content) => content && node.append(content));
     labels.append(node);
   });
-  host.append(labels); return { svg, project, max, layout };
+  host.append(labels);
+  const focus = (province) => {
+    const capital = PROVINCIAL_CAPITALS[province.code];
+    if (!capital) return;
+    const [x, y] = project(capital);
+    // Uniform SVG scaling keeps the source GeoJSON's aspect ratio intact.
+    const scale = 1.58, targetX = 390, targetY = 470;
+    const dx = targetX - x * scale, dy = targetY - y * scale;
+    shapeLayer.setAttribute('transform', `translate(${dx} ${dy}) scale(${scale})`);
+    shapeLayer.classList.add('is-focused');
+    shapeLayer.querySelectorAll('.admissions-province').forEach((path) => path.classList.toggle('is-selected', path.dataset.code === province.code));
+    lines.classList.add('is-hidden'); labels.classList.add('is-hidden');
+    return { scale, dx, dy };
+  };
+  const resetFocus = () => {
+    shapeLayer.removeAttribute('transform'); shapeLayer.classList.remove('is-focused');
+    shapeLayer.querySelectorAll('.admissions-province').forEach((path) => path.classList.remove('is-selected'));
+    lines.classList.remove('is-hidden'); labels.classList.remove('is-hidden');
+    svg.querySelectorAll('.admissions-focus-layer').forEach((node) => node.remove());
+  };
+  return { svg, project, max, layout, canvas, shapeLayer, focus, resetFocus, focusTransform: null };
 };

@@ -71,7 +71,8 @@ assert.match(recordScript, /if \(window\.ClassRecordData\?\.isEnabled\?\.\(\)\) 
 assert.match(secureData, /signAssetUrl\s*=\s*async \(path,\s*\{[^}]*forceRefresh\s*=\s*false/, 'Storage signer must support refreshing an expired signed URL');
 assert.doesNotMatch(recordRenderer, /ClassRecordIllustrationDimensions|bundledIllustrationDimensions|getIllustrationResourceId/, 'inline illustration sizing must not depend on a generated hard-coded table');
 assert.match(recordRenderer, /loadRecords\?\.\(\{ hidden: false \}\)[\s\S]*loadPageMessages\?\.\(\)[\s\S]*loadPageSupplements\?\.\(\{ hidden: false \}\)[\s\S]*loadMaterials\?\.\(\)/, 'illustration metadata preload must scan records, page messages, supplements, and materials');
-assert.match(recordRenderer, /function warmIllustrationAsset\(path,[\s\S]*preloadAsset\(sourcePath, \{ priority \}\)/, 'illustration dimensions and original resources must be warmed through one runtime cache');
+assert.match(recordRenderer, /function warmIllustrationAsset\(path,[\s\S]*preloadAsset\(sourcePath, \{ priority, transform \}\)/, 'illustration dimensions and display thumbnails must be warmed through one runtime cache');
+assert.match(recordRenderer, /inline-illustration-thumbnail[\s\S]*hydrateIllustrationThumbnails/, 'all marker illustrations must receive a stable thumbnail host through shared rendering');
 assert.match(recordRenderer, /window\.preloadIllustrationsFromContent[\s\S]*warmIllustrationPaths\(extractIllustrationPaths\(value\)/, 'illustration paths must be parsed from data and passed to the shared runtime warmer');
 assert.match(materialsScript, /preloadIllustrationsFromContent\?\.\(item\.content \|\| ""\)/, 'material rendering must warm its active illustration content through the shared cache');
 assert.match(recordRenderer, /1 - Math\.pow\(1 - progress, 4\)/, 'record jumps must use the shared long-tail ease-out curve');
