@@ -53,7 +53,8 @@ assert.match(storageDiagnoseSql, /using_expression[\s\S]*storage\.policy_details
 assert.match(storageDiagnoseSql, /relrowsecurity[\s\S]*storage\.objects_rls_enabled/, 'diagnosis must check Storage RLS state without mutating the managed table');
 assert.match(storageDiagnoseSql, /access\.no_header_has_access/, 'diagnosis must report no-token access helper behavior');
 assert.match(storageDiagnoseSql, /has_class_record_access\(\)/, 'diagnosis must call the no-token access helper');
-assert.match(decommissionSql, /delete from storage\.objects[\s\S]*images\/admissions\/[\s\S]*drop table if exists public\.class_admissions cascade[\s\S]*drop table if exists public\.class_universities cascade/, 'decommission SQL must remove retired Storage objects and tables');
+assert.doesNotMatch(decommissionSql, /delete from storage\.objects/i, 'decommission SQL must not bypass Supabase Storage deletion protections');
+assert.match(decommissionSql, /images\/admissions\/[\s\S]*Storage API[\s\S]*drop table if exists public\.class_admissions cascade[\s\S]*drop table if exists public\.class_universities cascade/, 'decommission SQL must document Storage cleanup and remove retired tables');
 assert.match(decommissionSql, /drop function if exists public\.get_class_admission_map\(\)/, 'decommission SQL must remove the retired RPC');
 assert.match(decommissionSql, /create policy "classrecord_private_read"[\s\S]*images\/quiz\/[\s\S]*has_class_record_admin_access\(\)/, 'decommission SQL must restore the current guarded Storage policy');
 

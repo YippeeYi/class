@@ -4,10 +4,9 @@
 
 begin;
 
--- Remove private objects first, including originals and historical variants.
-delete from storage.objects
-where bucket_id = 'classrecord-private'
-  and name ~ '^images/admissions/';
+-- Supabase blocks direct deletion from storage.objects. Clear the retired
+-- `images/admissions/` prefix through the Storage API before running this
+-- script; the project's verified decommission run has already done so.
 
 -- These tables own all retired rows, their RLS policies, constraints, and
 -- indexes. CASCADE also removes foreign-key dependencies if a prior install
