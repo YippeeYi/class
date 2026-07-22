@@ -14,13 +14,21 @@ create table if not exists public.class_universities (
     longitude double precision not null check (longitude between 73 and 136),
     latitude double precision not null check (latitude between 3 and 54),
     logo_path text,
+    brand_path text,
+    province_display_order integer not null default 0,
     display_order integer not null default 0,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
     constraint class_universities_logo_path_check check (
         logo_path is null or logo_path ~ '^images/admissions/[a-z0-9][a-z0-9/_-]{0,180}\.(png|jpe?g|webp|svg)$'
+    ),
+    constraint class_universities_brand_path_check check (
+        brand_path is null or brand_path ~ '^images/admissions/[a-z0-9][a-z0-9/_-]{0,180}\.(png|jpe?g|webp|svg)$'
     )
 );
+
+alter table public.class_universities add column if not exists brand_path text;
+alter table public.class_universities add column if not exists province_display_order integer not null default 0;
 
 create table if not exists public.class_admissions (
     id uuid primary key default extensions.gen_random_uuid(),
@@ -73,11 +81,15 @@ begin
 end;
 $$;
 
-create or replace function public.get_class_admission_map()
+-- PostgreSQL cannot change a table-returning function's OUT columns through
+-- CREATE OR REPLACE. The RPC has no dependent database objects; recreate it
+-- so installations created before brand_path receive the expanded contract.
+drop function if exists public.get_class_admission_map();
+create function public.get_class_admission_map()
 returns table (
   university_id text, university_name text, short_name text, province_code text,
   province_name text, city_name text, campus text, longitude double precision,
-  latitude double precision, logo_path text, university_order integer,
+  latitude double precision, logo_path text, brand_path text, province_display_order integer, university_order integer,
   display_name text, major text, admission_order integer
 )
 language plpgsql stable security definer set search_path = public, extensions as $$
@@ -87,7 +99,7 @@ begin
   end if;
   return query
     select u.id, u.name, u.short_name, u.province_code, u.province_name,
-           u.city_name, u.campus, u.longitude, u.latitude, u.logo_path,
+           u.city_name, u.campus, u.longitude, u.latitude, u.logo_path, u.brand_path, u.province_display_order,
            u.display_order,
            coalesce(nullif(trim(a.display_name_override), ''), nullif(trim(p.alias), ''), nullif(trim(p.name), ''), '同学'),
            a.major, a.display_order

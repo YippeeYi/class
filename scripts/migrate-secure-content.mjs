@@ -55,7 +55,7 @@ const requiredDatabaseColumns = {
 };
 
 const admissionsRequiredColumns = {
-    class_universities: ['id', 'name', 'province_code', 'province_name', 'city_name', 'longitude', 'latitude', 'logo_path'],
+    class_universities: ['id', 'name', 'province_code', 'province_name', 'city_name', 'longitude', 'latitude', 'logo_path', 'brand_path', 'province_display_order'],
     class_admissions: ['id', 'person_id', 'university_id', 'display_name_override', 'major']
 };
 
@@ -243,6 +243,12 @@ const admissionsStoragePath = (id, sourceFile) => {
     return `images/admissions/${id}${extension === '.jpg' ? '.jpeg' : extension}`;
 };
 
+const admissionsBrandStoragePath = (id, sourceFile) => {
+    const extension = path.extname(String(sourceFile || '')).toLowerCase();
+    if (!['.png', '.jpg', '.jpeg', '.webp', '.svg'].includes(extension)) throw new Error(`Admissions brand image has an unsupported extension for university ID ${id}`);
+    return `images/admissions/${id}-brand${extension === '.jpg' ? '.jpeg' : extension}`;
+};
+
 const validateAdmissionsLogo = async (id, logoFile) => {
     const absoluteDirectory = path.resolve(admissionsDataDir);
     const absolute = path.resolve(absoluteDirectory, String(logoFile || ''));
@@ -313,17 +319,27 @@ const importAdmissions = async () => {
         if (!String(source?.name || '').trim() || !String(source?.provinceName || source?.province_name || '').trim() || !String(source?.cityName || source?.city_name || '').trim()) throw new Error(`University required location field is missing for ID ${id}`);
         if (!Number.isFinite(longitude) || longitude < 73 || longitude > 136 || !Number.isFinite(latitude) || latitude < 3 || latitude > 54) throw new Error(`University coordinates are invalid for ID ${id}`);
         let logoPath = null;
+        let brandPath = null;
         if (source?.logo) {
             const checked = await validateAdmissionsLogo(id, source.logo);
             logoPath = admissionsStoragePath(id, source.logo);
             admissionsRemoteFiles.add(logoPath);
             storageUploadManifest.set(logoPath, { localPath: checked.absolute, remotePath: logoPath, external: true });
         }
+        if (source?.brandImage || source?.brand_image) {
+            const brandSource = source.brandImage || source.brand_image;
+            const checked = await validateAdmissionsLogo(id, brandSource);
+            brandPath = admissionsBrandStoragePath(id, brandSource);
+            admissionsRemoteFiles.add(brandPath);
+            storageUploadManifest.set(brandPath, { localPath: checked.absolute, remotePath: brandPath, external: true });
+        }
         universityRows.push({
             id, name: String(source.name).trim(), short_name: String(source.shortName || source.short_name || '').trim() || null,
             province_code: provinceCode, province_name: String(source.provinceName || source.province_name).trim(),
             city_name: String(source.cityName || source.city_name).trim(), campus: String(source.campus || '').trim() || null,
-            longitude, latitude, logo_path: logoPath, display_order: Number.isFinite(Number(source.displayOrder)) ? Number(source.displayOrder) : 0
+            longitude, latitude, logo_path: logoPath, brand_path: brandPath,
+            province_display_order: Number.isFinite(Number(source.provinceDisplayOrder)) ? Number(source.provinceDisplayOrder) : 0,
+            display_order: Number.isFinite(Number(source.displayOrder)) ? Number(source.displayOrder) : 0
         });
     }
     const personIds = new Set();

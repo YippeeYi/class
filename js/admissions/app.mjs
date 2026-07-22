@@ -1,7 +1,7 @@
 import { loadAdmissions } from './data.mjs';
 import { loadGeo, createProjection, featurePath } from './geo.mjs';
 import { renderNationalMap } from './map.mjs';
-import { logoNode } from './assets.mjs';
+import { logoNode, brandNode } from './assets.mjs';
 import { downloadPoster } from './export.mjs';
 import { ProvinceTimeline } from './timeline.mjs';
 
@@ -13,6 +13,25 @@ const setStatus = (value, type = '') => { const node = root.querySelector('[data
 const provinceAt = (offset) => model.ordered[(currentIndex + offset + model.ordered.length) % model.ordered.length];
 const updateControls = () => { root.querySelector('[data-progress]')?.replaceChildren(document.createTextNode(selected ? `${currentIndex + 1} / ${model.ordered.length} · ${selected.name}` : '全国地图')); root.querySelector('[data-pause]')?.toggleAttribute('hidden', !autoplay); root.querySelector('[data-resume]')?.toggleAttribute('hidden', !autoplay || !autoplayPaused); };
 const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&quot;' })[char]);
+
+const renderProvinceAnnotation = async (province) => {
+  const fragment = document.createDocumentFragment();
+  const heading = document.createElement('p');
+  heading.className = 'admissions-province-caption';
+  heading.textContent = province.name;
+  fragment.append(heading);
+  for (const university of province.universities) {
+    const row = document.createElement('div');
+    row.className = 'admissions-map-university-row';
+    row.append(await brandNode(university));
+    const names = document.createElement('span');
+    names.className = 'admissions-map-students';
+    names.textContent = university.students.map((student) => student.name).join('、');
+    row.append(names);
+    fragment.append(row);
+  }
+  return fragment;
+};
 
 const renderCards = async (province, stage = 'complete') => {
   const host = root.querySelector('[data-university-list]'); if (!host) return; host.replaceChildren();
@@ -40,7 +59,7 @@ const showDetail = (province, { auto = false } = {}) => {
   timeline?.stop(); timeline = new ProvinceTimeline({ reduced, onStage: (stage) => { root.dataset.stage = stage; renderDetailMap(province, stage); if (stage === 'university') renderCards(province, stage); if (stage === 'complete') renderCards(province, stage); }, onFinish: () => { if (autoplay && !autoplayPaused) window.setTimeout(() => showDetail(provinceAt(1), { auto: true }), reduced ? 450 : 1500); } });
   timeline.play(province); if (!auto) setStatus(`${province.name}：${province.students} 名同学，${province.universities.length} 所大学。`);
 };
-const showNation = () => { autoplay = false; autoplayPaused = false; timeline?.stop(); selected = null; root.classList.remove('is-detail'); root.dataset.stage = 'national'; renderNationalMap(root.querySelector('[data-national-map]'), features, model.groups, { onSelect: (province) => showDetail(province), onFocus: (province, feature) => setStatus(province ? `${feature.name} · ${province.students} 人 · ${province.universities.length} 所大学 · ${province.cities.length} 个城市` : `${feature.name} · 暂无录取信息`) }); updateControls(); };
+const showNation = () => { autoplay = false; autoplayPaused = false; timeline?.stop(); selected = null; root.classList.remove('is-detail'); root.dataset.stage = 'national'; renderNationalMap(root.querySelector('[data-national-map]'), features, model.groups, { onSelect: (province) => showDetail(province), onFocus: (province, feature) => setStatus(province ? `${feature.name} · ${province.students} 人 · ${province.universities.length} 所大学 · ${province.cities.length} 个城市` : `${feature.name} · 暂无录取信息`), renderProvinceInfo: renderProvinceAnnotation }); updateControls(); };
 const startAutoplay = () => { autoplay = true; autoplayPaused = false; currentIndex = 0; showDetail(model.ordered[0], { auto: true }); updateControls(); };
 
 const bind = () => root.addEventListener('click', async (event) => {

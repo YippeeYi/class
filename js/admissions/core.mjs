@@ -39,7 +39,7 @@ export const normalizeRows = (rows) => {
     // The RPC deliberately does not return person_id. A unique public-facing
     // display row key is sufficient for rendering, while DB constraints catch
     // duplicate final admissions before data reaches the page.
-    return { ...row, longitude, latitude, university_order: Number(row.university_order) || 0, admission_order: Number(row.admission_order) || 0 };
+    return { ...row, longitude, latitude, university_order: Number(row.university_order) || 0, province_display_order: Number(row.province_display_order) || 0, admission_order: Number(row.admission_order) || 0 };
   });
 };
 
@@ -47,17 +47,20 @@ export const buildProvinceGroups = (rows) => {
   const provinces = new Map();
   rows.forEach((row) => {
     const key = String(row.province_code);
-    if (!provinces.has(key)) provinces.set(key, { code: key, name: row.province_name, cities: new Map(), universities: new Map(), students: 0 });
+    if (!provinces.has(key)) provinces.set(key, { code: key, name: row.province_name, displayOrder: row.province_display_order || row.university_order || 0, cities: new Map(), universities: new Map(), students: 0 });
     const province = provinces.get(key); province.students += 1;
+    province.displayOrder = Math.min(province.displayOrder || Number.MAX_SAFE_INTEGER, row.province_display_order || row.university_order || Number.MAX_SAFE_INTEGER);
     if (!province.cities.has(row.city_name)) province.cities.set(row.city_name, { name: row.city_name, longitude: row.longitude, latitude: row.latitude, universities: new Map() });
     const city = province.cities.get(row.city_name);
-    if (!province.universities.has(row.university_id)) province.universities.set(row.university_id, { id: row.university_id, name: row.university_name, shortName: row.short_name, city: row.city_name, campus: row.campus, longitude: row.longitude, latitude: row.latitude, logoPath: row.logo_path, order: row.university_order, students: [] });
+    if (!province.universities.has(row.university_id)) province.universities.set(row.university_id, { id: row.university_id, name: row.university_name, shortName: row.short_name, city: row.city_name, campus: row.campus, longitude: row.longitude, latitude: row.latitude, logoPath: row.logo_path, brandPath: row.brand_path, order: row.university_order, students: [] });
     const university = province.universities.get(row.university_id); university.students.push({ name: row.display_name, major: row.major, order: row.admission_order });
     city.universities.set(row.university_id, university);
   });
   provinces.forEach((province) => {
     province.cities = [...province.cities.values()].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'));
-    province.universities = [...province.universities.values()].sort((a, b) => a.city.localeCompare(b.city, 'zh-Hans-CN') || a.order - b.order || a.name.localeCompare(b.name, 'zh-Hans-CN'));
+    // `displayOrder` is the source-of-truth order supplied with the data;
+    // city/name are only deterministic fallbacks.
+    province.universities = [...province.universities.values()].sort((a, b) => a.order - b.order || a.city.localeCompare(b.city, 'zh-Hans-CN') || a.name.localeCompare(b.name, 'zh-Hans-CN'));
     province.universities.forEach((university) => university.students.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'zh-Hans-CN')));
   });
   return provinces;

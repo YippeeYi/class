@@ -4,7 +4,7 @@
 
 ```json
 // universities.json
-{"universities":[{"id":"demo-university","name":"示例大学","shortName":"示大","provinceCode":"320000","provinceName":"江苏省","cityName":"南京市","longitude":118.796,"latitude":32.060,"logo":"logos/demo-university.png","displayOrder":10}]}
+{"universities":[{"id":"demo-university","name":"示例大学","shortName":"示大","provinceCode":"320000","provinceName":"江苏省","cityName":"南京市","longitude":118.796,"latitude":32.060,"logo":"logos/demo-university-logo.png","brandImage":"logos/demo-university-brand.png","provinceDisplayOrder":10,"displayOrder":10}]}
 ```
 
 ```json
@@ -12,7 +12,9 @@
 {"admissions":[{"personId":"demo-person-001","universityId":"demo-university","displayNameOverride":"示例同学甲","major":"示例专业","displayOrder":10}]}
 ```
 
-`personId` 必须已经存在于 `class_people.id`；每人只允许一条记录。Logo 只允许 PNG、WebP、JPEG 或已经过安全审查的 SVG，最大 2 MiB。脚本上传后，远端路径为 `images/admissions/<university-id>.<ext>`。
+`personId` 必须已经存在于 `class_people.id`；每人只允许一条记录。`brandImage` 是推荐字段，内容为学校官方校徽与标准字的组合图片；地图与总图会优先使用它，`logo` 仅作为缺失时的回退。两种图片均只允许 PNG、WebP、JPEG 或已经过安全审查的 SVG，最大 2 MiB。脚本上传后分别保存为 `images/admissions/<university-id>.<ext>` 与 `images/admissions/<university-id>-brand.<ext>`。
+
+`provinceDisplayOrder` 控制总图和网页中省份注释的上下顺序；`displayOrder` 控制同省学校的从上到下顺序。新增学校或调整顺序只需修改此文件，不修改页面代码。
 
 ```powershell
 $env:ADMISSIONS_DATA_DIR='D:\private\class-admissions'

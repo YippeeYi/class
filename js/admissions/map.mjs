@@ -1,13 +1,39 @@
 import { createProjection, featurePath } from './geo.mjs';
-import { colorForCount } from './core.mjs';
+import { colorForCount, PROVINCIAL_CAPITALS } from './core.mjs';
 
 const NS = 'http://www.w3.org/2000/svg';
 const element = (name, attributes = {}) => { const node = document.createElementNS(NS, name); Object.entries(attributes).forEach(([key, value]) => node.setAttribute(key, value)); return node; };
 
-export const renderNationalMap = (host, features, groups, { onSelect, onFocus } = {}) => {
+const annotationHeight = (province) => 38 + province.universities.length * 44;
+const sortForDisplay = (a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name, 'zh-Hans-CN');
+const distribute = (items, side, canvas) => {
+  const gap = 22, height = items.reduce((sum, item) => sum + annotationHeight(item), 0) + Math.max(0, items.length - 1) * gap;
+  let cursor = Math.max(40, (canvas.height - height) / 2);
+  return items.map((province) => {
+    const blockHeight = annotationHeight(province), y = cursor + blockHeight / 2;
+    cursor += blockHeight + gap;
+    return { province, side, x: side === 'left' ? 28 : canvas.width - 330, y, height: blockHeight, width: 302 };
+  });
+};
+
+const buildAnnotationLayout = (groups, project, canvas) => {
+  const provinces = [...groups.values()].sort(sortForDisplay);
+  const sides = { left: [], right: [] };
+  provinces.forEach((province) => {
+    const capital = PROVINCIAL_CAPITALS[province.code];
+    if (!capital) return;
+    const [x, y] = project(capital);
+    sides[x < canvas.width / 2 ? 'left' : 'right'].push({ ...province, anchor: { x, y } });
+  });
+  return [...distribute(sides.left, 'left', canvas), ...distribute(sides.right, 'right', canvas)];
+};
+
+export const renderNationalMap = (host, features, groups, { onSelect, onFocus, renderProvinceInfo } = {}) => {
   host.replaceChildren();
-  const viewBox = { width: 920, height: 650 }, project = createProjection(features, viewBox.width, viewBox.height);
-  const svg = element('svg', { class: 'admissions-map-svg', viewBox: `0 0 ${viewBox.width} ${viewBox.height}`, role: 'img', 'aria-label': '中国省级行政区录取分布图', preserveAspectRatio: 'xMidYMid meet' });
+  const canvas = { width: 1440, height: 900, map: { x: 340, y: 44, width: 760, height: 812 } };
+  const baseProject = createProjection(features, canvas.map.width, canvas.map.height, 14);
+  const project = (point) => { const [x, y] = baseProject(point); return [x + canvas.map.x, y + canvas.map.y]; };
+  const svg = element('svg', { class: 'admissions-map-svg', viewBox: `0 0 ${canvas.width} ${canvas.height}`, role: 'img', 'aria-label': '中国省级行政区录取分布图', preserveAspectRatio: 'xMidYMid meet' });
   const max = Math.max(1, ...[...groups.values()].map((item) => item.students));
   features.forEach((feature) => {
     const province = groups.get(feature.code), active = Boolean(province);
@@ -17,5 +43,25 @@ export const renderNationalMap = (host, features, groups, { onSelect, onFocus } 
     path.addEventListener('focus', () => onFocus?.(province, feature)); path.addEventListener('mouseenter', () => onFocus?.(province, feature));
     svg.append(path);
   });
-  host.append(svg); return { svg, project, max };
+  const layout = buildAnnotationLayout(groups, project, canvas);
+  const lines = element('g', { class: 'admissions-leader-lines', 'aria-hidden': 'true' });
+  layout.forEach((item) => {
+    const endX = item.side === 'left' ? item.x + item.width : item.x;
+    const elbowX = item.side === 'left' ? canvas.map.x - 38 : canvas.map.x + canvas.map.width + 38;
+    const polyline = element('polyline', { points: `${item.province.anchor.x},${item.province.anchor.y} ${elbowX},${item.province.anchor.y} ${elbowX},${item.y} ${endX},${item.y}` });
+    const dot = element('circle', { cx: item.province.anchor.x, cy: item.province.anchor.y, r: 5 });
+    lines.append(polyline, dot);
+  });
+  svg.append(lines); host.append(svg);
+  const labels = document.createElement('div'); labels.className = 'admissions-map-annotations';
+  layout.forEach((item) => {
+    const node = document.createElement('section'); node.className = `admissions-province-annotation is-${item.side}`;
+    node.style.left = `${item.x / canvas.width * 100}%`; node.style.top = `${(item.y - item.height / 2) / canvas.height * 100}%`; node.style.width = `${item.width / canvas.width * 100}%`;
+    node.dataset.provinceCode = item.province.code;
+    const output = renderProvinceInfo?.(item.province);
+    if (output instanceof Node) node.append(output);
+    else if (output?.then) output.then((content) => content && node.append(content));
+    labels.append(node);
+  });
+  host.append(labels); return { svg, project, max, layout };
 };
