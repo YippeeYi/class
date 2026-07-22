@@ -47,4 +47,6 @@ assert.match(geoModule, /cache: 'no-store'/, 'map reload must not reuse a cached
 assert.match(mapModule, /Math\.min\(650 \/ width, 710 \/ height\)/, 'province focus must size its uniform scale from the selected geometry');
 assert.match(mapModule, /Math\.min\(7\.5, Math\.max\(1\.45/, 'province focus scale must safely enlarge small provinces without distortion');
 assert.match(mapModule, /preserveAspectRatio: 'xMidYMid meet'/, 'SVG must preserve its intrinsic viewBox aspect ratio');
+assert.match(mapModule, /matrix\(\$\{next\}\)/, 'focus animation must use an SVG matrix transform');
+assert.match(mapModule, /const next = `\$\{scale\} 0 0 \$\{scale\}/, 'focus animation matrix must use the identical X/Y scale');
 console.log('Passed admissions data grouping, validation, and Haversine ordering tests.');

@@ -51,7 +51,7 @@ const source = await readFile(new URL('../js/recordRenderer.js', import.meta.url
 vm.runInContext(source, context);
 const result = await window.ClassRecordIllustrationMetadataPromise;
 
-assert.deepEqual(sourceCalls.sort(), ['materials', 'messages', 'records', 'supplements']);
+assert.deepEqual(sourceCalls.sort(), ['materials', 'messages', 'records', 'records', 'supplements']);
 assert.deepEqual(requested.map((item) => item.path).sort(), [
     'data/attachments/material.gif',
     'data/attachments/message.jpg',

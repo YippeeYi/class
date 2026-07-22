@@ -1266,8 +1266,12 @@ function preloadIllustrationDimensionsFromData() {
         await window.waitForAccess?.();
         const data = window.ClassRecordData;
         if (!data?.isEnabled?.()) return { total: 0, loaded: 0 };
+        // This single bootstrap scans every protected JSON source once. Both
+        // normal and hidden records are included because either can later be
+        // opened without creating a second image-size cache.
         const sources = await Promise.allSettled([
             data.loadRecords?.({ hidden: false }),
+            data.loadRecords?.({ hidden: true }),
             data.loadPageMessages?.(),
             data.loadPageSupplements?.({ hidden: false }),
             data.loadMaterials?.()
@@ -1985,10 +1989,11 @@ illustrationTooltipController = createInlineTooltipController({
             height: image.naturalHeight
         });
         rememberIllustrationDimensions(sourcePath, image.naturalWidth, image.naturalHeight);
-        if (!sourceDimensions) {
-            setIllustrationFrameSize(tooltip, image, image.naturalWidth, image.naturalHeight);
-        }
-        tooltip.classList.remove("is-loading-frame");
+        // Never resize an already-visible loading frame. If metadata was not
+        // ready at hover time, the fixed preview viewport remains stable and
+        // the image is contained inside it at its natural aspect ratio.
+        if (sourceDimensions) tooltip.classList.remove("is-loading-frame");
+        else { image.style.width = '100%'; image.style.height = '100%'; }
         image.classList.remove("is-pending");
         tooltip.querySelector(".illustration-tooltip-loading")?.remove();
     }

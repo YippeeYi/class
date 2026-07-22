@@ -6395,6 +6395,14 @@ body.hidden-record-mode .hidden-record-banner {
   height: min(220px, calc(100vh - 24px));
 }
 
+.illustration-tooltip.is-loading-frame img {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
 .image-viewer-frame img {
   position: absolute;
   top: 50%;
@@ -6747,8 +6755,9 @@ body.admissions-page { background: #fff !important; background-image: none !impo
 .admissions-actions, .admissions-detail-actions { gap: 17px; }
 .admissions-status { min-height: 0; margin: 0; color: #bd4848; font-size: .86rem; }
 .admissions-national { position: relative; min-height: 0; }
-.admissions-map-svg { display: block; width: 100%; height: auto; max-width: 100%; aspect-ratio: auto; overflow: visible; }
-.admissions-map-shape-layer { transform-box: view-box; transform-origin: 0 0; transition: transform 850ms cubic-bezier(.16,.84,.2,1); }
+.admissions-map-svg { display: block; width: 100%; height: auto; max-width: 100%; overflow: visible; }
+/* Shape transforms are SVG attributes (translate + one uniform scale), never CSS transforms. */
+.admissions-map-shape-layer { transition: none; }
 .admissions-province { transition: opacity 480ms ease, filter 480ms ease, fill 300ms ease; }
 .admissions-map-shape-layer.is-focused .admissions-province:not(.is-selected) { opacity: .12; filter: saturate(.2); pointer-events: none; }
 .admissions-map-shape-layer.is-focused .admissions-province.is-selected { opacity: 1; filter: none; stroke-width: 2.2; }
@@ -6763,6 +6772,6 @@ body.admissions-page { background: #fff !important; background-image: none !impo
 .admissions-focus-brand { display: inline-grid; height: 46px; max-width: 190px; align-items: center; color: #263841; font-weight: 700; }.admissions-focus-brand img { display: block; width: 100%; height: 46px; object-fit: contain; object-position: left center; }.admissions-focus-students { color: #263841; font-size: clamp(.82rem, 1vw, 1rem); line-height: 1.55; overflow-wrap: anywhere; }
 .admissions-progress { position: absolute; right: 4.5%; bottom: 5.5%; margin: 0; color: #64747a; font-size: .82rem; }.admissions-detail-actions { display: none; position: absolute; right: 4.5%; bottom: 1.6%; }.admissions-app.is-detail .admissions-detail-actions { display: flex; }.admissions-app.is-detail .admissions-legend { display: none; }
 @keyframes admissions-marker-rise { from { opacity: 0; } to { opacity: 1; } } @keyframes admissions-info-in { to { opacity: 1; transform: none; } }
-@media (max-width: 900px) { .admissions-app { width: min(100% - 24px, 720px); }.admissions-map-svg { width: 100%; height: auto; aspect-ratio: auto; }.admissions-focus-info { position: static; width: auto; min-width: 0; margin: 14px 2px 0; }.admissions-focus-row { grid-template-columns: minmax(130px, .9fr) minmax(0, 1fr); }.admissions-progress, .admissions-detail-actions { position: static; margin: 14px 2px 0; }.admissions-detail-actions { justify-content: flex-start; }.admissions-app.is-detail .admissions-map-annotations { display: none; } }
+@media (max-width: 900px) { .admissions-app { width: min(100% - 24px, 720px); }.admissions-map-svg { width: 100%; height: auto; }.admissions-focus-info { position: static; width: auto; min-width: 0; margin: 14px 2px 0; }.admissions-focus-row { grid-template-columns: minmax(130px, .9fr) minmax(0, 1fr); }.admissions-progress, .admissions-detail-actions { position: static; margin: 14px 2px 0; }.admissions-detail-actions { justify-content: flex-start; }.admissions-app.is-detail .admissions-map-annotations { display: none; } }
 @media (prefers-reduced-motion: reduce) { .admissions-map-shape-layer, .admissions-province, .admissions-university-marker, .admissions-focus-row { transition: none; animation: none; }.admissions-university-marker.is-visible, .admissions-focus-row { opacity: 1; transform: none; } }
 .admissions-app.is-video-render *, .admissions-app.is-video-render *::before, .admissions-app.is-video-render *::after { animation: none !important; transition: none !important; }

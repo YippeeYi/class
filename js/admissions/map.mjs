@@ -66,6 +66,16 @@ export const renderNationalMap = (host, features, groups, { onSelect, onFocus, r
     labels.append(node);
   });
   host.append(labels);
+  const setUniformTransform = (scale, dx, dy, { animate = true } = {}) => {
+    const next = `${scale} 0 0 ${scale} ${dx} ${dy}`;
+    const previous = shapeLayer.dataset.matrix || '1 0 0 1 0 0';
+    shapeLayer.setAttribute('transform', `matrix(${next})`);
+    shapeLayer.dataset.matrix = next;
+    if (!animate || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    shapeLayer.querySelectorAll(':scope > animateTransform[data-map-transform]').forEach((node) => node.remove());
+    const motion = element('animateTransform', { attributeName: 'transform', type: 'matrix', from: previous, to: next, dur: '850ms', fill: 'freeze', calcMode: 'spline', keySplines: '.16 .84 .2 1', 'data-map-transform': '' });
+    shapeLayer.append(motion); motion.beginElement?.();
+  };
   const focus = (province) => {
     const capital = PROVINCIAL_CAPITALS[province.code];
     if (!capital) return;
@@ -81,14 +91,14 @@ export const renderNationalMap = (host, features, groups, { onSelect, onFocus, r
     const sourceCenterX = (left + right) / 2, sourceCenterY = (top + bottom) / 2;
     const targetX = 400, targetY = 452;
     const dx = targetX - sourceCenterX * scale, dy = targetY - sourceCenterY * scale;
-    shapeLayer.setAttribute('transform', `translate(${dx} ${dy}) scale(${scale})`);
+    setUniformTransform(scale, dx, dy);
     shapeLayer.classList.add('is-focused');
     shapeLayer.querySelectorAll('.admissions-province').forEach((path) => path.classList.toggle('is-selected', path.dataset.code === province.code));
     lines.classList.add('is-hidden'); labels.classList.add('is-hidden');
     return { scale, dx, dy };
   };
   const resetFocus = () => {
-    shapeLayer.removeAttribute('transform'); shapeLayer.classList.remove('is-focused');
+    setUniformTransform(1, 0, 0); shapeLayer.classList.remove('is-focused');
     shapeLayer.querySelectorAll('.admissions-province').forEach((path) => path.classList.remove('is-selected'));
     lines.classList.remove('is-hidden'); labels.classList.remove('is-hidden');
     svg.querySelectorAll('.admissions-focus-layer').forEach((node) => node.remove());
