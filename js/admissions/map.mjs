@@ -33,7 +33,7 @@ export const renderNationalMap = (host, features, groups, { onSelect, onFocus, r
   const canvas = { width: 1440, height: 900, map: { x: 340, y: 44, width: 760, height: 812 } };
   const baseProject = createProjection(features, canvas.map.width, canvas.map.height, 14);
   const project = (point) => { const [x, y] = baseProject(point); return [x + canvas.map.x, y + canvas.map.y]; };
-  const svg = element('svg', { class: 'admissions-map-svg', viewBox: `0 0 ${canvas.width} ${canvas.height}`, role: 'img', 'aria-label': '中国省级行政区录取分布图', preserveAspectRatio: 'xMidYMid meet' });
+  const svg = element('svg', { class: 'admissions-map-svg', width: canvas.width, height: canvas.height, viewBox: `0 0 ${canvas.width} ${canvas.height}`, role: 'img', 'aria-label': '中国省级行政区录取分布图', preserveAspectRatio: 'xMidYMid meet' });
   const max = Math.max(1, ...[...groups.values()].map((item) => item.students));
   const shapeLayer = element('g', { class: 'admissions-map-shape-layer' });
   features.forEach((feature) => {

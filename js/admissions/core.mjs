@@ -29,17 +29,16 @@ export const normalizeRows = (rows) => {
   if (!Array.isArray(rows)) throw new Error('录取数据格式错误：RPC 未返回数组。');
   const seenPeople = new Set();
   return rows.map((row, index) => {
-    const required = ['university_id', 'university_name', 'province_code', 'province_name', 'city_name', 'display_name'];
+    const required = ['university_id', 'university_name', 'province_code', 'city_code', 'display_name'];
     const missing = required.filter((key) => !safeText(row?.[key]));
     if (missing.length) throw new Error(`录取数据第 ${index + 1} 条缺少字段：${missing.join(', ')}。`);
-    const longitude = Number(row.longitude), latitude = Number(row.latitude);
-    if (!/^\d{6}$/.test(String(row.province_code)) || !Number.isFinite(longitude) || !Number.isFinite(latitude) || longitude < 73 || longitude > 136 || latitude < 3 || latitude > 54) {
-      throw new Error(`录取数据第 ${index + 1} 条的行政区代码或坐标无效。`);
+    if (!/^\d{6}$/.test(String(row.province_code)) || !/^\d{6}$/.test(String(row.city_code)) || !String(row.city_code).startsWith(String(row.province_code).slice(0, 2))) {
+      throw new Error(`录取数据第 ${index + 1} 条的省级或市级行政区代码无效。`);
     }
     // The RPC deliberately does not return person_id. A unique public-facing
     // display row key is sufficient for rendering, while DB constraints catch
     // duplicate final admissions before data reaches the page.
-    return { ...row, longitude, latitude, university_order: Number(row.university_order) || 0, province_display_order: Number(row.province_display_order) || 0, admission_order: Number(row.admission_order) || 0 };
+    return { ...row, university_order: Number(row.university_order) || 0, province_display_order: Number(row.province_display_order) || 0 };
   });
 };
 
@@ -53,7 +52,7 @@ export const buildProvinceGroups = (rows) => {
     if (!province.cities.has(row.city_name)) province.cities.set(row.city_name, { name: row.city_name, longitude: row.longitude, latitude: row.latitude, universities: new Map() });
     const city = province.cities.get(row.city_name);
     if (!province.universities.has(row.university_id)) province.universities.set(row.university_id, { id: row.university_id, name: row.university_name, shortName: row.short_name, city: row.city_name, campus: row.campus, longitude: row.longitude, latitude: row.latitude, logoPath: row.logo_path, brandPath: row.brand_path, order: row.university_order, students: [] });
-    const university = province.universities.get(row.university_id); university.students.push({ name: row.display_name, major: row.major, order: row.admission_order });
+    const university = province.universities.get(row.university_id); university.students.push({ name: row.display_name, major: row.major });
     city.universities.set(row.university_id, university);
   });
   provinces.forEach((province) => {
@@ -61,7 +60,7 @@ export const buildProvinceGroups = (rows) => {
     // `displayOrder` is the source-of-truth order supplied with the data;
     // city/name are only deterministic fallbacks.
     province.universities = [...province.universities.values()].sort((a, b) => a.order - b.order || a.city.localeCompare(b.city, 'zh-Hans-CN') || a.name.localeCompare(b.name, 'zh-Hans-CN'));
-    province.universities.forEach((university) => university.students.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'zh-Hans-CN')));
+    province.universities.forEach((university) => university.students.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN')));
   });
   return provinces;
 };

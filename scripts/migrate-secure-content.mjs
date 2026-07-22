@@ -55,7 +55,7 @@ const requiredDatabaseColumns = {
 };
 
 const admissionsRequiredColumns = {
-    class_universities: ['id', 'name', 'province_code', 'province_name', 'city_name', 'longitude', 'latitude', 'logo_path', 'brand_path', 'province_display_order'],
+    class_universities: ['id', 'name', 'province_code', 'province_name', 'city_code', 'city_name', 'logo_path', 'brand_path', 'province_display_order'],
     class_admissions: ['id', 'person_id', 'university_id', 'display_name_override', 'major']
 };
 
@@ -287,9 +287,22 @@ const loadMapProvinceCodes = async () => {
         const match = /^156(\d{6})$/.exec(String(properties.gb || '').trim());
         return match ? match[1] : '';
     };
-    const codes = new Set(map.features.map(codeForFeature).filter((value) => /^\d{6}$/.test(value)));
-    if (!codes.size) throw new Error('Map GeoJSON contains neither six-digit properties.adcode nor Tianditu properties.gb codes.');
-    return codes;
+    const provinces = new Map(map.features.map((feature) => [codeForFeature(feature), String(feature?.properties?.name || '').trim()]).filter(([code, name]) => /^\d{6}$/.test(code) && name));
+    if (!provinces.size) throw new Error('Map GeoJSON contains neither six-digit properties.adcode nor Tianditu properties.gb codes.');
+    return provinces;
+};
+
+const loadMapCities = async () => {
+    const mapPath = path.join(root, 'maps', 'china-cities.geojson');
+    const map = JSON.parse(await fs.readFile(mapPath, 'utf8').catch(() => { throw new Error('Missing maps/china-cities.geojson. Install the reviewed city-boundary GeoJSON before importing admissions.'); }));
+    if (map?.type !== 'FeatureCollection' || !Array.isArray(map.features)) throw new Error('City GeoJSON must be a FeatureCollection.');
+    const cities = new Map();
+    map.features.forEach((feature) => {
+        const properties = feature?.properties || {}; const direct = String(properties.adcode || '').trim(); const match = /^156(\d{6})$/.exec(String(properties.gb || '').trim()); const code = /^\d{6}$/.test(direct) ? direct : (match?.[1] || ''); const name = String(properties.name || '').trim();
+        if (/^\d{6}$/.test(code) && name) cities.set(code, name);
+    });
+    if (!cities.size) throw new Error('City GeoJSON contains no usable city codes.');
+    return cities;
 };
 
 const importAdmissions = async () => {
@@ -297,8 +310,8 @@ const importAdmissions = async () => {
     const dataDirectory = path.resolve(admissionsDataDir);
     const directoryInfo = await fs.stat(dataDirectory).catch(() => null);
     if (!directoryInfo?.isDirectory()) throw new Error('ADMISSIONS_DATA_DIR does not exist or is not a directory.');
-    const [universityDocument, admissionsDocument, mapCodes] = await Promise.all([
-        readExternalJson('universities.json'), readExternalJson('admissions.json'), loadMapProvinceCodes()
+    const [universityDocument, admissionsDocument, mapCodes, cityMap] = await Promise.all([
+        readExternalJson('universities.json'), readExternalJson('admissions.json'), loadMapProvinceCodes(), loadMapCities()
     ]);
     const universities = Array.isArray(universityDocument) ? universityDocument : universityDocument?.universities;
     const admissions = Array.isArray(admissionsDocument) ? admissionsDocument : admissionsDocument?.admissions;
@@ -310,14 +323,12 @@ const importAdmissions = async () => {
     for (const source of universities) {
         const id = String(source?.id || '').trim();
         const provinceCode = String(source?.provinceCode || source?.province_code || '').trim();
-        const longitude = Number(source?.longitude);
-        const latitude = Number(source?.latitude);
+        const cityCode = String(source?.cityCode || source?.city_code || '').trim();
         if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(id)) throw new Error('University ID must be lowercase ASCII slug.');
         if (universityIds.has(id)) throw new Error(`Duplicate university ID: ${id}`);
         universityIds.add(id);
         if (!mapCodes.has(provinceCode)) throw new Error(`University province code does not match map data: ${provinceCode}`);
-        if (!String(source?.name || '').trim() || !String(source?.provinceName || source?.province_name || '').trim() || !String(source?.cityName || source?.city_name || '').trim()) throw new Error(`University required location field is missing for ID ${id}`);
-        if (!Number.isFinite(longitude) || longitude < 73 || longitude > 136 || !Number.isFinite(latitude) || latitude < 3 || latitude > 54) throw new Error(`University coordinates are invalid for ID ${id}`);
+        if (!String(source?.name || '').trim() || !/^\d{6}$/.test(cityCode) || !cityCode.startsWith(provinceCode.slice(0, 2)) || !cityMap.has(cityCode)) throw new Error(`University cityCode is invalid or does not match map data for ID ${id}`);
         let logoPath = null;
         let brandPath = null;
         if (source?.logo) {
@@ -335,9 +346,9 @@ const importAdmissions = async () => {
         }
         universityRows.push({
             id, name: String(source.name).trim(), short_name: String(source.shortName || source.short_name || '').trim() || null,
-            province_code: provinceCode, province_name: String(source.provinceName || source.province_name).trim(),
-            city_name: String(source.cityName || source.city_name).trim(), campus: String(source.campus || '').trim() || null,
-            longitude, latitude, logo_path: logoPath, brand_path: brandPath,
+            province_code: provinceCode, province_name: mapCodes.get(provinceCode),
+            city_code: cityCode, city_name: cityMap.get(cityCode), campus: String(source.campus || '').trim() || null,
+            logo_path: logoPath, brand_path: brandPath,
             province_display_order: Number.isFinite(Number(source.provinceDisplayOrder)) ? Number(source.provinceDisplayOrder) : 0,
             display_order: Number.isFinite(Number(source.displayOrder)) ? Number(source.displayOrder) : 0
         });
@@ -349,7 +360,7 @@ const importAdmissions = async () => {
         if (!personId || !universityId || !universityIds.has(universityId)) throw new Error(`Admission record ${index + 1} has an unknown person or university ID.`);
         if (personIds.has(personId)) throw new Error(`Duplicate final admission person ID: ${personId}`);
         personIds.add(personId);
-        return { person_id: personId, university_id: universityId, display_name_override: String(source.displayNameOverride || source.display_name_override || '').trim() || null, major: String(source.major || '').trim() || null, display_order: Number.isFinite(Number(source.displayOrder)) ? Number(source.displayOrder) : 0 };
+        return { person_id: personId, university_id: universityId, display_name_override: String(source.displayNameOverride || source.display_name_override || '').trim() || null, major: String(source.major || '').trim() || null, display_order: 0 };
     });
     // Validate references without exposing names. Service-role access is used only in this local script.
     const people = await request(`/rest/v1/class_people?select=id&id=in.${encodeURIComponent(quoteList([...personIds]))}`);

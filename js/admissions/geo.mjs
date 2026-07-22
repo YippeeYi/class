@@ -3,6 +3,8 @@
 const mapUrl = new URL('../../maps/china-provinces.geojson', import.meta.url).href;
 const cityMapUrl = new URL('../../maps/china-cities.geojson', import.meta.url).href;
 const cityBoundaryCache = new Map();
+let cityFeaturesPromise = null;
+let provinceFeaturesPromise = null;
 const number = (value) => Number(value);
 // Tianditu's administrative-division download encodes a provincial GB code as
 // `156` + six-digit administrative code. Keep the original GeoJSON untouched
@@ -18,28 +20,49 @@ export const featureAdcode = (feature) => {
 export const loadGeo = async () => {
   // Do not reuse a previously cached 404 after the map is added to a new
   // deployment. The map is loaded once per protected page entry.
-  const response = await fetch(mapUrl, { cache: 'no-store', credentials: 'same-origin' });
-  if (!response.ok) throw new Error(`未找到经审核的省级地图文件（HTTP ${response.status}）。请刷新到最新部署后重试。`);
-  const geo = await response.json();
-  if (geo?.type !== 'FeatureCollection' || !Array.isArray(geo.features)) throw new Error('地图文件格式错误：应为 GeoJSON FeatureCollection。');
-  const features = geo.features.filter((feature) => ['Polygon', 'MultiPolygon'].includes(feature?.geometry?.type)).map((feature) => ({ ...feature, code: featureAdcode(feature), name: String(feature.properties?.name || '') }));
-  if (!features.length || features.some((feature) => !/^\d{6}$/.test(feature.code) || !feature.name)) throw new Error('地图文件缺少 properties.adcode 或 properties.name。');
-  return features;
+  if (!provinceFeaturesPromise) provinceFeaturesPromise = fetch(mapUrl, { cache: 'no-store', credentials: 'same-origin' }).then(async (response) => {
+    if (!response.ok) throw new Error(`未找到经审核的省级地图文件（HTTP ${response.status}）。请刷新到最新部署后重试。`);
+    const geo = await response.json();
+    if (geo?.type !== 'FeatureCollection' || !Array.isArray(geo.features)) throw new Error('地图文件格式错误：应为 GeoJSON FeatureCollection。');
+    const features = geo.features.filter((feature) => ['Polygon', 'MultiPolygon'].includes(feature?.geometry?.type)).map((feature) => ({ ...feature, code: featureAdcode(feature), name: String(feature.properties?.name || '') }));
+    if (!features.length || features.some((feature) => !/^\d{6}$/.test(feature.code) || !feature.name)) throw new Error('地图文件缺少 properties.adcode 或 properties.name。');
+    return features;
+  }).catch((error) => { provinceFeaturesPromise = null; throw error; });
+  return provinceFeaturesPromise;
+};
+export const provinceNamesForCodes = async (codes) => {
+  const requested = new Set((codes || []).map(String)); const names = new Map((await loadGeo()).filter((feature) => requested.has(feature.code)).map((feature) => [feature.code, feature.name]));
+  const missing = [...requested].filter((code) => !names.has(code)); if (missing.length) throw new Error(`省级地图中未找到省份代码：${missing.join(', ')}。`);
+  return names;
 };
 export const isCityBoundaryProvince = (code) => !new Set(['110000', '120000', '310000', '500000', '810000', '820000']).has(String(code));
+const loadCityFeatures = async () => {
+  if (!cityFeaturesPromise) cityFeaturesPromise = fetch(cityMapUrl, { cache: 'force-cache', credentials: 'same-origin' })
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`市级地图文件无法读取（HTTP ${response.status}）。`);
+      const geo = await response.json();
+      if (geo?.type !== 'FeatureCollection' || !Array.isArray(geo.features)) throw new Error('市级地图文件格式错误。');
+      return geo.features.filter((feature) => ['Polygon', 'MultiPolygon'].includes(feature?.geometry?.type))
+        .map((feature) => ({ ...feature, code: featureAdcode(feature), name: String(feature.properties?.name || '') }))
+        .filter((feature) => /^\d{6}$/.test(feature.code) && feature.name);
+    });
+  return cityFeaturesPromise;
+};
+const polygonCenter = (ring) => {
+  let twiceArea = 0, x = 0, y = 0;
+  for (let index = 0; index < ring.length - 1; index += 1) { const [x1, y1] = ring[index], [x2, y2] = ring[index + 1], cross = x1 * y2 - x2 * y1; twiceArea += cross; x += (x1 + x2) * cross; y += (y1 + y2) * cross; }
+  return Math.abs(twiceArea) > 1e-10 ? { longitude: x / (3 * twiceArea), latitude: y / (3 * twiceArea), weight: Math.abs(twiceArea) } : null;
+};
+export const cityPointsForCodes = async (codes) => {
+  const requested = new Set((codes || []).map(String)); const features = await loadCityFeatures(); const points = new Map();
+  features.forEach((feature) => { if (!requested.has(feature.code)) return; const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates; const centers = polygons.map((polygon) => polygonCenter(polygon[0])).filter(Boolean).sort((a, b) => b.weight - a.weight); if (centers[0]) points.set(feature.code, { code: feature.code, name: feature.name, longitude: centers[0].longitude, latitude: centers[0].latitude }); });
+  const missing = [...requested].filter((code) => !points.has(code)); if (missing.length) throw new Error(`市级地图中未找到城市代码：${missing.join(', ')}。`);
+  return points;
+};
 export const loadCityBoundaries = async (provinceCode) => {
   const code = String(provinceCode || '');
   if (!isCityBoundaryProvince(code)) return [];
-  if (!cityBoundaryCache.has(code)) cityBoundaryCache.set(code, (async () => {
-    const response = await fetch(cityMapUrl, { cache: 'force-cache', credentials: 'same-origin' });
-    if (!response.ok) return [];
-    const geo = await response.json();
-    if (geo?.type !== 'FeatureCollection' || !Array.isArray(geo.features)) return [];
-    return geo.features
-      .filter((feature) => ['Polygon', 'MultiPolygon'].includes(feature?.geometry?.type))
-      .map((feature) => ({ ...feature, code: featureAdcode(feature), name: String(feature.properties?.name || '') }))
-      .filter((feature) => feature.code.startsWith(code.slice(0, 2)));
-  })().catch(() => []));
+  if (!cityBoundaryCache.has(code)) cityBoundaryCache.set(code, loadCityFeatures().then((features) => features.filter((feature) => feature.code.startsWith(code.slice(0, 2)))).catch(() => []));
   return cityBoundaryCache.get(code);
 };
 const walkCoordinates = (coordinates, callback) => Array.isArray(coordinates?.[0]) ? coordinates.forEach((item) => walkCoordinates(item, callback)) : callback(coordinates);

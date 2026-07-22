@@ -9,10 +9,11 @@ create table if not exists public.class_universities (
     short_name text,
     province_code text not null check (province_code ~ '^[0-9]{6}$'),
     province_name text not null check (length(trim(province_name)) between 2 and 20),
+    city_code text not null check (city_code ~ '^[0-9]{6}$'),
     city_name text not null check (length(trim(city_name)) between 2 and 60),
     campus text,
-    longitude double precision not null check (longitude between 73 and 136),
-    latitude double precision not null check (latitude between 3 and 54),
+    longitude double precision check (longitude between 73 and 136),
+    latitude double precision check (latitude between 3 and 54),
     logo_path text,
     brand_path text,
     province_display_order integer not null default 0,
@@ -29,6 +30,9 @@ create table if not exists public.class_universities (
 
 alter table public.class_universities add column if not exists brand_path text;
 alter table public.class_universities add column if not exists province_display_order integer not null default 0;
+alter table public.class_universities add column if not exists city_code text;
+alter table public.class_universities alter column longitude drop not null;
+alter table public.class_universities alter column latitude drop not null;
 
 create table if not exists public.class_admissions (
     id uuid primary key default extensions.gen_random_uuid(),
@@ -45,7 +49,7 @@ create table if not exists public.class_admissions (
 );
 
 create index if not exists class_universities_province_city_order_idx
-on public.class_universities (province_code, city_name, display_order, name);
+on public.class_universities (province_code, city_code, display_order, name);
 create index if not exists class_admissions_university_order_idx
 on public.class_admissions (university_id, display_order, person_id);
 
@@ -88,9 +92,8 @@ drop function if exists public.get_class_admission_map();
 create function public.get_class_admission_map()
 returns table (
   university_id text, university_name text, short_name text, province_code text,
-  province_name text, city_name text, campus text, longitude double precision,
-  latitude double precision, logo_path text, brand_path text, province_display_order integer, university_order integer,
-  display_name text, major text, admission_order integer
+  city_code text, campus text, logo_path text, brand_path text, province_display_order integer, university_order integer,
+  display_name text, major text
 )
 language plpgsql stable security definer set search_path = public, extensions as $$
 begin
@@ -98,15 +101,16 @@ begin
     return;
   end if;
   return query
-    select u.id, u.name, u.short_name, u.province_code, u.province_name,
-           u.city_name, u.campus, u.longitude, u.latitude, u.logo_path, u.brand_path, u.province_display_order,
+    select u.id, u.name, u.short_name, u.province_code, u.city_code,
+           u.campus, u.logo_path, u.brand_path, u.province_display_order,
            u.display_order,
            coalesce(nullif(trim(a.display_name_override), ''), nullif(trim(p.alias), ''), nullif(trim(p.name), ''), '同学'),
-           a.major, a.display_order
+           a.major
       from public.class_admissions a
       join public.class_universities u on u.id = a.university_id
       join public.class_people p on p.id = a.person_id
-     order by u.province_code, u.city_name, u.display_order, u.name, a.display_order, a.person_id;
+     order by u.province_code, u.city_code, u.display_order, u.name,
+              coalesce(nullif(trim(a.display_name_override), ''), nullif(trim(p.alias), ''), nullif(trim(p.name), ''), '同学'), a.person_id;
 end;
 $$;
 
