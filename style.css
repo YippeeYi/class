@@ -657,6 +657,11 @@ body>#quotes-list {
   gap: 6px;
 }
 
+/* Native hidden state must always win over component display declarations. */
+[hidden] {
+  display: none !important;
+}
+
 .record-empty span,
 .search-empty span {
   color: var(--text-soft);
@@ -6325,7 +6330,7 @@ body.hidden-record-mode .hidden-record-banner {
   box-shadow: none;
   backdrop-filter: blur(10px);
   color: var(--text-main);
-  pointer-events: none;
+  pointer-events: auto;
   opacity: 0;
   transform: translateY(6px);
   transition: opacity 0.16s ease, transform 0.16s ease;

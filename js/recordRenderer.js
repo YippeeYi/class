@@ -1159,6 +1159,7 @@ const illustrationDimensionCache = new Map();
 const illustrationWarmPromises = new Map();
 const illustrationPreviewWarmPromises = new Map();
 const ILLUSTRATION_METADATA_RANGE_BYTES = 64 * 1024;
+const ILLUSTRATION_DISPLAY_TRANSFORM = Object.freeze({ width: 1200, height: 1800, resize: "contain", quality: 78 });
 
 window.imageSizeCache = window.imageSizeCache || {};
 window.illuSizeCache = window.illuSizeCache instanceof Map ? window.illuSizeCache : new Map();
@@ -1273,11 +1274,12 @@ function warmIllustrationPreview(path, { priority = "low" } = {}) {
     const promise = (async () => {
         const data = window.ClassRecordData;
         if (!data?.isEnabled?.()) return { url: sourcePath };
-        // Tooltip frames are based on original dimensions. Request the same
-        // original asset on hover: a width-only Storage transformation can
-        // crop scanned material pages before CSS ever receives the pixels.
-        const url = await data.preloadAsset(sourcePath, { priority });
-        const ready = data.getPreloadedAsset(sourcePath);
+        // Keep hover previews byte-for-byte in the same signed thumbnail
+        // variant used by written record pages. The click viewer separately
+        // resolves the original asset.
+        const transform = data.displayTransforms?.written || ILLUSTRATION_DISPLAY_TRANSFORM;
+        const url = await data.preloadAsset(sourcePath, { priority, transform });
+        const ready = data.getPreloadedAsset(sourcePath, { transform });
         if (!url || !ready?.url) return null;
         illustrationReadyCache.set(sourcePath, ready);
         return ready;
@@ -1328,6 +1330,62 @@ function warmIllustrationPaths(paths, { priority = "low" } = {}) {
 
 window.preloadIllustrationsFromContent = (value) => warmIllustrationPaths(extractIllustrationPaths(value), { priority: "low" });
 
+function collectIllustrationPathsFromData(value, paths, seen = new WeakSet()) {
+    if (typeof value === "string") {
+        extractIllustrationPaths(value).forEach((path) => paths.add(path));
+        return;
+    }
+    if (!value || typeof value !== "object" || seen.has(value)) return;
+    seen.add(value);
+    if (Array.isArray(value)) {
+        value.forEach((item) => collectIllustrationPathsFromData(item, paths, seen));
+        return;
+    }
+    Object.values(value).forEach((item) => collectIllustrationPathsFromData(item, paths, seen));
+}
+
+function preloadIllustrationDimensionsFromData() {
+    if (window.ClassRecordIllustrationMetadataPromise) return window.ClassRecordIllustrationMetadataPromise;
+    const promise = (async () => {
+        await window.waitForAccess?.();
+        const data = window.ClassRecordData;
+        if (!data?.isEnabled?.()) return { total: 0, loaded: 0, failedPaths: [] };
+        const recordsPromise = data.loadRecords?.({ hidden: false }) || Promise.resolve([]);
+        const sourceLoaders = [
+            ["records", () => recordsPromise],
+            ["quotes", async () => window.loadAllQuotes?.({ records: await recordsPromise }) || []],
+            ["pageMessages", () => data.loadPageMessages?.() || []],
+            ["pageSupplements", () => data.loadPageSupplements?.({ hidden: false }) || []],
+            ["materials", () => data.loadMaterials?.() || []],
+            ["credits", () => data.loadCreditsPage?.() || null]
+        ];
+        const sources = await Promise.allSettled(sourceLoaders.map(([, load]) => load()));
+        const paths = new Set();
+        sources.forEach((result, index) => {
+            if (result.status === "fulfilled") {
+                collectIllustrationPathsFromData(result.value, paths);
+            } else {
+                window.ClassRecordDiagnostics?.warn(`Illustration metadata source failed: ${sourceLoaders[index][0]}`, result.reason);
+            }
+        });
+        const result = await warmIllustrationPaths(paths, { priority: "low" });
+        if (result.failedPaths.length) {
+            window.ClassRecordDiagnostics?.warn("Illustration metadata could not be read", result.failedPaths);
+        }
+        return result;
+    })();
+    window.ClassRecordIllustrationMetadataPromise = promise;
+    return promise;
+}
+
+function startIllustrationDimensionPreload() {
+    return preloadIllustrationDimensionsFromData().catch((error) => {
+        window.ClassRecordDiagnostics?.warn("Illustration metadata preload failed", error);
+    });
+}
+
+window.preloadIllustrationDimensionsFromData = preloadIllustrationDimensionsFromData;
+
 function illustrationLabel(tag) {
     return String(tag?.dataset.imageLabel || tag?.textContent || "插图").trim() || "插图";
 }
@@ -1339,6 +1397,10 @@ const imageViewerState = {
     resizeHandler: null,
     interaction: null
 };
+
+// Start as soon as access is available. This pass fetches only image headers
+// and never blocks page content or downloads illustration pixels.
+startIllustrationDimensionPreload();
 
 const IMAGE_VIEWER_MIN_SCALE = 0.25;
 const IMAGE_VIEWER_MAX_SCALE = 12;
@@ -1953,8 +2015,9 @@ illustrationTooltipController = createInlineTooltipController({
     tooltipClass: "illustration-tooltip",
     role: "dialog",
     pointerAnchor: true,
+    showDelay: 0,
     beforeShow: () => annotationTooltipController.hide(true),
-    populate: async ({ tag, tooltip, reveal, isCurrent }) => {
+    populate: async ({ tag, tooltip, position, reveal, isCurrent }) => {
         const label = illustrationLabel(tag);
         tooltip.setAttribute("aria-label", `${label}预览`);
         const sourcePath = String(tag.dataset.imageSrc || "").trim();
@@ -1964,18 +2027,11 @@ illustrationTooltipController = createInlineTooltipController({
         image.decoding = "async";
         image.fetchPriority = "high";
         image.dataset.previewSrc = sourcePath;
-        // Metadata is warmed only for visible content. If a user reaches a
-        // marker before that background task finishes, load its header here
-        // instead of blocking the page or presenting a false failure state.
-        const readyImage = illustrationReadyCache.get(sourcePath)
-            || window.ClassRecordData?.getPreloadedAsset?.(sourcePath)
-            || await warmIllustrationPreview(sourcePath, { priority: "high" });
-        const frame = sourceDimensions || getIllustrationSourceDimensions(sourcePath);
-        if (!frame) {
-            setIllustrationFailure(tooltip);
-            reveal();
-            return;
-        }
+        // Show a stable frame immediately. The all-data metadata pass usually
+        // supplies the real ratio before hover; a compact fallback prevents a
+        // slow network from delaying the tooltip itself.
+        const fallbackFrame = { width: 4, height: 3 };
+        const frame = sourceDimensions || fallbackFrame;
         setIllustrationFrameSize(tooltip, image, frame.width, frame.height);
         image.classList.add("is-pending");
         const loading = document.createElement("span");
@@ -1983,7 +2039,17 @@ illustrationTooltipController = createInlineTooltipController({
         loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
         tooltip.replaceChildren(image, loading);
         reveal();
+        const [dimensions, readyImage] = await Promise.all([
+            sourceDimensions ? Promise.resolve(sourceDimensions) : warmIllustrationAsset(sourcePath, { priority: "high" }),
+            illustrationReadyCache.get(sourcePath)
+                || window.ClassRecordData?.getPreloadedAsset?.(sourcePath, { transform: window.ClassRecordData?.displayTransforms?.written || ILLUSTRATION_DISPLAY_TRANSFORM })
+                || warmIllustrationPreview(sourcePath, { priority: "high" })
+        ]);
         if (!isCurrent()) return;
+        if (dimensions && dimensions !== sourceDimensions) {
+            setIllustrationFrameSize(tooltip, image, dimensions.width, dimensions.height);
+            position();
+        }
         if (!readyImage?.url) {
             setIllustrationFailure(tooltip);
             return;
