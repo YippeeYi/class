@@ -75,7 +75,8 @@ assert.match(recordScript, /if \(window\.ClassRecordData\?\.isEnabled\?\.\(\)\) 
 assert.match(secureData, /signAssetUrl\s*=\s*async \(path,\s*\{[^}]*forceRefresh\s*=\s*false/, 'Storage signer must support refreshing an expired signed URL');
 assert.doesNotMatch(recordRenderer, /ClassRecordIllustrationDimensions|bundledIllustrationDimensions|getIllustrationResourceId/, 'inline illustration sizing must not depend on a generated hard-coded table');
 assert.match(recordRenderer, /function loadIllustrationMetadata\(path,[\s\S]*Range: `bytes=0-\$\{ILLUSTRATION_METADATA_RANGE_BYTES - 1\}`/, 'illustration startup must request bounded source metadata instead of preloading preview images');
-assert.match(recordRenderer, /function warmIllustrationAsset\(path,[\s\S]*loadIllustrationMetadata\(sourcePath, \{ priority \}\)[\s\S]*loadIllustrationMetadataWithImage\(sourcePath, \{ priority \}\)/, 'illustration startup must cache intrinsic dimensions before any hover');
+assert.match(recordRenderer, /function warmIllustrationAsset\(path,[\s\S]*loadIllustrationMetadata\(sourcePath, \{ priority, signedUrl \}\)[\s\S]*loadIllustrationMetadataWithImage\(sourcePath, \{ priority, signedUrl \}\)/, 'illustration startup must cache intrinsic dimensions before any hover');
+assert.match(recordRenderer, /async function signIllustrationPaths\(paths\)[\s\S]*signAssetUrls\(batch, \{ quiet: true \}\)[\s\S]*warmIllustrationAsset\(path, \{ priority, signedUrl:/, 'all-content metadata warming must batch-sign image paths before reading dimensions');
 assert.doesNotMatch(recordRenderer.match(/function warmIllustrationAsset\(path,[\s\S]*?\n}\n\nfunction warmIllustrationPaths/)?.[0] || '', /warmIllustrationPreview/, 'startup metadata warming must not preload display images');
 assert.match(recordRenderer, /function preloadIllustrationDimensionsFromData\(\)[\s\S]*loadRecords\?\.\(\{ hidden: false \}\)[\s\S]*loadAllQuotes\?\.\([\s\S]*loadPageMessages\?\.\([\s\S]*loadPageSupplements\?\.\(\{ hidden: false \}\)[\s\S]*loadMaterials\?\.\([\s\S]*loadCreditsPage\?\.\(/, 'renderer startup must collect illustration markers from every public content source');
 assert.match(recordRenderer, /startIllustrationDimensionPreload\(\);/, 'renderer startup must begin the all-content metadata pass');
@@ -92,6 +93,8 @@ assert.equal((materialsPage.match(/class="materials-placeholder"/g) || []).lengt
 assert.match(personPage, /id="person-loading"[^>]*role="status"/, 'person pages must provide a neutral loading state before profile data is available');
 assert.match(personPage, /id="person-info"[^>]*hidden/, 'person aliases and introductions must remain hidden until data is available');
 assert.match(stylesheet, /\[hidden\]\s*\{\s*display:\s*none !important;/, 'native hidden state must not be overridden by component layout styles');
+assert.match(stylesheet, /\.record-empty\[role="status"\]\s*\{[^}]*width:\s*calc\(100% - \(2 \* var\(--page-status-inline-gap\)\)\)/s, 'record loading cards must keep balanced inline gutters');
+assert.match(stylesheet, /\.credits-status,\s*\.materials-placeholder\[role="status"\]\s*\{[^}]*width:\s*calc\(100% - \(2 \* var\(--page-status-inline-gap\)\)\)/s, 'non-image loading cards must share balanced inline gutters');
 assert.match(personScript, /const people = await loadAllPeople\(\);[\s\S]*personInfo\?\.removeAttribute\("hidden"\);[\s\S]*const records = await loadAllRecords\(\)/, 'person profiles must render before their record collection is loaded');
 assert.match(bootstrap, /isPersonPage[\s\S]*record-list[^\n]*!isPersonPage/, 'bootstrap must avoid making person profiles wait for all records');
 assert.doesNotMatch(personPage, /quoteStore\.js/, 'person pages must not load the unused quote store');

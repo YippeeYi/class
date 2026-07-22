@@ -1159,6 +1159,7 @@ const illustrationDimensionCache = new Map();
 const illustrationWarmPromises = new Map();
 const illustrationPreviewWarmPromises = new Map();
 const ILLUSTRATION_METADATA_RANGE_BYTES = 64 * 1024;
+const ILLUSTRATION_SIGN_BATCH_SIZE = 100;
 const ILLUSTRATION_DISPLAY_TRANSFORM = Object.freeze({ width: 1200, height: 1800, resize: "contain", quality: 78 });
 
 window.imageSizeCache = window.imageSizeCache || {};
@@ -1232,12 +1233,12 @@ function parseIllustrationDimensions(bytes, contentType = "") {
     return null;
 }
 
-async function loadIllustrationMetadata(path, { priority = "low" } = {}) {
+async function loadIllustrationMetadata(path, { priority = "low", signedUrl = "" } = {}) {
     const sourcePath = String(path || "").trim();
     const data = window.ClassRecordData;
-    const url = data?.isEnabled?.()
+    const url = signedUrl || (data?.isEnabled?.()
         ? await Promise.resolve(data.signAssetUrl?.(sourcePath, { quiet: true })).catch(() => "")
-        : sourcePath;
+        : sourcePath);
     if (!url || typeof fetch !== "function") return null;
     try {
         const response = await fetch(url, { headers: { Range: `bytes=0-${ILLUSTRATION_METADATA_RANGE_BYTES - 1}` }, priority });
@@ -1249,12 +1250,12 @@ async function loadIllustrationMetadata(path, { priority = "low" } = {}) {
     }
 }
 
-function loadIllustrationMetadataWithImage(path, { priority = "low" } = {}) {
+function loadIllustrationMetadataWithImage(path, { priority = "low", signedUrl = "" } = {}) {
     const sourcePath = String(path || "").trim();
     const data = window.ClassRecordData;
-    const urlPromise = data?.isEnabled?.()
+    const urlPromise = signedUrl || (data?.isEnabled?.()
         ? Promise.resolve(data.signAssetUrl?.(sourcePath, { quiet: true })).catch(() => "")
-        : Promise.resolve(sourcePath);
+        : Promise.resolve(sourcePath));
     return Promise.resolve(urlPromise).then((url) => new Promise((resolve) => {
         if (!url) { resolve(null); return; }
         const image = new Image();
@@ -1290,7 +1291,7 @@ function warmIllustrationPreview(path, { priority = "low" } = {}) {
     return promise;
 }
 
-function warmIllustrationAsset(path, { priority = "low" } = {}) {
+function warmIllustrationAsset(path, { priority = "low", signedUrl = "" } = {}) {
     const sourcePath = String(path || "").trim();
     if (!sourcePath) return Promise.resolve(null);
     if (getIllustrationSourceDimensions(sourcePath)) return Promise.resolve(getIllustrationSourceDimensions(sourcePath));
@@ -1298,8 +1299,8 @@ function warmIllustrationAsset(path, { priority = "low" } = {}) {
     const promise = (async () => {
         // Read only enough of the original file to parse its intrinsic size.
         // A full Image decode is a compatibility fallback, not a preview warmup.
-        const dimensions = await loadIllustrationMetadata(sourcePath, { priority })
-            || await loadIllustrationMetadataWithImage(sourcePath, { priority });
+        const dimensions = await loadIllustrationMetadata(sourcePath, { priority, signedUrl })
+            || await loadIllustrationMetadataWithImage(sourcePath, { priority, signedUrl });
         if (!dimensions) return null;
         rememberIllustrationDimensions(sourcePath, dimensions.width, dimensions.height);
         return dimensions;
@@ -1310,22 +1311,42 @@ function warmIllustrationAsset(path, { priority = "low" } = {}) {
     return promise;
 }
 
-function warmIllustrationPaths(paths, { priority = "low" } = {}) {
+async function signIllustrationPaths(paths) {
+    const data = window.ClassRecordData;
+    const uniquePaths = [...new Set(paths || [])].filter(Boolean);
+    if (!data?.isEnabled?.() || typeof data.signAssetUrls !== "function" || !uniquePaths.length) return new Map();
+    const batches = [];
+    for (let index = 0; index < uniquePaths.length; index += ILLUSTRATION_SIGN_BATCH_SIZE) {
+        batches.push(uniquePaths.slice(index, index + ILLUSTRATION_SIGN_BATCH_SIZE));
+    }
+    const signed = new Map();
+    const results = await Promise.allSettled(batches.map((batch) => data.signAssetUrls(batch, { quiet: true })));
+    results.forEach((result) => {
+        if (result.status !== "fulfilled" || typeof result.value?.forEach !== "function") return;
+        result.value.forEach((url, path) => {
+            if (url) signed.set(path, url);
+        });
+    });
+    return signed;
+}
+
+async function warmIllustrationPaths(paths, { priority = "low" } = {}) {
     const queue = [...new Set(paths || [])].filter(Boolean);
+    const signedUrls = await signIllustrationPaths(queue);
     let nextIndex = 0;
     let loaded = 0;
     const worker = async () => {
         while (nextIndex < queue.length) {
             const path = queue[nextIndex++];
-            if (await warmIllustrationAsset(path, { priority })) loaded += 1;
+            if (await warmIllustrationAsset(path, { priority, signedUrl: signedUrls.get(path) || "" })) loaded += 1;
         }
     };
-    return Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker))
-        .then(() => ({
-            total: queue.length,
-            loaded,
-            failedPaths: queue.filter((path) => !getIllustrationSourceDimensions(path))
-        }));
+    await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
+    return {
+        total: queue.length,
+        loaded,
+        failedPaths: queue.filter((path) => !getIllustrationSourceDimensions(path))
+    };
 }
 
 window.preloadIllustrationsFromContent = (value) => warmIllustrationPaths(extractIllustrationPaths(value), { priority: "low" });
@@ -1359,20 +1380,27 @@ function preloadIllustrationDimensionsFromData() {
             ["materials", () => data.loadMaterials?.() || []],
             ["credits", () => data.loadCreditsPage?.() || null]
         ];
-        const sources = await Promise.allSettled(sourceLoaders.map(([, load]) => load()));
-        const paths = new Set();
-        sources.forEach((result, index) => {
-            if (result.status === "fulfilled") {
-                collectIllustrationPathsFromData(result.value, paths);
-            } else {
-                window.ClassRecordDiagnostics?.warn(`Illustration metadata source failed: ${sourceLoaders[index][0]}`, result.reason);
-            }
-        });
-        const result = await warmIllustrationPaths(paths, { priority: "low" });
-        if (result.failedPaths.length) {
-            window.ClassRecordDiagnostics?.warn("Illustration metadata could not be read", result.failedPaths);
-        }
-        return result;
+        const scheduledPaths = new Set();
+        const tasks = sourceLoaders.map(([name, load]) => Promise.resolve()
+            .then(load)
+            .then(async (value) => {
+                const sourcePaths = new Set();
+                collectIllustrationPathsFromData(value, sourcePaths);
+                const freshPaths = [...sourcePaths].filter((path) => !scheduledPaths.has(path));
+                freshPaths.forEach((path) => scheduledPaths.add(path));
+                if (!freshPaths.length) return;
+                const result = await warmIllustrationPaths(freshPaths, { priority: "low" });
+                if (result.failedPaths.length) {
+                    window.ClassRecordDiagnostics?.warn(`Illustration metadata could not be read: ${name}`, result.failedPaths);
+                }
+            })
+            .catch((error) => window.ClassRecordDiagnostics?.warn(`Illustration metadata source failed: ${name}`, error)));
+        await Promise.all(tasks);
+        return {
+            total: scheduledPaths.size,
+            loaded: [...scheduledPaths].filter((path) => getIllustrationSourceDimensions(path)).length,
+            failedPaths: [...scheduledPaths].filter((path) => !getIllustrationSourceDimensions(path))
+        };
     })();
     window.ClassRecordIllustrationMetadataPromise = promise;
     return promise;
