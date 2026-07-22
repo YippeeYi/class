@@ -28,14 +28,14 @@ function buildQuotesFromRecords(records) {
     return [...quoteMap.values()].sort((a, b) => (a.sourceDate || "").localeCompare(b.sourceDate || "") || a.id.localeCompare(b.id));
 }
 
-window.loadAllQuotes = async function ({ onProgressStep, records } = {}) {
+window.loadAllQuotes = async function ({ onProgressStep, records, force = false } = {}) {
     if (QuoteStore.loaded) {
         return QuoteStore.quotes;
     }
     const list = await loadWithCache({
         key: "quotes:from-records",
         expire: 24 * 60 * 60 * 1000,
-        force: Array.isArray(records),
+        force,
         loader: async () => buildQuotesFromRecords(Array.isArray(records) ? records : await window.loadAllRecords())
     });
 

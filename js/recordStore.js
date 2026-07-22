@@ -133,6 +133,7 @@ window.loadHiddenRecords = async function ({ onProgressStep } = {}) {
     const list = await loadWithCache({
         key: "records:hidden",
         expire: 5 * 60 * 1000,
+        sessionExpire: 0,
         loader: async () => {
             const records = await window.ClassRecordData.loadRecords({ onProgressStep, hidden: true });
             const [pageSupplements, pages] = await Promise.all([

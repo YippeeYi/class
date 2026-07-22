@@ -65,6 +65,7 @@ const materialsScript = await readFile(resolve(root, 'js/materials.js'), 'utf8')
 const materialsPage = await readFile(resolve(root, 'materials.html'), 'utf8');
 const personPage = await readFile(resolve(root, 'person.html'), 'utf8');
 const personScript = await readFile(resolve(root, 'js/person.js'), 'utf8');
+const searchPage = await readFile(resolve(root, 'search.html'), 'utf8');
 const timelinePage = await readFile(resolve(root, 'timeline.html'), 'utf8');
 const timelineScript = await readFile(resolve(root, 'js/timeline.js'), 'utf8');
 const bootstrap = await readFile(resolve(root, 'js/bootstrap.js'), 'utf8');
@@ -81,6 +82,7 @@ assert.match(recordRenderer, /function warmIllustrationAsset\(path,[\s\S]*loadIl
 assert.match(recordRenderer, /async function signIllustrationPaths\(paths\)[\s\S]*signAssetUrls\(batch, \{ quiet: true \}\)[\s\S]*warmIllustrationAsset\(path, \{ priority, signedUrl:/, 'all-content metadata warming must batch-sign image paths before reading dimensions');
 assert.doesNotMatch(recordRenderer.match(/function warmIllustrationAsset\(path,[\s\S]*?\n}\n\nfunction warmIllustrationPaths/)?.[0] || '', /warmIllustrationPreview/, 'startup metadata warming must not preload display images');
 assert.match(recordRenderer, /function preloadIllustrationDimensionsFromData\(\)[\s\S]*loadRecords\?\.\(\{ hidden: false \}\)[\s\S]*loadAllQuotes\?\.\([\s\S]*loadPageMessages\?\.\([\s\S]*loadPageSupplements\?\.\(\{ hidden: false \}\)[\s\S]*loadMaterials\?\.\([\s\S]*loadCreditsPage\?\.\(/, 'renderer startup must collect illustration markers from every public content source');
+assert.match(recordRenderer, /const loadPublicSource = \(key, loader\) => \{[\s\S]*window\.loadWithCache\([\s\S]*records:visible/, 'illustration metadata scans must reuse the current-session public-data cache when stores are unavailable');
 assert.match(recordRenderer, /if \(sourceFailures\.length \|\| result\.failedPaths\.length\)\s*\{\s*throw new Error\(`Illustration dimensions incomplete:/, 'pages must not render marker content when any public source or image dimension is incomplete');
 assert.match(recordRenderer, /startIllustrationDimensionPreload\(\);/, 'renderer startup must begin the all-content metadata pass');
 assert.match(recordRenderer, /cacheReadyPromise\s*=\s*Promise\.all\(\[pageReady, metadataPromise\]\)/, 'renderer must gate markup rendering when it loads after bootstrap');
@@ -103,6 +105,9 @@ assert.match(personScript, /const people = await loadAllPeople\(\);[\s\S]*person
 assert.match(bootstrap, /Promise\.all\(\[[\s\S]*ClassRecordIllustrationMetadataPromise/, 'bootstrap must wait for all illustration dimensions before markup-capable pages render');
 assert.match(timelinePage, /id="timeline-actions"[^>]*hidden/, 'timeline controls must remain hidden until statistics are ready');
 assert.match(timelineScript, /if \(summary\)[\s\S]*renderAll\(\);\s*timelineActions\?\.removeAttribute\('hidden'\);[\s\S]*detail\.setAttribute\('aria-busy', 'false'\)/, 'timeline controls must only appear after successful statistic rendering');
+assert.match(searchPage, /id="search-loading" class="page-loading"[^>]*role="status"/, 'search pages must present a neutral loader before the index is ready');
+assert.match(searchPage, /id="search-panel"[^>]*hidden/, 'search controls must remain hidden before the index is ready');
+assert.match(searchPage, /id="search-results"[^>]*hidden/, 'search result content must remain hidden before the index is ready');
 assert.doesNotMatch(personPage, /quoteStore\.js/, 'person pages must not load the unused quote store');
 assert.match(recordRenderer, /1 - Math\.pow\(1 - progress, 4\)/, 'record jumps must use the shared long-tail ease-out curve');
 assert.doesNotMatch(recordScript, /window\.scrollTo\(\{[^}]*behavior:\s*["']smooth["']/, 'record navigation must not fall back to a different browser-native smooth curve');

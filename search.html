@@ -28,10 +28,14 @@
             </div>
         </header>
 
-        <section class="search-panel" aria-label="搜索条件">
+        <section id="search-loading" class="page-loading" role="status" aria-live="polite">
+            <strong>正在建立搜索索引…</strong>
+        </section>
+
+        <section id="search-panel" class="search-panel" aria-label="搜索条件" hidden>
             <div class="search-input-wrap">
                 <input id="global-search-input" class="global-search-input" type="search" placeholder="输入人名、名言、记录内容或日期"
-                    autocomplete="off" autofocus aria-label="全站搜索关键词">
+                    autocomplete="off" aria-label="全站搜索关键词">
             </div>
             <div id="global-search-types" class="search-type-controls" aria-label="搜索范围">
                 <button type="button" class="btn-action search-type is-active" data-type="record">记录</button>
@@ -40,7 +44,7 @@
             </div>
         </section>
 
-        <section id="search-results" class="search-results" aria-live="polite"></section>
+        <section id="search-results" class="search-results" aria-live="polite" hidden></section>
     </main>
 
     <script src="js/cacheLoader.js"></script>

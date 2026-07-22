@@ -8,6 +8,8 @@
     const resultsWrap = document.getElementById("search-results");
     const summary = document.getElementById("search-summary");
     const typeControls = document.getElementById("global-search-types");
+    const searchPanel = document.getElementById("search-panel");
+    const loading = document.getElementById("search-loading");
     if (!input || !resultsWrap) return;
 
     const typeLabels = {
@@ -19,6 +21,18 @@
     let searchIndex = [];
     let searchTimer = null;
     let lastRecordedQuery = "";
+
+    function revealSearch() {
+        loading?.setAttribute("hidden", "");
+        searchPanel?.removeAttribute("hidden");
+        resultsWrap.removeAttribute("hidden");
+        input.focus?.({ preventScroll: true });
+    }
+
+    function showSearchError() {
+        loading?.setAttribute("hidden", "");
+        resultsWrap.removeAttribute("hidden");
+    }
 
     function escapeHtml(text) {
         return String(text || "")
@@ -261,11 +275,13 @@
             searchIndex = buildIndex(records, people, quotes);
             const initialQuery = new URLSearchParams(location.search).get("q") || "";
             input.value = initialQuery;
+            revealSearch();
             renderResults();
         })
         .catch((error) => {
             window.ClassRecordDiagnostics?.warn("Search data load failed", error);
             if (summary) summary.textContent = "搜索数据加载失败。";
+            showSearchError();
             renderEmpty("搜索数据加载失败。", "请刷新页面或清空缓存后重试。");
         });
 })();

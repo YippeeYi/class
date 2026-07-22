@@ -1371,14 +1371,23 @@ function preloadIllustrationDimensionsFromData() {
         await window.waitForAccess?.();
         const data = window.ClassRecordData;
         if (!data?.isEnabled?.()) return { total: 0, loaded: 0, failedPaths: [] };
-        const recordsPromise = data.loadRecords?.({ hidden: false }) || Promise.resolve([]);
+        const loadPublicSource = (key, loader) => {
+            if (typeof window.loadWithCache !== "function") return loader();
+            return window.loadWithCache({
+                key,
+                expire: 24 * 60 * 60 * 1000,
+                loader
+            });
+        };
+        const recordsPromise = window.loadAllRecords?.()
+            || loadPublicSource("records:visible", () => data.loadRecords?.({ hidden: false }) || []);
         const sourceLoaders = [
             ["records", () => recordsPromise],
             ["quotes", async () => window.loadAllQuotes?.({ records: await recordsPromise }) || []],
-            ["pageMessages", () => data.loadPageMessages?.() || []],
-            ["pageSupplements", () => data.loadPageSupplements?.({ hidden: false }) || []],
-            ["materials", () => data.loadMaterials?.() || []],
-            ["credits", () => data.loadCreditsPage?.() || null]
+            ["pageMessages", () => loadPublicSource("page-messages", () => data.loadPageMessages?.() || [])],
+            ["pageSupplements", () => loadPublicSource("page-supplements:visible", () => data.loadPageSupplements?.({ hidden: false }) || [])],
+            ["materials", () => window.loadAllMaterials?.() || loadPublicSource("materials", () => data.loadMaterials?.() || [])],
+            ["credits", () => loadPublicSource("credits-page", () => data.loadCreditsPage?.() || null)]
         ];
         const scheduledPaths = new Set();
         const sourceFailures = [];
