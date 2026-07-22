@@ -1,4 +1,6 @@
-const mapUrl = 'maps/china-provinces.geojson';
+// Resolve from this module, not the document URL. This remains correct when a
+// host serves admissions.html from an extensionless or nested route.
+const mapUrl = new URL('../../maps/china-provinces.geojson', import.meta.url).href;
 const number = (value) => Number(value);
 // Tianditu's administrative-division download encodes a provincial GB code as
 // `156` + six-digit administrative code. Keep the original GeoJSON untouched
@@ -12,8 +14,10 @@ export const featureAdcode = (feature) => {
   return match ? match[1] : '';
 };
 export const loadGeo = async () => {
-  const response = await fetch(mapUrl, { cache: 'force-cache', credentials: 'same-origin' });
-  if (!response.ok) throw new Error('未找到经审核的省级地图文件。请按 docs/admissions-map-source.md 配置 maps/china-provinces.geojson。');
+  // Do not reuse a previously cached 404 after the map is added to a new
+  // deployment. The map is loaded once per protected page entry.
+  const response = await fetch(mapUrl, { cache: 'no-store', credentials: 'same-origin' });
+  if (!response.ok) throw new Error(`未找到经审核的省级地图文件（HTTP ${response.status}）。请刷新到最新部署后重试。`);
   const geo = await response.json();
   if (geo?.type !== 'FeatureCollection' || !Array.isArray(geo.features)) throw new Error('地图文件格式错误：应为 GeoJSON FeatureCollection。');
   const features = geo.features.filter((feature) => ['Polygon', 'MultiPolygon'].includes(feature?.geometry?.type)).map((feature) => ({ ...feature, code: featureAdcode(feature), name: String(feature.properties?.name || '') }));

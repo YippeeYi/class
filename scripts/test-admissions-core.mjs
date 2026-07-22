@@ -24,4 +24,7 @@ assert.equal(geo.type, 'FeatureCollection', 'checked local map must be GeoJSON F
 assert.equal(provinceFeatures.length, 34, 'checked local map must contain all 34 provincial polygon features');
 assert.equal(provinceFeatures.filter((feature) => /^\d{6}$/.test(featureAdcode(feature))).length, 34, 'every local provincial polygon must map to a six-digit administrative code');
 assert.ok(featureAdcode(provinceFeatures.find((feature) => feature.properties?.name === '江苏省')) === '320000', 'TianDiTu GB code adapter must resolve Jiangsu correctly');
+const geoModule = await readFile(new URL('../js/admissions/geo.mjs', import.meta.url), 'utf8');
+assert.match(geoModule, /new URL\('\.\.\/\.\.\/maps\/china-provinces\.geojson', import\.meta\.url\)/, 'map URL must resolve from the module instead of the current document route');
+assert.match(geoModule, /cache: 'no-store'/, 'map reload must not reuse a cached 404 after deployment');
 console.log('Passed admissions data grouping, validation, and Haversine ordering tests.');
