@@ -34,6 +34,9 @@ assert.equal(isCityBoundaryProvince('320000'), true, 'ordinary provinces must sh
 assert.equal(isCityBoundaryProvince('110000'), false, 'municipalities must not show city boundaries');
 assert.equal(isCityBoundaryProvince('810000'), false, 'special administrative regions must not show city boundaries');
 const geoModule = await readFile(new URL('../js/admissions/geo.mjs', import.meta.url), 'utf8');
+const mapModule = await readFile(new URL('../js/admissions/map.mjs', import.meta.url), 'utf8');
 assert.match(geoModule, /new URL\('\.\.\/\.\.\/maps\/china-provinces\.geojson', import\.meta\.url\)/, 'map URL must resolve from the module instead of the current document route');
 assert.match(geoModule, /cache: 'no-store'/, 'map reload must not reuse a cached 404 after deployment');
+assert.match(mapModule, /Math\.min\(650 \/ width, 710 \/ height\)/, 'province focus must size its uniform scale from the selected geometry');
+assert.match(mapModule, /Math\.min\(7\.5, Math\.max\(1\.45/, 'province focus scale must safely enlarge small provinces without distortion');
 console.log('Passed admissions data grouping, validation, and Haversine ordering tests.');

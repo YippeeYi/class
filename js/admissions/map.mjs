@@ -1,4 +1,4 @@
-import { createProjection, featurePath } from './geo.mjs';
+import { boundsForFeatures, createProjection, featurePath } from './geo.mjs';
 import { colorForCount, PROVINCIAL_CAPITALS } from './core.mjs';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -69,10 +69,18 @@ export const renderNationalMap = (host, features, groups, { onSelect, onFocus, r
   const focus = (province) => {
     const capital = PROVINCIAL_CAPITALS[province.code];
     if (!capital) return;
-    const [x, y] = project(capital);
-    // Uniform SVG scaling keeps the source GeoJSON's aspect ratio intact.
-    const scale = 1.58, targetX = 390, targetY = 470;
-    const dx = targetX - x * scale, dy = targetY - y * scale;
+    const feature = features.find((item) => item.code === province.code);
+    if (!feature) return;
+    const [minLongitude, minLatitude, maxLongitude, maxLatitude] = boundsForFeatures([feature]);
+    const [left, bottom] = project([minLongitude, minLatitude]);
+    const [right, top] = project([maxLongitude, maxLatitude]);
+    const width = Math.max(1, Math.abs(right - left)), height = Math.max(1, Math.abs(bottom - top));
+    // Fit the selected province into the left exhibition zone with one uniform scale.
+    // This preserves every GeoJSON proportion while letting smaller provinces enlarge further.
+    const scale = Math.min(7.5, Math.max(1.45, Math.min(650 / width, 710 / height)));
+    const sourceCenterX = (left + right) / 2, sourceCenterY = (top + bottom) / 2;
+    const targetX = 400, targetY = 452;
+    const dx = targetX - sourceCenterX * scale, dy = targetY - sourceCenterY * scale;
     shapeLayer.setAttribute('transform', `translate(${dx} ${dy}) scale(${scale})`);
     shapeLayer.classList.add('is-focused');
     shapeLayer.querySelectorAll('.admissions-province').forEach((path) => path.classList.toggle('is-selected', path.dataset.code === province.code));

@@ -5,13 +5,15 @@
  * token or page payload. Frames and MP4 are written to ignored folders.
  */
 import { mkdir, rm } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 const require = createRequire(import.meta.url);
 const root = process.cwd(), token = process.env.CLASS_RECORD_ACCESS_TOKEN, baseUrl = process.env.CLASS_RECORD_VIDEO_URL || 'http://127.0.0.1:8765';
 if (!token || !/^[a-f0-9]{64}$/i.test(token)) throw new Error('Set CLASS_RECORD_ACCESS_TOKEN locally to a valid access token; it is never accepted via command arguments.');
 let chromium; try { ({ chromium } = require('playwright')); } catch { throw new Error('Playwright is required. Install it locally (not in the deployed site) before rendering.'); }
+const ffmpegCheck = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore', shell: process.platform === 'win32' });
+if (ffmpegCheck.status !== 0) throw new Error('FFmpeg is required. Install FFmpeg locally and ensure `ffmpeg -version` succeeds before rendering.');
 const output = path.join(root, 'admissions-output'), frames = path.join(root, 'admissions-frames'); await rm(frames, { recursive: true, force: true }); await mkdir(frames, { recursive: true }); await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 try {
@@ -19,6 +21,7 @@ try {
   await page.addInitScript(({ accessToken }) => { localStorage.setItem('classRecord:inviteAccess', JSON.stringify({ type: 'invite', token: accessToken, authorizedAt: new Date().toISOString() })); localStorage.setItem('classRecord:lastVisitAt', new Date().toISOString()); }, { accessToken: token });
   await page.goto(`${baseUrl}/admissions.html?render=video`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.admissions-map-svg');
+  await page.waitForFunction(() => Boolean(window.ClassAdmissionsVideo?.durationMs), { timeout: 30000 });
   // Fixed 30 fps sampling. The page controls a deterministic seek API when
   // render=video; no wall-clock recording is used.
   const duration = await page.evaluate(() => window.ClassAdmissionsVideo?.durationMs || 0);

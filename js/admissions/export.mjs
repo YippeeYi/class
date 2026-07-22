@@ -15,13 +15,18 @@ const distribute = (items, side, height) => {
 };
 
 export const buildPosterSvg = async ({ features, groups, ordered, title = '班级同学蹭饭图' }) => {
-  const width = 7680, map = { x: 1580, y: 580, width: 4520, height: 3900 };
-  const projectBase = createProjection(features, map.width, map.height, 72);
-  const project = (point) => { const [x, y] = projectBase(point); return [x + map.x, y + map.y]; };
+  const width = 7680, initialMap = { x: 1580, y: 460, width: 4520, height: 3860 };
+  const initialBaseProject = createProjection(features, initialMap.width, initialMap.height, 72);
+  const initialProject = (point) => { const [x, y] = initialBaseProject(point); return [x + initialMap.x, y + initialMap.y]; };
   const provinces = [...ordered].sort((a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name, 'zh-Hans-CN'));
   const sides = { left: [], right: [] };
-  provinces.forEach((province) => { const capital = PROVINCIAL_CAPITALS[province.code]; if (!capital) return; const [x, y] = project(capital); sides[x < width / 2 ? 'left' : 'right'].push({ ...province, anchor: { x, y } }); });
+  provinces.forEach((province) => { const capital = PROVINCIAL_CAPITALS[province.code]; if (!capital) return; const [x, y] = initialProject(capital); sides[x < width / 2 ? 'left' : 'right'].push({ ...province, anchor: { x, y } }); });
   const height = Math.max(4320, ...Object.values(sides).map((items) => items.reduce((sum, item) => sum + provinceHeight(item), 0) + Math.max(0, items.length - 1) * 42 + 900));
+  const map = { x: 1580, y: 460, width: 4520, height: height - 640 };
+  const projectBase = createProjection(features, map.width, map.height, 72);
+  const project = (point) => { const [x, y] = projectBase(point); return [x + map.x, y + map.y]; };
+  sides.left = []; sides.right = [];
+  provinces.forEach((province) => { const capital = PROVINCIAL_CAPITALS[province.code]; if (!capital) return; const [x, y] = project(capital); sides[x < width / 2 ? 'left' : 'right'].push({ ...province, anchor: { x, y } }); });
   const annotations = [...distribute(sides.left, 'left', height), ...distribute(sides.right, 'right', height)];
   const max = Math.max(1, ...[...groups.values()].map((item) => item.students));
   const paths = features.map((feature) => `<path d="${featurePath(feature, project)}" fill="${colorForCount(groups.get(feature.code)?.students || 0, max)}" stroke="#101820" stroke-width="7"/>`).join('');
@@ -37,7 +42,14 @@ export const buildPosterSvg = async ({ features, groups, ordered, title = '班�
 };
 export const downloadPoster = async (options) => {
   await document.fonts?.ready; const { svg, width, height } = await buildPosterSvg(options); const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-  const image = await createImageBitmap(blob); const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height; canvas.getContext('2d').drawImage(image, 0, 0); image.close();
+  const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height; const context = canvas.getContext('2d');
+  if (!context) throw new Error('浏览器不支持总图画布。');
+  try { const image = await createImageBitmap(blob); context.drawImage(image, 0, 0); image.close(); }
+  catch {
+    const objectUrl = URL.createObjectURL(blob);
+    try { const image = await new Promise((resolve, reject) => { const node = new Image(); node.onload = () => resolve(node); node.onerror = reject; node.src = objectUrl; }); context.drawImage(image, 0, 0); }
+    finally { URL.revokeObjectURL(objectUrl); }
+  }
   const png = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png')); if (!png) throw new Error('总图生成失败。');
   const url = URL.createObjectURL(png), link = document.createElement('a'); link.href = url; link.download = '班级同学蹭饭图.png'; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 };

@@ -32,7 +32,6 @@
             </article>
         `;
         window.preloadIllustrationsFromContent?.(item.content || "");
-        window.hydrateIllustrationThumbnails?.(contentHost);
     }
 
     listHost.addEventListener("click", (event) => {

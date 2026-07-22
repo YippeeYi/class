@@ -483,7 +483,7 @@ function renderSquareMarkup(body, raw, context) {
         const safePath = normalizeIllustrationPath(first);
         const label = render(second);
         if (asText || context.tooltipContext || !safePath) return label;
-        return `<span class="inline-illustration" data-image-src="${escapeRecordAttribute(safePath)}" data-image-label="${escapeRecordAttribute(parseInlineMarkup(second, { mode: "text" }))}" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false"><span class="inline-illustration-thumbnail" aria-hidden="true"><i></i></span><span class="inline-illustration-label">${label}</span></span>`;
+        return `<span class="inline-illustration" data-image-src="${escapeRecordAttribute(safePath)}" data-image-label="${escapeRecordAttribute(parseInlineMarkup(second, { mode: "text" }))}" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false">${label}</span>`;
     }
 
     return asText ? raw : escapeRecordText(raw);
@@ -1296,59 +1296,6 @@ function illustrationLabel(tag) {
     return String(tag?.dataset.imageLabel || tag?.textContent || "插图").trim() || "插图";
 }
 
-function hydrateIllustrationThumbnail(tag) {
-    if (!tag || tag.dataset.thumbnailState) return;
-    const sourcePath = String(tag.dataset.imageSrc || "").trim();
-    const host = tag.querySelector(".inline-illustration-thumbnail");
-    if (!sourcePath || !host) return;
-    tag.dataset.thumbnailState = "loading";
-    const image = document.createElement("img");
-    image.alt = "";
-    image.decoding = "async";
-    image.loading = "lazy";
-    image.className = "is-pending";
-    resolveIllustrationUrl(sourcePath).then((url) => {
-        if (!tag.isConnected || !url) throw new Error("Illustration thumbnail is unavailable");
-        image.addEventListener("load", () => {
-            if (!tag.isConnected) return;
-            image.classList.remove("is-pending");
-            host.replaceChildren(image);
-            tag.dataset.thumbnailState = "ready";
-        }, { once: true });
-        image.addEventListener("error", () => {
-            if (!tag.isConnected) return;
-            host.classList.add("has-error");
-            host.replaceChildren();
-            tag.dataset.thumbnailState = "error";
-        }, { once: true });
-        image.src = url;
-    }).catch(() => {
-        if (!tag.isConnected) return;
-        host.classList.add("has-error");
-        host.replaceChildren();
-        tag.dataset.thumbnailState = "error";
-    });
-}
-
-function hydrateIllustrationThumbnails(root = document) {
-    root.querySelectorAll?.(".inline-illustration[data-image-src]").forEach(hydrateIllustrationThumbnail);
-}
-
-window.hydrateIllustrationThumbnails = hydrateIllustrationThumbnails;
-if (document.documentElement) {
-    const observeIllustrations = () => {
-        hydrateIllustrationThumbnails();
-        new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {
-                if (node.nodeType !== Node.ELEMENT_NODE) return;
-                if (node.matches?.(".inline-illustration[data-image-src]")) hydrateIllustrationThumbnail(node);
-                hydrateIllustrationThumbnails(node);
-            }));
-        }).observe(document.body, { childList: true, subtree: true });
-    };
-    if (document.body) observeIllustrations();
-    else document.addEventListener("DOMContentLoaded", observeIllustrations, { once: true });
-}
 scheduleIllustrationDimensionPreload();
 
 const imageViewerState = {

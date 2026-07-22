@@ -15,4 +15,11 @@ $env:CLASS_RECORD_ACCESS_TOKEN='本机已有的64位访问令牌'
 node scripts/render-admissions-video.mjs
 ```
 
-本地需安装 Playwright 浏览器和 FFmpeg。输出为被 Git 忽略的 `admissions-output/class-admissions-map.mp4`，临时帧在 `admissions-frames/`；确认成片后可删除临时帧。当前页面会在取得地图文件和私有数据后提供 `ClassAdmissionsVideo.seek()` 确定性时间轴；渲染脚本不打印 token、签名 URL 或学生信息。
+首次准备开发环境后，安装 Chromium 运行时，并确认 FFmpeg 在 PATH 中：
+
+```powershell
+npx playwright install chromium
+ffmpeg -version
+```
+
+渲染脚本会在开始前检查 Playwright、Chromium、FFmpeg 和有效的本机访问 token；缺少任一项会以明确错误停止，不会生成不完整视频。输出为被 Git 忽略的 `admissions-output/class-admissions-map.mp4`，临时帧在 `admissions-frames/`；确认成片后可删除临时帧。当前页面会在取得地图文件和私有数据后提供 `ClassAdmissionsVideo.seek()` 确定性时间轴；每省时长根据大学数量计算，渲染脚本不打印 token、签名 URL 或学生信息。
