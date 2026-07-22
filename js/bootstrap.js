@@ -21,8 +21,9 @@ const waitForAccess = () => {
 
 function detectCriticalLoaders() {
     const loaders = [];
+    const isPersonPage = Boolean(document.getElementById('person-name'));
 
-    if (document.getElementById('record-list')) {
+    if (document.getElementById('record-list') && !isPersonPage) {
         loaders.push(window.loadAllRecords);
         loaders.push(window.loadAllPeople);
     }
@@ -36,9 +37,8 @@ function detectCriticalLoaders() {
         loaders.push(window.loadAllQuotes);
     }
 
-    if (document.getElementById('person-name')) {
+    if (isPersonPage) {
         loaders.push(window.loadAllPeople);
-        loaders.push(window.loadAllRecords);
     }
 
     if (document.getElementById('quiz-question-text')) {
@@ -61,7 +61,5 @@ window.cacheReadyPromise = (async () => {
     const critical = criticalLoaders.length === 0
         ? Promise.resolve()
         : Promise.all(criticalLoaders.map((loader) => loader()));
-    // recordRenderer can load before this bootstrap on several pages. Keep its
-    // all-source illustration metadata pass in the page initialization gate.
-    await Promise.all([critical, window.ClassRecordIllustrationMetadataPromise || Promise.resolve()]);
+    await critical;
 })();

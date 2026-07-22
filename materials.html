@@ -10,8 +10,6 @@
     <script src="js/themeBootstrap.js"></script>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="favicon.ico">
-    <link rel="preload" href="fonts/GoogleSansFlex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf"
-        as="font" type="font/ttf" crossorigin>
     <script src="js/siteCache.js"></script>
     <script src="js/authGate.js"></script>
     <script src="js/navigation.js"></script>
@@ -26,17 +24,14 @@
     <main class="materials-shell">
         <h1>资料</h1>
         <section class="materials-panel" aria-label="资料">
-            <aside id="materials-list" class="materials-list" aria-label="资料列表"></aside>
-            <div id="materials-content" class="materials-content" aria-live="polite">
-                <div class="materials-placeholder">正在加载资料</div>
+            <aside id="materials-list" class="materials-list" aria-label="资料列表" aria-busy="true"></aside>
+            <div id="materials-content" class="materials-content" aria-live="polite" aria-busy="true">
+                <div class="materials-placeholder" role="status">正在加载资料…</div>
             </div>
         </section>
     </main>
 
     <script src="js/cacheLoader.js"></script>
-    <script src="js/recordStore.js"></script>
-    <script src="js/peopleStore.js"></script>
-    <script src="js/quoteStore.js"></script>
     <script src="js/materialStore.js"></script>
     <script src="js/bootstrap.js"></script>
     <script src="js/backgroundOptions.js"></script>

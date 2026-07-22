@@ -922,6 +922,7 @@ cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
     }
     renderViewControls();
     renderCurrentViewAsync();
+    container.setAttribute("aria-busy", "false");
 
     renderRecordFilter({
       container: filterContainer,
@@ -940,4 +941,5 @@ cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
   .catch((error) => {
     window.ClassRecordDiagnostics?.warn("Record load failed", error);
     container.innerHTML = '<div class="record-empty"><strong>记录加载失败。</strong><span>请确认 Supabase 数据表和访问权限状态后重试。</span></div>';
+    container.setAttribute("aria-busy", "false");
   });

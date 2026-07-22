@@ -662,6 +662,35 @@ body>#quotes-list {
   color: var(--text-soft);
 }
 
+.record-empty[role="status"] {
+  min-height: 84px;
+  align-content: center;
+}
+
+.record-empty[role="status"] strong {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.record-empty[role="status"] strong::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border: 2px solid color-mix(in srgb, var(--theme-accent-strong) 24%, transparent);
+  border-top-color: var(--theme-accent-strong);
+  border-radius: 50%;
+  animation: page-loading-spin 850ms linear infinite;
+}
+
+@keyframes page-loading-spin {
+  to { transform: rotate(1turn); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .record-empty[role="status"] strong::before { animation: none; }
+}
+
 /* 空状态 */
 .person-info {
   margin-top: 16px;

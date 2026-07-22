@@ -5,6 +5,8 @@ const recordContainer = document.getElementById("record-list");
 const filterContainer = document.getElementById("record-filter");
 const switchContainer = document.querySelector(".record-switch");
 const switchButtons = document.querySelectorAll(".switch-btn");
+const personInfo = document.getElementById("person-info");
+const personLoading = document.getElementById("person-loading");
 
 let participatedRecords = [];
 let authoredRecords = [];
@@ -77,41 +79,66 @@ async function renderPersonAvatar(person) {
 
 const cacheReady = window.cacheReadyPromise || Promise.resolve();
 
-cacheReady.then(() => Promise.all([loadAllPeople(), loadAllRecords()])).then(([people, records]) => {
+function showPersonLoadError(title, detail) {
+    if (personLoading) {
+        personLoading.hidden = false;
+        personLoading.innerHTML = `<strong>${escapeHtml(title)}</strong>${detail ? `<span>${escapeHtml(detail)}</span>` : ""}`;
+    }
+    personInfo?.setAttribute("hidden", "");
+}
+
+async function initializePersonPage() {
     if (!personId) {
+        showPersonLoadError("人物参数缺失。", "请从人物名单页重新打开。");
         recordContainer.innerHTML = '<div class="record-empty"><strong>人物参数缺失。</strong><span>请从人物名单页重新打开。</span></div>';
+        recordContainer.setAttribute("aria-busy", "false");
         return;
     }
-    const person = people.find((item) => item.id === personId);
-    if (!person) {
-        recordContainer.innerHTML = '<div class="record-empty"><strong>没有找到这个人物。</strong><span>请检查链接或从人物名单页重新打开。</span></div>';
-        return;
+    try {
+        await cacheReady;
+        const people = await loadAllPeople();
+        const person = people.find((item) => item.id === personId);
+        if (!person) {
+            showPersonLoadError("没有找到这个人物。", "请检查链接或从人物名单页重新打开。");
+            recordContainer.innerHTML = '<div class="record-empty"><strong>没有找到这个人物。</strong><span>请检查链接或从人物名单页重新打开。</span></div>';
+            recordContainer.setAttribute("aria-busy", "false");
+            return;
+        }
+
+        const displayName = String(person.name || person.alias || person.id || "").trim();
+        document.getElementById("person-name").textContent = stripRecordMarkup(displayName) || person.id;
+        const aliasText = person.alias || (Array.isArray(person.aliases) ? person.aliases.join("、") : "");
+        document.getElementById("person-alias").innerHTML = `<strong>${parseContent(aliasText || "-")}</strong>`;
+        document.getElementById("person-bio").innerHTML = `<strong>${formatContent(person.bio || "-")}</strong>`;
+        personInfo?.removeAttribute("hidden");
+        if (personLoading) personLoading.hidden = true;
+        renderPersonAvatar(person);
+
+        const records = await loadAllRecords();
+        participatedRecords = records.filter((record) => getRecordParticipantIds(record).includes(personId));
+        authoredRecords = records.filter((record) => getRecordAuthorIds(record).includes(personId));
+
+        sortRecords(participatedRecords);
+        sortRecords(authoredRecords);
+        const showSwitch = authoredRecords.length > 0;
+        switchContainer?.classList.remove("is-pending");
+        switchContainer?.classList.toggle("is-hidden", !showSwitch);
+        if (!showSwitch) {
+            switchButtons.forEach((item) => item.classList.toggle("active", item.dataset.type === "participated"));
+        }
+        filterContainer?.removeAttribute("hidden");
+        renderRecordList(participatedRecords, recordContainer);
+        recordContainer.setAttribute("aria-busy", "false");
+        renderFilterUI();
+    } catch (error) {
+        window.ClassRecordDiagnostics?.warn("Person page load failed", error);
+        showPersonLoadError("人物资料加载失败。", "请稍后重试。");
+        recordContainer.innerHTML = '<div class="record-empty"><strong>页面加载失败。</strong><span>请稍后重试。</span></div>';
+        recordContainer.setAttribute("aria-busy", "false");
     }
+}
 
-    const displayName = String(person.name || person.alias || person.id || "").trim();
-    document.getElementById("person-name").textContent = stripRecordMarkup(displayName) || person.id;
-    const aliasText = person.alias || (Array.isArray(person.aliases) ? person.aliases.join("、") : "");
-    document.getElementById("person-alias").innerHTML = `<strong>${parseContent(aliasText || "-")}</strong>`;
-    document.getElementById("person-bio").innerHTML = `<strong>${formatContent(person.bio || "-")}</strong>`;
-    renderPersonAvatar(person);
-
-    participatedRecords = records.filter((record) => getRecordParticipantIds(record).includes(personId));
-    authoredRecords = records.filter((record) => getRecordAuthorIds(record).includes(personId));
-
-    sortRecords(participatedRecords);
-    sortRecords(authoredRecords);
-    const showSwitch = authoredRecords.length > 0;
-    switchContainer?.classList.remove("is-pending");
-    switchContainer?.classList.toggle("is-hidden", !showSwitch);
-    if (!showSwitch) {
-        switchButtons.forEach((item) => item.classList.toggle("active", item.dataset.type === "participated"));
-    }
-    renderRecordList(participatedRecords, recordContainer);
-    renderFilterUI();
-}).catch((error) => {
-    window.ClassRecordDiagnostics?.warn("Person page load failed", error);
-    recordContainer.innerHTML = '<div class="record-empty"><strong>页面加载失败。</strong><span>请稍后重试。</span></div>';
-});
+initializePersonPage();
 
 switchButtons.forEach((btn) => {
     btn.addEventListener("click", () => {

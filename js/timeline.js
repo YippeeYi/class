@@ -811,9 +811,11 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
             }
             if (summary) summary.textContent = `已整理 ${years.length} 个年份、${months.length} 个月份、${records.length} 条记录。`;
             renderAll();
+            detail.setAttribute('aria-busy', 'false');
         })
         .catch((error) => {
             window.ClassRecordDiagnostics?.warn('Timeline load failed', error);
             detail.innerHTML = '<div class="record-empty"><strong>时间线加载失败。</strong><span>请刷新页面或清空缓存后重试。</span></div>';
+            detail.setAttribute('aria-busy', 'false');
         });
 })();

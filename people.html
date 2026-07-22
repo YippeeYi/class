@@ -9,8 +9,6 @@
     <script src="js/themeBootstrap.js"></script>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="favicon.ico">
-    <link rel="preload" href="fonts/GoogleSansFlex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf"
-        as="font" type="font/ttf" crossorigin>
     <script src="js/siteCache.js"></script>
     <script src="js/authGate.js"></script>
     <script src="js/navigation.js"></script>
@@ -23,14 +21,15 @@
 
     <h1>人物名单</h1>
 
-    <div id="people-list"></div>
+    <div id="people-list" aria-busy="true">
+        <div class="record-empty" role="status"><strong>正在加载人物名单…</strong></div>
+    </div>
 
     <!-- Cache + Store -->
     <script src="js/cacheLoader.js"></script>
     <script src="js/recordStore.js"></script>
     <script src="js/peopleStore.js"></script>
     <script src="js/recordRenderer.js"></script>
-    <script src="js/quoteStore.js"></script>
     <script src="js/bootstrap.js"></script>
     <script src="js/backgroundOptions.js"></script>
     <script src="js/backgroundSwitcher.js"></script>

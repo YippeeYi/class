@@ -50,6 +50,11 @@ cacheReady.then(() => Promise.all([
     records = allRecords;
     ({ participantCountMap, authorCountMap, authorCharacterCountMap } = buildPeopleStats(records));
     renderByRole();
+    container.setAttribute("aria-busy", "false");
+}).catch((error) => {
+    window.ClassRecordDiagnostics?.warn("People data load failed", error);
+    container.innerHTML = '<div class="record-empty"><strong>人物名单加载失败。</strong><span>请稍后重试。</span></div>';
+    container.setAttribute("aria-busy", "false");
 });
 
 /* ===============================

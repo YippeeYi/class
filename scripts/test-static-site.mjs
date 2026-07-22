@@ -29,6 +29,7 @@ for (const page of pages) {
     assert.match(html, /base-uri 'none'/, `${page} must prohibit base URL injection`);
     assert.doesNotMatch(html, /<script[^>]+src=["']https?:\/\//i, `${page} must not load third-party runtime scripts`);
     assert.match(html, /<link[^>]+href=["']style\.css["']/i, `${page} must load the shared stylesheet`);
+    assert.doesNotMatch(html, /rel=["']preload["'][^>]+GoogleSansFlex|GoogleSansFlex[^>]+rel=["']preload["']/i, `${page} must not block first paint on the optional variable font`);
     for (const reference of localReferences(html)) {
         await access(resolve(root, reference));
     }
@@ -61,6 +62,10 @@ const authGate = await readFile(resolve(root, 'js/authGate.js'), 'utf8');
 const backgroundSwitcher = await readFile(resolve(root, 'js/backgroundSwitcher.js'), 'utf8');
 const themeBootstrap = await readFile(resolve(root, 'js/themeBootstrap.js'), 'utf8');
 const materialsScript = await readFile(resolve(root, 'js/materials.js'), 'utf8');
+const materialsPage = await readFile(resolve(root, 'materials.html'), 'utf8');
+const personPage = await readFile(resolve(root, 'person.html'), 'utf8');
+const personScript = await readFile(resolve(root, 'js/person.js'), 'utf8');
+const bootstrap = await readFile(resolve(root, 'js/bootstrap.js'), 'utf8');
 const vendoredSdk = await readFile(resolve(root, 'vendor/supabase-js-2.45.0.js'));
 assert.doesNotMatch(recordScript, /ClassRecordImageViewer\.open\(imagePath,[\s\S]{0,240}resolvedUrl:/, 'written image viewer must not pass its display-sized URL as the original');
 assert.match(recordRenderer, /openImageViewer\(sourcePath,\s*\{[^}]*resolvedUrl\s*=\s*""[^}]*urlPromise\s*=\s*null/s, 'shared image viewer must retain guarded fallback support');
@@ -69,18 +74,24 @@ assert.match(recordRenderer, /ClassRecordData\?\.isEnabled\?\.\(\)[^}]*signAsset
 assert.match(recordScript, /if \(window\.ClassRecordData\?\.isEnabled\?\.\(\)\) return "";[^}]*images\\\//s, 'written image preload must not probe private Storage paths as local images');
 assert.match(secureData, /signAssetUrl\s*=\s*async \(path,\s*\{[^}]*forceRefresh\s*=\s*false/, 'Storage signer must support refreshing an expired signed URL');
 assert.doesNotMatch(recordRenderer, /ClassRecordIllustrationDimensions|bundledIllustrationDimensions|getIllustrationResourceId/, 'inline illustration sizing must not depend on a generated hard-coded table');
-assert.match(recordRenderer, /loadRecords\?\.\(\{ hidden: false \}\)[\s\S]*loadRecords\?\.\(\{ hidden: true \}\)[\s\S]*loadPageMessages\?\.\(\)[\s\S]*loadPageSupplements\?\.\(\{ hidden: false \}\)[\s\S]*loadPageSupplements\?\.\(\{ hidden: true \}\)[\s\S]*loadMaterials\?\.\(\)/, 'illustration metadata preload must scan every record, quote, visible/hidden supplement, and material source');
-assert.match(recordRenderer, /window\.illuSizeCacheReport\s*=\s*report/, 'all-source illustration preload must publish a coverage report instead of silently hiding failed sources');
 assert.match(recordRenderer, /function loadIllustrationMetadata\(path,[\s\S]*Range: `bytes=0-\$\{ILLUSTRATION_METADATA_RANGE_BYTES - 1\}`/, 'illustration startup must request bounded source metadata instead of preloading preview images');
 assert.match(recordRenderer, /function warmIllustrationAsset\(path,[\s\S]*loadIllustrationMetadata\(sourcePath, \{ priority \}\)[\s\S]*loadIllustrationMetadataWithImage\(sourcePath, \{ priority \}\)/, 'illustration startup must cache intrinsic dimensions before any hover');
 assert.doesNotMatch(recordRenderer.match(/function warmIllustrationAsset\(path,[\s\S]*?\n}\n\nfunction warmIllustrationPaths/)?.[0] || '', /warmIllustrationPreview/, 'startup metadata warming must not preload display images');
-assert.match(recordRenderer, /const sourceDimensions = getIllustrationSourceDimensions\(sourcePath\);[\s\S]*setIllustrationFrameSize\(tooltip, image, sourceDimensions\.width, sourceDimensions\.height\);[\s\S]*warmIllustrationPreview\(sourcePath, \{ priority: "high" \}\)/, 'illustration hover must set its cached source frame before waiting for an image URL');
+assert.doesNotMatch(recordRenderer, /preloadIllustrationDimensionsFromData|startIllustrationDimensionPreload|ClassRecordIllustrationMetadataPromise/, 'renderer startup must not scan every historical illustration or gate page rendering');
+assert.match(recordRenderer, /container\.replaceChildren\(fragment\);[\s\S]*preloadIllustrationsFromContent\?\.\(records\.map\(/, 'record lists must warm only their visible illustration content after render');
+assert.match(recordRenderer, /await warmIllustrationPreview\(sourcePath, \{ priority: "high" \}\);[\s\S]*const frame = sourceDimensions \|\| getIllustrationSourceDimensions\(sourcePath\);[\s\S]*setIllustrationFrameSize\(tooltip, image, frame\.width, frame\.height\)/, 'a hovered illustration must recover metadata on demand before sizing its preview');
 assert.match(stylesheet, /\.illustration-tooltip\s*\{[^}]*overflow:\s*visible\s*;/s, 'illustration tooltip must never crop a viewport-fitted image frame');
 const illustrationTooltipPopulate = recordRenderer.match(/illustrationTooltipController\s*=\s*createInlineTooltipController\([\s\S]*?\n}\);\n\ndocument\.addEventListener\("click"/)?.[0] || '';
 assert.doesNotMatch(illustrationTooltipPopulate.slice(illustrationTooltipPopulate.indexOf('image.src = readyImage.url')), /setIllustrationFrameSize|rememberIllustrationDimensions/, 'an image decode must only fill the reserved tooltip frame and must never trigger a second size calculation');
 assert.doesNotMatch(recordRenderer, /inline-illustration-thumbnail/, 'marker text must not render images before the user hovers it');
 assert.match(recordRenderer, /window\.preloadIllustrationsFromContent[\s\S]*warmIllustrationPaths\(extractIllustrationPaths\(value\)/, 'illustration paths must be parsed from data and passed to the shared runtime warmer');
 assert.match(materialsScript, /preloadIllustrationsFromContent\?\.\(item\.content \|\| ""\)/, 'material rendering must warm its active illustration content through the shared cache');
+assert.equal((materialsPage.match(/class="materials-placeholder"/g) || []).length, 1, 'materials pages must provide exactly one loading placeholder');
+assert.match(personPage, /id="person-loading"[^>]*role="status"/, 'person pages must provide a neutral loading state before profile data is available');
+assert.match(personPage, /id="person-info"[^>]*hidden/, 'person aliases and introductions must remain hidden until data is available');
+assert.match(personScript, /const people = await loadAllPeople\(\);[\s\S]*personInfo\?\.removeAttribute\("hidden"\);[\s\S]*const records = await loadAllRecords\(\)/, 'person profiles must render before their record collection is loaded');
+assert.match(bootstrap, /isPersonPage[\s\S]*record-list[^\n]*!isPersonPage/, 'bootstrap must avoid making person profiles wait for all records');
+assert.doesNotMatch(personPage, /quoteStore\.js/, 'person pages must not load the unused quote store');
 assert.match(recordRenderer, /1 - Math\.pow\(1 - progress, 4\)/, 'record jumps must use the shared long-tail ease-out curve');
 assert.doesNotMatch(recordScript, /window\.scrollTo\(\{[^}]*behavior:\s*["']smooth["']/, 'record navigation must not fall back to a different browser-native smooth curve');
 assert.doesNotMatch(recordRenderer, /classRecord:imageSizes|localStorage\.setItem\(IMAGE_SIZE_STORAGE_KEY/, 'real illustration paths must not persist in localStorage');

@@ -864,6 +864,7 @@ function renderRecordList(records, container) {
         fragment.appendChild(div);
     });
     container.replaceChildren(fragment);
+    window.preloadIllustrationsFromContent?.(records.map((record) => record.content || "").join("\n"));
     if (window.ClassRecordData?.isEnabled()) {
         window.ClassRecordData.resolveAssetElements(container).catch((error) => {
             window.ClassRecordDiagnostics?.warn("Private attachment signing failed", error);
@@ -1161,14 +1162,6 @@ const ILLUSTRATION_METADATA_RANGE_BYTES = 64 * 1024;
 
 window.imageSizeCache = window.imageSizeCache || {};
 window.illuSizeCache = window.illuSizeCache instanceof Map ? window.illuSizeCache : new Map();
-// Data-only startup audit: it records coverage without exposing signed URLs
-// or warming preview bitmaps.
-window.illuSizeCacheReport = window.illuSizeCacheReport || {
-    sourceStates: {},
-    total: 0,
-    loaded: 0,
-    failedPaths: []
-};
 
 function getIllustrationSourceDimensions(path) {
     const sourcePath = String(path || "").trim();
@@ -1195,8 +1188,6 @@ window.addEventListener("classrecordcacheclearing", () => {
     illustrationPreviewWarmPromises.clear();
     window.illuSizeCache.clear();
     window.imageSizeCache = {};
-    window.illuSizeCacheReport = { sourceStates: {}, total: 0, loaded: 0, failedPaths: [] };
-    window.ClassRecordIllustrationMetadataPromise = null;
 });
 
 function validIllustrationDimensions(width, height) {
@@ -1335,87 +1326,11 @@ function warmIllustrationPaths(paths, { priority = "low" } = {}) {
         }));
 }
 
-function collectIllustrationPathsFromData(value, paths, seen = new WeakSet()) {
-    if (typeof value === "string") {
-        extractIllustrationPaths(value).forEach((path) => paths.add(path));
-        return;
-    }
-    if (!value || typeof value !== "object" || seen.has(value)) return;
-    seen.add(value);
-    if (Array.isArray(value)) {
-        value.forEach((item) => collectIllustrationPathsFromData(item, paths, seen));
-        return;
-    }
-    Object.values(value).forEach((item) => collectIllustrationPathsFromData(item, paths, seen));
-}
-
-function preloadIllustrationDimensionsFromData() {
-    if (window.ClassRecordIllustrationMetadataPromise) {
-        return window.ClassRecordIllustrationMetadataPromise;
-    }
-    const promise = (async () => {
-        await window.waitForAccess?.();
-        const data = window.ClassRecordData;
-        if (!data?.isEnabled?.()) return { total: 0, loaded: 0 };
-        // This single bootstrap scans every protected JSON source once. Both
-        // normal and hidden records are included because either can later be
-        // opened without creating a second image-size cache.
-        const sourceLoaders = [
-            ["records", () => data.loadRecords?.({ hidden: false })],
-            ["hiddenRecords", () => data.loadRecords?.({ hidden: true })],
-            ["pageMessages", () => data.loadPageMessages?.()],
-            ["pageSupplements", () => data.loadPageSupplements?.({ hidden: false })],
-            ["hiddenPageSupplements", () => data.loadPageSupplements?.({ hidden: true })],
-            ["materials", () => data.loadMaterials?.()]
-        ];
-        const sources = await Promise.allSettled(sourceLoaders.map(([, load]) => load()));
-        const paths = new Set();
-        const sourceStates = {};
-        sources.forEach((result, index) => {
-            const name = sourceLoaders[index][0];
-            if (result.status === "fulfilled") {
-                collectIllustrationPathsFromData(result.value, paths);
-                sourceStates[name] = { status: "loaded" };
-                return;
-            }
-            // Keep the page resilient, but never silently claim that this
-            // source was scanned when it was unavailable.
-            sourceStates[name] = { status: "failed" };
-            window.ClassRecordDiagnostics?.warn(`Illustration metadata source failed: ${name}`, result.reason);
-        });
-        const result = await warmIllustrationPaths(paths, { priority: "low" });
-        const report = { ...result, sourceStates };
-        window.illuSizeCacheReport = report;
-        if (result.failedPaths.length) {
-            window.ClassRecordDiagnostics?.warn("Illustration metadata could not be read", result.failedPaths);
-        }
-        return report;
-    })();
-    window.ClassRecordIllustrationMetadataPromise = promise;
-    return promise;
-}
-
-function startIllustrationDimensionPreload() {
-    const promise = preloadIllustrationDimensionsFromData().catch((error) => {
-        window.ClassRecordDiagnostics?.warn("Illustration metadata preload failed", error);
-    });
-    // Pages that already expose a startup promise must not render marker text
-    // before every source has been scanned and its original dimensions read.
-    if (window.cacheReadyPromise) {
-        const pageReady = window.cacheReadyPromise;
-        window.cacheReadyPromise = Promise.all([pageReady, promise]).then(([result]) => result);
-    }
-    return promise;
-}
-
-window.preloadIllustrationDimensionsFromData = preloadIllustrationDimensionsFromData;
 window.preloadIllustrationsFromContent = (value) => warmIllustrationPaths(extractIllustrationPaths(value), { priority: "low" });
 
 function illustrationLabel(tag) {
     return String(tag?.dataset.imageLabel || tag?.textContent || "插图").trim() || "插图";
 }
-
-startIllustrationDimensionPreload();
 
 const imageViewerState = {
     overlay: null,
@@ -2049,25 +1964,25 @@ illustrationTooltipController = createInlineTooltipController({
         image.decoding = "async";
         image.fetchPriority = "high";
         image.dataset.previewSrc = sourcePath;
-        // Marker rendering is gated by the site-wide metadata pass. Therefore
-        // a hover always knows the source frame before it asks for an image URL.
-        // The fallback is only for a failed/externally injected marker, and it
-        // intentionally stays a stable failure placeholder instead of resizing.
-        if (!sourceDimensions) {
+        // Metadata is warmed only for visible content. If a user reaches a
+        // marker before that background task finishes, load its header here
+        // instead of blocking the page or presenting a false failure state.
+        const readyImage = illustrationReadyCache.get(sourcePath)
+            || window.ClassRecordData?.getPreloadedAsset?.(sourcePath)
+            || await warmIllustrationPreview(sourcePath, { priority: "high" });
+        const frame = sourceDimensions || getIllustrationSourceDimensions(sourcePath);
+        if (!frame) {
             setIllustrationFailure(tooltip);
             reveal();
             return;
         }
-        setIllustrationFrameSize(tooltip, image, sourceDimensions.width, sourceDimensions.height);
+        setIllustrationFrameSize(tooltip, image, frame.width, frame.height);
         image.classList.add("is-pending");
         const loading = document.createElement("span");
         loading.className = "record-written-image-loading illustration-tooltip-loading";
         loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
         tooltip.replaceChildren(image, loading);
         reveal();
-        const readyImage = illustrationReadyCache.get(sourcePath)
-            || window.ClassRecordData?.getPreloadedAsset?.(sourcePath)
-            || await warmIllustrationPreview(sourcePath, { priority: "high" });
         if (!isCurrent()) return;
         if (!readyImage?.url) {
             setIllustrationFailure(tooltip);

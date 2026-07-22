@@ -20,10 +20,12 @@ cacheReady.then(async () => {
     quoteList = quotes;
     recordList = records;
     renderQuotes(currentSortKey, currentSortOrder);
+    container.setAttribute("aria-busy", "false");
   })
   .catch((error) => {
     window.ClassRecordDiagnostics?.warn("Quote data load failed", error);
     container.innerHTML = '<div class="record-empty"><strong>名言加载失败。</strong><span>请刷新页面或检查记录标记。</span></div>';
+    container.setAttribute("aria-busy", "false");
   });
 
 function renderQuotes(sortKey = "id", sortOrder = "asc") {
