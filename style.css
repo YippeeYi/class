@@ -6287,7 +6287,9 @@ body.hidden-record-mode .hidden-record-banner {
   min-width: 0;
   min-height: 0;
   padding: 10px;
-  overflow: hidden;
+  /* The cached frame already fits the viewport. Never crop an illustration
+     or its loading/error state at the tooltip boundary. */
+  overflow: visible;
   border: var(--panel-border);
   border-radius: 12px;
   background: var(--tooltip-bg);
@@ -6312,6 +6314,7 @@ body.hidden-record-mode .hidden-record-banner {
   max-height: none;
   border-radius: 8px;
   object-fit: contain;
+  flex: none;
   cursor: zoom-in;
 }
 
@@ -6761,3 +6764,105 @@ body.admissions-page { background: #fff !important; background-image: none !impo
 @media (max-width: 900px) { .admissions-app { width: min(100% - 24px, 720px); }.admissions-map-svg { width: 100%; height: auto; }.admissions-focus-info { position: static; width: auto; min-width: 0; margin: 14px 2px 0; }.admissions-focus-row { grid-template-columns: minmax(130px, .9fr) minmax(0, 1fr); }.admissions-progress, .admissions-detail-actions { position: static; margin: 14px 2px 0; }.admissions-detail-actions { justify-content: flex-start; }.admissions-app.is-detail .admissions-map-annotations { display: none; } }
 @media (prefers-reduced-motion: reduce) { .admissions-map-shape-layer, .admissions-province, .admissions-university-marker, .admissions-focus-row { transition: none; animation: none; }.admissions-university-marker.is-visible, .admissions-focus-row { opacity: 1; transform: none; } }
 .admissions-app.is-video-render *, .admissions-app.is-video-render *::before, .admissions-app.is-video-render *::after { animation: none !important; transition: none !important; }
+
+/* Admissions map: one white exhibition surface and a staged exploration flow. */
+body.admissions-page,
+.admissions-page,
+.admissions-app,
+.admissions-head,
+.admissions-national {
+  background: #fff !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+.admissions-page { color: #26343a; }
+.admissions-national { overflow: visible; }
+.admissions-map-svg { background: #fff; }
+.admissions-province {
+  stroke: #c8d0d3;
+  stroke-width: .72;
+  transition: opacity 850ms cubic-bezier(.16,.84,.2,1), filter 850ms cubic-bezier(.16,.84,.2,1), stroke 850ms cubic-bezier(.16,.84,.2,1), fill 300ms ease;
+}
+.admissions-province.has-admissions:hover,
+.admissions-province.has-admissions:focus-visible { stroke: #8d9ba0; stroke-width: 1.1; filter: brightness(1.02); }
+.admissions-map-shape-layer.is-focused .admissions-province:not(.is-selected) { opacity: .16; filter: blur(1.25px) saturate(.28); }
+.admissions-map-shape-layer.is-focused .admissions-province.is-selected { stroke: #8e9a9f; stroke-width: 1.05; }
+.admissions-city-boundary-layer { opacity: 0; transition: opacity 360ms ease-out; }
+.admissions-city-boundary-layer.is-visible { opacity: 1; }
+.admissions-city-boundary-layer path { stroke: #aeb9be; stroke-width: .65; stroke-opacity: .8; }
+.admissions-city-marker { opacity: 0; transition: opacity 320ms cubic-bezier(.16,.84,.2,1); }
+.admissions-city-marker.is-visible { opacity: 1; animation: none; }
+.admissions-city-marker circle { fill: #55727d; stroke: #fff; stroke-width: 1.6; }
+.admissions-city-marker text { fill: #34494f; font: 600 13px 'Microsoft YaHei', sans-serif; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+.admissions-university-marker { opacity: 0; transition: opacity 300ms cubic-bezier(.16,.84,.2,1); }
+.admissions-university-marker.is-visible { opacity: 1; animation: none; }
+.admissions-university-marker.is-handing-off { opacity: .92; }
+.admissions-university-marker.is-handoff-complete { opacity: 0; transition-delay: 80ms; }
+.admissions-university-marker circle { fill: #fff; stroke: #91a0a5; stroke-width: 1; }
+.admissions-focus-info {
+  top: 15.5%;
+  right: 4.2%;
+  width: 28%;
+  min-width: 250px;
+  gap: 18px;
+}
+.admissions-focus-row {
+  grid-template-columns: 54px minmax(105px, 1fr) minmax(86px, .9fr);
+  column-gap: 14px;
+  min-height: 64px;
+  opacity: 1;
+  transform: none;
+  animation: none;
+}
+.admissions-focus-logo {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #d6dfe2;
+  border-radius: 50%;
+  background: #fff;
+  color: #52646b;
+  font-size: .76rem;
+  font-weight: 750;
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 340ms cubic-bezier(.16,.84,.2,1), transform 340ms cubic-bezier(.16,.84,.2,1);
+}
+.admissions-focus-logo img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.admissions-focus-row.is-logo-visible .admissions-focus-logo { opacity: 1; transform: none; }
+.admissions-focus-brand {
+  width: 100%;
+  max-width: 190px;
+  height: 46px;
+  overflow: hidden;
+  transform: scaleX(0);
+  transform-origin: left center;
+  clip-path: inset(0 100% 0 0);
+  transition: transform 480ms cubic-bezier(.16,.84,.2,1), clip-path 480ms cubic-bezier(.16,.84,.2,1);
+}
+.admissions-focus-brand img { display: block; width: 100%; height: 46px; max-width: none; object-fit: contain; object-position: left center; }
+.admissions-focus-row.is-brand-visible .admissions-focus-brand { transform: scaleX(1); clip-path: inset(0 0 0 0); }
+.admissions-focus-students,
+.admissions-map-students {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: 5px 10px;
+  min-width: 0;
+  line-height: 1.45;
+}
+.admissions-focus-students-item { opacity: 0; transform: translateY(12px); transition: opacity 260ms cubic-bezier(.16,.84,.2,1), transform 260ms cubic-bezier(.16,.84,.2,1); }
+.admissions-focus-students-item.is-visible { opacity: 1; transform: none; }
+.admissions-map-students-item { white-space: nowrap; }
+.admissions-map-university-row { grid-template-columns: minmax(112px, 56%) minmax(0, 1fr); }
+@media (max-width: 900px) {
+  .admissions-focus-info { width: auto; min-width: 0; }
+  .admissions-focus-row { grid-template-columns: 52px minmax(120px, 1fr) minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  .admissions-focus-row { grid-template-columns: 48px minmax(0, 1fr); row-gap: 8px; }
+  .admissions-focus-students { grid-column: 2; }
+  .admissions-focus-brand { max-width: 100%; }
+}

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { buildProvinceGroups, haversineKm, normalizeRows, orderedProvinces } from '../js/admissions/core.mjs';
 import { boundsForFeatures, createProjection, featureAdcode, isCityBoundaryProvince } from '../js/admissions/geo.mjs';
+import { ProvinceTimeline } from '../js/admissions/timeline.mjs';
 
 const rows = normalizeRows([
   { university_id: 'u-1', university_name: '示例大学甲', province_code: '320000', province_name: '江苏省', city_code: '320100', city_name: '南京市', longitude: 118.79, latitude: 32.06, display_name: '虚构同学乙' },
@@ -69,4 +70,27 @@ assert.match(mapModule, /preserveAspectRatio: 'xMidYMid meet'/, 'SVG must preser
 assert.match(await readFile(new URL('../style.css', import.meta.url), 'utf8'), /\.admissions-map-svg\s*\{[^}]*flex:\s*none[^}]*aspect-ratio:\s*1440\s*\/\s*900/s, 'responsive map CSS must retain the SVG viewBox ratio without flex stretching');
 assert.match(mapModule, /matrix\(\$\{next\}\)/, 'focus animation must use an SVG matrix transform');
 assert.match(mapModule, /const next = `\$\{scale\} 0 0 \$\{scale\}/, 'focus animation matrix must use the identical X/Y scale');
+const previousWindow = globalThis.window;
+globalThis.window = { setTimeout, clearTimeout };
+const stages = [];
+const animationTimeline = new ProvinceTimeline({
+  reduced: true,
+  onStage: async (stage, index) => {
+    stages.push(`${stage}${Number.isInteger(index) ? `:${index}` : ''}`);
+    if (stage === 'focus') await new Promise((resolve) => setTimeout(resolve, 8));
+  },
+  onFinish: () => stages.push('finished')
+});
+animationTimeline.play({ cities: [{}, {}], universities: [{}, {}] });
+await new Promise((resolve) => setTimeout(resolve, 220));
+globalThis.window = previousWindow;
+assert.deepEqual(stages, ['focus', 'cities', 'city:0', 'city:1', 'university:0', 'university:1', 'handoff:0', 'handoff:1', 'complete', 'finished'], 'focus must finish before city, logo, and right-panel stages progress in order');
+const appModule = await readFile(new URL('../js/admissions/app.mjs', import.meta.url), 'utf8');
+const stylesheet = await readFile(new URL('../style.css', import.meta.url), 'utf8');
+assert.match(appModule, /studentList\(university\.students, 'admissions-map-students'\)/, 'same-school students must render as independently wrappable elements');
+assert.match(appModule, /if \(stage === 'focus'\) return beginProvince\(province\)/, 'map focus must be an awaited timeline stage');
+assert.match(appModule, /if \(stage === 'handoff'\) return handoffUniversity\(province, index\)/, 'each school marker must hand off to the right-side information stage');
+assert.match(stylesheet, /body\.admissions-page,[\s\S]*background: #fff !important;/, 'admissions exhibition surface must be strict white');
+assert.match(stylesheet, /\.admissions-province \{[\s\S]*stroke: #c8d0d3;[\s\S]*stroke-width: \.72;/, 'province borders must be light and thin');
+assert.match(stylesheet, /\.admissions-focus-row\.is-brand-visible \.admissions-focus-brand \{ transform: scaleX\(1\); clip-path: inset\(0 0 0 0\); \}/, 'wordmarks must use a horizontal curtain reveal');
 console.log('Passed admissions data grouping, validation, and Haversine ordering tests.');

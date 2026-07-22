@@ -1166,6 +1166,14 @@ function getIllustrationDisplayTransform() {
 
 window.imageSizeCache = window.imageSizeCache || {};
 window.illuSizeCache = window.illuSizeCache instanceof Map ? window.illuSizeCache : new Map();
+// Data-only startup audit: it records coverage without exposing signed URLs
+// or warming preview bitmaps.
+window.illuSizeCacheReport = window.illuSizeCacheReport || {
+    sourceStates: {},
+    total: 0,
+    loaded: 0,
+    failedPaths: []
+};
 
 function getIllustrationSourceDimensions(path) {
     const sourcePath = String(path || "").trim();
@@ -1192,6 +1200,7 @@ window.addEventListener("classrecordcacheclearing", () => {
     illustrationPreviewWarmPromises.clear();
     window.illuSizeCache.clear();
     window.imageSizeCache = {};
+    window.illuSizeCacheReport = { sourceStates: {}, total: 0, loaded: 0, failedPaths: [] };
     window.ClassRecordIllustrationMetadataPromise = null;
 });
 
@@ -1322,7 +1331,11 @@ function warmIllustrationPaths(paths, { priority = "low" } = {}) {
         }
     };
     return Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker))
-        .then(() => ({ total: queue.length, loaded }));
+        .then(() => ({
+            total: queue.length,
+            loaded,
+            failedPaths: queue.filter((path) => !getIllustrationSourceDimensions(path))
+        }));
 }
 
 function collectIllustrationPathsFromData(value, paths, seen = new WeakSet()) {
@@ -1350,19 +1363,36 @@ function preloadIllustrationDimensionsFromData() {
         // This single bootstrap scans every protected JSON source once. Both
         // normal and hidden records are included because either can later be
         // opened without creating a second image-size cache.
-        const sources = await Promise.allSettled([
-            data.loadRecords?.({ hidden: false }),
-            data.loadRecords?.({ hidden: true }),
-            data.loadPageMessages?.(),
-            data.loadPageSupplements?.({ hidden: false }),
-            data.loadPageSupplements?.({ hidden: true }),
-            data.loadMaterials?.()
-        ]);
+        const sourceLoaders = [
+            ["records", () => data.loadRecords?.({ hidden: false })],
+            ["hiddenRecords", () => data.loadRecords?.({ hidden: true })],
+            ["pageMessages", () => data.loadPageMessages?.()],
+            ["pageSupplements", () => data.loadPageSupplements?.({ hidden: false })],
+            ["hiddenPageSupplements", () => data.loadPageSupplements?.({ hidden: true })],
+            ["materials", () => data.loadMaterials?.()]
+        ];
+        const sources = await Promise.allSettled(sourceLoaders.map(([, load]) => load()));
         const paths = new Set();
-        sources.forEach((result) => {
-            if (result.status === "fulfilled") collectIllustrationPathsFromData(result.value, paths);
+        const sourceStates = {};
+        sources.forEach((result, index) => {
+            const name = sourceLoaders[index][0];
+            if (result.status === "fulfilled") {
+                collectIllustrationPathsFromData(result.value, paths);
+                sourceStates[name] = { status: "loaded" };
+                return;
+            }
+            // Keep the page resilient, but never silently claim that this
+            // source was scanned when it was unavailable.
+            sourceStates[name] = { status: "failed" };
+            window.ClassRecordDiagnostics?.warn(`Illustration metadata source failed: ${name}`, result.reason);
         });
-        return warmIllustrationPaths(paths, { priority: "low" });
+        const result = await warmIllustrationPaths(paths, { priority: "low" });
+        const report = { ...result, sourceStates };
+        window.illuSizeCacheReport = report;
+        if (result.failedPaths.length) {
+            window.ClassRecordDiagnostics?.warn("Illustration metadata could not be read", result.failedPaths);
+        }
+        return report;
     })();
     window.ClassRecordIllustrationMetadataPromise = promise;
     return promise;
@@ -1753,6 +1783,12 @@ function setIllustrationFrameSize(tooltip, image, naturalWidth, naturalHeight) {
     tooltip.style.height = `${frame.tooltipHeight}px`;
     image.style.width = `${frame.width}px`;
     image.style.height = `${frame.height}px`;
+    // These attributes reserve identical geometry before decode. Inline CSS
+    // keeps the viewport-fitted frame exact even when the image arrives later.
+    image.width = Math.round(frame.width);
+    image.height = Math.round(frame.height);
+    image.style.aspectRatio = `${naturalWidth} / ${naturalHeight}`;
+    return frame;
 }
 
 function calculateInlineTooltipPosition({ tagRects, tagRect, tooltipRect, viewportWidth, viewportHeight, pointer, padding = 12, gap = 8 }) {

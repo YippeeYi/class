@@ -71,12 +71,18 @@ export const renderNationalMap = (host, features, groups, { onSelect, onFocus, r
     const previous = shapeLayer.dataset.matrix || '1 0 0 1 0 0';
     shapeLayer.setAttribute('transform', `matrix(${next})`);
     shapeLayer.dataset.matrix = next;
-    if (!animate || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    if (!animate || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return Promise.resolve();
     shapeLayer.querySelectorAll(':scope > animateTransform[data-map-transform]').forEach((node) => node.remove());
     const motion = element('animateTransform', { attributeName: 'transform', type: 'matrix', from: previous, to: next, dur: '850ms', fill: 'freeze', calcMode: 'spline', keySplines: '.16 .84 .2 1', 'data-map-transform': '' });
-    shapeLayer.append(motion); motion.beginElement?.();
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = () => { if (!settled) { settled = true; resolve(); } };
+      motion.addEventListener('endEvent', finish, { once: true });
+      shapeLayer.append(motion); motion.beginElement?.();
+      window.setTimeout(finish, 880);
+    });
   };
-  const focus = (province) => {
+  const focus = (province, { animate = true } = {}) => {
     const capital = PROVINCIAL_CAPITALS[province.code];
     if (!capital) return;
     const feature = features.find((item) => item.code === province.code);
@@ -91,11 +97,13 @@ export const renderNationalMap = (host, features, groups, { onSelect, onFocus, r
     const sourceCenterX = (left + right) / 2, sourceCenterY = (top + bottom) / 2;
     const targetX = 400, targetY = 452;
     const dx = targetX - sourceCenterX * scale, dy = targetY - sourceCenterY * scale;
-    setUniformTransform(scale, dx, dy);
+    // Transform, selection contrast, and peripheral de-emphasis are applied
+    // in the same frame; their CSS/SVG motion shares the 850ms duration.
+    const finished = setUniformTransform(scale, dx, dy, { animate });
     shapeLayer.classList.add('is-focused');
     shapeLayer.querySelectorAll('.admissions-province').forEach((path) => path.classList.toggle('is-selected', path.dataset.code === province.code));
     lines.classList.add('is-hidden'); labels.classList.add('is-hidden');
-    return { scale, dx, dy };
+    return { scale, dx, dy, finished };
   };
   const resetFocus = () => {
     setUniformTransform(1, 0, 0); shapeLayer.classList.remove('is-focused');

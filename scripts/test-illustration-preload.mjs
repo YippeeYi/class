@@ -46,6 +46,7 @@ const window = {
         signAssetUrl: async (path) => `https://storage.test/${path}`
     }
 };
+window.cacheReadyPromise = Promise.resolve('page-critical-data-ready');
 
 const context = vm.createContext({
     console,
@@ -89,7 +90,19 @@ assert.deepEqual(metadataRequests.map((item) => item.path).sort(), [
 ]);
 assert.ok(metadataRequests.every((item) => item.options.headers.Range === 'bytes=0-65535'), 'metadata warmup must request only the bounded image header range');
 assert.equal(metadataRequests.length, 6, 'every unique illustration must have one metadata request and no preview-image warmup');
-assert.deepEqual({ ...result }, { total: 6, loaded: 6 });
+assert.equal(result.total, 6);
+assert.equal(result.loaded, 6);
+assert.deepEqual([...result.failedPaths], []);
+assert.deepEqual(Object.fromEntries(Object.entries(result.sourceStates).map(([name, state]) => [name, state.status])), {
+    records: 'loaded',
+    hiddenRecords: 'loaded',
+    pageMessages: 'loaded',
+    pageSupplements: 'loaded',
+    hiddenPageSupplements: 'loaded',
+    materials: 'loaded'
+});
+assert.equal(await window.cacheReadyPromise, 'page-critical-data-ready', 'page rendering must remain gated by the all-source metadata scan');
+assert.equal(window.illuSizeCacheReport.loaded, 6, 'the startup report must expose cache coverage for verification');
 assert.deepEqual({ ...window.getIllustrationSourceDimensions('data/attachments/record.png') }, { width: 2400, height: 1350, ratio: 16 / 9 });
 assert.deepEqual({ ...window.getIllustrationSourceDimensions('data/attachments/message.jpg') }, { width: 900, height: 1600, ratio: 9 / 16 });
 assert.deepEqual({ ...window.getIllustrationSourceDimensions('hidden/data/attachments/hidden-record.png') }, { width: 1024, height: 768, ratio: 4 / 3 });
@@ -97,9 +110,11 @@ assert.deepEqual({ ...window.illuSizeCache.get('data/attachments/record.png') },
 const wideFrame = window.calculateIllustrationPreviewFrame(2400, 1350, { viewportWidth: 1200, viewportHeight: 800, horizontalChrome: 22, verticalChrome: 22 });
 const tallFrame = window.calculateIllustrationPreviewFrame(900, 1600, { viewportWidth: 1200, viewportHeight: 800, horizontalChrome: 22, verticalChrome: 22 });
 const squareFrame = window.calculateIllustrationPreviewFrame(640, 640, { viewportWidth: 390, viewportHeight: 280, horizontalChrome: 22, verticalChrome: 22 });
+const smallFrame = window.calculateIllustrationPreviewFrame(80, 60, { viewportWidth: 390, viewportHeight: 280, horizontalChrome: 22, verticalChrome: 22 });
 assert.equal(wideFrame.ratio, 16 / 9, 'wide previews must retain their cached source ratio');
 assert.equal(tallFrame.ratio, 9 / 16, 'tall previews must retain their cached source ratio');
 assert.equal(squareFrame.ratio, 1, 'small-screen previews must retain square source ratio');
+assert.equal(smallFrame.ratio, 4 / 3, 'small source images must retain their cached source ratio');
 assert.ok(squareFrame.tooltipWidth <= 366 && squareFrame.tooltipHeight <= 256, 'the fixed frame must remain wholly inside a narrow viewport without cropping');
 
 console.log('Passed all-source illustration metadata and mixed-aspect preload checks.');
