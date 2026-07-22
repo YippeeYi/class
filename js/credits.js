@@ -103,6 +103,7 @@
                     window.ClassRecordDiagnostics?.warn('Credits people data load failed', error);
                 });
             }
+            await (window.ClassRecordIllustrationMetadataPromise || Promise.resolve());
             const page = await window.ClassRecordData.loadCreditsPage();
             renderCredits(page);
         } catch (error) {

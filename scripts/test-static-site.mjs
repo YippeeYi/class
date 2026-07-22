@@ -79,8 +79,9 @@ assert.match(recordRenderer, /function warmIllustrationAsset\(path,[\s\S]*loadIl
 assert.match(recordRenderer, /async function signIllustrationPaths\(paths\)[\s\S]*signAssetUrls\(batch, \{ quiet: true \}\)[\s\S]*warmIllustrationAsset\(path, \{ priority, signedUrl:/, 'all-content metadata warming must batch-sign image paths before reading dimensions');
 assert.doesNotMatch(recordRenderer.match(/function warmIllustrationAsset\(path,[\s\S]*?\n}\n\nfunction warmIllustrationPaths/)?.[0] || '', /warmIllustrationPreview/, 'startup metadata warming must not preload display images');
 assert.match(recordRenderer, /function preloadIllustrationDimensionsFromData\(\)[\s\S]*loadRecords\?\.\(\{ hidden: false \}\)[\s\S]*loadAllQuotes\?\.\([\s\S]*loadPageMessages\?\.\([\s\S]*loadPageSupplements\?\.\(\{ hidden: false \}\)[\s\S]*loadMaterials\?\.\([\s\S]*loadCreditsPage\?\.\(/, 'renderer startup must collect illustration markers from every public content source');
+assert.match(recordRenderer, /if \(sourceFailures\.length \|\| result\.failedPaths\.length\)\s*\{\s*throw new Error\(`Illustration dimensions incomplete:/, 'pages must not render marker content when any public source or image dimension is incomplete');
 assert.match(recordRenderer, /startIllustrationDimensionPreload\(\);/, 'renderer startup must begin the all-content metadata pass');
-assert.doesNotMatch(recordRenderer, /cacheReadyPromise\s*=\s*Promise\.all\(\[pageReady/, 'all-content metadata warming must never block page rendering');
+assert.match(recordRenderer, /cacheReadyPromise\s*=\s*Promise\.all\(\[pageReady, metadataPromise\]\)/, 'renderer must gate markup rendering when it loads after bootstrap');
 assert.match(recordRenderer, /container\.replaceChildren\(fragment\);[\s\S]*preloadIllustrationsFromContent\?\.\(records\.map\(/, 'record lists must warm only their visible illustration content after render');
 assert.match(recordRenderer, /tooltip\.replaceChildren\(image, loading\);[\s\S]*reveal\(\);[\s\S]*await Promise\.all\(/, 'a hovered illustration must reveal its tooltip before image work completes');
 assert.match(stylesheet, /\.illustration-tooltip\s*\{[^}]*overflow:\s*visible\s*;/s, 'illustration tooltip must never crop a viewport-fitted image frame');
@@ -96,8 +97,8 @@ assert.match(stylesheet, /\[hidden\]\s*\{\s*display:\s*none !important;/, 'nativ
 assert.match(stylesheet, /\.page-loading\s*\{[^}]*min-height:\s*clamp\(220px, 48vh, 460px\)[^}]*justify-items:\s*center/s, 'initial data loading must be centered without a card frame');
 assert.doesNotMatch(stylesheet.match(/\.page-loading\s*\{[^}]*}/s)?.[0] || '', /border:|background:|box-shadow:/, 'initial data loading must not show a box');
 assert.match(stylesheet, /\.quiz-card\.is-loading\s*\{[^}]*background:\s*transparent[^}]*box-shadow:\s*none/s, 'quiz initialization must not show a card frame');
-assert.match(personScript, /const people = await loadAllPeople\(\);[\s\S]*personInfo\?\.removeAttribute\("hidden"\);[\s\S]*const records = await loadAllRecords\(\)/, 'person profiles must render before their record collection is loaded');
-assert.match(bootstrap, /isPersonPage[\s\S]*record-list[^\n]*!isPersonPage/, 'bootstrap must avoid making person profiles wait for all records');
+assert.match(personScript, /const people = await loadAllPeople\(\);[\s\S]*personInfo\?\.removeAttribute\("hidden"\);[\s\S]*ClassRecordIllustrationMetadataPromise[\s\S]*const records = await loadAllRecords\(\)/, 'person profiles must wait for all illustration dimensions before rendering records');
+assert.match(bootstrap, /Promise\.all\(\[[\s\S]*ClassRecordIllustrationMetadataPromise/, 'bootstrap must wait for all illustration dimensions before markup-capable pages render');
 assert.doesNotMatch(personPage, /quoteStore\.js/, 'person pages must not load the unused quote store');
 assert.match(recordRenderer, /1 - Math\.pow\(1 - progress, 4\)/, 'record jumps must use the shared long-tail ease-out curve');
 assert.doesNotMatch(recordScript, /window\.scrollTo\(\{[^}]*behavior:\s*["']smooth["']/, 'record navigation must not fall back to a different browser-native smooth curve');

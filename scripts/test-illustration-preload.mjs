@@ -8,6 +8,8 @@ const metadataRequests = [];
 const sourceCalls = [];
 const batchSignCalls = [];
 let singleSignCalls = 0;
+let releaseMetadata;
+const metadataGate = new Promise((resolve) => { releaseMetadata = resolve; });
 const sourceSizes = new Map([
     ['data/attachments/record.png', { width: 2400, height: 1350 }],
     ['data/attachments/quote.png', { width: 900, height: 1600 }],
@@ -63,6 +65,7 @@ const context = vm.createContext({
     document: { addEventListener() {}, getElementById() { return null; } },
     requestAnimationFrame() {},
     fetch: async (url, options) => {
+        await metadataGate;
         const path = new URL(url).pathname.slice(1);
         metadataRequests.push({ path, options });
         const bytes = pngHeader(sourceSizes.get(path));
@@ -74,6 +77,11 @@ const context = vm.createContext({
 
 const renderer = await readFile(new URL('../js/recordRenderer.js', import.meta.url), 'utf8');
 vm.runInContext(renderer, context);
+let cacheReady = false;
+window.cacheReadyPromise.then(() => { cacheReady = true; });
+await new Promise((resolve) => globalThis.setTimeout(resolve, 0));
+assert.equal(cacheReady, false, 'pages that can render illustration markers must wait for the all-content dimension scan');
+releaseMetadata();
 const result = await window.ClassRecordIllustrationMetadataPromise;
 
 assert.deepEqual(sourceCalls.sort(), ['credits', 'materials', 'messages', 'quotes', 'records', 'supplements']);
@@ -84,11 +92,11 @@ assert.equal(singleSignCalls, 0, 'all-content metadata warming must not wait for
 assert.equal(result.total, 6);
 assert.equal(result.loaded, 6);
 assert.deepEqual([...result.failedPaths], []);
-assert.equal(await window.cacheReadyPromise, 'page-critical-data-ready', 'metadata warming must not block page content');
+assert.equal(await window.cacheReadyPromise, 'page-critical-data-ready', 'metadata gate must preserve the critical page result after dimensions are ready');
 assert.deepEqual({ ...window.getIllustrationSourceDimensions('data/attachments/record.png') }, { width: 2400, height: 1350, ratio: 16 / 9 });
 
 const wideFrame = window.calculateIllustrationPreviewFrame(2400, 1350, { viewportWidth: 1200, viewportHeight: 800, horizontalChrome: 22, verticalChrome: 22 });
 const tallFrame = window.calculateIllustrationPreviewFrame(900, 1600, { viewportWidth: 1200, viewportHeight: 800, horizontalChrome: 22, verticalChrome: 22 });
 assert.equal(wideFrame.ratio, 16 / 9);
 assert.equal(tallFrame.ratio, 9 / 16);
-console.log('Passed all-content illustration metadata and non-blocking preload checks.');
+console.log('Passed all-content illustration metadata and render-gating checks.');

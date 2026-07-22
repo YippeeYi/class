@@ -61,5 +61,11 @@ window.cacheReadyPromise = (async () => {
     const critical = criticalLoaders.length === 0
         ? Promise.resolve()
         : Promise.all(criticalLoaders.map((loader) => loader()));
-    await critical;
+    // Pages that render record markup must wait until every public content
+    // source has supplied illustration dimensions, so tooltips never start
+    // from an incorrect fallback frame.
+    await Promise.all([
+        critical,
+        window.ClassRecordIllustrationMetadataPromise || Promise.resolve()
+    ]);
 })();

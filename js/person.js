@@ -77,8 +77,6 @@ async function renderPersonAvatar(person) {
     info.classList.add("has-person-avatar");
 }
 
-const cacheReady = window.cacheReadyPromise || Promise.resolve();
-
 function showPersonLoadError(title, detail) {
     if (personLoading) {
         personLoading.hidden = false;
@@ -96,7 +94,7 @@ async function initializePersonPage() {
         return;
     }
     try {
-        await cacheReady;
+        await (window.waitForAccess?.() || Promise.resolve());
         const people = await loadAllPeople();
         const person = people.find((item) => item.id === personId);
         if (!person) {
@@ -115,6 +113,7 @@ async function initializePersonPage() {
         if (personLoading) personLoading.hidden = true;
         renderPersonAvatar(person);
 
+        await (window.ClassRecordIllustrationMetadataPromise || Promise.resolve());
         const records = await loadAllRecords();
         participatedRecords = records.filter((record) => getRecordParticipantIds(record).includes(personId));
         authoredRecords = records.filter((record) => getRecordAuthorIds(record).includes(personId));

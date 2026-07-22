@@ -1381,6 +1381,7 @@ function preloadIllustrationDimensionsFromData() {
             ["credits", () => data.loadCreditsPage?.() || null]
         ];
         const scheduledPaths = new Set();
+        const sourceFailures = [];
         const tasks = sourceLoaders.map(([name, load]) => Promise.resolve()
             .then(load)
             .then(async (value) => {
@@ -1394,22 +1395,38 @@ function preloadIllustrationDimensionsFromData() {
                     window.ClassRecordDiagnostics?.warn(`Illustration metadata could not be read: ${name}`, result.failedPaths);
                 }
             })
-            .catch((error) => window.ClassRecordDiagnostics?.warn(`Illustration metadata source failed: ${name}`, error)));
+            .catch((error) => {
+                sourceFailures.push(name);
+                window.ClassRecordDiagnostics?.warn(`Illustration metadata source failed: ${name}`, error);
+            }));
         await Promise.all(tasks);
-        return {
+        const result = {
             total: scheduledPaths.size,
             loaded: [...scheduledPaths].filter((path) => getIllustrationSourceDimensions(path)).length,
             failedPaths: [...scheduledPaths].filter((path) => !getIllustrationSourceDimensions(path))
         };
+        if (sourceFailures.length || result.failedPaths.length) {
+            throw new Error(`Illustration dimensions incomplete: sources=${sourceFailures.join(",") || "none"}; paths=${result.failedPaths.join(",") || "none"}`);
+        }
+        return result;
     })();
     window.ClassRecordIllustrationMetadataPromise = promise;
     return promise;
 }
 
 function startIllustrationDimensionPreload() {
-    return preloadIllustrationDimensionsFromData().catch((error) => {
+    const metadataPromise = preloadIllustrationDimensionsFromData();
+    const reportedPromise = metadataPromise.catch((error) => {
         window.ClassRecordDiagnostics?.warn("Illustration metadata preload failed", error);
     });
+    // Some pages load the renderer after their bootstrap promise has already
+    // started. Extend that promise so markup is never rendered before all
+    // public illustration dimensions are known.
+    if (window.cacheReadyPromise) {
+        const pageReady = window.cacheReadyPromise;
+        window.cacheReadyPromise = Promise.all([pageReady, metadataPromise]).then(([result]) => result);
+    }
+    return reportedPromise;
 }
 
 window.preloadIllustrationDimensionsFromData = preloadIllustrationDimensionsFromData;
@@ -1426,8 +1443,8 @@ const imageViewerState = {
     interaction: null
 };
 
-// Start as soon as access is available. This pass fetches only image headers
-// and never blocks page content or downloads illustration pixels.
+// Start as soon as access is available. This pass fetches only image headers;
+// pages that can render illustration markers wait for it before showing data.
 startIllustrationDimensionPreload();
 
 const IMAGE_VIEWER_MIN_SCALE = 0.25;
