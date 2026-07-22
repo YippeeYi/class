@@ -27,8 +27,7 @@
     const FAILED_ASSET_SESSION_KEY = 'classRecordMissingAssets.v1';
     const SIGNED_URL_SESSION_KEY = 'classRecordSignedUrls.v1';
     const displayTransforms = Object.freeze({
-        written: Object.freeze({ width: 1200, height: 1800, resize: 'contain', quality: 78 }),
-        illustration: Object.freeze({ width: 960, quality: 76 })
+        written: Object.freeze({ width: 1200, height: 1800, resize: 'contain', quality: 78 })
     });
 
     const normalizeImageTransform = (transform) => {

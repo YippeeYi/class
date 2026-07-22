@@ -1157,12 +1157,7 @@ const illustrationReadyCache = new Map();
 const illustrationDimensionCache = new Map();
 const illustrationWarmPromises = new Map();
 const illustrationPreviewWarmPromises = new Map();
-const ILLUSTRATION_DISPLAY_TRANSFORM = Object.freeze({ width: 960, quality: 76 });
 const ILLUSTRATION_METADATA_RANGE_BYTES = 64 * 1024;
-
-function getIllustrationDisplayTransform() {
-    return window.ClassRecordData?.displayTransforms?.illustration || ILLUSTRATION_DISPLAY_TRANSFORM;
-}
 
 window.imageSizeCache = window.imageSizeCache || {};
 window.illuSizeCache = window.illuSizeCache instanceof Map ? window.illuSizeCache : new Map();
@@ -1287,9 +1282,11 @@ function warmIllustrationPreview(path, { priority = "low" } = {}) {
     const promise = (async () => {
         const data = window.ClassRecordData;
         if (!data?.isEnabled?.()) return { url: sourcePath };
-        const transform = getIllustrationDisplayTransform();
-        const url = await data.preloadAsset(sourcePath, { priority, transform });
-        const ready = data.getPreloadedAsset(sourcePath, { transform });
+        // Tooltip frames are based on original dimensions. Request the same
+        // original asset on hover: a width-only Storage transformation can
+        // crop scanned material pages before CSS ever receives the pixels.
+        const url = await data.preloadAsset(sourcePath, { priority });
+        const ready = data.getPreloadedAsset(sourcePath);
         if (!url || !ready?.url) return null;
         illustrationReadyCache.set(sourcePath, ready);
         return ready;
@@ -2069,9 +2066,7 @@ illustrationTooltipController = createInlineTooltipController({
         tooltip.replaceChildren(image, loading);
         reveal();
         const readyImage = illustrationReadyCache.get(sourcePath)
-            || window.ClassRecordData?.getPreloadedAsset?.(sourcePath, {
-                transform: getIllustrationDisplayTransform()
-            })
+            || window.ClassRecordData?.getPreloadedAsset?.(sourcePath)
             || await warmIllustrationPreview(sourcePath, { priority: "high" });
         if (!isCurrent()) return;
         if (!readyImage?.url) {
