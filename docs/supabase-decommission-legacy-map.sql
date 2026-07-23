@@ -40,6 +40,7 @@ using (
             name ~ '^hidden/(data/attachments/|images/record-pages/).+\.(png|jpe?g|webp|gif|svg|pdf|txt|zip|mp3|wav|ogg|mp4|webm)$'
             and public.has_class_record_admin_access()
         )
+        or name = 'images/private/meal-map.png'
     )
 );
 

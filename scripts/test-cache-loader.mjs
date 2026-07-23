@@ -43,7 +43,7 @@ const firstResult = await firstPage.window.loadWithCache({
 });
 assert.equal(firstLoads, 1);
 assert.equal(firstResult[0].id, 'r-1');
-assert.ok(storage.has('classRecord:dataCache:v1:records:visible'), 'public data must be cached for the current browser session');
+assert.ok(storage.has('classRecord:dataCache:v2:records:visible'), 'public data must be cached for the current browser session');
 
 const secondPage = createRuntime();
 const cachedResult = await secondPage.window.loadWithCache({

@@ -3,6 +3,10 @@
     const SUPABASE_SDK_URL = 'vendor/supabase-js-2.45.0.js';
     const SUPABASE_SDK_INTEGRITY = 'sha384-NNePyabYRaJyedI6EQAY7SV5Z8/0sQkuQ5WVfhKm0H+j0KSugkI2ZMNzw/QtzAWz';
     const DEFAULT_BUCKET = 'classrecord-private';
+    // This stays in the secure-data boundary rather than page markup. It is
+    // only ever passed to Storage after the invite gate and RLS have verified
+    // the current request; no URL or path is persisted in browser storage.
+    const MEAL_MAP_STORAGE_PATH = 'images/private/meal-map.png';
 
     let configPromise = null;
     let clientPromise = null;
@@ -14,6 +18,7 @@
     let creditsPagePromise = null;
     let materialsPromise = null;
     let quizQuestionsPromise = null;
+    let mealMapMetadataPromise = null;
     let adminQuizPreloadPromise = null;
     const assetListPromises = new Map();
     const signedUrlCache = new Map();
@@ -110,6 +115,7 @@
                 materials: 'class_materials',
                 quizQuestions: 'class_quiz_questions',
                 creditsPage: 'class_credits_page',
+                privateAssets: 'class_private_assets',
                 ...(config.tables || {})
             }
         };
@@ -191,9 +197,14 @@
         return /\.(?:png|jpe?g|webp|gif)$/i.test(raw) ? raw : '';
     };
 
+    const normalizeMealMapStoragePath = (value) => {
+        const raw = normalizePrivateStoragePath(value).replace(/\\/g, '/');
+        return raw === MEAL_MAP_STORAGE_PATH ? raw : '';
+    };
+
     const isSensitiveStoragePath = (path) => {
         const safePath = normalizePrivateStoragePath(path).replace(/\\/g, '/');
-        return safePath.startsWith('hidden/') || safePath.startsWith('images/quiz/');
+        return safePath === MEAL_MAP_STORAGE_PATH || safePath.startsWith('hidden/') || safePath.startsWith('images/quiz/');
     };
 
     const getSignedUrlLifetime = (path, requestedLifetime, config) => {
@@ -518,6 +529,28 @@
         return quizQuestionsPromise;
     };
 
+    const loadMealMapMetadata = async ({ force = false } = {}) => {
+        const config = await getConfig();
+        if (force) mealMapMetadataPromise = null;
+        if (!mealMapMetadataPromise) {
+            mealMapMetadataPromise = selectAll(config.tables.privateAssets, 'asset_key,width,height,updated_at', null, { asset_key: 'meal-map' })
+                .then((rows) => {
+                    const row = rows[0];
+                    if (!row || Number(row.width) < 1 || Number(row.height) < 1) return null;
+                    return {
+                        width: Number(row.width),
+                        height: Number(row.height),
+                        updatedAt: String(row.updated_at || '')
+                    };
+                })
+                .catch((error) => {
+                    mealMapMetadataPromise = null;
+                    throw error;
+                });
+        }
+        return mealMapMetadataPromise;
+    };
+
     const loadQuizQuestions = async (contentKey, { force = false } = {}) => {
         const key = String(contentKey || '').trim();
         const rows = await loadAllQuizQuestions({ force });
@@ -570,6 +603,27 @@
             refreshAt: getSignedUrlRefreshAt(now, lifetime)
         });
         return promise;
+    };
+
+    const getMealMapAsset = async ({ forceRefresh = false } = {}) => {
+        // The metadata row is a server-gated availability check and carries
+        // dimensions/version only, never an object path or signed URL.
+        const metadata = await loadMealMapMetadata();
+        if (!metadata) return null;
+        const safePath = normalizeMealMapStoragePath(MEAL_MAP_STORAGE_PATH);
+        const url = await signAssetUrl(safePath, {
+            quiet: true,
+            forceRefresh,
+            expiresIn: 180
+        });
+        if (!url) return null;
+        const cached = signedUrlCache.get(safePath);
+        return {
+            url,
+            refreshAt: cached?.refreshAt || (Date.now() + 120 * 1000),
+            width: metadata.width,
+            height: metadata.height
+        };
     };
 
     const signAssetUrls = async (paths, { expiresIn, quiet = true } = {}) => {
@@ -811,6 +865,7 @@
         failedSignCache.clear();
         imagePreloadCache.clear();
         imagePreloadResults.clear();
+        mealMapMetadataPromise = null;
         imageTransformationsUnavailable = false;
         try {
             sessionStorage.removeItem(SIGNED_URL_SESSION_KEY);
@@ -853,6 +908,7 @@
         loadPageMessages,
         loadRecords,
         normalizePrivateStoragePath,
+        getMealMapAsset,
         preloadAsset,
         preloadAdminQuizImages,
         signAssetUrl,

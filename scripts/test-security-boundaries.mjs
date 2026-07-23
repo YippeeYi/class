@@ -40,6 +40,9 @@ assert.match(setupSql, /where n\.nspname = 'storage'[\s\S]*c\.relname = 'objects
 assert.match(setupSql, /create policy "classrecord_private_read"[\s\S]*bucket_id = 'classrecord-private'[\s\S]*has_class_record_access\(\)[\s\S]*name !~ '\^hidden\/'[\s\S]*has_class_record_admin_access\(\)/, 'the only Storage read policy must enforce invite and hidden-prefix admin access');
 assert.match(setupSql, /name ~ '\^\(data\/attachments\/\|images\/record-pages\/\)/, 'ordinary Storage reads must be restricted to explicit binary roots');
 assert.match(setupSql, /name ~ '\^images\/quiz\/[\s\S]*has_class_record_admin_access\(\)/, 'quiz images must require administrator access');
+assert.match(setupSql, /create table if not exists public\.class_private_assets[\s\S]*asset_key = 'meal-map'/, 'meal-map metadata must not contain a Storage path or URL');
+assert.match(setupSql, /create policy "class_private_assets_read"[\s\S]*has_class_record_access\(\)/, 'meal-map metadata must require a verified invite session');
+assert.match(setupSql, /or name = 'images\/private\/meal-map\.png'/, 'the private map object must be explicitly allowlisted');
 assert.match(setupSql, /create policy "class_quiz_questions_read"[\s\S]*has_class_record_access\(\)[\s\S]*has_class_record_admin_access\(\)/, 'quiz rows must require administrator access');
 assert.match(setupSql, /alter table public\.class_quiz_questions[\s\S]*add column if not exists content_key text/, 'setup reruns must upgrade legacy quiz schemas');
 assert.match(setupSql, /notify pgrst, 'reload schema'/, 'setup must refresh the PostgREST schema cache');
@@ -87,12 +90,16 @@ assert.doesNotMatch(migration, /\.\.\.await walkFiles\('data'\)/, 'migration mus
 assert.doesNotMatch(migration, /if \(ext === '\.json'\) return 'application\/json'/, 'JSON must not be an allowed Storage upload type');
 assert.match(migration, /private-assets\/\$\{storagePath\.slice\('images\/'\.length\)\}/, 'quiz images must be sourced from the ignored private-assets directory');
 assert.match(migration, /--confirm-prune/, 'destructive migration pruning must require explicit confirmation');
+assert.match(migration, /const uploadMealMap = async \(\)/, 'the migration must support uploading the ignored meal map');
+assert.match(migration, /protectedStorageObjects/, 'storage pruning must preserve the private meal map');
 
 assert.match(secureData, /normalizeQuizImagePath/, 'quiz Storage paths must be validated');
 assert.doesNotMatch(secureData, /expiresIn\s*=\s*60\s*\*\s*30|expiresIn\s*\|\|\s*60\s*\*\s*30/, 'signed URL lifetime must not be hard-coded to thirty minutes');
 assert.doesNotMatch(secureData, /sessionStorage\.setItem\(SIGNED_URL_SESSION_KEY/, 'signed URLs must remain memory-only');
 assert.match(secureData, /sensitiveSignedUrlExpiresIn/, 'sensitive assets must use a shorter configured lifetime');
 assert.match(secureData, /image: normalizeQuizImagePath/, 'quiz rows must retain only validated private object paths');
+assert.match(secureData, /const MEAL_MAP_STORAGE_PATH/, 'meal-map signing must remain inside the secure-data boundary');
+assert.match(secureData, /getMealMapAsset[\s\S]*expiresIn: 180/, 'meal-map URLs must use the sensitive short lifetime');
 assert.match(secureData, /preloadAdminQuizImages[\s\S]*hasAdminAccess/, 'quiz image preload must remain guarded by a server-verified administrator check');
 assert.match(authGate, /startAdminAssetPreload[\s\S]*preloadAdminQuizImages/, 'the access gate must start the administrator-only image warmup after entry');
 assert.match(quizApp, /data-secure-src="\$\{escapeHtml\(currentQuestion\.imagePath\)\}"/, 'quiz images must be rendered as private Storage references');
@@ -118,6 +125,7 @@ assert.match(gitignore, /^data\/$/m, 'database source JSON directory must be ign
 assert.match(gitignore, /^images\/record-pages\/$/m, 'private record page source directory must be ignored');
 assert.match(gitignore, /^images\/quiz\/lamian\/$/m, 'private quiz source directory must be ignored');
 assert.match(gitignore, /^private-assets\/$/m, 'all local private migration sources must be ignored');
+assert.match(gitignore, /^\/map\.png$/im, 'the private meal map must be ignored regardless of normal filename casing');
 
 let trackedFiles;
 try {
@@ -141,6 +149,7 @@ try {
         || file.startsWith('images/record-pages/')
         || file.startsWith('images/quiz/lamian/')
         || file.startsWith('private-assets/')
+        || /^map\.png$/i.test(file)
     ));
     assert.deepEqual(forbiddenTracked, [], `sensitive JSON, hidden answers, and private images must not be tracked: ${forbiddenTracked.join(', ')}`);
 } catch (error) {

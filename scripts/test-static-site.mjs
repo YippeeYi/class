@@ -10,7 +10,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pages = [
     '404.html', 'auth.html', 'credits.html', 'index.html', 'materials.html',
     'people.html', 'person.html', 'quiz.html', 'quotes.html', 'record.html',
-    'search.html', 'shop.html', 'timeline.html'
+    'search.html', 'shop.html', 'timeline.html', 'map.html'
 ];
 const protectedPages = pages.filter((page) => !['404.html', 'auth.html'].includes(page));
 
@@ -48,7 +48,9 @@ assert.match(csp, /script-src 'self'/, 'production CSP must permit only same-ori
 assert.doesNotMatch(csp, /cdn\.jsdelivr\.net|https:\/\/\*\.supabase\.co/, 'production CSP must not trust a CDN or wildcard Supabase projects');
 assert.match(csp, /frame-ancestors 'none'/, 'production CSP must prevent framing');
 assert.ok(Array.isArray(vercel.rewrites) && vercel.rewrites.some((item) => item.source === '/data/(.*)'), 'local data must not be publicly served');
+assert.ok(vercel.rewrites.some((item) => item.source === '/map.png') && vercel.rewrites.some((item) => item.source === '/map.PNG'), 'a mistakenly present root meal map must be blocked at deployment');
 assert.ok(vercel.rewrites.some((item) => item.source === '/images/quiz/(.*)'), 'local quiz images must not be publicly served');
+assert.ok(vercel.rewrites.some((item) => item.source === '/images/private/(.*)'), 'local private image paths must not be publicly served');
 
 const stylesheet = await readFile(resolve(root, 'style.css'), 'utf8');
 assert.match(stylesheet, /\.guide-page>\.top-right-actions\s*\{[^}]*position:\s*fixed/s, 'guide auxiliary actions must not enter the centered grid flow');
@@ -59,6 +61,8 @@ const recordRenderer = await readFile(resolve(root, 'js/recordRenderer.js'), 'ut
 const secureData = await readFile(resolve(root, 'js/secureData.js'), 'utf8');
 const supabaseClient = await readFile(resolve(root, 'js/supabaseClient.js'), 'utf8');
 const authGate = await readFile(resolve(root, 'js/authGate.js'), 'utf8');
+const mealMapPage = await readFile(resolve(root, 'map.html'), 'utf8');
+const mealMapScript = await readFile(resolve(root, 'js/mealMap.js'), 'utf8');
 const backgroundSwitcher = await readFile(resolve(root, 'js/backgroundSwitcher.js'), 'utf8');
 const themeBootstrap = await readFile(resolve(root, 'js/themeBootstrap.js'), 'utf8');
 const materialsScript = await readFile(resolve(root, 'js/materials.js'), 'utf8');
@@ -76,6 +80,10 @@ assert.match(recordRenderer, /const originalUrl\s*=\s*await resolveOriginalImage
 assert.match(recordRenderer, /ClassRecordData\?\.isEnabled\?\.\(\)[^}]*signAssetUrl\(direct,\s*\{\s*quiet:\s*true,\s*forceRefresh\s*\}/s, 'secure image viewer paths must use signed Storage URLs before local image paths');
 assert.match(recordScript, /if \(window\.ClassRecordData\?\.isEnabled\?\.\(\)\) return "";[^}]*images\\\//s, 'written image preload must not probe private Storage paths as local images');
 assert.match(secureData, /signAssetUrl\s*=\s*async \(path,\s*\{[^}]*forceRefresh\s*=\s*false/, 'Storage signer must support refreshing an expired signed URL');
+assert.match(mealMapPage, /js\/mealMap\.js/, 'meal-map page must load its gated controller');
+assert.doesNotMatch(mealMapPage + mealMapScript, /map\.png|images\/private|storage\/v1\/object/i, 'meal-map page must not embed a local source, Storage path, or URL');
+assert.match(mealMapScript, /getMealMapAsset[\s\S]*forceRefresh/, 'meal-map page must refresh expired signed URLs');
+assert.match(recordRenderer, /openMealMapImageViewer[\s\S]*getMealMapAsset/, 'meal-map must reuse the shared image viewer with a fresh signed URL');
 assert.doesNotMatch(recordRenderer, /ClassRecordIllustrationDimensions|bundledIllustrationDimensions|getIllustrationResourceId/, 'inline illustration sizing must not depend on a generated hard-coded table');
 assert.match(recordRenderer, /function loadIllustrationMetadata\(path,[\s\S]*Range: `bytes=0-\$\{ILLUSTRATION_METADATA_RANGE_BYTES - 1\}`/, 'illustration startup must request bounded source metadata instead of preloading preview images');
 assert.match(recordRenderer, /function warmIllustrationAsset\(path,[\s\S]*loadIllustrationMetadata\(sourcePath, \{ priority, signedUrl \}\)[\s\S]*loadIllustrationMetadataWithImage\(sourcePath, \{ priority, signedUrl \}\)/, 'illustration startup must cache intrinsic dimensions before any hover');

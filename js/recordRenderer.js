@@ -1452,9 +1452,12 @@ const imageViewerState = {
     interaction: null
 };
 
-// Start as soon as access is available. This pass fetches only image headers;
-// pages that can render illustration markers wait for it before showing data.
-startIllustrationDimensionPreload();
+// Start only on content pages. Utility pages such as the private meal-map use
+// this file solely for the shared image viewer and must not fetch every record
+// just to open one image.
+if (!document.body?.classList.contains('meal-map-page')) {
+    startIllustrationDimensionPreload();
+}
 
 const IMAGE_VIEWER_MIN_SCALE = 0.25;
 const IMAGE_VIEWER_MAX_SCALE = 12;
@@ -1773,8 +1776,23 @@ async function openImageViewer(sourcePath, { alt = "image preview", resolvedUrl 
     if (!loadCandidate(url)) showFailure();
 }
 
+async function openMealMapImageViewer({ resolvedUrl = "" } = {}) {
+    // Page code never receives the Storage object key. A new short-lived URL
+    // is obtained for every viewer entry and again if the old URL has expired.
+    const current = await (window.ClassRecordData?.getMealMapAsset?.() || Promise.resolve(null)).catch(() => null);
+    return openImageViewer("", {
+        alt: "meal map",
+        resolvedUrl: current?.url || resolvedUrl,
+        urlPromise: async () => {
+            const asset = await (window.ClassRecordData?.getMealMapAsset?.({ forceRefresh: true }) || Promise.resolve(null));
+            return asset?.url || "";
+        }
+    });
+}
+
 window.ClassRecordImageViewer = {
     open: openImageViewer,
+    openMealMap: openMealMapImageViewer,
     close: closeImageViewer
 };
 

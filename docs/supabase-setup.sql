@@ -699,6 +699,17 @@ create table if not exists public.class_credits_page (
     constraint class_credits_page_original_images_array check (jsonb_typeof(original_images) = 'array')
 );
 
+-- Metadata only: no object path, content, Base64, or signed URL is stored in
+-- PostgreSQL. The frontend uses this row solely as a server-gated availability
+-- and intrinsic-size check before it asks Storage for a short-lived URL.
+create table if not exists public.class_private_assets (
+    asset_key text primary key,
+    width integer not null check (width > 0),
+    height integer not null check (height > 0),
+    updated_at timestamptz not null default now(),
+    constraint class_private_assets_meal_map_only check (asset_key = 'meal-map')
+);
+
 alter table public.class_records enable row level security;
 alter table public.class_people enable row level security;
 alter table public.class_record_pages enable row level security;
@@ -707,6 +718,7 @@ alter table public.class_page_supplements enable row level security;
 alter table public.class_materials enable row level security;
 alter table public.class_quiz_questions enable row level security;
 alter table public.class_credits_page enable row level security;
+alter table public.class_private_assets enable row level security;
 
 do $$
 declare
@@ -729,7 +741,8 @@ begin
               'class_page_supplements',
               'class_materials',
               'class_quiz_questions',
-              'class_credits_page'
+              'class_credits_page',
+              'class_private_assets'
           )
     loop
         execute format(
@@ -753,6 +766,7 @@ revoke all on public.class_page_supplements from public, anon, authenticated;
 revoke all on public.class_materials from public, anon, authenticated;
 revoke all on public.class_quiz_questions from public, anon, authenticated;
 revoke all on public.class_credits_page from public, anon, authenticated;
+revoke all on public.class_private_assets from public, anon, authenticated;
 
 grant select on public.class_records to anon, authenticated;
 grant select on public.class_people to anon, authenticated;
@@ -762,6 +776,7 @@ grant select on public.class_page_supplements to anon, authenticated;
 grant select on public.class_materials to anon, authenticated;
 grant select on public.class_quiz_questions to anon, authenticated;
 grant select on public.class_credits_page to anon, authenticated;
+grant select on public.class_private_assets to anon, authenticated;
 
 drop policy if exists "class_records_read" on public.class_records;
 create policy "class_records_read"
@@ -811,6 +826,12 @@ using (
 drop policy if exists "class_credits_page_read" on public.class_credits_page;
 create policy "class_credits_page_read"
 on public.class_credits_page for select
+to anon, authenticated
+using (public.has_class_record_access());
+
+drop policy if exists "class_private_assets_read" on public.class_private_assets;
+create policy "class_private_assets_read"
+on public.class_private_assets for select
 to anon, authenticated
 using (public.has_class_record_access());
 
@@ -864,6 +885,7 @@ using (
             name ~ '^hidden/(data/attachments/|images/record-pages/).+\.(png|jpe?g|webp|gif|svg|pdf|txt|zip|mp3|wav|ogg|mp4|webm)$'
             and public.has_class_record_admin_access()
         )
+        or name = 'images/private/meal-map.png'
     )
 );
 

@@ -40,6 +40,14 @@
   ],
   "rewrites": [
     {
+      "source": "/map.png",
+      "destination": "/404.html"
+    },
+    {
+      "source": "/map.PNG",
+      "destination": "/404.html"
+    },
+    {
       "source": "/data/(.*)",
       "destination": "/404.html"
     },

@@ -1,6 +1,7 @@
 const memoryCache = new Map();
 const inflightLoads = new Map();
-const SESSION_CACHE_PREFIX = "classRecord:dataCache:v1:";
+const SESSION_CACHE_PREFIX = "classRecord:dataCache:v2:";
+const LEGACY_SESSION_CACHE_PREFIX = "classRecord:dataCache:v1:";
 const DEFAULT_SESSION_CACHE_TTL = 10 * 60 * 1000;
 
 function readSessionCache(key, expire) {
@@ -24,6 +25,16 @@ function writeSessionCache(key, data) {
     } catch (error) {
         // Storage can be disabled or full; the in-memory cache still works.
     }
+}
+
+// v1 did not carry the current cache policy version. Remove only this app's
+// old entries; never clear unrelated storage belonging to the same origin.
+try {
+    Object.keys(sessionStorage)
+        .filter((key) => key.startsWith(LEGACY_SESSION_CACHE_PREFIX))
+        .forEach((key) => sessionStorage.removeItem(key));
+} catch (error) {
+    // Storage can be unavailable; memory de-duplication still works.
 }
 
 window.loadWithCache = async function ({

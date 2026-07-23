@@ -40,6 +40,8 @@ const dryRun = argv.has('--dry-run');
 const confirmPrune = argv.has('--confirm-prune');
 const hiddenStoragePrefix = 'hidden/';
 const allowedStorageRoots = ['data/attachments/', 'images/record-pages/', 'images/quiz/'];
+const mealMapStoragePath = 'images/private/meal-map.png';
+const protectedStorageObjects = new Set([mealMapStoragePath]);
 const allowedStorageExtensions = new Set([
     '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg',
     '.pdf', '.txt', '.zip', '.mp3', '.wav', '.ogg', '.mp4', '.webm'
@@ -49,7 +51,8 @@ const requiredDatabaseColumns = {
     class_quiz_questions: [
         'id', 'content_key', 'question_group', 'question_type', 'prompt',
         'choices', 'answer', 'explanation', 'image_path', 'sort_order', 'raw'
-    ]
+    ],
+    class_private_assets: ['asset_key', 'width', 'height', 'updated_at']
 };
 
 if (!url || !serviceRoleKey) {
@@ -695,7 +698,7 @@ const pruneStorage = async (allowedRemoteFiles) => {
         console.warn('Skipped Storage pruning: the explicit upload manifest is empty.');
         return;
     }
-    const keep = new Set(allowedRemoteFiles);
+    const keep = new Set([...allowedRemoteFiles, ...protectedStorageObjects]);
 
     const remoteFiles = await listStorageObjects();
 
@@ -763,6 +766,43 @@ const uploadPrivateFiles = async () => {
     await pruneStorage([...storageUploadManifest.values()].map((item) => item.remotePath));
 };
 
+const findMealMapSource = async () => {
+    const candidates = ['map.png', 'map.PNG'];
+    const files = [];
+    for (const candidate of candidates) {
+        const absolute = path.join(root, candidate);
+        if ((await fs.stat(absolute).catch(() => null))?.isFile()) files.push(absolute);
+    }
+    if (!files.length) throw new Error('Missing local map.png. Keep it in the project root; Git intentionally ignores this private source file.');
+    if (files.length > 1) throw new Error('Found both map.png and map.PNG. Keep exactly one private map source file.');
+    return files[0];
+};
+
+const uploadMealMap = async () => {
+    const source = await findMealMapSource();
+    const body = await fs.readFile(source);
+    const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    if (body.length < 24 || !body.subarray(0, 8).equals(signature)) {
+        throw new Error('map.png is not a valid PNG file. No map upload was attempted.');
+    }
+    const width = body.readUInt32BE(16);
+    const height = body.readUInt32BE(20);
+    if (!width || !height) throw new Error('map.png has invalid dimensions. No map upload was attempted.');
+    if (!validateOnly && !dryRun) {
+        await request(`/storage/v1/object/${bucket}/${mealMapStoragePath}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'image/png', 'Cache-Control': 'private, max-age=180', 'x-upsert': 'true' },
+            body
+        });
+        await request('/rest/v1/class_private_assets?on_conflict=asset_key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify([{ asset_key: 'meal-map', width, height, updated_at: new Date().toISOString() }])
+        });
+    }
+    console.log(`${validateOnly ? 'Validated' : dryRun ? 'Would upload' : 'Uploaded'} meal map (${width}×${height}, image/png).`);
+};
+
 await validateDatabaseSchema();
 await importRecords();
 await importPeople();
@@ -773,5 +813,6 @@ await importMaterials();
 await importQuiz();
 await importCreditsPage();
 await uploadPrivateFiles();
+await uploadMealMap();
 
 console.log(shouldPrune ? 'Migration complete. Remote stale data/files were pruned.' : 'Migration complete.');

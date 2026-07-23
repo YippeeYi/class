@@ -11,7 +11,8 @@ content_tables(table_schema, table_name, has_hidden_column, admin_only) as (
         ('public', 'class_page_supplements', true, false),
         ('public', 'class_materials', false, false),
         ('public', 'class_quiz_questions', false, true),
-        ('public', 'class_credits_page', false, false)
+        ('public', 'class_credits_page', false, false),
+        ('public', 'class_private_assets', false, false)
 ),
 private_tables(table_schema, table_name) as (
     values
@@ -166,6 +167,7 @@ storage_policy as (
               and pg_get_expr(p.polqual, p.polrelid) ilike '%data/attachments/%'
               and pg_get_expr(p.polqual, p.polrelid) ilike '%images/record-pages/%'
               and pg_get_expr(p.polqual, p.polrelid) ilike '%images/quiz/%'
+              and pg_get_expr(p.polqual, p.polrelid) ilike '%images/private/meal-map.png%'
               and pg_get_expr(p.polqual, p.polrelid) not ilike '%H[0-9]%'
         ) as storage_only_allowed_policy_ok,
         exists (
