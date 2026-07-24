@@ -701,6 +701,8 @@ body>#quotes-list {
   color: var(--text-main);
   font: inherit;
   font-size: var(--loading-font-size);
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 .page-loading {

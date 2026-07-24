@@ -206,6 +206,11 @@ window.loadWithCache = async function ({
 
 window.ClassRecordCache = Object.freeze({
     version: CACHE_VERSION,
+    read: async (key, { expire = DEFAULT_PERSISTENT_CACHE_TTL, staleExpire = DEFAULT_STALE_CACHE_TTL } = {}) => {
+        const item = await readPersistentCache(key, expire, Math.max(staleExpire, expire));
+        return item && !item.stale ? item.data : null;
+    },
+    write: (key, data) => writePersistentCache(key, data),
     clear: async () => {
         memoryCache.clear();
         inflightLoads.clear();

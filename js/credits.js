@@ -30,7 +30,7 @@
             window.ClassRecordLoading.show(root, title);
             return;
         }
-        root.innerHTML = `<div class="page-loading" role="status"><strong>${escapeHtml(title)}</strong></div>`;
+        root.innerHTML = `<div class="page-loading loading-state" role="status"><span class="loading-spinner" aria-hidden="true"></span><strong class="loading-text">${escapeHtml(title)}</strong></div>`;
     };
 
     const renderTextItems = (items, tagName = 'p') => {

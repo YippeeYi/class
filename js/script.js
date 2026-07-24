@@ -492,7 +492,7 @@ function renderWrittenView(records) {
       <div class="record-written-layout">
         <figure class="record-written-image is-${imageState}${cachedImageSrc ? ' is-cache-hit' : ''}${hiddenMode ? ' is-hidden-image' : ''}" data-render-token="${token}" data-image-state="${imageState}">
           ${imagePath ? `<img alt="${hiddenMode ? `${page.page} 隐藏书面记录` : `${page.page} 原始书面记录`}" width="2856" height="4282" loading="eager" decoding="async" fetchpriority="high"${cachedImageSrc ? ` src="${escapeWrittenAttribute(cachedImageSrc)}"` : ""}>` : ""}
-          <span class="record-written-image-loading">${imagePath ? '<i aria-hidden="true"></i><b>正在加载书面记录</b>' : "未找到书面文件"}</span>
+          <span class="record-written-image-loading loading-state">${imagePath ? '<span class="loading-spinner" aria-hidden="true"></span><b class="loading-text">正在加载书面记录</b>' : "未找到书面文件"}</span>
         </figure>
         <div class="record-written-records">
           ${renderPageMessage(pageMessage)}
@@ -827,7 +827,7 @@ async function enterHiddenRecordMode() {
   if (window.ClassRecordLoading?.show) {
     window.ClassRecordLoading.show(container, "正在加载隐藏记录…", "仅本次会话可见，刷新后恢复普通记录。");
   } else {
-    container.innerHTML = '<div class="page-loading" role="status"><strong>正在加载隐藏记录…</strong><span>仅本次会话可见，刷新后恢复普通记录。</span></div>';
+    container.innerHTML = '<div class="page-loading loading-state" role="status"><span class="loading-spinner" aria-hidden="true"></span><strong class="loading-text">正在加载隐藏记录…</strong><span>仅本次会话可见，刷新后恢复普通记录。</span></div>';
   }
   renderHiddenModeBanner("正在加载隐藏记录···", "info");
   try {

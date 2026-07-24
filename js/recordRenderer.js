@@ -1158,6 +1158,7 @@ const illustrationReadyCache = new Map();
 const illustrationDimensionCache = new Map();
 const illustrationWarmPromises = new Map();
 const illustrationPreviewWarmPromises = new Map();
+const illustrationPersistentDimensionLoads = new Map();
 const ILLUSTRATION_METADATA_RANGE_BYTES = 64 * 1024;
 const ILLUSTRATION_SIGN_BATCH_SIZE = 100;
 const ILLUSTRATION_DISPLAY_TRANSFORM = Object.freeze({ width: 1200, height: 1800, resize: "contain", quality: 78 });
@@ -1179,6 +1180,30 @@ function rememberIllustrationDimensions(path, width, height) {
     illustrationDimensionCache.set(path, dimensions);
     window.illuSizeCache.set(path, dimensions);
     window.imageSizeCache[path] = dimensions;
+    // Intrinsic dimensions are small metadata, not image bytes. Keeping them
+    // in the access-scoped data cache avoids a signed Range request after a
+    // refresh while retaining the existing gate and cache-clear behavior.
+    void window.ClassRecordCache?.write?.(`illustration-dimensions:${path}`, dimensions);
+}
+
+function restoreIllustrationDimensions(path) {
+    const sourcePath = String(path || "").trim();
+    const current = getIllustrationSourceDimensions(sourcePath);
+    if (current) return Promise.resolve(current);
+    if (!sourcePath || !window.ClassRecordCache?.read) return Promise.resolve(null);
+    if (illustrationPersistentDimensionLoads.has(sourcePath)) return illustrationPersistentDimensionLoads.get(sourcePath);
+    const promise = window.ClassRecordCache.read(`illustration-dimensions:${sourcePath}`, {
+        expire: 30 * 24 * 60 * 60 * 1000,
+        staleExpire: 90 * 24 * 60 * 60 * 1000
+    }).then((dimensions) => {
+        if (!validIllustrationDimensions(Number(dimensions?.width), Number(dimensions?.height))) return null;
+        rememberIllustrationDimensions(sourcePath, Number(dimensions.width), Number(dimensions.height));
+        return getIllustrationSourceDimensions(sourcePath);
+    }).catch(() => null).finally(() => {
+        illustrationPersistentDimensionLoads.delete(sourcePath);
+    });
+    illustrationPersistentDimensionLoads.set(sourcePath, promise);
+    return promise;
 }
 
 window.getIllustrationSourceDimensions = getIllustrationSourceDimensions;
@@ -1188,6 +1213,7 @@ window.addEventListener("classrecordcacheclearing", () => {
     illustrationDimensionCache.clear();
     illustrationWarmPromises.clear();
     illustrationPreviewWarmPromises.clear();
+    illustrationPersistentDimensionLoads.clear();
     window.illuSizeCache.clear();
     window.imageSizeCache = {};
 });
@@ -1297,6 +1323,8 @@ function warmIllustrationAsset(path, { priority = "low", signedUrl = "" } = {}) 
     if (getIllustrationSourceDimensions(sourcePath)) return Promise.resolve(getIllustrationSourceDimensions(sourcePath));
     if (illustrationWarmPromises.has(sourcePath)) return illustrationWarmPromises.get(sourcePath);
     const promise = (async () => {
+        const persisted = await restoreIllustrationDimensions(sourcePath);
+        if (persisted) return persisted;
         // Read only enough of the original file to parse its intrinsic size.
         // A full Image decode is a compatibility fallback, not a preview warmup.
         const dimensions = await loadIllustrationMetadata(sourcePath, { priority, signedUrl })
@@ -2107,9 +2135,8 @@ illustrationTooltipController = createInlineTooltipController({
         setIllustrationFrameSize(tooltip, image, frame.width, frame.height);
         image.classList.add("is-pending");
         const loading = document.createElement("span");
-        loading.className = "record-written-image-loading illustration-tooltip-loading";
-        loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
-        window.ClassRecordLoading?.adopt(loading);
+        loading.className = "record-written-image-loading illustration-tooltip-loading loading-state";
+        loading.innerHTML = '<span class="loading-spinner" aria-hidden="true"></span><b class="loading-text">正在加载插图</b>';
         tooltip.replaceChildren(image, loading);
         reveal();
         const [dimensions, readyImage] = await Promise.all([

@@ -32,6 +32,7 @@
 
   function setQuizLoading(isLoading) {
     quizCard?.classList.toggle('is-loading', Boolean(isLoading));
+    questionText?.classList.toggle('loading-state', Boolean(isLoading));
     if (isLoading && questionText) {
       const spinner = document.createElement('span');
       spinner.className = 'loading-spinner';

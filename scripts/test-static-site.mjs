@@ -81,12 +81,14 @@ assert.match(recordRenderer, /ClassRecordData\?\.isEnabled\?\.\(\)[^}]*signAsset
 assert.match(recordScript, /if \(window\.ClassRecordData\?\.isEnabled\?\.\(\)\) return "";[^}]*images\\\//s, 'written image preload must not probe private Storage paths as local images');
 assert.match(secureData, /signAssetUrl\s*=\s*async \(path,\s*\{[^}]*forceRefresh\s*=\s*false/, 'Storage signer must support refreshing an expired signed URL');
 assert.match(mealMapPage, /js\/mealMap\.js/, 'meal-map page must load its gated controller');
+assert.match(mealMapPage, /class="meal-map-placeholder loading-state"[\s\S]*class="loading-spinner"[\s\S]*class="loading-text"/, 'meal-map must start with the shared compact loading structure');
 assert.doesNotMatch(mealMapPage + mealMapScript, /map\.png|images\/private|storage\/v1\/object/i, 'meal-map page must not embed a local source, Storage path, or URL');
 assert.match(mealMapScript, /getMealMapAsset[\s\S]*forceRefresh/, 'meal-map page must refresh expired signed URLs');
 assert.match(recordRenderer, /openMealMapImageViewer[\s\S]*getMealMapAsset/, 'meal-map must reuse the shared image viewer with a fresh signed URL');
 assert.doesNotMatch(recordRenderer, /ClassRecordIllustrationDimensions|bundledIllustrationDimensions|getIllustrationResourceId/, 'inline illustration sizing must not depend on a generated hard-coded table');
 assert.match(recordRenderer, /function loadIllustrationMetadata\(path,[\s\S]*Range: `bytes=0-\$\{ILLUSTRATION_METADATA_RANGE_BYTES - 1\}`/, 'illustration startup must request bounded source metadata instead of preloading preview images');
 assert.match(recordRenderer, /function warmIllustrationAsset\(path,[\s\S]*loadIllustrationMetadata\(sourcePath, \{ priority, signedUrl \}\)[\s\S]*loadIllustrationMetadataWithImage\(sourcePath, \{ priority, signedUrl \}\)/, 'illustration startup must cache intrinsic dimensions before any hover');
+assert.match(recordRenderer, /restoreIllustrationDimensions[\s\S]*ClassRecordCache\.read[\s\S]*illustration-dimensions:/, 'illustration dimensions must restore from the access-scoped persistent cache before a signed metadata request');
 assert.match(recordRenderer, /async function signIllustrationPaths\(paths\)[\s\S]*signAssetUrls\(batch, \{ quiet: true \}\)[\s\S]*warmIllustrationAsset\(path, \{ priority, signedUrl:/, 'all-content metadata warming must batch-sign image paths before reading dimensions');
 assert.doesNotMatch(recordRenderer.match(/function warmIllustrationAsset\(path,[\s\S]*?\n}\n\nfunction warmIllustrationPaths/)?.[0] || '', /warmIllustrationPreview/, 'startup metadata warming must not preload display images');
 assert.match(recordRenderer, /function preloadIllustrationDimensionsFromData\(\)[\s\S]*loadRecords\?\.\(\{ hidden: false \}\)[\s\S]*loadAllQuotes\?\.\([\s\S]*loadPageMessages\?\.\([\s\S]*loadPageSupplements\?\.\(\{ hidden: false \}\)[\s\S]*loadMaterials\?\.\([\s\S]*loadCreditsPage\?\.\(/, 'renderer startup must collect illustration markers from every public content source');
@@ -102,11 +104,12 @@ assert.doesNotMatch(illustrationTooltipPopulate.slice(illustrationTooltipPopulat
 assert.doesNotMatch(recordRenderer, /inline-illustration-thumbnail/, 'marker text must not render images before the user hovers it');
 assert.match(recordRenderer, /window\.preloadIllustrationsFromContent[\s\S]*warmIllustrationPaths\(extractIllustrationPaths\(value\)/, 'illustration paths must be parsed from data and passed to the shared runtime warmer');
 assert.match(materialsScript, /preloadIllustrationsFromContent\?\.\(item\.content \|\| ""\)/, 'material rendering must warm its active illustration content through the shared cache');
-assert.equal((materialsPage.match(/class="page-loading" role="status"/g) || []).length, 1, 'materials pages must provide exactly one centered loading placeholder');
+assert.equal((materialsPage.match(/class="page-loading loading-state" role="status"/g) || []).length, 1, 'materials pages must provide exactly one centered loading placeholder');
 assert.match(personPage, /id="person-loading"[^>]*role="status"/, 'person pages must provide a neutral loading state before profile data is available');
 assert.match(personPage, /id="person-info"[^>]*hidden/, 'person aliases and introductions must remain hidden until data is available');
 assert.match(stylesheet, /\[hidden\]\s*\{\s*display:\s*none !important;/, 'native hidden state must not be overridden by component layout styles');
 assert.match(stylesheet, /\.loading-state\s*\{[^}]*display:\s*flex[^}]*flex-direction:\s*column[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*gap:\s*var\(--loading-gap\)/s, 'all loading contexts must use one vertical flex component');
+assert.doesNotMatch(stylesheet, /\.meal-map-placeholder\s*\{[^}]*display:\s*(?:grid|flex)[^}]*}/s, 'meal-map must not override the shared loading component layout');
 assert.match(stylesheet, /\.page-loading\s*\{[^}]*min-height:\s*clamp\(220px, 48vh, 460px\)[^}]*justify-items:\s*center/s, 'initial data loading must be centered without a card frame');
 assert.doesNotMatch(stylesheet.match(/\.page-loading\s*\{[^}]*}/s)?.[0] || '', /border:|background:|box-shadow:/, 'initial data loading must not show a box');
 assert.match(stylesheet, /--loading-gap:\s*6px/, 'all loading contexts must share the compact 6px circle-to-text gap');
@@ -118,7 +121,7 @@ assert.match(personScript, /const people = await loadAllPeople\(\);[\s\S]*person
 assert.match(bootstrap, /Promise\.all\(\[[\s\S]*ClassRecordIllustrationMetadataPromise/, 'bootstrap must wait for all illustration dimensions before markup-capable pages render');
 assert.match(timelinePage, /id="timeline-actions"[^>]*hidden/, 'timeline controls must remain hidden until statistics are ready');
 assert.match(timelineScript, /if \(summary\)[\s\S]*renderAll\(\);\s*timelineActions\?\.removeAttribute\('hidden'\);[\s\S]*detail\.setAttribute\('aria-busy', 'false'\)/, 'timeline controls must only appear after successful statistic rendering');
-assert.match(searchPage, /id="search-loading" class="page-loading"[^>]*role="status"/, 'search pages must present a neutral loader before the index is ready');
+assert.match(searchPage, /id="search-loading" class="page-loading loading-state"[^>]*role="status"/, 'search pages must present a neutral loader before the index is ready');
 assert.match(searchPage, /id="search-panel"[^>]*hidden/, 'search controls must remain hidden before the index is ready');
 assert.match(searchPage, /id="search-results"[^>]*hidden/, 'search result content must remain hidden before the index is ready');
 assert.doesNotMatch(personPage, /quoteStore\.js/, 'person pages must not load the unused quote store');
