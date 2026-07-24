@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * upload-private-content.mjs
+ * admin.mjs — the only formal local administration entry point.
  *
  * Migrates local secure content into Supabase.
  *
@@ -24,11 +24,18 @@
  *   $env:SUPABASE_URL="https://xxxx.supabase.co"
  *   $env:SUPABASE_SERVICE_ROLE_KEY="your service_role key"
  *   $env:CLASS_RECORD_BUCKET="classrecord-private"
- *   node scripts/upload-private-content.mjs --dry-run
- *   node scripts/upload-private-content.mjs
- *   node scripts/upload-private-content.mjs --prune --confirm-prune
+ *   node scripts/admin.mjs upload --dry-run
+ *   node scripts/admin.mjs upload
+ *   node scripts/admin.mjs upload --prune --confirm-prune
+ *   node scripts/admin.mjs invites generate --count 30 --expires-days 14
+ *   node scripts/admin.mjs invites list
+ *   node scripts/admin.mjs invites check --code CR-ABCD-EFGH-2345
+ *
+ * Invite-code values are displayed only at generation time. List/check output
+ * never includes invite-code hashes or access-session tokens.
  */
 
+import { createHash, randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
@@ -53,12 +60,14 @@ await loadDotEnv();
 const url = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const bucket = process.env.CLASS_RECORD_BUCKET || 'classrecord-private';
-const argv = new Set(process.argv.slice(2));
+const command = process.argv[2] || 'help';
+const commandArgs = process.argv.slice(3);
+const argv = new Set(commandArgs);
 const shouldPrune = argv.has('--prune');
 const validateOnly = argv.has('--validate-only');
 const dryRun = argv.has('--dry-run');
 const confirmPrune = argv.has('--confirm-prune');
-const concurrencyArg = process.argv.find((value) => value.startsWith('--concurrency='));
+const concurrencyArg = commandArgs.find((value) => value.startsWith('--concurrency='));
 const uploadConcurrency = Math.min(8, Math.max(1, Number(concurrencyArg?.split('=')[1]) || 3));
 const MAX_REQUEST_ATTEMPTS = 3;
 const hiddenStoragePrefix = 'hidden/';
@@ -78,12 +87,35 @@ const requiredDatabaseColumns = {
     class_private_assets: ['asset_key', 'width', 'height', 'updated_at']
 };
 
+const printUsage = () => {
+    console.log(`Usage:
+  node scripts/admin.mjs upload [--dry-run|--validate-only] [--concurrency=3] [--prune --confirm-prune]
+  node scripts/admin.mjs invites generate --count N [--expires-days N] [--access-level normal|admin] [--note TEXT]
+  node scripts/admin.mjs invites list
+  node scripts/admin.mjs invites check --code CODE
+
+All commands use SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. Invite generation
+and single-code checks also require INVITE_CODE_PEPPER. .env is loaded locally
+when present and is never uploaded or logged.`);
+};
+
+if (command === 'help' || command === '--help' || command === '-h') {
+    printUsage();
+    process.exit(0);
+}
+
+if (!['upload', 'invites'].includes(command)) {
+    console.error(`Unknown command: ${command}`);
+    printUsage();
+    process.exit(1);
+}
+
 if (!url || !serviceRoleKey) {
     console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.');
     process.exit(1);
 }
 
-if (shouldPrune && !confirmPrune) {
+if (command === 'upload' && shouldPrune && !confirmPrune) {
     console.error('--prune requires --confirm-prune. No data was changed.');
     process.exit(1);
 }
@@ -865,16 +897,143 @@ const uploadMealMap = async () => {
     console.log(`${validateOnly ? 'Validated' : dryRun ? 'Would upload' : 'Uploaded'} meal map (${width}×${height}, image/png).`);
 };
 
-await validateDatabaseSchema();
-await importRecords();
-await importPeople();
-await importRecordPages();
-await importPageMessages();
-await importPageSupplements();
-await importMaterials();
-await importQuiz();
-await importCreditsPage();
-await uploadPrivateFiles();
-await uploadMealMap();
+const invitePepper = () => {
+    const pepper = String(process.env.INVITE_CODE_PEPPER || '');
+    if (!pepper) throw new Error('INVITE_CODE_PEPPER is required for invite-code generation and checks.');
+    return pepper;
+};
 
-console.log(shouldPrune ? 'Upload complete. Remote stale data/files were pruned.' : 'Upload complete.');
+const normalizeInviteCode = (value) => String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+const hashInviteCode = (code) => createHash('sha256')
+    .update(`${invitePepper()}:${normalizeInviteCode(code)}`, 'utf8')
+    .digest('hex');
+
+const createInviteCode = () => {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const bytes = randomBytes(12);
+    let value = '';
+    for (const byte of bytes) value += alphabet[byte % alphabet.length];
+    return `CR-${value.slice(0, 4)}-${value.slice(4, 8)}-${value.slice(8, 12)}`;
+};
+
+const readOption = (name, { required = false } = {}) => {
+    const index = commandArgs.indexOf(name);
+    if (index < 0) {
+        if (required) throw new Error(`${name} is required.`);
+        return null;
+    }
+    const value = commandArgs[index + 1];
+    if (!value || value.startsWith('--')) throw new Error(`${name} requires a value.`);
+    return value;
+};
+
+const assertInviteArguments = (allowed) => {
+    for (let index = 1; index < commandArgs.length; index += 1) {
+        const value = commandArgs[index];
+        if (!value.startsWith('--')) continue;
+        if (!allowed.has(value)) throw new Error(`Unknown invite option: ${value}`);
+        index += 1;
+    }
+};
+
+const createInvites = async () => {
+    assertInviteArguments(new Set(['--count', '--expires-days', '--access-level', '--note']));
+    const count = Number(readOption('--count', { required: true }));
+    const expiresDays = readOption('--expires-days');
+    const accessLevel = String(readOption('--access-level') || 'normal').toLowerCase();
+    const note = readOption('--note') || null;
+    if (!Number.isInteger(count) || count < 1 || count > 500) throw new Error('--count must be an integer between 1 and 500.');
+    if (expiresDays !== null && (!Number.isFinite(Number(expiresDays)) || Number(expiresDays) <= 0)) {
+        throw new Error('--expires-days must be a positive number.');
+    }
+    if (!['normal', 'admin'].includes(accessLevel)) throw new Error('--access-level must be normal or admin.');
+
+    const expiresAt = expiresDays ? new Date(Date.now() + Number(expiresDays) * 86400_000).toISOString() : null;
+    const codes = Array.from({ length: count }, createInviteCode);
+    const rows = codes.map((code) => ({
+        code_hash: hashInviteCode(code), expires_at: expiresAt, note, access_level: accessLevel, used: false
+    }));
+    await request('/rest/v1/invite_codes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify(rows)
+    });
+    console.log(`Generated ${codes.length} one-time invite code(s); expires=${expiresAt || 'never'}; access=${accessLevel}.`);
+    console.log('Store the following codes securely. They cannot be recovered from the database later:');
+    codes.forEach((code) => console.log(code));
+};
+
+const loadInviteRows = async () => {
+    const select = 'id,used,used_at,expires_at,access_level,note,created_at';
+    const rows = [];
+    for (let offset = 0; ; offset += 1000) {
+        const page = await request(`/rest/v1/invite_codes?select=${encodeURIComponent(select)}&order=created_at.desc&limit=1000&offset=${offset}`);
+        rows.push(...(page || []));
+        if (!page || page.length < 1000) return rows;
+    }
+};
+
+const inviteState = (row) => {
+    if (row.used) return 'used';
+    if (row.expires_at && Date.parse(row.expires_at) <= Date.now()) return 'expired';
+    return 'available';
+};
+
+const listInvites = async () => {
+    assertInviteArguments(new Set());
+    const rows = await loadInviteRows();
+    const summary = rows.reduce((result, row) => {
+        result[inviteState(row)] += 1;
+        return result;
+    }, { available: 0, used: 0, expired: 0 });
+    console.log(`Invite codes: total=${rows.length}, available=${summary.available}, used=${summary.used}, expired=${summary.expired}.`);
+    rows.forEach((row) => {
+        console.log(JSON.stringify({
+            id: row.id, state: inviteState(row), usedAt: row.used_at || null,
+            expiresAt: row.expires_at || null, accessLevel: row.access_level, note: row.note || null,
+            createdAt: row.created_at || null
+        }));
+    });
+};
+
+const checkInvite = async () => {
+    assertInviteArguments(new Set(['--code']));
+    const code = readOption('--code', { required: true });
+    const rows = await request(`/rest/v1/invite_codes?select=${encodeURIComponent('id,used,used_at,expires_at,access_level,note,created_at')}&code_hash=eq.${encodeURIComponent(hashInviteCode(code))}&limit=1`);
+    const row = rows?.[0];
+    if (!row) {
+        console.log('Invite code not found.');
+        return;
+    }
+    console.log(JSON.stringify({
+        found: true, state: inviteState(row), usedAt: row.used_at || null,
+        expiresAt: row.expires_at || null, accessLevel: row.access_level, note: row.note || null,
+        createdAt: row.created_at || null
+    }));
+};
+
+const runUpload = async () => {
+    await validateDatabaseSchema();
+    await importRecords();
+    await importPeople();
+    await importRecordPages();
+    await importPageMessages();
+    await importPageSupplements();
+    await importMaterials();
+    await importQuiz();
+    await importCreditsPage();
+    await uploadPrivateFiles();
+    await uploadMealMap();
+    console.log(shouldPrune ? 'Upload complete. Remote stale data/files were pruned.' : 'Upload complete.');
+};
+
+try {
+    if (command === 'upload') await runUpload();
+    else if (commandArgs[0] === 'generate') await createInvites();
+    else if (commandArgs[0] === 'list') await listInvites();
+    else if (commandArgs[0] === 'check') await checkInvite();
+    else throw new Error('Use invites generate, invites list, or invites check.');
+} catch (error) {
+    console.error(`Admin command failed: ${error.message}`);
+    process.exitCode = 1;
+}

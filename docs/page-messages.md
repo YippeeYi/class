@@ -13,4 +13,4 @@
 - `author`：记录人的人物 `id`。
 - 没有对应 JSON 的书面页不会渲染箴言或空占位。
 
-添加或更新箴言后，执行 `npm run upload-private-content` 将数据迁移至 `class_page_messages`。
+添加或更新箴言后，执行 `npm run admin -- upload` 将数据迁移至 `class_page_messages`。

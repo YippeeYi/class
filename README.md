@@ -83,10 +83,26 @@ HTML 转义。插图路径严格限制在 `data/attachments/` 目录。
 
 ```bash
 npm install
-node scripts/generate-invite-codes.mjs --count 30 --expires-days 14 --note "G2-1 首批邀请码"
+npm run admin -- invites generate --count 30 --expires-days 14 --note "G2-1 首批邀请码"
 # 仅在需要访问 hidden 内容时生成高权限邀请码
-node scripts/generate-invite-codes.mjs --count 1 --expires-days 7 --access-level admin --note "管理员隐藏内容访问"
+npm run admin -- invites generate --count 1 --expires-days 7 --access-level admin --note "管理员隐藏内容访问"
 ```
+
+统一管理入口为 `scripts/admin.mjs`：
+
+```bash
+# 预检查或上传全部私密内容
+npm run admin -- upload --dry-run
+npm run admin -- upload
+
+# 查看全部邀请码的状态；不会显示邀请码明文或哈希
+npm run admin -- invites list
+
+# 用邀请码明文检查这一张是否已使用、过期或不存在；不会回显输入内容
+npm run admin -- invites check --code CR-ABCD-EFGH-2345
+```
+
+邀请码只会在 `invites generate` 成功时输出一次；数据库仅保存加 pepper 的哈希。请立即在安全位置保存生成结果，不要把邀请码、`.env` 或命令输出提交到 Git。
 
 本地 `.env` 需要包含：
 
@@ -105,7 +121,7 @@ INVITE_CODE_PEPPER=请填写一段足够长的随机字符串
 正式上传脚本只会上传数据库行实际引用、且位于白名单根目录中的二进制资源，不会把 `private-assets/content/**/*.json` 上传到 Storage。Quiz 原图仅保存在本机被 Git 忽略的 `private-assets/quiz/` 下，迁移后对应对象路径仍为 `images/quiz/`。需要同步清理远端失效文件时，先 dry-run，再使用：
 
 ```bash
-npm run upload-private-content -- --prune --confirm-prune
+npm run admin -- upload --prune --confirm-prune
 ```
 
 `--prune` 会以本次数据库导入实际生成的资源清单为准清理整个专用 bucket；请仅将 `classrecord-private` 用于本网站，并在执行前保留必要备份。

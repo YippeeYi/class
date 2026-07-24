@@ -30,7 +30,7 @@ CLASS_RECORD_BUCKET=classrecord-private
 3. 加载上述本地环境变量后执行：
 
    ```powershell
-   npm run upload-private-content
+   npm run admin -- upload
    ```
 
    脚本校验 PNG 签名与尺寸，以 `image/png` 和 `private, max-age=180` 上传，并使用 upsert 覆盖同一私有对象；
@@ -39,7 +39,7 @@ CLASS_RECORD_BUCKET=classrecord-private
 4. 完整内容迁移也会处理该图：
 
    ```powershell
-   npm run upload-private-content
+   npm run admin -- upload
    ```
 
    迁移的 `--prune` 模式会把蹭饭图列为保护对象，不会因为它不属于普通内容清单而删除它。

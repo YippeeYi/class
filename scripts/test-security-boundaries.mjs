@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const root = new URL('../', import.meta.url);
 const read = (file) => readFile(new URL(file, root), 'utf8');
 const [setupSql, checkSql, uploader, secureData, authGate, gitignore] = await Promise.all([
-    read('sql/setup.sql'), read('sql/check.sql'), read('scripts/upload-private-content.mjs'),
+    read('sql/setup.sql'), read('sql/check.sql'), read('scripts/admin.mjs'),
     read('js/secureData.js'), read('js/authGate.js'), read('.gitignore')
 ]);
 
@@ -22,6 +22,10 @@ assert.match(uploader, /const contentRoot = 'private-assets\/content'/, 'uploade
 assert.match(uploader, /--confirm-prune/, 'remote pruning must require explicit confirmation');
 assert.match(uploader, /MAX_REQUEST_ATTEMPTS = 3/, 'uploader must bound network retries');
 assert.match(uploader, /uploadConcurrency/, 'uploader must control upload concurrency');
+assert.match(uploader, /invites generate/, 'the unified admin entry point must generate one-time invite codes');
+assert.match(uploader, /invites list/, 'the unified admin entry point must list invite-code usage states');
+assert.match(uploader, /invites check/, 'the unified admin entry point must check one invite code by its peppered hash');
+assert.match(uploader, /const select = 'id,used,used_at,expires_at,access_level,note,created_at'/, 'invite lists must exclude code hashes');
 assert.doesNotMatch(uploader, /SUPABASE_SERVICE_ROLE_KEY[^\n]*console\.log/, 'uploader must not log service keys');
 assert.doesNotMatch(secureData, /sessionStorage\.setItem\(SIGNED_URL_SESSION_KEY/, 'signed URLs must stay memory-only');
 assert.match(secureData, /sensitiveSignedUrlExpiresIn/, 'sensitive assets must have a shorter URL lifetime');
