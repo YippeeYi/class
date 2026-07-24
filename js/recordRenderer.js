@@ -2109,6 +2109,7 @@ illustrationTooltipController = createInlineTooltipController({
         const loading = document.createElement("span");
         loading.className = "record-written-image-loading illustration-tooltip-loading";
         loading.innerHTML = '<i aria-hidden="true"></i><b>正在加载插图</b>';
+        window.ClassRecordLoading?.adopt(loading);
         tooltip.replaceChildren(image, loading);
         reveal();
         const [dimensions, readyImage] = await Promise.all([

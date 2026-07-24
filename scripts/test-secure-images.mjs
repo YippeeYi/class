@@ -165,8 +165,8 @@ assert.equal(quizRequests, 2, 'forced hidden-pool retry must bypass the cached q
 
 window.ClassRecordSupabase.hasAdminAccess = async () => true;
 const quizPreload = await data.preloadAdminQuizImages();
-assert.deepEqual({ ...quizPreload }, { admin: true, total: 1, loaded: 1 });
-assert.equal(data.getPreloadedAsset('images/quiz/lamian/01.png').width, 4000, 'administrator warmup must cache the original hidden quiz image');
+assert.deepEqual({ ...quizPreload }, { admin: true, total: 1, loaded: 0, deferred: 1 });
+assert.equal(data.getPreloadedAsset('images/quiz/lamian/01.png'), null, 'administrator initialization must not prefetch every private high-resolution image');
 
 const requestsBeforeCleanup = signedRequests.length;
 data.clearSecureResourceState();
@@ -179,7 +179,7 @@ eventHandlers.get('pageshow')?.({ persisted: true });
 await new Promise((resolve) => setTimeout(resolve, 0));
 assert.equal(restoredImage.removedBindings, 1, 'bfcache restore must invalidate old image bindings');
 assert.match(restoredImage.src, /restored\.jpeg$/, 'bfcache restore must assign a newly signed image URL');
-assert.equal(signedRequests.length, requestsBeforeRestore, 'bfcache restore may use the batched signer for visible images');
-assert.equal(batchSignedRequests.length, batchRequestsBeforeRestore + 1, 'bfcache restore must request a fresh URL rather than reuse cleared memory');
+assert.equal(signedRequests.length, requestsBeforeRestore + 1, 'without Cache Storage, bfcache restore must obtain a fresh per-image URL');
+assert.equal(batchSignedRequests.length, batchRequestsBeforeRestore, 'the Cache Storage-aware image resolver no longer batches image URLs before loading');
 
 console.log('Passed secure image variants and hidden quiz loader retry checks.');

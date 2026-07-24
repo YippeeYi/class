@@ -25,15 +25,33 @@
     const failedSignCache = new Map();
     const imagePreloadCache = new Map();
     const imagePreloadResults = new Map();
+    const imageObjectUrls = new Set();
     let imageTransformationsUnavailable = false;
     const FAILED_SIGN_TTL = 5 * 60 * 1000;
     const MIN_SIGNED_URL_SECONDS = 30;
     const MAX_SIGNED_URL_SECONDS = 15 * 60;
     const FAILED_ASSET_SESSION_KEY = 'classRecordMissingAssets.v1';
     const SIGNED_URL_SESSION_KEY = 'classRecordSignedUrls.v1';
+    const PRIVATE_IMAGE_CACHE = 'classRecord-private-images-v1';
+    const PRIVATE_IMAGE_CACHE_TTL = 24 * 60 * 60 * 1000;
+    const PRIVATE_IMAGE_STALE_TTL = 7 * 24 * 60 * 60 * 1000;
     const displayTransforms = Object.freeze({
         written: Object.freeze({ width: 1200, height: 1800, resize: 'contain', quality: 78 })
     });
+
+    // Direct ClassRecordData callers (quiz, credits, record-page metadata)
+    // do not all pass through a page store. Keep their persistence policy in
+    // one place; hidden/admin data is explicitly memory-only.
+    const loadCachedData = (key, loader, { force = false, persistent = true, sessionExpire } = {}) => {
+        if (typeof window.loadWithCache !== 'function') return loader();
+        return window.loadWithCache({
+            key: `data:${key}`,
+            loader,
+            force,
+            persistent,
+            ...(sessionExpire === undefined ? {} : { sessionExpire })
+        });
+    };
 
     const normalizeImageTransform = (transform) => {
         if (!transform || typeof transform !== 'object') return null;
@@ -52,6 +70,68 @@
         const normalized = normalizeImageTransform(transform);
         return normalized ? `${safePath}|transform:${JSON.stringify(normalized)}` : safePath;
     };
+
+    const getImageCacheScope = () => {
+        try {
+            const access = JSON.parse(localStorage.getItem('classRecord:inviteAccess') || '{}');
+            const authorizedAt = String(access?.authorizedAt || access?.verifiedAt || '');
+            return access?.type === 'invite' && access?.token && authorizedAt ? authorizedAt : '';
+        } catch (error) {
+            return '';
+        }
+    };
+
+    const getPrivateImageCacheRequest = (safePath, transform) => {
+        const scope = getImageCacheScope();
+        if (!scope || !window.caches || !window.location?.origin) return null;
+        const key = getAssetCacheKey(safePath, transform);
+        return new Request(`${window.location.origin}/.classrecord-private-image-cache/${encodeURIComponent(scope)}/${encodeURIComponent(key)}`);
+    };
+
+    const readPrivateImageCache = async (safePath, transform) => {
+        const request = getPrivateImageCacheRequest(safePath, transform);
+        if (!request) return null;
+        try {
+            const cache = await caches.open(PRIVATE_IMAGE_CACHE);
+            const response = await cache.match(request);
+            if (!response) return null;
+            const cachedAt = Date.parse(response.headers.get('x-classrecord-cached-at') || '');
+            if (!Number.isFinite(cachedAt) || Date.now() - cachedAt >= PRIVATE_IMAGE_STALE_TTL) {
+                await cache.delete(request);
+                return null;
+            }
+            return { response, stale: Date.now() - cachedAt >= PRIVATE_IMAGE_CACHE_TTL };
+        } catch (error) {
+            return null;
+        }
+    };
+
+    const writePrivateImageCache = async (safePath, transform, response) => {
+        const request = getPrivateImageCacheRequest(safePath, transform);
+        if (!request || !response?.ok) return;
+        try {
+            const headers = new Headers(response.headers);
+            headers.set('x-classrecord-cached-at', new Date().toISOString());
+            const body = await response.clone().blob();
+            const cachedResponse = new Response(body, { status: response.status, statusText: response.statusText, headers });
+            await (await caches.open(PRIVATE_IMAGE_CACHE)).put(request, cachedResponse);
+        } catch (error) {
+            // Cache Storage can be quota-limited; the signed network response remains usable.
+        }
+    };
+
+    const responseToObjectUrl = async (response) => {
+        const blob = await response.blob();
+        if (!blob.size) return '';
+        const url = URL.createObjectURL(blob);
+        imageObjectUrls.add(url);
+        return url;
+    };
+
+    const canPersistPrivateImages = () => Boolean(
+        window.caches && window.location?.origin && typeof fetch === 'function'
+        && typeof Request === 'function' && typeof URL?.createObjectURL === 'function'
+    );
 
     // Signed URLs and failed object paths are memory-only. Remove caches left
     // by older releases without restoring them into the current page.
@@ -261,11 +341,11 @@
             query = hidden
                 ? query.eq('raw->>hidden', 'true')
                 : query.or('raw->>hidden.is.null,raw->>hidden.neq.true');
-            const promise = query
+            const promise = loadCachedData(`records:${hidden ? 'hidden' : 'visible'}`, () => query
                 .then(({ data, error }) => {
                     if (error) throw error;
                     return (data || []).map(normalizeRecord);
-                })
+                }), { persistent: !hidden, sessionExpire: hidden ? 0 : undefined })
                 .catch((error) => {
                     recordPromises.delete(cacheKey);
                     throw error;
@@ -282,7 +362,7 @@
     const loadPeople = async ({ onProgressStep } = {}) => {
         const config = await getConfig();
         if (!peoplePromise) {
-            peoplePromise = selectAll(config.tables.people, '*', 'id').catch((error) => {
+            peoplePromise = loadCachedData('people', () => selectAll(config.tables.people, '*', 'id')).catch((error) => {
                 peoplePromise = null;
                 throw error;
             });
@@ -311,7 +391,7 @@
         const config = await getConfig();
         const cacheKey = String(Boolean(hidden));
         if (!pageSupplementPromises.has(cacheKey)) {
-            const promise = selectAll(config.tables.pageSupplements, '*', 'sort_order', { hidden: Boolean(hidden) })
+            const promise = loadCachedData(`page-supplements:${hidden ? 'hidden' : 'visible'}`, () => selectAll(config.tables.pageSupplements, '*', 'sort_order', { hidden: Boolean(hidden) }), { persistent: !hidden, sessionExpire: hidden ? 0 : undefined })
                 .catch((error) => {
                     pageSupplementPromises.delete(cacheKey);
                     throw error;
@@ -337,7 +417,7 @@
     const loadMaterials = async ({ onProgressStep } = {}) => {
         const config = await getConfig();
         if (!materialsPromise) {
-            materialsPromise = selectAll(config.tables.materials, '*', 'sort_order')
+            materialsPromise = loadCachedData('materials', () => selectAll(config.tables.materials, '*', 'sort_order'))
                 .then((rows) => rows.map((row, index) => {
                     const raw = parseRaw(row);
                     const item = {
@@ -413,7 +493,7 @@
     const loadCreditsPage = async () => {
         const config = await getConfig();
         if (!creditsPagePromise) {
-            creditsPagePromise = selectAll(config.tables.creditsPage, '*', null, { id: 'main' })
+            creditsPagePromise = loadCachedData('credits-page', () => selectAll(config.tables.creditsPage, '*', null, { id: 'main' }))
                 .then((rows) => {
                     const row = rows[0];
                     if (!row) return null;
@@ -447,7 +527,7 @@
         const config = await getConfig();
         const cacheKey = String(Boolean(hidden));
         if (!recordPagePromises.has(cacheKey)) {
-            const promise = selectAll(config.tables.recordPages, '*', 'sort_order', { hidden: Boolean(hidden) })
+            const promise = loadCachedData(`record-pages:${hidden ? 'hidden' : 'visible'}`, () => selectAll(config.tables.recordPages, '*', 'sort_order', { hidden: Boolean(hidden) }), { persistent: !hidden, sessionExpire: hidden ? 0 : undefined })
                 .catch((error) => {
                     recordPagePromises.delete(cacheKey);
                     throw error;
@@ -472,7 +552,7 @@
     const loadPageMessages = async () => {
         const config = await getConfig();
         if (!pageMessagesPromise) {
-            pageMessagesPromise = selectAll(config.tables.pageMessages, '*', 'page')
+            pageMessagesPromise = loadCachedData('page-messages', () => selectAll(config.tables.pageMessages, '*', 'page'))
                 .then((rows) => rows.map((row) => {
                     const raw = parseRaw(row);
                     return {
@@ -519,7 +599,7 @@
         const config = await getConfig();
         if (force) quizQuestionsPromise = null;
         if (!quizQuestionsPromise) {
-            quizQuestionsPromise = selectAll(config.tables.quizQuestions, '*', 'sort_order')
+            quizQuestionsPromise = loadCachedData('quiz-questions', () => selectAll(config.tables.quizQuestions, '*', 'sort_order'), { force })
                 .then((rows) => rows.map(normalizeQuizQuestion))
                 .catch((error) => {
                     quizQuestionsPromise = null;
@@ -533,7 +613,7 @@
         const config = await getConfig();
         if (force) mealMapMetadataPromise = null;
         if (!mealMapMetadataPromise) {
-            mealMapMetadataPromise = selectAll(config.tables.privateAssets, 'asset_key,width,height,updated_at', null, { asset_key: 'meal-map' })
+            mealMapMetadataPromise = loadCachedData('meal-map-metadata', () => selectAll(config.tables.privateAssets, 'asset_key,width,height,updated_at', null, { asset_key: 'meal-map' }), { force })
                 .then((rows) => {
                     const row = rows[0];
                     if (!row || Number(row.width) < 1 || Number(row.height) < 1) return null;
@@ -608,19 +688,16 @@
     const getMealMapAsset = async ({ forceRefresh = false } = {}) => {
         // The metadata row is a server-gated availability check and carries
         // dimensions/version only, never an object path or signed URL.
-        const metadata = await loadMealMapMetadata();
+        const metadata = await loadMealMapMetadata({ force: forceRefresh });
         if (!metadata) return null;
         const safePath = normalizeMealMapStoragePath(MEAL_MAP_STORAGE_PATH);
-        const url = await signAssetUrl(safePath, {
-            quiet: true,
-            forceRefresh,
-            expiresIn: 180
-        });
+        const url = await preloadAsset(safePath, { priority: 'high', forceRefresh });
         if (!url) return null;
-        const cached = signedUrlCache.get(safePath);
         return {
             url,
-            refreshAt: cached?.refreshAt || (Date.now() + 120 * 1000),
+            // This is a stable object URL backed by Cache Storage, not a
+            // persisted signed URL. Refreshing it only rechecks metadata.
+            refreshAt: Date.now() + PRIVATE_IMAGE_CACHE_TTL,
             width: metadata.width,
             height: metadata.height
         };
@@ -692,14 +769,44 @@
         return result;
     };
 
-    const preloadAsset = async (path, { priority = 'low', transform = null } = {}) => {
+    const preloadAsset = async (path, { priority = 'low', transform = null, forceRefresh = false } = {}) => {
         const safePath = normalizePrivateStoragePath(path);
         if (!safePath) return null;
         const requestedTransform = imageTransformationsUnavailable ? null : normalizeImageTransform(transform);
         const cacheKey = getAssetCacheKey(safePath, requestedTransform);
-        if (imagePreloadCache.has(cacheKey)) return imagePreloadCache.get(cacheKey);
+        if (!forceRefresh && imagePreloadCache.has(cacheKey)) return imagePreloadCache.get(cacheKey);
         const loadVariant = async (imageTransform) => {
-            const url = await signAssetUrl(safePath, { quiet: true, transform: imageTransform });
+            if (!canPersistPrivateImages()) {
+                const signedUrl = await signAssetUrl(safePath, { quiet: true, forceRefresh, transform: imageTransform });
+                if (!signedUrl) return null;
+                return new Promise((resolve) => {
+                    const image = new Image();
+                    image.decoding = 'async';
+                    image.fetchPriority = priority;
+                    image.onload = () => {
+                        const result = { url: signedUrl, width: image.naturalWidth, height: image.naturalHeight };
+                        imagePreloadResults.set(getAssetCacheKey(safePath, imageTransform), result);
+                        resolve(result);
+                    };
+                    image.onerror = () => resolve(null);
+                    image.src = signedUrl;
+                });
+            }
+            let response = forceRefresh ? null : await readPrivateImageCache(safePath, imageTransform);
+            let url = '';
+            if (!response || response.stale) {
+                const signedUrl = await signAssetUrl(safePath, { quiet: true, forceRefresh, transform: imageTransform });
+                if (!signedUrl) return response?.response ? responseToObjectUrl(response.response) : null;
+                try {
+                    const networkResponse = await fetch(signedUrl, { credentials: 'omit' });
+                    if (!networkResponse.ok) throw new Error(`Asset request failed: ${networkResponse.status}`);
+                    void writePrivateImageCache(safePath, imageTransform, networkResponse);
+                    response = { response: networkResponse };
+                } catch (error) {
+                    return response?.response ? responseToObjectUrl(response.response) : null;
+                }
+            }
+            url = await responseToObjectUrl(response.response);
             if (!url) return null;
             return new Promise((resolve) => {
                 const image = new Image();
@@ -752,20 +859,10 @@
             if (!isAdmin) return { admin: false, total: 0, loaded: 0 };
             const questions = await loadAllQuizQuestions();
             const paths = [...new Set(questions.map((item) => item.image).filter(Boolean))];
-            let nextIndex = 0;
-            let loaded = 0;
-            const worker = async () => {
-                while (nextIndex < paths.length) {
-                    const path = paths[nextIndex++];
-                    try {
-                        if (await preloadAsset(path, { priority: 'low' })) loaded += 1;
-                    } catch (error) {
-                        // Continue warming the remaining images after an isolated failure.
-                    }
-                }
-            };
-            await Promise.all(Array.from({ length: Math.min(4, paths.length) }, worker));
-            return { admin: true, total: paths.length, loaded };
+            // Do not download an entire private image collection in the
+            // background. Visible quiz questions resolve on demand and are
+            // then cached by their stable Storage path.
+            return { admin: true, total: paths.length, loaded: 0, deferred: paths.length };
         })().catch((error) => {
             adminQuizPreloadPromise = null;
             throw error;
@@ -803,13 +900,8 @@
         const linkNodes = [...root.querySelectorAll('a[data-secure-href]')];
         const lazyImages = imageNodes.filter((node) => node.loading === 'lazy' && 'IntersectionObserver' in window);
         const immediateImages = imageNodes.filter((node) => !lazyImages.includes(node));
-        const paths = [
-            ...immediateImages
-                .map((node) => node.getAttribute('data-secure-src'))
-                .filter((path) => !getPreloadedAsset(path)?.url),
-            ...linkNodes.map((node) => node.getAttribute('data-secure-href'))
-        ].filter(Boolean);
-        const signed = await signAssetUrls(paths).catch((error) => {
+        const linkPaths = linkNodes.map((node) => node.getAttribute('data-secure-href')).filter(Boolean);
+        const signed = await signAssetUrls(linkPaths).catch((error) => {
             window.ClassRecordDiagnostics?.warn('Secure asset signing failed', error);
             return new Map();
         });
@@ -820,9 +912,12 @@
             }
             if (node.isConnected) node.dispatchEvent(new Event('error'));
         };
-        immediateImages.forEach((node) => {
+        const immediateSources = await Promise.all(immediateImages.map(async (node) => {
             const path = node.getAttribute('data-secure-src');
-            const src = getPreloadedAsset(path)?.url || signed.get(path);
+            const src = getPreloadedAsset(path)?.url || await preloadAsset(path, { priority: 'high' });
+            return { node, src };
+        }));
+        immediateSources.forEach(({ node, src }) => {
             assignImage(node, src);
             node.dataset.secureBound = 'true';
         });
@@ -837,10 +932,8 @@
                     .map((entry) => entry.target);
                 visibleNodes.forEach((node) => observer.unobserve(node));
                 if (!visibleNodes.length) return;
-                signAssetUrls(visibleNodes.map((node) => node.getAttribute('data-secure-src')))
-                    .then((urls) => visibleNodes.forEach((node) => {
-                        assignImage(node, urls.get(node.getAttribute('data-secure-src')));
-                    }))
+                Promise.all(visibleNodes.map(async (node) => ({ node, src: await preloadAsset(node.getAttribute('data-secure-src'), { priority: 'low' }) })))
+                    .then((sources) => sources.forEach(({ node, src }) => assignImage(node, src)))
                     .catch(() => visibleNodes.forEach((node) => assignImage(node, '')));
             }, { rootMargin: '320px 0px' });
             lazyImages.forEach((node) => {
@@ -865,6 +958,8 @@
         failedSignCache.clear();
         imagePreloadCache.clear();
         imagePreloadResults.clear();
+        imageObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+        imageObjectUrls.clear();
         mealMapMetadataPromise = null;
         imageTransformationsUnavailable = false;
         try {

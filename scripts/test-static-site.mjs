@@ -106,12 +106,12 @@ assert.equal((materialsPage.match(/class="page-loading" role="status"/g) || []).
 assert.match(personPage, /id="person-loading"[^>]*role="status"/, 'person pages must provide a neutral loading state before profile data is available');
 assert.match(personPage, /id="person-info"[^>]*hidden/, 'person aliases and introductions must remain hidden until data is available');
 assert.match(stylesheet, /\[hidden\]\s*\{\s*display:\s*none !important;/, 'native hidden state must not be overridden by component layout styles');
+assert.match(stylesheet, /\.loading-state\s*\{[^}]*display:\s*flex[^}]*flex-direction:\s*column[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*gap:\s*var\(--loading-gap\)/s, 'all loading contexts must use one vertical flex component');
 assert.match(stylesheet, /\.page-loading\s*\{[^}]*min-height:\s*clamp\(220px, 48vh, 460px\)[^}]*justify-items:\s*center/s, 'initial data loading must be centered without a card frame');
 assert.doesNotMatch(stylesheet.match(/\.page-loading\s*\{[^}]*}/s)?.[0] || '', /border:|background:|box-shadow:/, 'initial data loading must not show a box');
-assert.match(stylesheet, /--loading-gap:\s*8px/, 'all loading contexts must share the compact 8px circle-to-text gap');
+assert.match(stylesheet, /--loading-gap:\s*6px/, 'all loading contexts must share the compact 6px circle-to-text gap');
 assert.match(stylesheet, /--loading-spinner-size:\s*28px[\s\S]*--loading-spinner-border:\s*2px[\s\S]*--loading-duration:\s*850ms/, 'all loading contexts must share spinner geometry and speed');
-assert.match(stylesheet, /\.record-written-image-loading i\s*\{[^}]*var\(--loading-spinner-size\)[^}]*page-loading-spin/s, 'written-image loaders must reuse the shared spinner variables');
-assert.match(stylesheet, /\.meal-map-placeholder i\s*\{[^}]*var\(--loading-spinner-size\)[^}]*page-loading-spin/s, 'meal-map loaders must reuse the shared spinner variables');
+assert.match(stylesheet, /\.loading-spinner\s*\{[^}]*var\(--loading-spinner-size\)[^}]*page-loading-spin/s, 'written-image and meal-map loaders must reuse the one shared spinner class');
 assert.doesNotMatch(stylesheet, /@keyframes (?:written-image-spin|meal-map-spin)/, 'obsolete per-page loader keyframes must be removed');
 assert.match(stylesheet, /\.quiz-card\.is-loading\s*\{[^}]*background:\s*transparent[^}]*box-shadow:\s*none/s, 'quiz initialization must not show a card frame');
 assert.match(personScript, /const people = await loadAllPeople\(\);[\s\S]*personInfo\?\.removeAttribute\("hidden"\);[\s\S]*ClassRecordIllustrationMetadataPromise[\s\S]*const records = await loadAllRecords\(\)/, 'person profiles must wait for all illustration dimensions before rendering records');
@@ -135,7 +135,7 @@ assert.equal(
     'vendored Supabase SDK bytes must match the reviewed 2.45.0 release'
 );
 assert.match(secureData, /getAssetCacheKey\(safePath,\s*imageTransform\)/, 'original and transformed Storage URLs must use variant-aware cache keys');
-assert.match(secureData, /preloadAdminQuizImages[\s\S]*hasAdminAccess[\s\S]*loadAllQuizQuestions[\s\S]*preloadAsset\(path, \{ priority: 'low' \}\)/, 'administrator initialization must asynchronously preload every hidden quiz image');
+assert.match(secureData, /preloadAdminQuizImages[\s\S]*hasAdminAccess[\s\S]*loadAllQuizQuestions[\s\S]*deferred: paths\.length/, 'administrator initialization must defer non-visible private image downloads');
 assert.match(secureData, /addEventListener\('pageshow',[\s\S]*event\.persisted[\s\S]*removeAttribute\('data-secure-bound'\)[\s\S]*resolveAssetElements\(document\)/, 'bfcache restores must re-sign previously bound private images');
 assert.match(authGate, /addEventListener\("pageshow",[\s\S]*event\.persisted[\s\S]*handleGate\(\)/, 'bfcache restores must revalidate invite access before restored content continues');
 assert.match(recordScript, /preloadAsset\(sourcePath,\s*\{[^}]*transform:\s*getWrittenImageDisplayTransform\(\)/s, 'written page images must request a display-sized transform');

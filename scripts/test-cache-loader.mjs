@@ -6,7 +6,7 @@ import vm from 'node:vm';
 
 const source = await readFile(new URL('../js/cacheLoader.js', import.meta.url), 'utf8');
 const storage = new Map();
-const localStorage = new Map([['classRecord:inviteAccess', JSON.stringify({ authorizedAt: '2026-07-24T00:00:00.000Z' })]]);
+const localStorage = new Map([['classRecord:inviteAccess', JSON.stringify({ type: 'invite', token: 'test-access-token', authorizedAt: '2026-07-24T00:00:00.000Z' })]]);
 
 function createRuntime() {
     const listeners = new Map();
@@ -47,7 +47,7 @@ const firstResult = await firstPage.window.loadWithCache({
 });
 assert.equal(firstLoads, 1);
 assert.equal(firstResult[0].id, 'r-1');
-assert.ok(storage.has('classRecord:dataCache:v3:access-2026-07-24T00:00:00.000Z:records:visible'), 'access-scoped data must be cached for the current browser session');
+assert.ok(storage.has('classRecord:dataCache:v4:access-2026-07-24T00:00:00.000Z:records:visible'), 'access-scoped data must be cached for the current browser session');
 
 const secondPage = createRuntime();
 const cachedResult = await secondPage.window.loadWithCache({
@@ -59,7 +59,7 @@ const cachedResult = await secondPage.window.loadWithCache({
 });
 assert.equal(cachedResult[0].content, 'cached content');
 
-localStorage.set('classRecord:inviteAccess', JSON.stringify({ authorizedAt: '2026-07-25T00:00:00.000Z' }));
+localStorage.set('classRecord:inviteAccess', JSON.stringify({ type: 'invite', token: 'new-test-access-token', authorizedAt: '2026-07-25T00:00:00.000Z' }));
 const changedAccessPage = createRuntime();
 let changedAccessLoads = 0;
 await changedAccessPage.window.loadWithCache({

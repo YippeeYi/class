@@ -103,7 +103,7 @@
      each host continues to reserve its own content dimensions. */
   --loading-spinner-size: 28px;
   --loading-spinner-border: 2px;
-  --loading-gap: 8px;
+  --loading-gap: 6px;
   --loading-duration: 850ms;
   --loading-font-size: 13px;
   --loading-track: color-mix(in srgb, var(--theme-accent-strong) 24%, transparent);
@@ -676,19 +676,19 @@ body>#quotes-list {
   color: var(--text-soft);
 }
 
-.page-loading {
-  min-height: clamp(220px, 48vh, 460px);
-  display: grid;
-  align-content: center;
-  justify-items: center;
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: var(--loading-gap);
-  padding: 20px;
   color: var(--text-soft);
   text-align: center;
 }
 
-.page-loading::before {
-  content: "";
+.loading-spinner {
+  box-sizing: border-box;
+  flex: 0 0 auto;
   width: var(--loading-spinner-size);
   height: var(--loading-spinner-size);
   border: var(--loading-spinner-border) solid var(--loading-track);
@@ -697,14 +697,22 @@ body>#quotes-list {
   animation: page-loading-spin var(--loading-duration) linear infinite;
 }
 
-.page-loading strong,
-.page-loading span {
+.loading-text {
+  color: var(--text-main);
   font: inherit;
   font-size: var(--loading-font-size);
 }
 
-.page-loading strong {
-  color: var(--text-main);
+.page-loading {
+  min-height: clamp(220px, 48vh, 460px);
+  justify-items: center;
+  padding: 20px;
+}
+
+.page-loading strong,
+.page-loading span {
+  font: inherit;
+  font-size: var(--loading-font-size);
 }
 
 /* Common async failure state.  It shares the loading box geometry so a
@@ -729,10 +737,7 @@ body>#quotes-list {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .page-loading::before,
-  .quiz-card.is-loading .quiz-question-text::before,
-  .record-written-image-loading i,
-  .meal-map-placeholder i { animation: none; }
+  .loading-spinner { animation: none; }
 }
 
 /* 空状态 */
@@ -1741,22 +1746,14 @@ body>#quotes-list {
 }
 
 .quiz-card.is-loading .quiz-question-text {
-  display: grid;
-  justify-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: var(--loading-gap);
   margin: 0;
   color: var(--text-main);
   font-size: var(--loading-font-size);
-}
-
-.quiz-card.is-loading .quiz-question-text::before {
-  content: "";
-  width: var(--loading-spinner-size);
-  height: var(--loading-spinner-size);
-  border: var(--loading-spinner-border) solid var(--loading-track);
-  border-top-color: var(--theme-accent-strong);
-  border-radius: 50%;
-  animation: page-loading-spin var(--loading-duration) linear infinite;
 }
 
 .quiz-card-head {
@@ -2409,8 +2406,10 @@ body>#quotes-list {
 .record-written-image-loading {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   border-radius: 18px;
   color: var(--text-subtle);
   font-weight: 800;
@@ -2418,22 +2417,7 @@ body>#quotes-list {
   background: color-mix(in srgb, var(--theme-surface) 94%, white);
   z-index: 2;
   gap: var(--loading-gap);
-  align-content: center;
   text-align: center;
-}
-
-.record-written-image-loading i {
-  width: var(--loading-spinner-size);
-  height: var(--loading-spinner-size);
-  justify-self: center;
-  border: var(--loading-spinner-border) solid var(--loading-track);
-  border-top-color: var(--theme-accent-strong);
-  border-radius: 50%;
-  animation: page-loading-spin var(--loading-duration) linear infinite;
-}
-
-.record-written-image-loading b {
-  font-size: var(--loading-font-size);
 }
 
 @media (max-width: 620px) {
@@ -6607,9 +6591,6 @@ body.hidden-record-mode .hidden-record-banner {
 
 .meal-map-placeholder {
   grid-area: 1 / 1;
-  display: grid;
-  place-items: center;
-  gap: var(--loading-gap);
   width: min(100%, calc(min(72dvh, 100vw * 2721 / 4838) * 4838 / 2721));
   max-width: 100%;
   min-height: min(72dvh, calc(100vw * 2721 / 4838));
@@ -6617,20 +6598,11 @@ body.hidden-record-mode .hidden-record-banner {
   color: var(--text-subtle);
 }
 
-.meal-map-placeholder i {
-  width: var(--loading-spinner-size);
-  height: var(--loading-spinner-size);
-  border: var(--loading-spinner-border) solid var(--loading-track);
-  border-top-color: var(--theme-accent-strong);
-  border-radius: 50%;
-  animation: page-loading-spin var(--loading-duration) linear infinite;
-}
-
 .meal-map-figure.is-ready .meal-map-placeholder {
   display: none;
 }
 
-.meal-map-figure.is-error .meal-map-placeholder i {
+.meal-map-figure.is-error .meal-map-placeholder .loading-spinner {
   display: none;
 }
 

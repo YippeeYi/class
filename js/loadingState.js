@@ -4,13 +4,38 @@
  * HTML.  Pages retain ownership of their data and retry operation.
  */
 (() => {
+    const adopt = (host) => {
+        if (!host || host.classList.contains('loading-state')) return host;
+        host.classList.add('loading-state');
+        let spinner = host.querySelector('.loading-spinner, i[aria-hidden="true"]');
+        if (!spinner) {
+            spinner = document.createElement('span');
+            spinner.setAttribute('aria-hidden', 'true');
+            host.prepend(spinner);
+        }
+        spinner.className = 'loading-spinner';
+        const label = host.querySelector('.loading-text, strong, b');
+        if (label) label.classList.add('loading-text');
+        return host;
+    };
+
+    const adoptDescendants = (root = document) => {
+        root.querySelectorAll?.('.page-loading, .meal-map-placeholder, .record-written-image-loading').forEach(adopt);
+    };
     const createState = (kind, title, detail = '', retry = null) => {
         const state = document.createElement('div');
-        state.className = kind === 'error' ? 'page-state page-state-error' : 'page-loading page-state';
+        state.className = kind === 'error' ? 'page-state page-state-error' : 'page-state page-loading loading-state';
         state.setAttribute('role', kind === 'error' ? 'alert' : 'status');
         state.setAttribute('aria-live', kind === 'error' ? 'assertive' : 'polite');
 
+        if (kind !== 'error') {
+            const spinner = document.createElement('span');
+            spinner.className = 'loading-spinner';
+            spinner.setAttribute('aria-hidden', 'true');
+            state.append(spinner);
+        }
         const heading = document.createElement('strong');
+        heading.className = 'loading-text';
         heading.textContent = title;
         state.append(heading);
         if (detail) {
@@ -48,6 +73,19 @@
         },
         clearBusy(host) {
             host?.setAttribute('aria-busy', 'false');
-        }
+        },
+        adopt
     });
+    document.addEventListener('DOMContentLoaded', () => {
+        adoptDescendants();
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {
+                if (node.nodeType !== Node.ELEMENT_NODE) return;
+                if (node.matches?.('.page-loading, .meal-map-placeholder, .record-written-image-loading')) adopt(node);
+                adoptDescendants(node);
+            }));
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        window.addEventListener('pagehide', () => observer.disconnect(), { once: true });
+    }, { once: true });
 })();

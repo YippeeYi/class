@@ -32,7 +32,18 @@
 
   function setQuizLoading(isLoading) {
     quizCard?.classList.toggle('is-loading', Boolean(isLoading));
+    if (isLoading && questionText) {
+      const spinner = document.createElement('span');
+      spinner.className = 'loading-spinner';
+      spinner.setAttribute('aria-hidden', 'true');
+      const label = document.createElement('span');
+      label.className = 'loading-text';
+      label.textContent = '正在生成题目...';
+      questionText.replaceChildren(spinner, label);
+    }
   }
+
+  setQuizLoading(quizCard?.classList.contains('is-loading'));
 
   function shuffle(list) {
     const copy = [...list];
