@@ -108,6 +108,11 @@ assert.match(personPage, /id="person-info"[^>]*hidden/, 'person aliases and intr
 assert.match(stylesheet, /\[hidden\]\s*\{\s*display:\s*none !important;/, 'native hidden state must not be overridden by component layout styles');
 assert.match(stylesheet, /\.page-loading\s*\{[^}]*min-height:\s*clamp\(220px, 48vh, 460px\)[^}]*justify-items:\s*center/s, 'initial data loading must be centered without a card frame');
 assert.doesNotMatch(stylesheet.match(/\.page-loading\s*\{[^}]*}/s)?.[0] || '', /border:|background:|box-shadow:/, 'initial data loading must not show a box');
+assert.match(stylesheet, /--loading-gap:\s*8px/, 'all loading contexts must share the compact 8px circle-to-text gap');
+assert.match(stylesheet, /--loading-spinner-size:\s*28px[\s\S]*--loading-spinner-border:\s*2px[\s\S]*--loading-duration:\s*850ms/, 'all loading contexts must share spinner geometry and speed');
+assert.match(stylesheet, /\.record-written-image-loading i\s*\{[^}]*var\(--loading-spinner-size\)[^}]*page-loading-spin/s, 'written-image loaders must reuse the shared spinner variables');
+assert.match(stylesheet, /\.meal-map-placeholder i\s*\{[^}]*var\(--loading-spinner-size\)[^}]*page-loading-spin/s, 'meal-map loaders must reuse the shared spinner variables');
+assert.doesNotMatch(stylesheet, /@keyframes (?:written-image-spin|meal-map-spin)/, 'obsolete per-page loader keyframes must be removed');
 assert.match(stylesheet, /\.quiz-card\.is-loading\s*\{[^}]*background:\s*transparent[^}]*box-shadow:\s*none/s, 'quiz initialization must not show a card frame');
 assert.match(personScript, /const people = await loadAllPeople\(\);[\s\S]*personInfo\?\.removeAttribute\("hidden"\);[\s\S]*ClassRecordIllustrationMetadataPromise[\s\S]*const records = await loadAllRecords\(\)/, 'person profiles must wait for all illustration dimensions before rendering records');
 assert.match(bootstrap, /Promise\.all\(\[[\s\S]*ClassRecordIllustrationMetadataPromise/, 'bootstrap must wait for all illustration dimensions before markup-capable pages render');

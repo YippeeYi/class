@@ -26,6 +26,10 @@
     };
 
     const renderLoading = (title) => {
+        if (window.ClassRecordLoading?.show) {
+            window.ClassRecordLoading.show(root, title);
+            return;
+        }
         root.innerHTML = `<div class="page-loading" role="status"><strong>${escapeHtml(title)}</strong></div>`;
     };
 

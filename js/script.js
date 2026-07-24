@@ -824,7 +824,11 @@ async function enterHiddenRecordMode() {
   window.ClassRecordHiddenModeActive = true;
   document.body.classList.add("hidden-record-mode");
   resetCriteriaForHiddenMode();
-  container.innerHTML = '<div class="page-loading" role="status"><strong>正在加载隐藏记录···</strong><span>仅本次会话可见，刷新后恢复普通记录。</span></div>';
+  if (window.ClassRecordLoading?.show) {
+    window.ClassRecordLoading.show(container, "正在加载隐藏记录…", "仅本次会话可见，刷新后恢复普通记录。");
+  } else {
+    container.innerHTML = '<div class="page-loading" role="status"><strong>正在加载隐藏记录…</strong><span>仅本次会话可见，刷新后恢复普通记录。</span></div>';
+  }
   renderHiddenModeBanner("正在加载隐藏记录···", "info");
   try {
     const records = await window.loadHiddenRecords();
@@ -854,7 +858,7 @@ async function enterHiddenRecordMode() {
     recordPageLoadToken += 1;
     recordPageConfig = [];
     recordPageConfigMode = "";
-    container.innerHTML = '<div class="record-empty"><strong>隐藏记录加载失败。</strong><span>请确认 Supabase 表、RLS 和 Storage 路径已配置。</span></div>';
+    window.ClassRecordLoading?.error(container, "隐藏记录加载失败。", "请稍后重试。", enterHiddenRecordMode);
     renderHiddenModeBanner("隐藏记录加载失败，请确认 Supabase 配置。", "error");
     return false;
   }
