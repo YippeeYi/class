@@ -13,7 +13,9 @@
         figure.classList.toggle('is-error', state === 'error');
         figure.setAttribute('aria-busy', state === 'loading' ? 'true' : 'false');
         const label = figure.querySelector('.meal-map-placeholder b');
+        const retry = figure.querySelector('.meal-map-retry');
         if (label && message) label.textContent = message;
+        if (retry) retry.hidden = state !== 'error';
     };
     const clearRefreshTimer = () => { if (refreshTimer) window.clearTimeout(refreshTimer); refreshTimer = 0; };
     const scheduleRefresh = (refreshAt) => {
@@ -43,6 +45,11 @@
         if (!currentUrl || typeof window.ClassRecordImageViewer?.open !== 'function') return;
         window.ClassRecordImageViewer.openMealMap?.({ resolvedUrl: currentUrl })
             || window.ClassRecordImageViewer.open('', { alt: '蹭饭图', resolvedUrl: currentUrl });
+    });
+    figure.querySelector('.meal-map-retry')?.addEventListener('click', (event) => {
+        event.stopPropagation();
+        retryUsed = false;
+        loadMap({ forceRefresh: true });
     });
     window.addEventListener('classrecordcacheclearing', () => { clearRefreshTimer(); currentUrl = ''; image.removeAttribute('src'); });
     window.addEventListener('pagehide', clearRefreshTimer, { once: true });

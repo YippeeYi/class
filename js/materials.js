@@ -63,8 +63,8 @@
         })
         .catch((error) => {
             window.ClassRecordDiagnostics?.warn("Material load failed", error);
-            contentHost.innerHTML = '<div class="record-empty"><strong>资料加载失败。</strong><span>请检查 Supabase 资料表。</span></div>';
+            listHost.replaceChildren();
             listHost.setAttribute("aria-busy", "false");
-            contentHost.setAttribute("aria-busy", "false");
+            window.ClassRecordLoading?.error(contentHost, "资料加载失败。", "请稍后重试。", () => location.reload());
         });
 })();

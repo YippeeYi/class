@@ -817,7 +817,6 @@ window.ClassRecordFixedChartScale = buildFixedTimelineChartScale;
         })
         .catch((error) => {
             window.ClassRecordDiagnostics?.warn('Timeline load failed', error);
-            detail.innerHTML = '<div class="record-empty"><strong>时间线加载失败。</strong><span>请刷新页面或清空缓存后重试。</span></div>';
-            detail.setAttribute('aria-busy', 'false');
+            window.ClassRecordLoading?.error(detail, '时间线加载失败。', '请稍后重试。', () => location.reload());
         });
 })();

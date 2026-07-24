@@ -133,8 +133,7 @@ async function initializePersonPage() {
     } catch (error) {
         window.ClassRecordDiagnostics?.warn("Person page load failed", error);
         showPersonLoadError("人物资料加载失败。", "请稍后重试。");
-        recordContainer.innerHTML = '<div class="record-empty"><strong>页面加载失败。</strong><span>请稍后重试。</span></div>';
-        recordContainer.setAttribute("aria-busy", "false");
+        window.ClassRecordLoading?.error(recordContainer, "页面加载失败。", "请稍后重试。", initializePersonPage);
     }
 }
 

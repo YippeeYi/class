@@ -1,5 +1,9 @@
--- Class archive Supabase setup.
--- Execute this file in Supabase SQL Editor first.
+-- Class archive Supabase setup (final, standalone).
+-- Execute this complete file once in Supabase SQL Editor against an empty
+-- project. It creates every current table, index, constraint, function,
+-- trigger, RLS policy, and Storage configuration in dependency order.
+-- Most DDL is idempotent. Do not put a real invite-code pepper in source
+-- control: set it manually after this script as documented below.
 --
 -- This script creates:
 -- 1. one-time invite code hash table

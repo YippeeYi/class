@@ -108,7 +108,7 @@
             renderCredits(page);
         } catch (error) {
             window.ClassRecordDiagnostics?.warn('Credits page load failed', error);
-            renderStatus('制作组与致谢内容加载失败', '请稍后重试，或检查访问权限与 Supabase 配置。');
+            window.ClassRecordLoading?.error(root, '制作组与致谢内容加载失败', '请稍后重试。', loadCredits);
         }
     };
 

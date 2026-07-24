@@ -940,6 +940,5 @@ cacheReady.then(() => Promise.all([loadAllRecords(), loadRecordPageConfig()]))
   })
   .catch((error) => {
     window.ClassRecordDiagnostics?.warn("Record load failed", error);
-    container.innerHTML = '<div class="record-empty"><strong>记录加载失败。</strong><span>请确认 Supabase 数据表和访问权限状态后重试。</span></div>';
-    container.setAttribute("aria-busy", "false");
+    window.ClassRecordLoading?.error(container, "记录加载失败。", "请稍后重试。", () => location.reload());
   });

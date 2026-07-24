@@ -34,8 +34,8 @@
 - `js/secureData.js`：记录、人物、名言、答题、书面页和 Storage 签名 URL 读取。
 - `js/recordStore.js`、`js/peopleStore.js`、`js/quoteStore.js`：运行时只读数据仓库。
 - `js/recordRenderer.js`：记录正文、人物链接、名言链接、隐藏内容、上下标和附件展示。
-- `docs/supabase-setup.sql`：当前无账号方案的 Supabase 建表、函数、RLS 与 Storage policy SQL。
-- `docs/supabase-security-check.sql`：Supabase 安全状态只读检查 SQL。
+- `sql/setup.sql`：当前无账号方案的 Supabase 建表、函数、RLS 与 Storage policy SQL。
+- `sql/check.sql`：Supabase 安全状态只读检查 SQL。
 
 ## 本地运行
 
@@ -77,7 +77,7 @@ HTML 转义。插图路径严格限制在 `data/attachments/` 目录。
 
 ## Supabase 邀请码设置
 
-完整设置 SQL 见 `docs/supabase-setup.sql`，安全检查 SQL 见 `docs/supabase-security-check.sql`。核心机制：数据库只保存 `invite_codes.code_hash`，前端提交邀请码后由 RPC 在数据库端读取私有配置表 `invite_code_settings` 中的 pepper 计算 hash，并在同一个 `update ... returning` 操作中把邀请码标记为已使用。
+完整设置 SQL 见 `sql/setup.sql`，安全检查 SQL 见 `sql/check.sql`。核心机制：数据库只保存 `invite_codes.code_hash`，前端提交邀请码后由 RPC 在数据库端读取私有配置表 `invite_code_settings` 中的 pepper 计算 hash，并在同一个 `update ... returning` 操作中把邀请码标记为已使用。
 
 本地生成邀请码：
 
@@ -100,12 +100,12 @@ INVITE_CODE_PEPPER=请填写一段足够长的随机字符串
 
 ## 数据与图片
 
-前端不依赖本地 `data/`、`images/record-pages/` 或 `images/quiz/lamian/`。记录、人物、名言、答题和书面记录页来自 Supabase 表；图片和附件通过 Supabase Storage 签名 URL 加载。
+前端不依赖本地 `private-assets/`。记录、人物、名言、答题和书面记录页来自 Supabase 表；图片和附件通过 Supabase Storage 签名 URL 加载。
 
-迁移脚本只会上传数据库行实际引用、且位于白名单根目录中的二进制资源，不会把 `data/**/*.json` 上传到 Storage。Quiz 原图仅保存在本机被 Git 忽略的 `private-assets/quiz/` 下，迁移后对应对象路径仍为 `images/quiz/`。首次部署本阶段修复时，必须使用 `--prune` 删除 bucket 中遗留的原始 JSON 和失效文件：
+正式上传脚本只会上传数据库行实际引用、且位于白名单根目录中的二进制资源，不会把 `private-assets/content/**/*.json` 上传到 Storage。Quiz 原图仅保存在本机被 Git 忽略的 `private-assets/quiz/` 下，迁移后对应对象路径仍为 `images/quiz/`。需要同步清理远端失效文件时，先 dry-run，再使用：
 
 ```bash
-node scripts/migrate-secure-content.mjs --prune
+npm run upload-private-content -- --prune --confirm-prune
 ```
 
 `--prune` 会以本次数据库导入实际生成的资源清单为准清理整个专用 bucket；请仅将 `classrecord-private` 用于本网站，并在执行前保留必要备份。
@@ -117,11 +117,11 @@ node scripts/migrate-secure-content.mjs --prune
 - 普通 Storage signed URL 有效期为 600 秒；`hidden/` 和 `images/quiz/` 为 180 秒。URL 只保存在页面内存，不写入 Web Storage，并在页面退出或权限清理时清空。
 - 邀请访问保持 90 天闲置滑动体验，但服务端会在首次授权 365 天后强制重新验证。浏览器中的本地状态只用于找到候选 token，页面放行始终需要 Supabase 刷新成功。
 - `verify_invite_code()` 同时按代理提供的来源 IP、被尝试的邀请码和全站请求量限流。历史清理由 `cleanup_invite_code_attempts()` 独立执行，建议在 Supabase Cron 中每天调用一次：`select public.cleanup_invite_code_attempts();`。
-- 增量升级执行 `docs/supabase-phase2-security.sql`；会话过期与撤销测试执行 `docs/supabase-session-security-test.sql`。
+- 初始搭建与环境检查只使用 `sql/setup.sql` 和 `sql/check.sql`。
 
 ## 书面记录页内补充记录
 
-补充记录文件单独放在 `data/page-supplements/`，不要放进 `data/record/`。
+补充记录文件单独放在 `private-assets/content/page-supplements/`，不要放进 `private-assets/content/record/`。
 
 文件命名保持 `页面-编号.json`，例如 `08-02.json`。字段只需要：
 
@@ -136,7 +136,7 @@ node scripts/migrate-secure-content.mjs --prune
 
 ## 资料数据
 
-资料文件单独放在 `data/materials/`。
+资料文件单独放在 `private-assets/content/materials/`。
 
 文件名建议使用稳定的英文、数字、短横线或下划线，例如：
 

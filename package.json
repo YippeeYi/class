@@ -3,7 +3,7 @@
   "type": "module",
   "scripts": {
     "generate-invite-codes": "node scripts/generate-invite-codes.mjs",
-    "upload-meal-map": "node scripts/upload-meal-map.mjs",
+    "upload-private-content": "node scripts/upload-private-content.mjs",
     "verify-security-live": "node scripts/verify-live-security.mjs",
     "test": "node scripts/test-security-boundaries.mjs && node scripts/test-secure-images.mjs && node scripts/test-cache-loader.mjs && node scripts/test-illustration-preload.mjs && node scripts/test-record-markup.mjs && node scripts/test-record-view.mjs && node scripts/test-quiz-core.mjs && node scripts/test-search.mjs && node scripts/test-static-site.mjs"
   },

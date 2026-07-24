@@ -698,6 +698,23 @@ body>#quotes-list {
   color: var(--text-main);
 }
 
+/* Common async failure state.  It shares the loading box geometry so a
+   network failure never causes content below it to jump. */
+.page-state-error {
+  min-height: clamp(220px, 48vh, 460px);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 12px;
+  padding: 20px;
+  color: var(--text-soft);
+  text-align: center;
+}
+
+.page-state-error strong { color: var(--text-main); }
+
+.page-state-retry { margin-top: 4px; }
+
 @keyframes page-loading-spin {
   to { transform: rotate(1turn); }
 }
@@ -6594,9 +6611,9 @@ body.hidden-record-mode .hidden-record-banner {
 }
 
 .meal-map-placeholder i {
-  width: 22px;
-  height: 22px;
-  border: 3px solid color-mix(in srgb, var(--theme-accent-strong) 22%, transparent);
+  width: 28px;
+  height: 28px;
+  border: 2px solid color-mix(in srgb, var(--theme-accent-strong) 24%, transparent);
   border-top-color: var(--theme-accent-strong);
   border-radius: 50%;
   animation: meal-map-spin .8s linear infinite;
@@ -6609,6 +6626,8 @@ body.hidden-record-mode .hidden-record-banner {
 .meal-map-figure.is-error .meal-map-placeholder i {
   display: none;
 }
+
+.meal-map-retry { margin-top: 2px; }
 
 .meal-map-figure figcaption {
   position: absolute;

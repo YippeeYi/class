@@ -2,13 +2,13 @@
 
 ## 一次性 SQL
 
-在 Supabase SQL Editor 以项目 owner 身份完整执行 `docs/supabase-setup.sql`，随后执行
-`docs/supabase-security-check.sql`。前者会重复安全地创建 `class_private_assets` 元数据表、将
+在 Supabase SQL Editor 以项目 owner 身份完整执行 `sql/setup.sql`，随后执行
+`sql/check.sql`。前者会重复安全地创建 `class_private_assets` 元数据表、将
 `classrecord-private` 保持为非公开 bucket，并把 `images/private/meal-map.png` 纳入唯一的、受
 `has_class_record_access()` 保护的 Storage SELECT policy。元数据表只保存逻辑键、像素尺寸和更新时间；
 不保存对象路径、图片内容或签名 URL。
 
-已有数据库若只需修复 Storage policy，可执行 `docs/supabase-storage-policy-repair.sql`；仍须先执行完整
+已有数据库仍应使用完整
 setup SQL 来创建元数据表与其 RLS policy。
 
 ## 本地环境变量
@@ -25,12 +25,12 @@ CLASS_RECORD_BUCKET=classrecord-private
 
 ## 上传步骤
 
-1. 将原图保留在项目根目录，文件名为 `map.png`（为兼容现有 Windows 工作区，`map.PNG` 也可；两者不能同时存在）。
-2. 确认它被 Git 忽略：`git check-ignore -v map.png`（若本机是大写扩展名则用 `map.PNG`）。
+1. 将原图置于 `private-assets/meal-map/map.png`（也兼容 `map.PNG`；两者不能同时存在）。
+2. 确认私密目录被 Git 忽略：`git check-ignore -v private-assets/meal-map/map.png`。
 3. 加载上述本地环境变量后执行：
 
    ```powershell
-   npm run upload-meal-map
+   npm run upload-private-content
    ```
 
    脚本校验 PNG 签名与尺寸，以 `image/png` 和 `private, max-age=180` 上传，并使用 upsert 覆盖同一私有对象；
@@ -39,7 +39,7 @@ CLASS_RECORD_BUCKET=classrecord-private
 4. 完整内容迁移也会处理该图：
 
    ```powershell
-   node scripts/migrate-secure-content.mjs
+   npm run upload-private-content
    ```
 
    迁移的 `--prune` 模式会把蹭饭图列为保护对象，不会因为它不属于普通内容清单而删除它。
@@ -58,7 +58,7 @@ Storage signed URL 架构不可主动收回的时间上限。
 ## 确认未公开
 
 ```powershell
-git ls-files --error-unmatch map.png
+git ls-files --error-unmatch private-assets/meal-map/map.png
 git ls-files --error-unmatch map.PNG
 rg -n -i "map\.png|map\.PNG" --glob '!node_modules/**' --glob '!docs/meal-map-operation.md' .
 ```

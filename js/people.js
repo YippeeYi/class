@@ -53,8 +53,7 @@ cacheReady.then(() => Promise.all([
     container.setAttribute("aria-busy", "false");
 }).catch((error) => {
     window.ClassRecordDiagnostics?.warn("People data load failed", error);
-    container.innerHTML = '<div class="record-empty"><strong>人物名单加载失败。</strong><span>请稍后重试。</span></div>';
-    container.setAttribute("aria-busy", "false");
+    window.ClassRecordLoading?.error(container, "人物名单加载失败。", "请稍后重试。", () => location.reload());
 });
 
 /* ===============================

@@ -6,6 +6,7 @@ import vm from 'node:vm';
 
 const source = await readFile(new URL('../js/cacheLoader.js', import.meta.url), 'utf8');
 const storage = new Map();
+const localStorage = new Map([['classRecord:inviteAccess', JSON.stringify({ authorizedAt: '2026-07-24T00:00:00.000Z' })]]);
 
 function createRuntime() {
     const listeners = new Map();
@@ -20,6 +21,9 @@ function createRuntime() {
             getItem(key) { return storage.get(key) || null; },
             setItem(key, value) { storage.set(key, value); },
             removeItem(key) { storage.delete(key); }
+        },
+        localStorage: {
+            getItem(key) { return localStorage.get(key) || null; }
         },
         Date,
         JSON,
@@ -43,7 +47,7 @@ const firstResult = await firstPage.window.loadWithCache({
 });
 assert.equal(firstLoads, 1);
 assert.equal(firstResult[0].id, 'r-1');
-assert.ok(storage.has('classRecord:dataCache:v2:records:visible'), 'public data must be cached for the current browser session');
+assert.ok(storage.has('classRecord:dataCache:v3:access-2026-07-24T00:00:00.000Z:records:visible'), 'access-scoped data must be cached for the current browser session');
 
 const secondPage = createRuntime();
 const cachedResult = await secondPage.window.loadWithCache({
@@ -54,6 +58,16 @@ const cachedResult = await secondPage.window.loadWithCache({
     }
 });
 assert.equal(cachedResult[0].content, 'cached content');
+
+localStorage.set('classRecord:inviteAccess', JSON.stringify({ authorizedAt: '2026-07-25T00:00:00.000Z' }));
+const changedAccessPage = createRuntime();
+let changedAccessLoads = 0;
+await changedAccessPage.window.loadWithCache({
+    key: 'records:visible',
+    sessionExpire: 60_000,
+    loader: async () => { changedAccessLoads += 1; return [{ id: 'r-2' }]; }
+});
+assert.equal(changedAccessLoads, 1, 'a new invite access session must not reuse an earlier session cache');
 
 let privateLoads = 0;
 await secondPage.window.loadWithCache({

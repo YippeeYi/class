@@ -1,35 +1,55 @@
 #!/usr/bin/env node
 /*
- * migrate-secure-content.mjs
+ * upload-private-content.mjs
  *
  * Migrates local secure content into Supabase.
  *
  * This version does NOT require:
- *   - data/record/records_index.json
- *   - data/people/people_index.json
+ *   - private-assets/content/record/records_index.json
+ *   - private-assets/content/people/people_index.json
  *
  * It imports structured rows by scanning:
- *   - data/record/*.json
- *   - data/people/*.json
- *   - data/page-supplements/*.json
- *   - data/materials/*.json
+ *   - private-assets/content/record/*.json
+ *   - private-assets/content/people/*.json
+ *   - private-assets/content/page-supplements/*.json
+ *   - private-assets/content/materials/*.json
  *
  * Storage uploads are reference-driven. Only binary assets referenced by the
  * imported database rows are uploaded; source JSON is never copied to Storage.
- * Quiz images are read from the ignored local private-assets/ directory.
+ * Every local source lives below the ignored private-assets/ directory. Source
+ * JSON is database-only; binary files are uploaded only when a database row
+ * explicitly references them.
  *
  * PowerShell:
  *   $env:SUPABASE_URL="https://xxxx.supabase.co"
  *   $env:SUPABASE_SERVICE_ROLE_KEY="your service_role key"
  *   $env:CLASS_RECORD_BUCKET="classrecord-private"
- *   node scripts/migrate-secure-content.mjs
- *   node scripts/migrate-secure-content.mjs --prune
+ *   node scripts/upload-private-content.mjs --dry-run
+ *   node scripts/upload-private-content.mjs
+ *   node scripts/upload-private-content.mjs --prune --confirm-prune
  */
 
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
+const contentRoot = 'private-assets/content';
+
+const loadDotEnv = async () => {
+    try {
+        const text = await fs.readFile(path.join(root, '.env'), 'utf8');
+        text.split(/\r?\n/).forEach((line) => {
+            const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
+            if (!match || match[1].startsWith('#') || process.env[match[1]]) return;
+            process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, '');
+        });
+    } catch {
+        // .env is optional. CI and production should pass real environment variables.
+    }
+};
+
+await loadDotEnv();
+
 const url = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const bucket = process.env.CLASS_RECORD_BUCKET || 'classrecord-private';
@@ -38,6 +58,9 @@ const shouldPrune = argv.has('--prune');
 const validateOnly = argv.has('--validate-only');
 const dryRun = argv.has('--dry-run');
 const confirmPrune = argv.has('--confirm-prune');
+const concurrencyArg = process.argv.find((value) => value.startsWith('--concurrency='));
+const uploadConcurrency = Math.min(8, Math.max(1, Number(concurrencyArg?.split('=')[1]) || 3));
+const MAX_REQUEST_ATTEMPTS = 3;
 const hiddenStoragePrefix = 'hidden/';
 const allowedStorageRoots = ['data/attachments/', 'images/record-pages/', 'images/quiz/'];
 const mealMapStoragePath = 'images/private/meal-map.png';
@@ -74,23 +97,31 @@ const authHeaders = {
 const normalizeSlash = (value) => String(value || '').replace(/\\/g, '/');
 
 const request = async (endpoint, options = {}) => {
-    const response = await fetch(`${baseUrl}${endpoint}`, {
-        ...options,
-        headers: {
-            ...authHeaders,
-            ...(options.headers || {})
+    let lastError;
+    for (let attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt += 1) {
+        try {
+            const response = await fetch(`${baseUrl}${endpoint}`, {
+                ...options,
+                headers: { ...authHeaders, ...(options.headers || {}) }
+            });
+            if (!response.ok) {
+                const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
+                if (!retryable || attempt === MAX_REQUEST_ATTEMPTS) {
+                    throw new Error(`${options.method || 'GET'} request failed (HTTP ${response.status}).`);
+                }
+                lastError = new Error(`HTTP ${response.status}`);
+            } else {
+                if (response.status === 204) return null;
+                const text = await response.text();
+                return text ? JSON.parse(text) : null;
+            }
+        } catch (error) {
+            lastError = error;
+            if (attempt === MAX_REQUEST_ATTEMPTS) break;
         }
-    });
-
-    if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        throw new Error(`${options.method || 'GET'} ${endpoint} failed: ${response.status} ${text}`);
+        await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** (attempt - 1)));
     }
-
-    if (response.status === 204) return null;
-
-    const text = await response.text();
-    return text ? JSON.parse(text) : null;
+    throw lastError || new Error('Network request failed.');
 };
 
 const validateDatabaseSchema = async () => {
@@ -112,7 +143,7 @@ const validateDatabaseSchema = async () => {
     if (missing.length) {
         throw new Error(
             `Supabase schema is missing required migration columns: ${missing.join(', ')}. `
-            + 'Run docs/supabase-setup.sql in Supabase SQL Editor, then retry this command.'
+            + 'Run sql/setup.sql in Supabase SQL Editor, then retry this command.'
         );
     }
 };
@@ -200,6 +231,12 @@ const normalizeAllowedStoragePath = (value, fallbackRoot = '') => {
 const getDefaultLocalAssetPath = (storagePath) => {
     if (storagePath.startsWith('images/quiz/')) {
         return `private-assets/${storagePath.slice('images/'.length)}`;
+    }
+    if (storagePath.startsWith('images/record-pages/')) {
+        return `private-assets/record-pages/${storagePath.slice('images/record-pages/'.length)}`;
+    }
+    if (storagePath.startsWith('data/attachments/')) {
+        return `${contentRoot}/attachments/${storagePath.slice('data/attachments/'.length)}`;
     }
     return storagePath;
 };
@@ -368,12 +405,12 @@ const pruneTable = async (table, keyColumn, keepValues) => {
 };
 
 const importRecords = async () => {
-    const files = (await listJsonFiles('data/record', [
-        'data/record/record_pages.json'
+    const files = (await listJsonFiles(`${contentRoot}/record`, [
+        `${contentRoot}/record/record_pages.json`
     ])).filter((file) => !parsePageSupplementFileName(file));
 
     if (!files.length) {
-        console.warn('Skipped records: no record JSON files found in data/record/.');
+        console.warn(`Skipped records: no record JSON files found in ${contentRoot}/record/.`);
         return;
     }
 
@@ -383,7 +420,7 @@ const importRecords = async () => {
 
     for (const file of files) {
         const raw = await readJson(file);
-        const fileName = relativeFromDir('data/record', file);
+        const fileName = relativeFromDir(`${contentRoot}/record`, file);
 
         const isHidden = Boolean(raw.hidden);
         const index = isHidden ? hiddenIndex++ : visibleIndex++;
@@ -416,10 +453,10 @@ const importRecords = async () => {
 };
 
 const importPeople = async () => {
-    const files = await listJsonFiles('data/people');
+    const files = await listJsonFiles(`${contentRoot}/people`);
 
     if (!files.length) {
-        console.warn('Skipped people: no people JSON files found in data/people/.');
+        console.warn(`Skipped people: no people JSON files found in ${contentRoot}/people/.`);
         return;
     }
 
@@ -427,7 +464,7 @@ const importPeople = async () => {
 
     for (const [index, file] of files.entries()) {
         const raw = await readJson(file);
-        const fileName = relativeFromDir('data/people', file);
+        const fileName = relativeFromDir(`${contentRoot}/people`, file);
         const aliases = Array.isArray(raw.aliases) ? raw.aliases : (raw.alias ? [raw.alias] : []);
         const avatarSource = firstValue(raw.avatar_url, raw.avatarUrl, raw.avatar);
 
@@ -453,11 +490,11 @@ const importPeople = async () => {
 };
 
 const importPageSupplements = async () => {
-    const files = (await listJsonFiles('data/page-supplements'))
+    const files = (await listJsonFiles(`${contentRoot}/page-supplements`))
         .filter(parsePageSupplementFileName);
 
     if (!files.length) {
-        console.warn('Skipped page supplements: no page-number supplement JSON files found in data/page-supplements/.');
+        console.warn(`Skipped page supplements: no page-number supplement JSON files found in ${contentRoot}/page-supplements/.`);
         return;
     }
 
@@ -472,7 +509,7 @@ const importPageSupplements = async () => {
             continue;
         }
         rows.push({
-            file_name: relativeFromDir('data/page-supplements', file),
+            file_name: relativeFromDir(`${contentRoot}/page-supplements`, file),
             page: parsed.page,
             supplement_index: parsed.supplementIndex,
             author: raw.author || raw.recorder || '',
@@ -488,16 +525,16 @@ const importPageSupplements = async () => {
 };
 
 const importMaterials = async () => {
-    const files = await listJsonFiles('data/materials');
+    const files = await listJsonFiles(`${contentRoot}/materials`);
     if (!files.length) {
-        console.warn('Skipped materials: no material JSON files found in data/materials/.');
+        console.warn(`Skipped materials: no material JSON files found in ${contentRoot}/materials/.`);
         return;
     }
 
     const rows = [];
     for (const [index, file] of files.entries()) {
         const raw = await readJson(file);
-        const fileName = relativeFromDir('data/materials', file);
+        const fileName = relativeFromDir(`${contentRoot}/materials`, file);
         const fallbackId = fileBaseNameWithoutExt(fileName);
         const title = String(raw.title || raw.name || fallbackId).trim();
         const content = rewriteMarkupAssets(raw.content || raw.description || '').trim();
@@ -520,12 +557,12 @@ const importMaterials = async () => {
 };
 
 const importRecordPages = async () => {
-    if (!(await exists('data/record/record_pages.json'))) {
-        console.warn('Skipped record pages: data/record/record_pages.json not found.');
+    if (!(await exists(`${contentRoot}/record/record_pages.json`))) {
+        console.warn(`Skipped record pages: ${contentRoot}/record/record_pages.json not found.`);
         return;
     }
 
-    const rawPages = await readJson('data/record/record_pages.json');
+    const rawPages = await readJson(`${contentRoot}/record/record_pages.json`);
     const pages = Array.isArray(rawPages) ? rawPages : (Array.isArray(rawPages.pages) ? rawPages.pages : []);
 
     if (!pages.length) {
@@ -561,9 +598,9 @@ const importRecordPages = async () => {
 };
 
 const importPageMessages = async () => {
-    const files = await listJsonFiles('data/messages');
+    const files = await listJsonFiles(`${contentRoot}/messages`);
     if (!files.length) {
-        console.warn('Skipped page messages: no JSON files found in data/messages/.');
+        console.warn(`Skipped page messages: no JSON files found in ${contentRoot}/messages/.`);
         return;
     }
 
@@ -589,12 +626,12 @@ const importPageMessages = async () => {
 };
 
 const importQuiz = async () => {
-    if (!(await exists('data/quiz/lamian.json'))) {
-        console.warn('Skipped quiz: data/quiz/lamian.json not found.');
+    if (!(await exists(`${contentRoot}/quiz/lamian.json`))) {
+        console.warn(`Skipped quiz: ${contentRoot}/quiz/lamian.json not found.`);
         return;
     }
 
-    const raw = await readJson('data/quiz/lamian.json');
+    const raw = await readJson(`${contentRoot}/quiz/lamian.json`);
     const items = Array.isArray(raw) ? raw : (Array.isArray(raw.questions) ? raw.questions : []);
 
     if (!items.length) {
@@ -630,12 +667,12 @@ const normalizeCreditsTextList = (value) => {
 };
 
 const importCreditsPage = async () => {
-    if (!(await exists('data/credits-page.json'))) {
-        console.warn('Skipped credits page: data/credits-page.json not found.');
+    if (!(await exists(`${contentRoot}/credits-page.json`))) {
+        console.warn(`Skipped credits page: ${contentRoot}/credits-page.json not found.`);
         return;
     }
 
-    const raw = rewriteMarkupAssetsDeep(await readJson('data/credits-page.json'));
+    const raw = rewriteMarkupAssetsDeep(await readJson(`${contentRoot}/credits-page.json`));
     const sections = Array.isArray(raw.sections) ? raw.sections : [];
     const thanks = normalizeCreditsTextList(raw.thanks);
     const originalImages = Array.isArray(raw.originalImages)
@@ -738,7 +775,9 @@ const uploadPrivateFiles = async () => {
         return;
     }
 
-    for (const [index, item] of uploadable.entries()) {
+    const summary = { uploaded: 0, skipped: 0, failed: [] };
+    let nextIndex = 0;
+    const uploadOne = async (item) => {
         const absoluteSource = path.resolve(root, item.localPath);
         const relativeSource = normalizeSlash(path.relative(root, absoluteSource));
         if (!item.external && (relativeSource.startsWith('../') || path.isAbsolute(relativeSource))) {
@@ -750,6 +789,10 @@ const uploadPrivateFiles = async () => {
         }
         const body = await fs.readFile(absoluteSource);
 
+        if (validateOnly || dryRun) {
+            summary.skipped += 1;
+            return;
+        }
         await request(`/storage/v1/object/${bucket}/${item.remotePath}`, {
             method: 'POST',
             headers: {
@@ -760,21 +803,40 @@ const uploadPrivateFiles = async () => {
             body
         });
         item.uploaded = true;
-        console.log(`Uploaded private asset: ${index + 1} / ${uploadable.length}`);
+        summary.uploaded += 1;
+    };
+    const worker = async () => {
+        while (nextIndex < uploadable.length) {
+            const index = nextIndex++;
+            const item = uploadable[index];
+            try {
+                await uploadOne(item);
+                console.log(`${dryRun || validateOnly ? 'Validated' : 'Uploaded'} private asset: ${index + 1} / ${uploadable.length}`);
+            } catch (error) {
+                summary.failed.push({ file: item.localPath, reason: error.message });
+            }
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(uploadConcurrency, uploadable.length) }, worker));
+    if (summary.failed.length) {
+        summary.failed.forEach(({ file, reason }) => console.error(`Failed private asset: ${file} (${reason})`));
+        throw new Error(`Private asset upload failed for ${summary.failed.length} file(s).`);
     }
+    console.log(`Private assets: uploaded=${summary.uploaded}, validated/skipped=${summary.skipped}, failed=0.`);
 
     await pruneStorage([...storageUploadManifest.values()].map((item) => item.remotePath));
 };
 
 const findMealMapSource = async () => {
-    const candidates = ['map.png', 'map.PNG'];
-    const files = [];
-    for (const candidate of candidates) {
-        const absolute = path.join(root, candidate);
-        if ((await fs.stat(absolute).catch(() => null))?.isFile()) files.push(absolute);
-    }
-    if (!files.length) throw new Error('Missing local map.png. Keep it in the project root; Git intentionally ignores this private source file.');
-    if (files.length > 1) throw new Error('Found both map.png and map.PNG. Keep exactly one private map source file.');
+    const directory = path.join(root, 'private-assets/meal-map');
+    const entries = await fs.readdir(directory, { withFileTypes: true }).catch(() => []);
+    // Read the directory once rather than probing two case variants. On
+    // Windows both probes address the same file and would be a false duplicate.
+    const files = entries
+        .filter((entry) => entry.isFile() && /^map\.png$/i.test(entry.name))
+        .map((entry) => path.join(directory, entry.name));
+    if (!files.length) throw new Error('Missing private-assets/meal-map/map.png. No map upload was attempted.');
+    if (files.length > 1) throw new Error('Found both map.png and map.PNG in private-assets/meal-map. Keep exactly one source file.');
     return files[0];
 };
 
@@ -815,4 +877,4 @@ await importCreditsPage();
 await uploadPrivateFiles();
 await uploadMealMap();
 
-console.log(shouldPrune ? 'Migration complete. Remote stale data/files were pruned.' : 'Migration complete.');
+console.log(shouldPrune ? 'Upload complete. Remote stale data/files were pruned.' : 'Upload complete.');

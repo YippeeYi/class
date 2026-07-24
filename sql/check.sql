@@ -1,5 +1,7 @@
--- Class archive Supabase security check.
--- Read-only audit. Run in Supabase SQL Editor after docs/supabase-setup.sql.
+-- Class archive Supabase final environment check (read-only).
+-- Run after sql/setup.sql or against an existing production project. Results
+-- identify missing/drifted tables, fields, indexes, functions, RLS, bucket and
+-- policy configuration. This file deliberately makes no destructive changes.
 
 with
 content_tables(table_schema, table_name, has_hidden_column, admin_only) as (

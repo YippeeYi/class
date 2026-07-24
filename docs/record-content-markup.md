@@ -60,8 +60,7 @@ JSON 字符串还需要转义反斜杠。例如正文中的 `A|B` 可写为：
 ## 迁移和检查
 
 ```powershell
-node scripts/migrate-record-markup.mjs
-node scripts/migrate-record-markup.mjs --check
+在上传前使用 `npm run upload-private-content -- --dry-run` 进行结构与引用预检查；正式上传时脚本会保留现有标记语法并只上传实际引用的资源。
 node scripts/test-record-markup.mjs
 ```
 
