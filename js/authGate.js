@@ -77,7 +77,13 @@
         const url = new URL(src, window.location.href).href;
         const existing = Array.from(document.scripts).find((script) => script.src === url);
         if (existing) {
-            if (existing.dataset.loaded === "true" || window.ClassRecordSupabase) {
+            // imageLoader is deliberately parsed before the gate on pages that
+            // render image UI. Static scripts do not set data-loaded, so
+            // waiting for their already-fired load event would leave the gate
+            // pending forever and make the page appear inaccessible.
+            if (existing.dataset.loaded === "true"
+                || (src === IMAGE_LOADER_SCRIPT && window.ClassRecordImageLoader)
+                || window.ClassRecordSupabase) {
                 resolve();
                 return;
             }

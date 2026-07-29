@@ -61,6 +61,7 @@ const recordRenderer = await readFile(resolve(root, 'js/recordRenderer.js'), 'ut
 const secureData = await readFile(resolve(root, 'js/secureData.js'), 'utf8');
 const supabaseClient = await readFile(resolve(root, 'js/supabaseClient.js'), 'utf8');
 const authGate = await readFile(resolve(root, 'js/authGate.js'), 'utf8');
+const imageLoader = await readFile(resolve(root, 'js/imageLoader.js'), 'utf8');
 const mealMapPage = await readFile(resolve(root, 'map.html'), 'utf8');
 const mealMapScript = await readFile(resolve(root, 'js/mealMap.js'), 'utf8');
 const backgroundSwitcher = await readFile(resolve(root, 'js/backgroundSwitcher.js'), 'utf8');
@@ -80,6 +81,8 @@ assert.match(recordRenderer, /const originalUrl\s*=\s*await resolveOriginalImage
 assert.match(recordRenderer, /ClassRecordData\?\.isEnabled\?\.\(\)[^}]*signAssetUrl\(direct,\s*\{\s*quiet:\s*true,\s*forceRefresh\s*\}/s, 'secure image viewer paths must use signed Storage URLs before local image paths');
 assert.match(recordScript, /if \(window\.ClassRecordData\?\.isEnabled\?\.\(\)\) return "";[^}]*images\\\//s, 'written image preload must not probe private Storage paths as local images');
 assert.match(secureData, /signAssetUrl\s*=\s*async \(path,\s*\{[^}]*forceRefresh\s*=\s*false/, 'Storage signer must support refreshing an expired signed URL');
+assert.match(authGate, /src === IMAGE_LOADER_SCRIPT && window\.ClassRecordImageLoader/, 'auth gate must not await an already-executed static image loader');
+assert.match(imageLoader, /finally\(\(\) => pending\.delete\(key\)\)/, 'failed image requests must leave the shared dedupe map');
 assert.match(mealMapPage, /js\/mealMap\.js/, 'meal-map page must load its gated controller');
 assert.match(mealMapPage, /class="meal-map-placeholder loading-state"[\s\S]*class="loading-spinner"[\s\S]*class="loading-text"/, 'meal-map must start with the shared compact loading structure');
 assert.doesNotMatch(mealMapPage + mealMapScript, /map\.png|images\/private|storage\/v1\/object/i, 'meal-map page must not embed a local source, Storage path, or URL');
