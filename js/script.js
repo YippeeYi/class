@@ -717,7 +717,8 @@ document.addEventListener("classrecord:record-focused", (event) => {
 async function renderCurrentViewAsync() {
   const expectedMode = hiddenMode ? "hidden" : "normal";
   if (currentView === "written" && recordPageConfigMode !== expectedMode) {
-    container.innerHTML = `<div class="record-written-empty">${hiddenMode ? "正在检测隐藏书面记录图片···" : "正在加载书面记录···"}</div>`;
+    const loadingText = hiddenMode ? "正在检测隐藏书面记录图片" : "正在加载书面记录";
+    container.innerHTML = `<div class="record-written-empty loading-state" role="status"><span class="loading-spinner" aria-hidden="true"></span><strong class="loading-text">${loadingText}</strong></div>`;
     await loadRecordPageConfig();
     if (currentView !== "written" || expectedMode !== (hiddenMode ? "hidden" : "normal")) return;
   }

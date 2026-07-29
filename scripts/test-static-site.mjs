@@ -118,6 +118,7 @@ assert.doesNotMatch(stylesheet.match(/\.page-loading\s*\{[^}]*}/s)?.[0] || '', /
 assert.match(stylesheet, /--loading-gap:\s*6px/, 'all loading contexts must share the compact 6px circle-to-text gap');
 assert.match(stylesheet, /--loading-spinner-size:\s*28px[\s\S]*--loading-spinner-border:\s*2px[\s\S]*--loading-duration:\s*850ms/, 'all loading contexts must share spinner geometry and speed');
 assert.match(stylesheet, /\.loading-spinner\s*\{[^}]*var\(--loading-spinner-size\)[^}]*page-loading-spin/s, 'written-image and meal-map loaders must reuse the one shared spinner class');
+assert.match(recordScript, /record-written-empty loading-state[^`]*loading-spinner[^`]*loading-text/s, 'written-record configuration loading must use the shared spinner above its text');
 assert.match(stylesheet, /\.shop-background-preview > \.image-load-state\s*\{[^}]*position:\s*absolute[^}]*display:\s*flex[^}]*flex-direction:\s*column[^}]*justify-content:\s*center/s, 'background preview loading must visibly center the shared spinner and label in its own card');
 assert.match(stylesheet, /\.quiz-secret-image-frame\s*\{[^}]*--quiz-secret-image-display-height:[^}]*height:\s*var\(--quiz-secret-image-display-height\)/s, 'hidden quiz image frame must define one display height');
 assert.match(stylesheet, /\.quiz-secret-image-frame img\s*\{[^}]*inline-size:\s*auto !important[^}]*block-size:\s*var\(--quiz-secret-image-display-height\) !important/s, 'hidden quiz images must scale to one fixed display height while preserving proportional width');

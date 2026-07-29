@@ -2509,6 +2509,10 @@ body>#quotes-list {
   box-shadow: var(--shadow-soft);
 }
 
+.record-written-empty.loading-state {
+  min-height: min(72dvh, calc(100vw * 2721 / 4838));
+}
+
 @media (max-width: 900px) {
   .record-written-layout {
     grid-template-columns: 1fr;
