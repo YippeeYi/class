@@ -45,7 +45,9 @@
     }
   }
 
-  setQuizLoading(quizCard?.classList.contains('is-loading'));
+  const hasInitialQuizCache = ['records:visible', 'people', 'quotes:from-records']
+    .every((key) => window.ClassRecordCache?.peek?.(key) != null);
+  setQuizLoading(Boolean(quizCard?.classList.contains('is-loading')) && !hasInitialQuizCache);
 
   function shuffle(list) {
     const copy = [...list];

@@ -1826,6 +1826,13 @@ body>#quotes-list {
   height: clamp(260px, 46vh, 430px);
 }
 
+/* Cache-backed content is rendered by its controller immediately; never
+   animate the static placeholder during that handoff. */
+[data-cache-hit="true"] > .page-loading.loading-state,
+.page-loading.loading-state[data-cache-hit="true"] {
+  display: none;
+}
+
 .quiz-secret-image-frame img {
   display: block;
   width: auto;

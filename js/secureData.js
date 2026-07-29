@@ -859,6 +859,8 @@
         return reusablePromise;
     };
 
+    const hasMealMapAsset = () => hasCachedAsset(MEAL_MAP_STORAGE_PATH);
+
     // Private Storage keeps its access-scoped Cache Storage implementation in
     // this file, but requests enter the same global queue/deduper as public
     // previews.  The stable Storage path (plus transform) is the key.
@@ -1061,6 +1063,7 @@
         loadRecords,
         normalizePrivateStoragePath,
         getMealMapAsset,
+        hasMealMapAsset,
         preloadAsset,
         preloadAdminQuizImages,
         signAssetUrl,

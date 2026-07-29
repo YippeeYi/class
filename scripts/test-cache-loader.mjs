@@ -50,6 +50,7 @@ assert.equal(firstResult[0].id, 'r-1');
 assert.ok(storage.has('classRecord:dataCache:v4:access-2026-07-24T00:00:00.000Z:records:visible'), 'access-scoped data must be cached for the current browser session');
 
 const secondPage = createRuntime();
+assert.equal(secondPage.window.ClassRecordCache.peek('records:visible')?.[0]?.id, 'r-1', 'a valid session-cache hit must be detectable before page loading UI is mounted');
 const cachedResult = await secondPage.window.loadWithCache({
     key: 'records:visible',
     sessionExpire: 60_000,

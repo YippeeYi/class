@@ -24,7 +24,8 @@
     };
     const loadMap = async ({ forceRefresh = false, silent = false } = {}) => {
         try {
-            if (!silent) setState('loading');
+            const cached = !forceRefresh && await window.ClassRecordData?.hasMealMapAsset?.();
+            if (!silent && !cached) setState('loading');
             const asset = await window.ClassRecordData?.getMealMapAsset?.({ forceRefresh });
             if (!asset?.url) throw new Error('Meal map is unavailable.');
             currentUrl = asset.url;

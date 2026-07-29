@@ -62,6 +62,29 @@ function writeSessionCache(key, data) {
     }
 }
 
+function peekCachedData(key, { expire = DEFAULT_PERSISTENT_CACHE_TTL, sessionExpire = DEFAULT_SESSION_CACHE_TTL } = {}) {
+    const memoryItem = memoryCache.get(key);
+    if (memoryItem && Date.now() - memoryItem.time < expire) return memoryItem.data;
+    const sessionItem = readSessionCache(key, sessionExpire);
+    if (sessionItem) {
+        memoryCache.set(key, sessionItem);
+        return sessionItem.data;
+    }
+    return null;
+}
+
+function applyCachedLoadingVisibility(root = null) {
+    const target = root || (typeof document !== 'undefined' ? document : null);
+    if (!target?.querySelectorAll) return;
+    target.querySelectorAll('[data-cache-keys]').forEach((host) => {
+        const keys = String(host.dataset.cacheKeys || '').split(/\s+/).filter(Boolean);
+        if (keys.length && keys.every((key) => peekCachedData(key) !== null)) {
+            host.dataset.cacheHit = 'true';
+            host.setAttribute('aria-busy', 'false');
+        }
+    });
+}
+
 function openDatabase() {
     if (!("indexedDB" in window) || getAccessScope() === "unauthorized") return Promise.resolve(null);
     return new Promise((resolve) => {
@@ -211,6 +234,8 @@ window.ClassRecordCache = Object.freeze({
         return item && !item.stale ? item.data : null;
     },
     write: (key, data) => writePersistentCache(key, data),
+    peek: peekCachedData,
+    applyLoadingVisibility: applyCachedLoadingVisibility,
     clear: async () => {
         memoryCache.clear();
         inflightLoads.clear();
@@ -218,6 +243,10 @@ window.ClassRecordCache = Object.freeze({
         if (database) database.close();
     }
 });
+
+// This script runs before page controllers. Valid synchronous cache hits are
+// known before first paint, so their placeholder never animates.
+if (typeof document !== 'undefined') applyCachedLoadingVisibility();
 
 window.addEventListener("classrecordcacheclearing", () => {
     memoryCache.clear();

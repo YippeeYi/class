@@ -26,6 +26,7 @@
     };
 
     const renderLoading = (title) => {
+        if (root.dataset.cacheHit === 'true') return;
         if (window.ClassRecordLoading?.show) {
             window.ClassRecordLoading.show(root, title);
             return;
