@@ -163,9 +163,12 @@ assert.doesNotMatch(searchScript, /\.slice\(0,\s*80\)/, 'search results must not
 
 const quizPage = await readFile(resolve(root, 'quiz.html'), 'utf8');
 assert.ok(quizPage.indexOf('js/quizCore.js') < quizPage.indexOf('js/quizApp.js'), 'quiz core must load before the UI controller');
+assert.ok(quizPage.indexOf('js/quizSecretImage.js') < quizPage.indexOf('js/quizApp.js'), 'quiz image cache adapter must load before the UI controller');
 const quizScript = await readFile(resolve(root, 'js/quizApp.js'), 'utf8');
-assert.match(quizScript, /data-secure-src/, 'quiz images must use private Storage references');
-assert.match(quizScript, /resolveAssetElements/, 'quiz images must be signed before display');
+assert.match(quizScript, /ClassRecordQuizSecretImage/, 'quiz images must use the private image cache adapter');
+assert.match(quizScript, /readCachedAsset[\s\S]*showSecretImageLoading[\s\S]*loader\.load/, 'quiz image loading must probe cache before showing the shared loader');
+assert.match(quizScript, /ClassRecordLoading\?\.error/, 'quiz image errors must reuse the shared retry state');
+assert.match(quizScript, /secretImageRenderToken/, 'quiz image renders must ignore stale question completions');
 assert.match(quizScript, /if \(!secretAdminAccess\)/, 'lamian unlock must be disabled without administrator access');
 assert.match(quizScript, /hasAdminAccess/, 'lamian unlock must verify administrator access with Supabase');
 console.log(`Passed static checks for ${pages.length} pages.`);

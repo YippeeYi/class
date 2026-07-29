@@ -25,6 +25,7 @@
   let secretUnlocked = false;
   let secretAdminAccess = false;
   let secretBuffer = '';
+  let secretImageRenderToken = 0;
   let activeFilters = {
     types: new Set(Object.keys(typeLabels)),
     contents: new Set(Object.keys(contentLabels))
@@ -159,30 +160,139 @@
     return `<span class="quiz-question-side${sideClass}"><span class="quiz-side-label">${escapeHtml(question.sideLabel || '')}</span><span class="quiz-side-value">${formatTrustedContent(valueHtml, { plainReferenceTypes: QUESTION_PLAIN_REFERENCE_TYPES })}</span></span>`;
   }
 
+  function normalizeImageDimension(value, fallback) {
+    const dimension = Math.round(Number(value));
+    return Number.isFinite(dimension) && dimension > 0 ? dimension : fallback;
+  }
+
+  function getSecretImageDimensions(question, asset = null) {
+    return {
+      width: normalizeImageDimension(asset?.width || question.imageWidth || question.image_width || question.width, 1200),
+      height: normalizeImageDimension(asset?.height || question.imageHeight || question.image_height || question.height, 800)
+    };
+  }
+
+  function isCurrentSecretImageRender(token, question, frame) {
+    return token === secretImageRenderToken
+      && currentQuestion === question
+      && Boolean(frame?.isConnected);
+  }
+
+  function setSecretImageFrameDimensions(frame, question, asset = null) {
+    if (!frame) return;
+    const { width, height } = getSecretImageDimensions(question, asset);
+    frame.style.setProperty('--quiz-secret-image-ratio', `${width} / ${height}`);
+    const image = frame.querySelector('.quiz-secret-image');
+    if (image) {
+      image.width = width;
+      image.height = height;
+    }
+  }
+
+  function showSecretImageLoading(frame) {
+    if (!frame) return;
+    frame.classList.remove('is-ready', 'is-error');
+    frame.classList.add('is-loading');
+    frame.setAttribute('aria-busy', 'true');
+  }
+
+  function showSecretImageReady(frame, question, asset, token, { immediate = false } = {}) {
+    const image = frame?.querySelector('.quiz-secret-image');
+    if (!image || !asset?.url || !isCurrentSecretImageRender(token, question, frame)) return;
+    setSecretImageFrameDimensions(frame, question, asset);
+    const reveal = () => {
+      if (!isCurrentSecretImageRender(token, question, frame)) return;
+      frame.classList.remove('is-loading', 'is-error');
+      frame.classList.add('is-ready');
+      frame.setAttribute('aria-busy', 'false');
+    };
+    if (immediate) {
+      image.src = asset.url;
+      reveal();
+      return;
+    }
+    image.onload = reveal;
+    image.onerror = () => showSecretImageError(frame, question, token);
+    image.src = asset.url;
+    if (image.complete && image.naturalWidth > 0) reveal();
+  }
+
+  function showSecretImageError(frame, question, token) {
+    if (!isCurrentSecretImageRender(token, question, frame)) return;
+    frame.classList.remove('is-loading', 'is-ready');
+    frame.classList.add('is-error');
+    frame.setAttribute('aria-busy', 'false');
+    const retry = () => {
+      if (currentQuestion === question) renderSecretQuestion(question, { force: true });
+    };
+    if (window.ClassRecordLoading?.error) {
+      window.ClassRecordLoading.error(frame, '题目图片加载失败', '请检查网络后重试。', retry);
+      return;
+    }
+    const message = document.createElement('span');
+    message.className = 'quiz-image-missing';
+    message.textContent = '题目图片加载失败。';
+    frame.replaceChildren(message);
+  }
+
+  function loadSecretImage(frame, question, token, { force = false } = {}) {
+    const loader = window.ClassRecordQuizSecretImage;
+    const sourcePath = String(question.imagePath || '').trim();
+    if (!loader || !sourcePath) {
+      showSecretImageError(frame, question, token);
+      return;
+    }
+    const memoryAsset = force ? null : loader.getMemoryAsset(sourcePath);
+    if (memoryAsset?.url) {
+      showSecretImageReady(frame, question, memoryAsset, token, { immediate: true });
+      return;
+    }
+    // Cache Storage is asynchronous after a refresh. Check it before the
+    // loader becomes visible, so a valid cached object never flashes a spinner.
+    loader.readCachedAsset(sourcePath)
+      .then((cachedAsset) => {
+        if (!isCurrentSecretImageRender(token, question, frame)) return;
+        if (cachedAsset?.url && !force) {
+          showSecretImageReady(frame, question, cachedAsset, token, { immediate: true });
+          return;
+        }
+        showSecretImageLoading(frame);
+        return loader.load(sourcePath, { force });
+      })
+      .then((result) => {
+        if (!result || !isCurrentSecretImageRender(token, question, frame)) return;
+        showSecretImageReady(frame, question, result.asset, token);
+      })
+      .catch(() => showSecretImageError(frame, question, token));
+  }
+
+  function renderSecretQuestion(question, { force = false } = {}) {
+    const token = ++secretImageRenderToken;
+    const sourcePath = String(question.imagePath || '').trim();
+    const initialAsset = force ? null : window.ClassRecordQuizSecretImage?.getMemoryAsset?.(sourcePath);
+    const dimensions = getSecretImageDimensions(question, initialAsset);
+    questionText.innerHTML = `
+      <span class="quiz-question-prompt quiz-question-prompt--secret">${escapeHtml(question.prompt)}</span>
+      <span class="quiz-secret-visual">
+        ${sourcePath ? `<span class="quiz-secret-image-frame${initialAsset?.url ? ' is-ready' : ''}" style="--quiz-secret-image-ratio:${dimensions.width} / ${dimensions.height}" aria-busy="${initialAsset?.url ? 'false' : 'true'}"><span class="quiz-secret-image-loader loading-state" role="status" aria-live="polite"><span class="loading-spinner" aria-hidden="true"></span><b class="loading-text">正在加载题目图片</b></span><img class="quiz-secret-image" alt="题目图片" width="${dimensions.width}" height="${dimensions.height}" loading="eager" decoding="async" fetchpriority="high"${initialAsset?.url ? ` src="${escapeHtml(initialAsset.url)}"` : ''}></span>` : '<span class="quiz-image-missing">题目图片资源缺失</span>'}
+        ${renderSecretAnswerBoxes()}
+      </span>
+    `;
+    if (!sourcePath) return;
+    const frame = questionText.querySelector('.quiz-secret-image-frame');
+    if (!frame) return;
+    if (initialAsset?.url) return;
+    loadSecretImage(frame, question, token, { force });
+  }
+
   function renderQuestionBody(revealed = false) {
     if (!currentQuestion) return;
     if (currentQuestion.content === SECRET_CONTENT) {
-      questionText.innerHTML = `
-        <span class="quiz-question-prompt quiz-question-prompt--secret">${escapeHtml(currentQuestion.prompt)}</span>
-        <span class="quiz-secret-visual">
-          ${currentQuestion.imagePath ? `<img data-secure-src="${escapeHtml(currentQuestion.imagePath)}" alt="\u9898\u76ee\u56fe\u7247" width="1200" height="800" loading="eager" decoding="async" fetchpriority="high">` : '<span class="quiz-image-missing">\u9898\u76ee\u56fe\u7247\u8d44\u6e90\u7f3a\u5931</span>'}
-          ${renderSecretAnswerBoxes()}
-        </span>
-      `;
-      const image = questionText.querySelector('.quiz-secret-visual img');
-      image?.addEventListener('error', () => {
-        const fallback = document.createElement('span');
-        fallback.className = 'quiz-image-missing';
-        fallback.textContent = '\u9898\u76ee\u56fe\u7247\u52a0\u8f7d\u5931\u8d25';
-        image.replaceWith(fallback);
-      }, { once: true });
-      if (image) {
-        window.ClassRecordData?.resolveAssetElements?.(questionText).catch(() => {
-          if (image.isConnected) image.dispatchEvent(new Event('error'));
-        });
-      }
+      renderSecretQuestion(currentQuestion);
       return;
     }
+
+    secretImageRenderToken += 1;
 
     const shouldBlankRecord = (currentQuestion.type === 'choice' || currentQuestion.type === 'fill') && ['person', 'quote'].includes(currentQuestion.content);
     const recordText = currentQuestion.recordText;

@@ -1,10 +1,19 @@
-import { createReadStream, existsSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync } from "node:fs";
 import { createServer } from "node:http";
-import { extname, normalize, resolve, sep } from "node:path";
+import { extname, join, normalize, resolve, sep } from "node:path";
 import { chromium } from "playwright";
 
 const root = process.cwd();
 const pages = ["index.html", "record.html", "quotes.html", "people.html", "person.html", "search.html", "timeline.html", "materials.html", "quiz.html", "credits.html", "map.html", "shop.html", "auth.html", "404.html"];
+const viewports = [
+  { width: 1920, height: 1080 },
+  { width: 1440, height: 900 },
+  { width: 1366, height: 768 },
+  { width: 430, height: 932 },
+  { width: 390, height: 844 }
+];
+const screenshotDir = process.env.VISUAL_TEST_OUTPUT_DIR;
+if (screenshotDir) mkdirSync(screenshotDir, { recursive: true });
 const types = { ".css": "text/css", ".html": "text/html", ".ico": "image/x-icon", ".js": "text/javascript", ".jpg": "image/jpeg", ".png": "image/png", ".ttf": "font/ttf" };
 
 const server = createServer((request, response) => {
@@ -29,23 +38,43 @@ const browserPath = [
 const browser = await chromium.launch(browserPath ? { executablePath: browserPath, headless: true } : { headless: true });
 
 try {
-  for (const width of [1920, 430, 390]) {
-    const page = await browser.newPage({ viewport: { width, height: 900 } });
+  for (const viewport of viewports) {
+    const page = await browser.newPage({ viewport });
     await page.route("**/js/authGate.js", (route) => route.fulfill({ contentType: "text/javascript", body: "" }));
     for (const file of pages) {
       await page.goto(`${baseUrl}/${file}`, { waitUntil: "load" });
-      const report = await page.evaluate(() => ({
-        designLoaded: [...document.styleSheets].some((sheet) => sheet.href?.endsWith("/styles/archive-redesign.css")),
-        overflow: document.documentElement.scrollWidth > window.innerWidth,
-        focusOutline: getComputedStyle(document.documentElement).getPropertyValue("--archive-accent").trim()
-      }));
+      if (file === "index.html") {
+        await page.evaluate(() => {
+          document.querySelectorAll("#guide-highlights, .guide-secondary-panel").forEach((element) => {
+            element.hidden = false;
+          });
+        });
+      }
+      const report = await page.evaluate(() => {
+        const overflowing = [...document.querySelectorAll("*")]
+          .map((element) => {
+            const rect = element.getBoundingClientRect();
+            return { tag: element.tagName, className: element.className, right: Math.round(rect.right), width: Math.round(rect.width) };
+          })
+          .filter((element) => element.right > window.innerWidth + 1)
+          .slice(0, 6);
+        return {
+          designLoaded: [...document.styleSheets].some((sheet) => sheet.href?.endsWith("/styles/editorial-refinement.css")),
+          overflow: document.documentElement.scrollWidth > window.innerWidth,
+          focusOutline: getComputedStyle(document.documentElement).getPropertyValue("--editorial-accent").trim(),
+          overflowing
+        };
+      });
       if (!report.designLoaded || report.overflow || !report.focusOutline) {
-        throw new Error(`${file} at ${width}px failed visual smoke validation: ${JSON.stringify(report)}`);
+        throw new Error(`${file} at ${viewport.width}px failed visual smoke validation: ${JSON.stringify(report)}`);
+      }
+      if (screenshotDir && ["index.html", "auth.html"].includes(file)) {
+        await page.screenshot({ path: join(screenshotDir, `${file.replace(".html", "")}-${viewport.width}.png`), fullPage: true });
       }
     }
     await page.close();
   }
-  console.log("Passed archive redesign CSS loading and overflow checks at desktop and mobile widths.");
+  console.log("Passed editorial refinement loading and overflow checks at 1920, 1440, 1366, 430, and 390px.");
 } finally {
   await browser.close();
   await new Promise((resolveServer) => server.close(resolveServer));
