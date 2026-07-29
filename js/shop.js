@@ -180,15 +180,23 @@
         if (!host || !loader || host.dataset.loading === 'true') return;
         const key = previewKey(option);
         const cached = loader.peek(key);
-        const persistentHint = loader.hasPersistentHint(key);
         const token = `${Date.now()}:${Math.random()}`;
         host.dataset.previewToken = token;
         host.dataset.loading = 'true';
-        if (!cached && !persistentHint) showPreviewLoading(host);
-        const load = window.BackgroundState?.loadImage
+        const load = () => (window.BackgroundState?.loadImage
             ? window.BackgroundState.loadImage(option.image, priority, { forceRefresh })
-            : loader.loadPublic(key, option.image, { priority, forceRefresh });
-        Promise.resolve(load).then((result) => {
+            : loader.loadPublic(key, option.image, { priority, forceRefresh }));
+        const ready = (async () => {
+            if (cached) return load();
+            // Do not animate on a verified persistent-cache hit. The neutral
+            // preview background remains in place during this tiny lookup.
+            if (!forceRefresh && await loader.hasPublicCache(key)) return load();
+            if (!host.isConnected || host.dataset.previewToken !== token) return null;
+            showPreviewLoading(host);
+            return load();
+        })();
+        ready.then((result) => {
+            if (!result) return;
             if (!host.isConnected || host.dataset.previewToken !== token) return;
             const image = document.createElement('img');
             image.src = typeof result === 'string' ? result : result.url;

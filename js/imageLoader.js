@@ -27,6 +27,21 @@
     const setHint = (key) => { try { localStorage.setItem(cacheHintKey(key), String(Date.now())); } catch (_) {} };
     const clearHint = (key) => { try { localStorage.removeItem(cacheHintKey(key)); } catch (_) {} };
 
+    const hasPublicCache = async (key) => {
+        if (memory.has(key)) return true;
+        if (!window.caches) return false;
+        try {
+            const cache = await caches.open(PUBLIC_CACHE);
+            const response = await cache.match(publicRequest(key));
+            const cachedAt = Date.parse(response?.headers.get('x-classrecord-cached-at') || '');
+            if (response && Number.isFinite(cachedAt) && Date.now() - cachedAt < PUBLIC_TTL) return true;
+            if (response) await cache.delete(publicRequest(key));
+        } catch (_) {
+            // Cache Storage is an optimization; callers will use the network.
+        }
+        return false;
+    };
+
     const decode = (url, priority) => new Promise((resolve, reject) => {
         const image = new Image();
         image.decoding = 'async';
@@ -118,5 +133,5 @@
     };
     const clear = () => { memory.clear(); pending.clear(); queue.splice(0); };
     window.addEventListener('classrecordcacheclearing', clear);
-    window.ClassRecordImageLoader = Object.freeze({ request, loadPublic, forget, clear, peek: (key) => memory.get(key) || null, hasPersistentHint: hasHint, decode, maxConcurrent: MAX_CONCURRENT });
+    window.ClassRecordImageLoader = Object.freeze({ request, loadPublic, forget, clear, peek: (key) => memory.get(key) || null, hasPersistentHint: hasHint, hasPublicCache, decode, maxConcurrent: MAX_CONCURRENT });
 })();

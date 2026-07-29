@@ -70,6 +70,7 @@ await loader.loadPublic('background:one', '/one.jpg');
 assert.equal(networkRequests, 1, 'memory cache must avoid a second download');
 
 loader.clear();
+assert.equal(await loader.hasPublicCache('background:one'), true, 'valid Cache Storage must be detected before UI loading state is mounted');
 const restored = await loader.loadPublic('background:one', '/one.jpg');
 assert.equal(restored.cacheHit, true, 'Cache Storage entry must survive memory clearing');
 assert.equal(networkRequests, 1, 'persistent cache hit must avoid a network request');
@@ -78,6 +79,7 @@ const staleKey = new Request('https://class.example.test/.classrecord-image-cach
 await cache.put(staleKey, new Response(new Blob(['old']), {
     headers: { 'x-classrecord-cached-at': new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString() }
 }));
+assert.equal(await loader.hasPublicCache('background:stale'), false, 'expired Cache Storage must not suppress a loading state');
 await loader.loadPublic('background:stale', '/stale.jpg');
 assert.equal(networkRequests, 2, 'expired persistent entries must be refreshed');
 

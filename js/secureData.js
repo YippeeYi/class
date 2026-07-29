@@ -898,6 +898,15 @@
         return imagePreloadResults.get(getAssetCacheKey(safePath, requestedTransform, version)) || null;
     };
 
+    const hasCachedAsset = async (path, { transform = null, version = '' } = {}) => {
+        const safePath = normalizePrivateStoragePath(path);
+        if (!safePath) return false;
+        const requestedTransform = imageTransformationsUnavailable ? null : normalizeImageTransform(transform);
+        if (imagePreloadResults.has(getAssetCacheKey(safePath, requestedTransform, version))) return true;
+        const cached = await readPrivateImageCache(safePath, requestedTransform, version);
+        return Boolean(cached?.response && !cached.stale);
+    };
+
     const preloadAdminQuizImages = () => {
         if (adminQuizPreloadPromise) return adminQuizPreloadPromise;
         adminQuizPreloadPromise = (async () => {
@@ -1037,6 +1046,7 @@
         resolveAssetElements,
         getClient,
         getConfig,
+        hasCachedAsset,
         getPreloadedAsset,
         isEnabled,
         loadCreditsPage,

@@ -119,7 +119,7 @@ assert.match(stylesheet, /--loading-gap:\s*6px/, 'all loading contexts must shar
 assert.match(stylesheet, /--loading-spinner-size:\s*28px[\s\S]*--loading-spinner-border:\s*2px[\s\S]*--loading-duration:\s*850ms/, 'all loading contexts must share spinner geometry and speed');
 assert.match(stylesheet, /\.loading-spinner\s*\{[^}]*var\(--loading-spinner-size\)[^}]*page-loading-spin/s, 'written-image and meal-map loaders must reuse the one shared spinner class');
 assert.match(stylesheet, /\.shop-background-preview > \.image-load-state\s*\{[^}]*position:\s*absolute[^}]*display:\s*flex[^}]*flex-direction:\s*column[^}]*justify-content:\s*center/s, 'background preview loading must visibly center the shared spinner and label in its own card');
-assert.match(stylesheet, /\.quiz-secret-image-frame img\s*\{[^}]*width:\s*auto[^}]*max-width:\s*100%[^}]*height:\s*100%/s, 'hidden quiz image must preserve a fixed display height with proportional width');
+assert.match(stylesheet, /\.quiz-secret-image-frame img\s*\{[^}]*width:\s*auto[^}]*max-width:\s*none[^}]*height:\s*100%/s, 'hidden quiz image must preserve a fixed display height with proportional width');
 assert.doesNotMatch(stylesheet, /@keyframes (?:written-image-spin|meal-map-spin)/, 'obsolete per-page loader keyframes must be removed');
 assert.match(stylesheet, /\.quiz-card\.is-loading\s*\{[^}]*background:\s*transparent[^}]*box-shadow:\s*none/s, 'quiz initialization must not show a card frame');
 assert.match(personScript, /const people = await loadAllPeople\(\);[\s\S]*personInfo\?\.removeAttribute\("hidden"\);[\s\S]*ClassRecordIllustrationMetadataPromise[\s\S]*const records = await loadAllRecords\(\)/, 'person profiles must wait for all illustration dimensions before rendering records');

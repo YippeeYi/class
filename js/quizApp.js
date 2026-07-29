@@ -214,9 +214,16 @@
       revealSecretImage(host, cached.url, token);
       return;
     }
-    createSecretImageLoading(host);
-    host.setAttribute('aria-busy', 'true');
-    Promise.resolve(data?.preloadAsset?.(path, { priority: 'high', version, forceRefresh }))
+    const load = (async () => {
+      const persistentCacheHit = !forceRefresh && await data?.hasCachedAsset?.(path, { version });
+      if (!host.isConnected || host.dataset.imageToken !== token) return null;
+      if (!persistentCacheHit) {
+        createSecretImageLoading(host);
+        host.setAttribute('aria-busy', 'true');
+      }
+      return data?.preloadAsset?.(path, { priority: 'high', version, forceRefresh });
+    })();
+    Promise.resolve(load)
       .then((url) => {
         if (!url) throw new Error('Question image unavailable');
         revealSecretImage(host, url, token);
