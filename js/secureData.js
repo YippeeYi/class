@@ -120,16 +120,6 @@
         }
     };
 
-    const deletePrivateImageCache = async (safePath, transform) => {
-        const request = getPrivateImageCacheRequest(safePath, transform);
-        if (!request) return;
-        try {
-            await (await caches.open(PRIVATE_IMAGE_CACHE)).delete(request);
-        } catch (error) {
-            // A retry can still obtain a fresh signed response when Cache Storage is unavailable.
-        }
-    };
-
     const responseToObjectUrl = async (response) => {
         const blob = await response.blob();
         if (!blob.size) return '';
@@ -137,15 +127,6 @@
         imageObjectUrls.add(url);
         return url;
     };
-
-    const decodePreloadedImage = (url, priority = 'low') => new Promise((resolve) => {
-        const image = new Image();
-        image.decoding = 'async';
-        image.fetchPriority = priority;
-        image.onload = () => resolve({ url, width: image.naturalWidth, height: image.naturalHeight });
-        image.onerror = () => resolve(null);
-        image.src = url;
-    });
 
     const canPersistPrivateImages = () => Boolean(
         window.caches && window.location?.origin && typeof fetch === 'function'
@@ -608,10 +589,6 @@
             choices: Array.isArray(row.choices) ? row.choices : (Array.isArray(raw.choices) ? raw.choices : []),
             answer: row.answer || raw.answer || '',
             explanation: row.explanation || raw.explanation || '',
-            // Dimension fields are optional. When an import supplies them,
-            // the quiz can reserve the correct frame before image decode.
-            imageWidth: Number(row.image_width || row.imageWidth || raw.image_width || raw.imageWidth || raw.width) || 0,
-            imageHeight: Number(row.image_height || row.imageHeight || raw.image_height || raw.imageHeight || raw.height) || 0,
             // Quiz images are private Storage objects. The UI signs this
             // validated object path only after the invite gate resolves.
             image: normalizeQuizImagePath(row.image_path || raw.image || raw.imagePath || '')
@@ -802,9 +779,18 @@
             if (!canPersistPrivateImages()) {
                 const signedUrl = await signAssetUrl(safePath, { quiet: true, forceRefresh, transform: imageTransform });
                 if (!signedUrl) return null;
-                const result = await decodePreloadedImage(signedUrl, priority);
-                if (result) imagePreloadResults.set(getAssetCacheKey(safePath, imageTransform), result);
-                return result;
+                return new Promise((resolve) => {
+                    const image = new Image();
+                    image.decoding = 'async';
+                    image.fetchPriority = priority;
+                    image.onload = () => {
+                        const result = { url: signedUrl, width: image.naturalWidth, height: image.naturalHeight };
+                        imagePreloadResults.set(getAssetCacheKey(safePath, imageTransform), result);
+                        resolve(result);
+                    };
+                    image.onerror = () => resolve(null);
+                    image.src = signedUrl;
+                });
             }
             let response = forceRefresh ? null : await readPrivateImageCache(safePath, imageTransform);
             let url = '';
@@ -822,9 +808,22 @@
             }
             url = await responseToObjectUrl(response.response);
             if (!url) return null;
-            const result = await decodePreloadedImage(url, priority);
-            if (result) imagePreloadResults.set(getAssetCacheKey(safePath, imageTransform), result);
-            return result;
+            return new Promise((resolve) => {
+                const image = new Image();
+                image.decoding = 'async';
+                image.fetchPriority = priority;
+                image.onload = () => {
+                    const result = {
+                        url,
+                        width: image.naturalWidth,
+                        height: image.naturalHeight
+                    };
+                    imagePreloadResults.set(getAssetCacheKey(safePath, imageTransform), result);
+                    resolve(result);
+                };
+                image.onerror = () => resolve(null);
+                image.src = url;
+            });
         };
         const promise = (async () => {
             const transformed = await loadVariant(requestedTransform);
@@ -851,37 +850,6 @@
         if (!safePath) return null;
         const requestedTransform = imageTransformationsUnavailable ? null : normalizeImageTransform(transform);
         return imagePreloadResults.get(getAssetCacheKey(safePath, requestedTransform)) || null;
-    };
-
-    // A cold reload has no in-memory object URL. Read the access-scoped Cache
-    // Storage entry before a page decides to show a loader, so a valid private
-    // image can still appear as a cache hit without re-signing or re-fetching.
-    const readCachedAsset = async (path, { transform = null, priority = 'high' } = {}) => {
-        const safePath = normalizePrivateStoragePath(path);
-        if (!safePath) return null;
-        const requestedTransform = imageTransformationsUnavailable ? null : normalizeImageTransform(transform);
-        const cacheKey = getAssetCacheKey(safePath, requestedTransform);
-        const ready = imagePreloadResults.get(cacheKey);
-        if (ready?.url) return ready;
-        const cached = await readPrivateImageCache(safePath, requestedTransform);
-        if (!cached || cached.stale) return null;
-        const url = await responseToObjectUrl(cached.response);
-        if (!url) return null;
-        const result = await decodePreloadedImage(url, priority);
-        if (result) imagePreloadResults.set(cacheKey, result);
-        return result;
-    };
-
-    const invalidatePreloadedAsset = async (path, { transform = null } = {}) => {
-        const safePath = normalizePrivateStoragePath(path);
-        if (!safePath) return;
-        const requestedTransform = imageTransformationsUnavailable ? null : normalizeImageTransform(transform);
-        const cacheKey = getAssetCacheKey(safePath, requestedTransform);
-        imagePreloadCache.delete(cacheKey);
-        imagePreloadResults.delete(cacheKey);
-        signedUrlCache.delete(cacheKey);
-        failedSignCache.delete(cacheKey);
-        await deletePrivateImageCache(safePath, requestedTransform);
     };
 
     const preloadAdminQuizImages = () => {
@@ -1023,8 +991,6 @@
         getClient,
         getConfig,
         getPreloadedAsset,
-        readCachedAsset,
-        invalidatePreloadedAsset,
         isEnabled,
         loadCreditsPage,
         loadMaterials,
