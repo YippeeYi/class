@@ -1821,14 +1821,15 @@ body>#quotes-list {
   position: relative;
   display: grid;
   place-items: center;
-  overflow: hidden;
+  overflow: visible;
   width: min(100%, 760px);
   height: clamp(260px, 46vh, 430px);
 }
 
 .quiz-secret-image-frame img {
   display: block;
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   height: 100%;
   object-fit: contain;
   border-radius: 0;
@@ -3404,6 +3405,20 @@ body>.archive-tool-shell {
   width: 100%;
   height: 100%;
   padding: 10px;
+}
+
+/* Keep the existing shared loader visibly centered inside each preview card. */
+.shop-background-preview > .image-load-state {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--loading-gap);
+  background: color-mix(in srgb, var(--theme-surface) 34%, transparent);
 }
 
 .image-load-error {
