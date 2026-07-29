@@ -17,6 +17,7 @@
     const CONFIG_SCRIPT = "js/supabaseConfig.js";
     const CLIENT_SCRIPT = "js/supabaseClient.js";
     const DATA_SCRIPT = "js/secureData.js";
+    const IMAGE_LOADER_SCRIPT = "js/imageLoader.js";
 
     let resolveAccess;
     let rejectAccess;
@@ -152,6 +153,7 @@
     };
 
     const ensureSupabaseClient = async () => {
+        await loadScript(IMAGE_LOADER_SCRIPT);
         await loadScript(CONFIG_SCRIPT);
         await loadScript(CLIENT_SCRIPT);
         await loadScript(DATA_SCRIPT);

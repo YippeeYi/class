@@ -1817,10 +1817,19 @@ body>#quotes-list {
   width: 100%;
 }
 
-.quiz-secret-visual img {
-  display: block;
+.quiz-secret-image-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
   width: min(100%, 760px);
   height: clamp(260px, 46vh, 430px);
+}
+
+.quiz-secret-image-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   border-radius: 0;
   background: transparent;
@@ -2220,7 +2229,7 @@ body>#quotes-list {
 }
 
 @media (max-width: 640px) {
-  .quiz-secret-visual img {
+  .quiz-secret-image-frame {
     height: clamp(210px, 38vh, 320px);
   }
 }
@@ -3369,7 +3378,10 @@ body>.archive-tool-shell {
 }
 
 .shop-background-preview {
-  display: block;
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
   aspect-ratio: 16 / 9;
   border-radius: 10px;
   background-image: var(--shop-preview, var(--control-gradient));
@@ -3377,6 +3389,30 @@ body>.archive-tool-shell {
   background-position: center;
   border: 1px solid rgba(255, 255, 255, 0.48);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+.shop-background-preview > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Geometry only: the spinner itself remains the shared loading component. */
+.image-load-state,
+.image-load-error {
+  width: 100%;
+  height: 100%;
+  padding: 10px;
+}
+
+.image-load-error {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  color: var(--text-soft);
+  font-size: 12px;
+  text-align: center;
 }
 
 

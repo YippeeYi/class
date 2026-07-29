@@ -101,12 +101,10 @@
             const active = item.active || item.id === window.BackgroundState?.currentId;
             const label = htmlToText(item.label || item.id);
             const meta = sanitizeInlineHtml(item.meta || item.title || "");
-            const previewStyle = item.image
-                ? (active ? ` style="--shop-preview:url('${escapeHtml(item.image)}')"` : "")
-                : ` style="--shop-preview:${item.preview || "var(--control-gradient)"}"`;
+            const previewStyle = item.image ? "" : ` style="--shop-preview:${item.preview || "var(--control-gradient)"}"`;
             return `
                 <article class="shop-card shop-background-card${active ? " is-active" : ""}" data-background-id="${escapeHtml(item.id)}"${previewStyle}>
-                    <span class="shop-background-preview" aria-hidden="true"></span>
+                    <span class="shop-background-preview" data-background-preview aria-label="${escapeHtml(label)} 背景预览"></span>
                     <div class="shop-card-head">
                         <span class="shop-item-type">${escapeHtml(item.category)}背景</span>
                         <strong>${escapeHtml(label)}</strong>
@@ -121,6 +119,8 @@
             `;
         }).join("");
 
+        const activeCards = [...itemsWrap.querySelectorAll(".shop-background-card.is-active")];
+        activeCards.forEach((card) => loadCardPreview(card, 'high'));
         const deferredCards = [...itemsWrap.querySelectorAll(".shop-background-card:not(.is-active)")];
         if (!("IntersectionObserver" in window)) {
             deferredCards.forEach(loadCardPreview);
@@ -130,17 +130,83 @@
             entries.forEach((entry) => {
                 if (!entry.isIntersecting) return;
                 previewObserver.unobserve(entry.target);
-                loadCardPreview(entry.target);
+                loadCardPreview(entry.target, 'low');
             });
         }, { rootMargin: "240px 0px" });
         deferredCards.forEach((card) => previewObserver.observe(card));
     }
 
-    function loadCardPreview(card) {
+    function previewKey(option) {
+        // The card preview and applied background intentionally share this key
+        // when they point to the same final image.
+        return `background:${option.image}|${option.version || ''}`;
+    }
+
+    function showPreviewLoading(host) {
+        host.replaceChildren();
+        const state = document.createElement('span');
+        state.className = 'loading-state image-load-state';
+        state.setAttribute('role', 'status');
+        const spinner = document.createElement('span');
+        spinner.className = 'loading-spinner';
+        spinner.setAttribute('aria-hidden', 'true');
+        const text = document.createElement('strong');
+        text.className = 'loading-text';
+        text.textContent = '正在加载背景预览';
+        state.append(spinner, text);
+        host.append(state);
+    }
+
+    function showPreviewError(host, retry) {
+        host.replaceChildren();
+        const state = document.createElement('span');
+        state.className = 'image-load-error';
+        const text = document.createElement('strong');
+        text.textContent = '背景预览加载失败';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn-action page-state-retry';
+        button.textContent = '重试';
+        button.addEventListener('click', retry, { once: true });
+        state.append(text, button);
+        host.append(state);
+    }
+
+    function loadCardPreview(card, priority = 'low', { forceRefresh = false } = {}) {
         const option = window.BackgroundState?.options?.find((item) => item.id === card.dataset.backgroundId);
         if (!option?.image) return;
-        card.style.setProperty("--shop-preview", `url("${option.image}")`);
-        window.BackgroundState?.warm(option.image, "low");
+        const host = card.querySelector('[data-background-preview]');
+        const loader = window.ClassRecordImageLoader;
+        if (!host || !loader || host.dataset.loading === 'true') return;
+        const key = previewKey(option);
+        const cached = loader.peek(key);
+        const persistentHint = loader.hasPersistentHint(key);
+        const token = `${Date.now()}:${Math.random()}`;
+        host.dataset.previewToken = token;
+        host.dataset.loading = 'true';
+        if (!cached && !persistentHint) showPreviewLoading(host);
+        const load = window.BackgroundState?.loadImage
+            ? window.BackgroundState.loadImage(option.image, priority, { forceRefresh })
+            : loader.loadPublic(key, option.image, { priority, forceRefresh });
+        Promise.resolve(load).then((result) => {
+            if (!host.isConnected || host.dataset.previewToken !== token) return;
+            const image = document.createElement('img');
+            image.src = typeof result === 'string' ? result : result.url;
+            image.alt = '';
+            image.decoding = 'async';
+            host.replaceChildren(image);
+            host.dataset.ready = 'true';
+        }).catch(() => {
+            if (!host.isConnected || host.dataset.previewToken !== token) return;
+            showPreviewError(host, () => {
+                loader.forget(key, { publicCache: true }).finally(() => {
+                    host.dataset.loading = '';
+                    loadCardPreview(card, priority, { forceRefresh: true });
+                });
+            });
+        }).finally(() => {
+            if (host.dataset.previewToken === token) host.dataset.loading = '';
+        });
     }
 
     itemsWrap.addEventListener("click", (event) => {

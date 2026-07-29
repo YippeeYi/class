@@ -25,6 +25,7 @@
   let secretUnlocked = false;
   let secretAdminAccess = false;
   let secretBuffer = '';
+  let imageRenderToken = 0;
   let activeFilters = {
     types: new Set(Object.keys(typeLabels)),
     contents: new Set(Object.keys(contentLabels))
@@ -159,27 +160,90 @@
     return `<span class="quiz-question-side${sideClass}"><span class="quiz-side-label">${escapeHtml(question.sideLabel || '')}</span><span class="quiz-side-value">${formatTrustedContent(valueHtml, { plainReferenceTypes: QUESTION_PLAIN_REFERENCE_TYPES })}</span></span>`;
   }
 
+  function createSecretImageLoading(host) {
+    host.replaceChildren();
+    const state = document.createElement('span');
+    state.className = 'loading-state image-load-state';
+    state.setAttribute('role', 'status');
+    const spinner = document.createElement('span');
+    spinner.className = 'loading-spinner';
+    spinner.setAttribute('aria-hidden', 'true');
+    const text = document.createElement('strong');
+    text.className = 'loading-text';
+    text.textContent = '正在加载题目图片';
+    state.append(spinner, text);
+    host.append(state);
+  }
+
+  function createSecretImageError(host, retry) {
+    host.replaceChildren();
+    const state = document.createElement('span');
+    state.className = 'image-load-error';
+    const text = document.createElement('strong');
+    text.textContent = '题目图片加载失败';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn-action page-state-retry';
+    button.textContent = '重试';
+    button.addEventListener('click', retry, { once: true });
+    state.append(text, button);
+    host.append(state);
+  }
+
+  function revealSecretImage(host, url, token) {
+    if (!host.isConnected || host.dataset.imageToken !== token) return;
+    const image = document.createElement('img');
+    image.src = url;
+    image.alt = '题目图片';
+    image.width = 1200;
+    image.height = 800;
+    image.decoding = 'async';
+    image.fetchPriority = 'high';
+    host.replaceChildren(image);
+    host.dataset.ready = 'true';
+    host.setAttribute('aria-busy', 'false');
+  }
+
+  function loadSecretImage(host, path, token, { forceRefresh = false } = {}) {
+    const data = window.ClassRecordData;
+    // This replaces the former img[data-secure-src] + resolveAssetElements
+    // handoff so the image is decoded before it enters the visible DOM.
+    const version = String(currentQuestion?.imageVersion || '');
+    const cached = !forceRefresh ? data?.getPreloadedAsset?.(path, { version }) : null;
+    if (cached?.url) {
+      revealSecretImage(host, cached.url, token);
+      return;
+    }
+    createSecretImageLoading(host);
+    host.setAttribute('aria-busy', 'true');
+    Promise.resolve(data?.preloadAsset?.(path, { priority: 'high', version, forceRefresh }))
+      .then((url) => {
+        if (!url) throw new Error('Question image unavailable');
+        revealSecretImage(host, url, token);
+      })
+      .catch(() => {
+        if (!host.isConnected || host.dataset.imageToken !== token) return;
+        host.setAttribute('aria-busy', 'false');
+        createSecretImageError(host, () => loadSecretImage(host, path, token, { forceRefresh: true }));
+      });
+  }
+
   function renderQuestionBody(revealed = false) {
     if (!currentQuestion) return;
+    imageRenderToken += 1;
     if (currentQuestion.content === SECRET_CONTENT) {
       questionText.innerHTML = `
         <span class="quiz-question-prompt quiz-question-prompt--secret">${escapeHtml(currentQuestion.prompt)}</span>
         <span class="quiz-secret-visual">
-          ${currentQuestion.imagePath ? `<img data-secure-src="${escapeHtml(currentQuestion.imagePath)}" alt="\u9898\u76ee\u56fe\u7247" width="1200" height="800" loading="eager" decoding="async" fetchpriority="high">` : '<span class="quiz-image-missing">\u9898\u76ee\u56fe\u7247\u8d44\u6e90\u7f3a\u5931</span>'}
+          ${currentQuestion.imagePath ? `<span class="quiz-secret-image-frame" data-quiz-image-host data-secure-src="${escapeHtml(currentQuestion.imagePath)}"></span>` : '<span class="quiz-image-missing">\u9898\u76ee\u56fe\u7247\u8d44\u6e90\u7f3a\u5931</span>'}
           ${renderSecretAnswerBoxes()}
         </span>
       `;
-      const image = questionText.querySelector('.quiz-secret-visual img');
-      image?.addEventListener('error', () => {
-        const fallback = document.createElement('span');
-        fallback.className = 'quiz-image-missing';
-        fallback.textContent = '\u9898\u76ee\u56fe\u7247\u52a0\u8f7d\u5931\u8d25';
-        image.replaceWith(fallback);
-      }, { once: true });
-      if (image) {
-        window.ClassRecordData?.resolveAssetElements?.(questionText).catch(() => {
-          if (image.isConnected) image.dispatchEvent(new Event('error'));
-        });
+      const host = questionText.querySelector('[data-quiz-image-host]');
+      if (host) {
+        const token = `${imageRenderToken}:${currentQuestion.id}:${currentQuestion.imagePath}`;
+        host.dataset.imageToken = token;
+        loadSecretImage(host, currentQuestion.imagePath, token);
       }
       return;
     }

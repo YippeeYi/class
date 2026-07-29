@@ -66,9 +66,10 @@
         return Object.keys(normalized).length ? normalized : null;
     };
 
-    const getAssetCacheKey = (safePath, transform) => {
+    const getAssetCacheKey = (safePath, transform, version = '') => {
         const normalized = normalizeImageTransform(transform);
-        return normalized ? `${safePath}|transform:${JSON.stringify(normalized)}` : safePath;
+        const base = normalized ? `${safePath}|transform:${JSON.stringify(normalized)}` : safePath;
+        return version ? `${base}|version:${String(version)}` : base;
     };
 
     const getImageCacheScope = () => {
@@ -81,15 +82,15 @@
         }
     };
 
-    const getPrivateImageCacheRequest = (safePath, transform) => {
+    const getPrivateImageCacheRequest = (safePath, transform, version = '') => {
         const scope = getImageCacheScope();
         if (!scope || !window.caches || !window.location?.origin) return null;
-        const key = getAssetCacheKey(safePath, transform);
+        const key = getAssetCacheKey(safePath, transform, version);
         return new Request(`${window.location.origin}/.classrecord-private-image-cache/${encodeURIComponent(scope)}/${encodeURIComponent(key)}`);
     };
 
-    const readPrivateImageCache = async (safePath, transform) => {
-        const request = getPrivateImageCacheRequest(safePath, transform);
+    const readPrivateImageCache = async (safePath, transform, version = '') => {
+        const request = getPrivateImageCacheRequest(safePath, transform, version);
         if (!request) return null;
         try {
             const cache = await caches.open(PRIVATE_IMAGE_CACHE);
@@ -106,8 +107,8 @@
         }
     };
 
-    const writePrivateImageCache = async (safePath, transform, response) => {
-        const request = getPrivateImageCacheRequest(safePath, transform);
+    const writePrivateImageCache = async (safePath, transform, response, version = '') => {
+        const request = getPrivateImageCacheRequest(safePath, transform, version);
         if (!request || !response?.ok) return;
         try {
             const headers = new Headers(response.headers);
@@ -118,6 +119,12 @@
         } catch (error) {
             // Cache Storage can be quota-limited; the signed network response remains usable.
         }
+    };
+
+    const deletePrivateImageCache = async (safePath, transform, version = '') => {
+        const request = getPrivateImageCacheRequest(safePath, transform, version);
+        if (!request) return;
+        try { await (await caches.open(PRIVATE_IMAGE_CACHE)).delete(request); } catch (error) {}
     };
 
     const responseToObjectUrl = async (response) => {
@@ -591,7 +598,8 @@
             explanation: row.explanation || raw.explanation || '',
             // Quiz images are private Storage objects. The UI signs this
             // validated object path only after the invite gate resolves.
-            image: normalizeQuizImagePath(row.image_path || raw.image || raw.imagePath || '')
+            image: normalizeQuizImagePath(row.image_path || raw.image || raw.imagePath || ''),
+            imageVersion: String(row.updated_at || raw.imageUpdatedAt || raw.updatedAt || raw.imageVersion || '')
         };
     };
 
@@ -769,11 +777,11 @@
         return result;
     };
 
-    const preloadAsset = async (path, { priority = 'low', transform = null, forceRefresh = false } = {}) => {
+    const preloadAssetDirect = async (path, { priority = 'low', transform = null, version = '', forceRefresh = false } = {}) => {
         const safePath = normalizePrivateStoragePath(path);
         if (!safePath) return null;
         const requestedTransform = imageTransformationsUnavailable ? null : normalizeImageTransform(transform);
-        const cacheKey = getAssetCacheKey(safePath, requestedTransform);
+        const cacheKey = getAssetCacheKey(safePath, requestedTransform, version);
         if (!forceRefresh && imagePreloadCache.has(cacheKey)) return imagePreloadCache.get(cacheKey);
         const loadVariant = async (imageTransform) => {
             if (!canPersistPrivateImages()) {
@@ -783,16 +791,19 @@
                     const image = new Image();
                     image.decoding = 'async';
                     image.fetchPriority = priority;
-                    image.onload = () => {
-                        const result = { url: signedUrl, width: image.naturalWidth, height: image.naturalHeight };
-                        imagePreloadResults.set(getAssetCacheKey(safePath, imageTransform), result);
-                        resolve(result);
+                    image.onload = async () => {
+                        try {
+                            if (typeof image.decode === 'function') await image.decode();
+                            const result = { url: signedUrl, width: image.naturalWidth, height: image.naturalHeight };
+                            imagePreloadResults.set(getAssetCacheKey(safePath, imageTransform, version), result);
+                            resolve(result);
+                        } catch (error) { resolve(null); }
                     };
                     image.onerror = () => resolve(null);
                     image.src = signedUrl;
                 });
             }
-            let response = forceRefresh ? null : await readPrivateImageCache(safePath, imageTransform);
+            let response = forceRefresh ? null : await readPrivateImageCache(safePath, imageTransform, version);
             let url = '';
             if (!response || response.stale) {
                 const signedUrl = await signAssetUrl(safePath, { quiet: true, forceRefresh, transform: imageTransform });
@@ -800,7 +811,7 @@
                 try {
                     const networkResponse = await fetch(signedUrl, { credentials: 'omit' });
                     if (!networkResponse.ok) throw new Error(`Asset request failed: ${networkResponse.status}`);
-                    void writePrivateImageCache(safePath, imageTransform, networkResponse);
+                    void writePrivateImageCache(safePath, imageTransform, networkResponse, version);
                     response = { response: networkResponse };
                 } catch (error) {
                     return response?.response ? responseToObjectUrl(response.response) : null;
@@ -812,14 +823,17 @@
                 const image = new Image();
                 image.decoding = 'async';
                 image.fetchPriority = priority;
-                image.onload = () => {
-                    const result = {
-                        url,
-                        width: image.naturalWidth,
-                        height: image.naturalHeight
-                    };
-                    imagePreloadResults.set(getAssetCacheKey(safePath, imageTransform), result);
-                    resolve(result);
+                image.onload = async () => {
+                    try {
+                        if (typeof image.decode === 'function') await image.decode();
+                        const result = {
+                            url,
+                            width: image.naturalWidth,
+                            height: image.naturalHeight
+                        };
+                        imagePreloadResults.set(getAssetCacheKey(safePath, imageTransform, version), result);
+                        resolve(result);
+                    } catch (error) { resolve(null); }
                 };
                 image.onerror = () => resolve(null);
                 image.src = url;
@@ -845,11 +859,43 @@
         return reusablePromise;
     };
 
-    const getPreloadedAsset = (path, { transform = null } = {}) => {
+    // Private Storage keeps its access-scoped Cache Storage implementation in
+    // this file, but requests enter the same global queue/deduper as public
+    // previews.  The stable Storage path (plus transform) is the key.
+    const preloadAsset = async (path, options = {}) => {
+        const safePath = normalizePrivateStoragePath(path);
+        if (!safePath) return null;
+        const transform = imageTransformationsUnavailable ? null : normalizeImageTransform(options.transform);
+        const version = String(options.version || '');
+        const key = getAssetCacheKey(safePath, transform, version);
+        const load = async (forceRefresh) => preloadAssetDirect(safePath, { ...options, transform, version, forceRefresh });
+        if (!window.ClassRecordImageLoader) return load(Boolean(options.forceRefresh));
+        try {
+            const result = await window.ClassRecordImageLoader.request(`private:${key}`, async () => {
+                let url = await load(Boolean(options.forceRefresh));
+                if (!url && !options.forceRefresh) {
+                    // A corrupt cached blob or expired signature gets one clean
+                    // retry; failed promises and stale cache entries are not kept.
+                    imagePreloadCache.delete(key);
+                    imagePreloadResults.delete(key);
+                    await deletePrivateImageCache(safePath, transform, version);
+                    url = await load(true);
+                }
+                return url ? { url } : null;
+            }, { priority: options.priority || 'low', forceRefresh: Boolean(options.forceRefresh) });
+            return result.url;
+        } catch (error) {
+            imagePreloadCache.delete(key);
+            imagePreloadResults.delete(key);
+            return null;
+        }
+    };
+
+    const getPreloadedAsset = (path, { transform = null, version = '' } = {}) => {
         const safePath = normalizePrivateStoragePath(path);
         if (!safePath) return null;
         const requestedTransform = imageTransformationsUnavailable ? null : normalizeImageTransform(transform);
-        return imagePreloadResults.get(getAssetCacheKey(safePath, requestedTransform)) || null;
+        return imagePreloadResults.get(getAssetCacheKey(safePath, requestedTransform, version)) || null;
     };
 
     const preloadAdminQuizImages = () => {
@@ -960,6 +1006,7 @@
         imagePreloadResults.clear();
         imageObjectUrls.forEach((url) => URL.revokeObjectURL(url));
         imageObjectUrls.clear();
+        window.ClassRecordImageLoader?.clear?.();
         mealMapMetadataPromise = null;
         imageTransformationsUnavailable = false;
         try {

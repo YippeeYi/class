@@ -46,6 +46,7 @@
             label: option.label || option.id,
             meta: option.meta || "Custom background",
             image: option.image || "",
+            version: String(option.version || option.updatedAt || ""),
             fit: option.fit || "cover",
             position: option.position || "center center",
             preview: option.preview || (option.image ? `url("${option.image}")` : "linear-gradient(145deg, #fffdf8, #f3ece1 56%, #ece5d9)")
@@ -271,26 +272,42 @@
         return window.ClassRecordData.signAssetUrl(imageSrc).catch(() => "");
     };
 
-    const warmImage = async (imageSrc, priority = "low") => {
-        imageSrc = await resolveImageSrc(imageSrc);
-        if (!imageSrc) {
-            return Promise.resolve(null);
+    const loadImage = async (sourcePath, priority = "low", { forceRefresh = false } = {}) => {
+        if (!sourcePath) return null;
+        // The key also powers the shop preview, so a final local background
+        // and its preview share a decoded request instead of racing downloads.
+        if (/^images\/backgrounds\//i.test(sourcePath) && window.ClassRecordImageLoader) {
+            const option = normalizedOptions.find((item) => item.image === sourcePath);
+            return window.ClassRecordImageLoader.loadPublic(`background:${sourcePath}|${option?.version || ''}`, sourcePath, { priority, forceRefresh });
         }
-        ensureResourceHint(imageSrc);
-        if (imageWarmCache.has(imageSrc)) {
-            return imageWarmCache.get(imageSrc);
+        if (window.ClassRecordData?.preloadAsset && !/^images\/backgrounds\//i.test(sourcePath)) {
+            const url = await window.ClassRecordData.preloadAsset(sourcePath, { priority, forceRefresh });
+            return url ? { url } : null;
         }
+        const url = await resolveImageSrc(sourcePath);
+        return url ? { url } : null;
+    };
 
-        const image = new Image();
-        image.decoding = "async";
-        image.loading = priority === "high" ? "eager" : "lazy";
-        image.fetchPriority = priority;
-        const promise = new Promise((resolve, reject) => {
-            image.onload = () => resolve(image);
-            image.onerror = reject;
-        }).catch(() => null);
-        image.src = imageSrc;
-        imageWarmCache.set(imageSrc, promise);
+    const warmImage = async (sourcePath, priority = "low") => {
+        if (!sourcePath) return Promise.resolve(null);
+        if (imageWarmCache.has(sourcePath)) return imageWarmCache.get(sourcePath);
+        const promise = loadImage(sourcePath, priority).then((result) => {
+            if (!result?.url) return null;
+            ensureResourceHint(result.url);
+            return new Promise((resolve, reject) => {
+                const image = new Image();
+                image.decoding = "async";
+                image.loading = priority === "high" ? "eager" : "lazy";
+                image.fetchPriority = priority;
+                image.onload = () => resolve(image);
+                image.onerror = reject;
+                image.src = result.url;
+            });
+        }).catch(() => {
+            imageWarmCache.delete(sourcePath);
+            return null;
+        });
+        imageWarmCache.set(sourcePath, promise);
         return promise;
     };
 
@@ -545,6 +562,9 @@
         },
         warm(imageSrc, priority) {
             return warmImage(imageSrc, priority);
+        },
+        loadImage(imageSrc, priority, options) {
+            return loadImage(imageSrc, priority, options);
         },
         owns() {
             return true;
