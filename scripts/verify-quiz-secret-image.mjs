@@ -18,8 +18,16 @@ const server = createServer((request, response) => {
   createReadStream(target).pipe(response);
 });
 
-await new Promise((resolveServer) => server.listen(0, "127.0.0.1", resolveServer));
-const address = server.address();
+const unsafeBrowserPorts = new Set([6000, 6665, 6666, 6667, 6668, 6669, 6697]);
+const listenOnSafePort = async () => {
+  while (true) {
+    await new Promise((resolveServer) => server.listen(0, "127.0.0.1", resolveServer));
+    const currentAddress = server.address();
+    if (!unsafeBrowserPorts.has(currentAddress.port)) return currentAddress;
+    await new Promise((resolveServer) => server.close(resolveServer));
+  }
+};
+const address = await listenOnSafePort();
 const baseUrl = `http://127.0.0.1:${address.port}`;
 const browserPath = [
   "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
