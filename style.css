@@ -1818,12 +1818,14 @@ body>#quotes-list {
 }
 
 .quiz-secret-image-frame {
+  --quiz-secret-image-display-height: clamp(260px, 46vh, 430px);
   position: relative;
   display: grid;
   place-items: center;
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: hidden;
   width: min(100%, 760px);
-  height: clamp(260px, 46vh, 430px);
+  height: var(--quiz-secret-image-display-height);
 }
 
 /* Cache-backed content is rendered by its controller immediately; never
@@ -1835,9 +1837,13 @@ body>#quotes-list {
 
 .quiz-secret-image-frame img {
   display: block;
-  width: auto;
-  max-width: none;
-  height: 100%;
+  /* Every hidden-question image is scaled from its own natural size to this
+     one target height. Width remains proportional and never alters height. */
+  inline-size: auto !important;
+  block-size: var(--quiz-secret-image-display-height) !important;
+  max-inline-size: none !important;
+  max-block-size: none !important;
+  flex: 0 0 auto;
   object-fit: contain;
   border-radius: 0;
   background: transparent;
@@ -2238,7 +2244,7 @@ body>#quotes-list {
 
 @media (max-width: 640px) {
   .quiz-secret-image-frame {
-    height: clamp(210px, 38vh, 320px);
+    --quiz-secret-image-display-height: clamp(210px, 38vh, 320px);
   }
 }
 
