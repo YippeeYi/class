@@ -11,22 +11,6 @@
   --editorial-radius: 10px;
   --editorial-shadow: 0 10px 24px rgb(38 31 24 / 7%);
   --editorial-measure: 68ch;
-  /* Button scale: compact controls are intentionally distinct from reading and submit actions. */
-  --button-height-compact: 2rem;
-  --button-height: 2.4rem;
-  --button-height-prominent: 2.75rem;
-  --button-icon-size: 2.4rem;
-  --button-padding-inline-compact: .62rem;
-  --button-padding-inline: .82rem;
-  --button-padding-inline-prominent: 1rem;
-  --button-radius: 8px;
-  --button-radius-compact: 7px;
-  --button-font-size: .875rem;
-  --button-font-size-compact: .8125rem;
-  --button-font-weight: 620;
-  --button-icon-gap: .42rem;
-  --button-group-gap: .5rem;
-  --button-disabled-opacity: .48;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -68,173 +52,32 @@ button, input { font: inherit; }
 
 .page-header::before { display: none; }
 
-/* Button foundation. This explicit selector set also covers script-rendered controls without
-   accidentally changing timeline charts, calendar cells, or text-level record links. */
 :is(.back-to-guide-btn, .top-action-btn, .btn-action, .btn-select, .switch-btn,
   .record-filter .filter-dropdown-trigger, .record-filter .filter-option, .attach-toggle,
-  .material-list-item, .sort-controls .dropdown-trigger, .image-viewer-close,
-  .auth-page .auth-form button) {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--button-icon-gap);
-  min-height: var(--button-height);
-  max-width: 100%;
-  margin: 0;
-  padding: 0 var(--button-padding-inline);
+  .material-list-item, .sort-controls .dropdown-trigger) {
+  min-height: 2.35rem;
   border: 1px solid var(--editorial-line-strong);
-  border-radius: var(--button-radius);
+  border-radius: 8px;
   background: var(--editorial-surface);
   background-image: none;
   color: var(--editorial-ink);
   box-shadow: none;
-  font-size: var(--button-font-size);
-  font-weight: var(--button-font-weight);
-  line-height: 1.15;
-  text-align: center;
-  text-decoration: none;
-  white-space: nowrap;
-  transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease, transform .1s ease;
+  font-weight: 590;
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease;
 }
 
 :is(.back-to-guide-btn, .top-action-btn, .btn-action, .btn-select, .switch-btn,
   .record-filter .filter-dropdown-trigger, .record-filter .filter-option, .attach-toggle,
-  .material-list-item, .sort-controls .dropdown-trigger, .image-viewer-close,
-  .auth-page .auth-form button):hover:not(:disabled):not([aria-disabled="true"]) {
+  .material-list-item, .sort-controls .dropdown-trigger):hover {
   transform: none;
   border-color: var(--editorial-accent);
   background: color-mix(in srgb, var(--editorial-surface) 84%, var(--theme-surface-strong));
   box-shadow: none;
 }
 
-:is(.back-to-guide-btn, .top-action-btn, .btn-action, .btn-select, .switch-btn,
-  .record-filter .filter-dropdown-trigger, .record-filter .filter-option, .attach-toggle,
-  .material-list-item, .sort-controls .dropdown-trigger, .image-viewer-close,
-  .auth-page .auth-form button):active:not(:disabled):not([aria-disabled="true"]) {
-  transform: translateY(1px);
-}
-
-:is(.back-to-guide-btn, .top-action-btn, .btn-action, .btn-select, .switch-btn,
-  .record-filter .filter-dropdown-trigger, .record-filter .filter-option, .attach-toggle,
-  .material-list-item, .sort-controls .dropdown-trigger, .image-viewer-close,
-  .auth-page .auth-form button):disabled,
-:is(.back-to-guide-btn, .top-action-btn, .btn-action, .btn-select, .switch-btn,
-  .record-filter .filter-dropdown-trigger, .record-filter .filter-option, .attach-toggle,
-  .material-list-item, .sort-controls .dropdown-trigger, .image-viewer-close,
-  .auth-page .auth-form button)[aria-disabled="true"] {
-  cursor: not-allowed;
-  opacity: var(--button-disabled-opacity);
-  transform: none;
-}
-
-/* Compact segmented and utility controls keep their natural content width. */
-:is(.switch-btn, .record-filter .filter-dropdown-trigger, .record-filter .filter-option,
-  .record-filter .filter-important, .record-filter .filter-exclude-daily,
-  .quiz-filter .filter-option, .quiz-filter-all, .sort-controls .sort-option,
-  .sort-controls .sort-order-toggle, .people-role-sort .btn-action, .search-type,
-  .record-page-prev, .record-page-next, .record-page-trigger, .attach-toggle,
-  .meal-map-retry, .page-state-retry) {
-  min-height: var(--button-height-compact);
-  padding-inline: var(--button-padding-inline-compact);
-  border-radius: var(--button-radius-compact);
-  font-size: var(--button-font-size-compact);
-}
-
-/* Keep the compact scale ahead of the legacy generic control selector in the
-   cascade; grouping by the real container also documents the intended context. */
-:is(.record-switch, .record-view-switch, .timeline-metric-switch) button.switch-btn,
-.record-filter button.filter-dropdown-trigger,
-.record-filter button.filter-option,
-.quiz-filter button.quiz-filter-all,
-.sort-controls button.sort-option,
-.sort-controls button.sort-order-toggle,
-.people-role-sort button.btn-action,
-.search-type-controls button.search-type,
-.record-written-toolbar button.record-page-prev,
-.record-written-toolbar button.record-page-next,
-.record-written-toolbar button.record-page-trigger,
-.attachments-wrapper button.attach-toggle,
-.meal-map-placeholder button.meal-map-retry,
-.page-state button.page-state-retry {
-  min-height: var(--button-height-compact);
-  padding-inline: var(--button-padding-inline-compact);
-  border-radius: var(--button-radius-compact);
-  font-size: var(--button-font-size-compact);
-}
-
-/* The two controls that carry a task forward receive the single primary treatment. */
-:is(.quiz-submit, .auth-page .auth-form button) {
-  min-height: var(--button-height-prominent);
-  padding-inline: var(--button-padding-inline-prominent);
-  border-color: var(--editorial-accent);
-  background: var(--editorial-accent);
-  color: var(--theme-surface);
-}
-
-/* Navigation and overlay actions are true icon buttons, irrespective of glyph width. */
-:is(.back-to-guide-btn, .image-viewer-close) {
-  width: var(--button-icon-size);
-  min-width: var(--button-icon-size);
-  height: var(--button-icon-size);
-  min-height: var(--button-icon-size);
-  padding: 0;
-  border-radius: var(--button-radius);
-  line-height: 1;
-}
-
-.image-viewer-close {
-  font-size: 1.35rem;
-}
-
-/* One spacing rhythm for related actions; width is never distributed merely to fill a row. */
-:is(.record-filter .filter-actions, .record-filter .filter-options, .record-switch,
-  .record-view-switch, .sort-controls, .people-role-sort, .search-type-controls,
-  .quiz-filter .filter-actions, .quiz-filter .filter-options, .quiz-fill-row,
-  .archive-tool-actions, .timeline-metric-control, .shop-card-foot, .shop-unlock-actions) {
-  gap: var(--button-group-gap);
-}
-
-.record-switch, .record-view-switch, .search-type-controls, .people-role-sort,
-.archive-tool-actions, .shop-card-foot, .shop-unlock-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.sort-controls, .record-filter .filter-actions, .quiz-filter .filter-actions,
-.quiz-filter .filter-options { align-items: center; }
-
-.record-filter .filter-option, .sort-controls .sort-option, .search-type,
-.people-role-sort .people-main-toggle, .quiz-filter .filter-option {
-  flex: 0 0 auto;
-}
-
-.material-list-item {
-  width: 100%;
-  justify-content: flex-start;
-  text-align: left;
-  white-space: normal;
-}
-
-/* Answer choices are intentionally larger for scanability, but their borders and state
-   behavior share the same quiet system and never alter the grid geometry. */
-.quiz-option {
-  min-height: clamp(4.75rem, 11vw, 5.6rem);
-  padding: .85rem 1rem;
-  border-width: 1px;
-  border-radius: var(--button-radius);
-  gap: .75rem;
-  line-height: 1.45;
-}
-
-.quiz-option:hover:not(:disabled) { transform: none; box-shadow: none; }
-.quiz-option:active:not(:disabled) { transform: translateY(1px); }
-.quiz-option-label { width: 1.8rem; height: 1.8rem; min-width: 1.8rem; border-radius: 6px; }
-
 :is(.sort-option.is-active, .record-filter .filter-option.is-active, .switch-btn.active,
   .record-filter .filter-important.is-active, .record-filter .filter-exclude-daily.is-active,
-  .material-list-item.is-active, .search-type.is-active, .people-role-sort .people-sort-option.is-active,
-  .people-role-sort .people-main-toggle.is-active,
+  .material-list-item.is-active, .people-role-sort .people-main-toggle.is-active,
   .auth-page .auth-form button) {
   border-color: var(--editorial-accent);
   background: var(--editorial-accent);
@@ -242,34 +85,6 @@ button, input { font: inherit; }
   color: var(--theme-surface);
   box-shadow: none;
 }
-
-.archive-tool-actions > .btn-action,
-.shop-use-btn:not(:disabled) {
-  min-height: var(--button-height);
-  border-color: var(--editorial-accent);
-  background: var(--editorial-accent);
-  color: var(--theme-surface);
-}
-
-.attach-toggle {
-  width: var(--button-height-compact);
-  min-width: var(--button-height-compact);
-  height: var(--button-height-compact);
-  min-height: var(--button-height-compact);
-  padding: 0;
-}
-
-.timeline-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--button-height-compact);
-  padding: .3rem var(--button-padding-inline-compact);
-  border-radius: var(--button-radius-compact);
-  font-size: var(--button-font-size-compact);
-  line-height: 1.15;
-}
-
-.timeline-chip span { font-size: .75rem; }
 
 :is(button, input, [role="button"], a):focus-visible {
   outline: 2px solid var(--editorial-accent);
@@ -476,13 +291,6 @@ body.materials-page { height: auto; overflow: auto; }
   .record-filter, .sort-controls, .record-switch, .record-view-switch { align-items: stretch; }
   .record-filter .filter-field, .record-filter .filter-search-field { width: 100%; }
   .record-filter .filter-dropdown-trigger, .record-search-input, .global-search-input { width: 100%; }
-  .record-filter .filter-actions > .btn-action { width: auto; flex: 0 0 auto; }
-  .record-switch, .record-view-switch, .search-type-controls, .people-role-sort,
-  .archive-tool-actions, .shop-card-foot, .shop-unlock-actions { gap: .5rem; }
-  .quiz-fill-row { grid-template-columns: minmax(0, 1fr); }
-  .quiz-fill-row .quiz-submit, .auth-page .auth-form button { width: 100%; }
-  .quiz-options { grid-template-columns: 1fr; gap: .65rem; }
-  .quiz-option { min-height: 4.5rem; }
   .people-table, .quotes-table { display: block; overflow-x: auto; white-space: nowrap; }
   .materials-shell { height: calc(100dvh - 6.7rem); }
   .materials-panel { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
