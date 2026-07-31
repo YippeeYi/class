@@ -2,6 +2,7 @@ import { lazy, type ReactElement, Suspense } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { AppShell } from '@/components/layout/app-shell'
 import { BackgroundRoot } from '@/components/layout/background-root'
+import { Spinner } from '@/components/ui/spinner'
 import { ArchiveProvider } from '@/features/archive/archive-context'
 import { AccessGate } from '@/features/auth/access-gate'
 
@@ -53,7 +54,10 @@ export function App() {
     <Suspense
       fallback={
         <div className="grid min-h-svh place-items-center text-sm text-muted-foreground">
-          正在打开档案…
+          <div className="flex items-center gap-3" role="status">
+            <Spinner className="size-5" />
+            正在打开档案…
+          </div>
         </div>
       }
     >

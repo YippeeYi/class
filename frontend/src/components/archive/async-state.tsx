@@ -1,4 +1,4 @@
-import { AlertCircle, RotateCcw } from 'lucide-react'
+import { AlertCircle, Inbox, RotateCcw } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -61,7 +61,7 @@ export function EmptyState({
     <Empty className="border">
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          <AlertCircle />
+          <Inbox />
         </EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
         <EmptyDescription>{description}</EmptyDescription>

@@ -91,6 +91,12 @@ export function TimelinePage() {
     document.title = '档案时间线 · 编日史'
   }, [])
   useEffect(() => {
+    const nextYear = params.get('year') || ''
+    const nextMonth = params.get('month') || ''
+    setYear((current) => (current === nextYear ? current : nextYear))
+    setMonth((current) => (current === nextMonth ? current : nextMonth))
+  }, [params])
+  useEffect(() => {
     const [firstYear] = years
     if (firstYear && !years.includes(year)) setYear(firstYear)
   }, [year, years])
@@ -115,15 +121,11 @@ export function TimelinePage() {
     }
   }, [month, monthly, year])
   useEffect(() => {
-    setParams(
-      (current) => {
-        const next = new URLSearchParams(current)
-        if (year) next.set('year', year)
-        if (month) next.set('month', month)
-        return next
-      },
-      { replace: true },
-    )
+    const next = new URLSearchParams()
+    if (year) next.set('year', year)
+    if (month) next.set('month', month)
+    const current = new URLSearchParams(window.location.search)
+    if (next.toString() !== current.toString()) setParams(next, { replace: true })
   }, [month, setParams, year])
 
   const selected = monthly.find((item) => item.key === month) || monthly[0]

@@ -1,5 +1,5 @@
 import { FileText } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
@@ -13,18 +13,16 @@ import { loadMaterials } from '@/services/data'
 
 export function MaterialsPage() {
   const [params, setParams] = useSearchParams()
-  const [activeId, setActiveId] = useState(params.get('id') || '')
   const resource = useAsyncData(() => loadMaterials())
   useEffect(() => {
     document.title = '资料 · 编日史'
   }, [])
-  useEffect(() => {
-    if (resource.data?.length && !resource.data.some((item) => item.id === activeId))
-      setActiveId(resource.data[0]?.id || '')
-  }, [activeId, resource.data])
+  const requestedId = params.get('id') || ''
+  const activeId = resource.data?.some((item) => item.id === requestedId)
+    ? requestedId
+    : resource.data?.[0]?.id || ''
   const active = resource.data?.find((item) => item.id === activeId)
   const select = (id: string) => {
-    setActiveId(id)
     setParams(id ? { id } : {}, { replace: true })
   }
   return (

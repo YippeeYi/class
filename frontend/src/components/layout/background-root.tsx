@@ -25,22 +25,33 @@ export const backgrounds: Array<{
   label: string
   category: string
   image?: string
-  credit: string
+  credit: { label: string; href?: string }
 }> = [
-  { id: 'default', label: '纸本', category: '基础', credit: '编日史内置渐变' },
+  {
+    id: 'default',
+    label: '纸本',
+    category: '基础',
+    credit: { label: '编日史内置渐变' },
+  },
   {
     id: 'mountain',
     label: '山',
     category: '风景',
     image: assetUrl('images/backgrounds/mountain.jpg'),
-    credit: 'Alessio Soggetti · Unsplash',
+    credit: {
+      label: 'Alessio Soggetti · Unsplash',
+      href: 'https://unsplash.com/photos/mountains-covered-with-fogs-gdE-5Oui1Y0',
+    },
   },
   {
     id: 'cloud',
     label: '云',
     category: '风景',
     image: assetUrl('images/backgrounds/cloud.jpg'),
-    credit: 'Agnese Rudzīte · Unsplash',
+    credit: {
+      label: 'Agnese Rudzīte · Unsplash',
+      href: 'https://unsplash.com/photos/pink-and-orange-clouds-against-a-pale-sky-at-sunset-bziUIonXyI4',
+    },
   },
 ]
 

@@ -92,3 +92,24 @@
 - 实现方式不同但理念一致的项目继续保留：React Router SPA、类型化 AST、Context 数据共享、Recharts + shadcn Chart、签名 URL 直接加载，而不恢复旧版 DOM/innerHTML 和全套对象 URL 管线。
 
 最终分类：Sidebar、授权、记录、人物、搜索、答题、时间线、地图、背景、全屏控制及加载/空/错状态均为 A 或 D。
+
+## 6. 二次深度审查与补充修复
+
+在首轮核心恢复完成后，又针对辅助页面、同页 URL 变化、浏览器历史记录、移动端导航和可访问性进行逐项复核：
+
+| 复核项 | 发现的差异 | 最终处理 |
+| --- | --- | --- |
+| 记录筛选/视图 URL | 组件只在挂载时读取 query，同页链接和前进/后退可能保留旧状态 | 增加 URL → React state 同步，同时保留 state → URL 的 `replace` 更新和循环保护 |
+| 时间线年月 URL | 浏览器历史恢复后年月状态可能与地址不一致 | 年/月重新以 URL 为外部事实源，并在无效值时归一到可用年月 |
+| 搜索 query URL | 同组件存活时外部 query 变化不会更新输入框 | 增加 URL → 输入状态同步，120ms 防抖和全量结果保持不变 |
+| 资料 id 直达 | `activeId` 只初始化一次 | 改为直接从当前 search params 派生，支持同页资料链接和浏览器历史 |
+| 邀请码成功返回 | 提交回调与认证态重渲染都可能消费目标 | 成功只更新认证态，由唯一的 `<Navigate replace>` 消费目标 |
+| 邀请码错误语义 | 错误使用通用 Alert，与官方表单示例的字段错误组合不一致 | 使用 `Field data-invalid`、`Input aria-invalid`、`FieldError role=alert` |
+| 致谢空数据/动态标题 | 空数据生成空网格；数据库标题未更新浏览器标题 | 增加 shadcn Empty 状态，标题随数据更新 |
+| 背景来源 | 摄影署名退化为不可点击文字 | 恢复作者/作品来源链接，使用安全新窗口属性 |
+| 跨页面滚动 | React Router 不会像旧版独立文档那样自动回到顶部 | 路由 pathname 改变时重置滚动；保留记录定位自己的平滑滚动 |
+| 移动端 Sidebar | SPA 导航后 Sheet 可能继续覆盖内容 | 通过官方 `useSidebar().setOpenMobile(false)` 在路由切换后关闭 |
+| 键盘快速导航 | 缺少绕过全站 Sidebar 的入口 | 添加“跳到主要内容”链接和可聚焦内容目标 |
+| 懒加载状态 | 路由 Suspense 只有文本 | 按 shadcn 模式组合 `Spinner` 与 `role=status` |
+
+二次审查仍未修改 `frontend/src/components/ui`；Dialog/AlertDialog/Sidebar/Sheet/Empty/Field/Spinner 均通过公开 props、组合 API 和业务 wrapper 使用。业务源码中没有手写原生 button/select/input 来模拟 shadcn，也没有恢复任何 legacy HTML 路由兼容层。

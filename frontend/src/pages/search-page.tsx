@@ -114,12 +114,16 @@ export function SearchPage() {
     document.title = '全站搜索 · 编日史'
   }, [])
   useEffect(() => {
+    const next = params.get('q') || ''
+    setQuery((current) => (current === next ? current : next))
+  }, [params])
+  useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedQuery(query)
       setParams(
         (current) => {
           const next = new URLSearchParams(current)
-          if (query.trim()) next.set('q', query.trim())
+          if (query.trim()) next.set('q', query)
           else next.delete('q')
           return next
         },

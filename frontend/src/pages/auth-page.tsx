@@ -1,18 +1,16 @@
 import { KeyRound } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/features/auth/auth-context'
 
 export function AuthPage() {
   const auth = useAuth()
-  const navigate = useNavigate()
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -29,8 +27,7 @@ export function AuthPage() {
     setError('')
     const result = await auth.verifyInvite(code)
     setSubmitting(false)
-    if (result.ok) navigate(auth.consumeTarget(), { replace: true })
-    else setError(result.message || '验证失败。')
+    if (!result.ok) setError(result.message || '验证失败。')
   }
 
   return (
@@ -48,7 +45,7 @@ export function AuthPage() {
         <CardContent>
           <form onSubmit={submit}>
             <FieldGroup>
-              <Field>
+              <Field data-invalid={Boolean(error)}>
                 <FieldLabel htmlFor="invite-code">邀请码</FieldLabel>
                 <Input
                   id="invite-code"
@@ -58,17 +55,14 @@ export function AuthPage() {
                   autoComplete="one-time-code"
                   required
                   autoFocus
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? 'invite-code-error' : undefined}
                 />
                 <FieldDescription>
                   邀请码仅在验证时发送到 Supabase，不会写入页面源码。
                 </FieldDescription>
+                <FieldError id="invite-code-error">{error}</FieldError>
               </Field>
-              {error && (
-                <Alert variant="destructive">
-                  <AlertTitle>验证失败</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
               <Button
                 type="submit"
                 size="lg"

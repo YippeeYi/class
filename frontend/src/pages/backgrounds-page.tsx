@@ -83,7 +83,20 @@ export function BackgroundsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <p className="mb-4 text-xs text-muted-foreground">{item.credit}</p>
+              <p className="mb-4 text-xs text-muted-foreground">
+                {item.credit.href ? (
+                  <a
+                    href={item.credit.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-4 hover:text-foreground"
+                  >
+                    {item.credit.label}
+                  </a>
+                ) : (
+                  item.credit.label
+                )}
+              </p>
               <Button
                 className="w-full"
                 variant={current === item.id ? 'secondary' : 'default'}

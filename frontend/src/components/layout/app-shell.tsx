@@ -46,6 +46,7 @@ import {
   SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
+  useSidebar,
 } from '@/components/ui/sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAuth } from '@/features/auth/auth-context'
@@ -64,11 +65,27 @@ const navigation = [
   { to: '/credits', label: '致谢', icon: Sparkles },
 ]
 
+function ScrollToTop() {
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [])
+  return null
+}
+
+function CloseMobileSidebar() {
+  const { setOpenMobile } = useSidebar()
+  useEffect(() => {
+    setOpenMobile(false)
+  }, [setOpenMobile])
+  return null
+}
+
 function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
   const location = useLocation()
 
   return (
     <Sidebar collapsible="icon">
+      <CloseMobileSidebar key={location.pathname} />
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -173,6 +190,13 @@ export function AppShell() {
   return (
     <TooltipProvider>
       <SidebarProvider>
+        <ScrollToTop key={location.pathname} />
+        <a
+          href="#page-content"
+          className="sr-only fixed left-3 top-3 z-50 rounded-md bg-background px-3 py-2 text-sm font-medium shadow focus:not-sr-only"
+        >
+          跳到主要内容
+        </a>
         <AppSidebar onClearAccess={clearAccess} />
         <SidebarInset>
           <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border/70 bg-background/82 px-4 backdrop-blur-xl">
@@ -191,6 +215,8 @@ export function AppShell() {
             )}
           </header>
           <div
+            id="page-content"
+            tabIndex={-1}
             key={location.pathname}
             className="mx-auto min-h-[calc(100svh-9rem)] w-full max-w-6xl px-4 py-8 sm:px-7 sm:py-10 lg:px-10 lg:py-12"
           >

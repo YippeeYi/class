@@ -47,3 +47,12 @@
 - P2：共享图片查看、资源刷新、相邻书面页预载、授权纪元缓存、背景预览重试和动态取色缓存均已完成。
 - P3：shadcn AlertDialog、Item、Sidebar、Select、Tabs、Toggle、Chart、Empty、Skeleton、Spinner 均按公开组合 API 使用；`frontend/src/components/ui` 零改动；无 legacy 兼容运行分支。
 - 验证：TypeScript、Biome、11 组回归测试和 Vite 生产构建通过。
+
+## 二次验收补充项
+
+21. 修复记录、时间线、搜索、资料四处 URL 与 React state 的双向一致性，保证同页深链及浏览器历史可恢复。
+22. 消除邀请码成功后的返回地址二次消费竞态，并改用 shadcn `FieldError` 的字段级错误语义。
+23. 恢复致谢空状态、动态文档标题和背景摄影来源链接。
+24. 补充 pathname 滚动复位、跳过导航入口、移动端 Sidebar 跳转后关闭和 Suspense Spinner。
+
+状态：21–24 均已完成；它们属于首轮自动化契约未覆盖、但会直接影响真实浏览器体验的小功能。

@@ -1,6 +1,6 @@
 import { Eye, FileImage, List, ShieldAlert } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { ImageViewer } from '@/components/archive/image-viewer'
@@ -47,6 +47,28 @@ import {
   loadRecords,
 } from '@/services/data'
 import type { PageMessage, PageSupplement, RecordItem, RecordPage } from '@/types/domain'
+
+function criteriaFromSearch(params: URLSearchParams): RecordCriteria {
+  return {
+    year: params.get('year') || '',
+    month: params.get('month') || '',
+    day: params.get('day') || '',
+    important: ['1', 'true'].includes(params.get('important') || ''),
+    excludeDaily: ['1', 'true'].includes(params.get('excludeDaily') || ''),
+    query: params.get('q') || '',
+  }
+}
+
+function sameCriteria(left: RecordCriteria, right: RecordCriteria) {
+  return (
+    left.year === right.year &&
+    left.month === right.month &&
+    left.day === right.day &&
+    left.important === right.important &&
+    left.excludeDaily === right.excludeDaily &&
+    left.query === right.query
+  )
+}
 
 function withinPage(page: RecordPage, record: RecordItem, records: RecordItem[]) {
   const ordered = records.map((item) => normalizeRecordKey(item.fileName || item.id))
@@ -278,18 +300,12 @@ function PageImagePreloader({
 
 export function RecordsPage() {
   const archive = useArchive()
+  const location = useLocation()
   const [params, setParams] = useSearchParams()
   const [view, setView] = useState<'list' | 'written'>(
     params.get('view') === 'written' ? 'written' : 'list',
   )
-  const [criteria, setCriteria] = useState<RecordCriteria>({
-    year: params.get('year') || '',
-    month: params.get('month') || '',
-    day: params.get('day') || '',
-    important: ['1', 'true'].includes(params.get('important') || ''),
-    excludeDaily: ['1', 'true'].includes(params.get('excludeDaily') || ''),
-    query: params.get('q') || '',
-  })
+  const [criteria, setCriteria] = useState<RecordCriteria>(() => criteriaFromSearch(params))
   const [hidden, setHidden] = useState(false)
   const [hiddenRecords, setHiddenRecords] = useState<RecordItem[]>([])
   const [hiddenError, setHiddenError] = useState('')
@@ -304,6 +320,9 @@ export function RecordsPage() {
           }
         : null),
   )
+  const observedLocationKey = useRef(location.key)
+  const observedHash = useRef(location.hash)
+  const [jumpRevision, setJumpRevision] = useState(0)
   const [jumpDialogOpen, setJumpDialogOpen] = useState(false)
   const [jumpOriginHref, setJumpOriginHref] = useState('')
   const written = useAsyncData(async () => {
@@ -318,6 +337,30 @@ export function RecordsPage() {
   useEffect(() => {
     document.title = '编日史 · 记录'
   }, [])
+  useEffect(() => {
+    const nextView = params.get('view') === 'written' ? 'written' : 'list'
+    const nextCriteria = criteriaFromSearch(params)
+    setView((current) => (current === nextView ? current : nextView))
+    setCriteria((current) => (sameCriteria(current, nextCriteria) ? current : nextCriteria))
+  }, [params])
+  useEffect(() => {
+    if (observedLocationKey.current === location.key) return
+    observedLocationKey.current = location.key
+    const hashChanged = observedHash.current !== location.hash
+    observedHash.current = location.hash
+    const next =
+      consumeRecordJump() ||
+      (hashChanged && location.hash
+        ? {
+            targetAnchorId: decodeURIComponent(location.hash.slice(1)),
+            originHref: '',
+            createdAt: Date.now(),
+          }
+        : null)
+    if (!next) return
+    pendingJump.current = next
+    setJumpRevision((value) => value + 1)
+  }, [location.hash, location.key])
   useEffect(() => {
     let buffer = ''
     const listener = async (event: KeyboardEvent) => {
@@ -369,11 +412,13 @@ export function RecordsPage() {
     if (criteria.day) next.set('day', criteria.day)
     if (criteria.important) next.set('important', '1')
     if (criteria.excludeDaily) next.set('excludeDaily', '1')
-    setParams(next, { replace: true })
+    const current = new URLSearchParams(window.location.search)
+    if (next.toString() !== current.toString()) setParams(next, { replace: true })
   }, [criteria, setParams, view])
 
   const loading = !hidden && (!archive.data || archive.loading)
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: jumpRevision re-runs the locator after a same-page route stores a new pending jump in the ref.
   useEffect(() => {
     const pending = pendingJump.current
     if (loading || view !== 'list' || !pending || !filtered.length) return
@@ -397,7 +442,7 @@ export function RecordsPage() {
       setJumpDialogOpen(true)
     }
     return () => window.clearTimeout(timer)
-  }, [filtered, loading, view])
+  }, [filtered, jumpRevision, loading, view])
 
   const returnToOrigin = () => {
     if (!jumpOriginHref) return

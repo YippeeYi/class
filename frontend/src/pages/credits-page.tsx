@@ -1,7 +1,7 @@
 import { Heart, Paperclip, Users } from 'lucide-react'
 import { useEffect } from 'react'
 
-import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { MarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,8 +11,14 @@ import { loadCredits } from '@/services/data'
 export function CreditsPage() {
   const resource = useAsyncData(() => loadCredits())
   useEffect(() => {
-    document.title = '制作组与致谢 · 编日史'
-  }, [])
+    document.title = resource.data?.title || '制作组与致谢 · 编日史'
+  }, [resource.data?.title])
+  const hasContent = Boolean(
+    resource.data &&
+      (resource.data.sections.length ||
+        resource.data.thanks.length ||
+        resource.data.originalImages.length),
+  )
   return (
     <div>
       <PageHeading
@@ -21,7 +27,10 @@ export function CreditsPage() {
       />
       {resource.loading && <PageSkeleton rows={4} />}
       {resource.error && <ErrorState title="致谢内容加载失败" onRetry={resource.retry} />}
-      {resource.data && (
+      {resource.data && !hasContent && (
+        <EmptyState title="暂无可展示内容" description="制作组与致谢页面还没有可显示的资料。" />
+      )}
+      {resource.data && hasContent && (
         <div className="grid gap-4 md:grid-cols-2">
           {resource.data.sections.map((section) => (
             <Card key={section.id} className="bg-card/80">
