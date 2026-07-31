@@ -130,7 +130,10 @@ export function PersonPage() {
         </Tabs>
       </div>
       <RecordFilters records={allRelated} value={criteria} onChange={setCriteria} />
-      <div className="grid gap-4">
+      <div
+        key={`${mode}-${criteria.year}-${criteria.month}-${criteria.day}-${criteria.important}-${criteria.excludeDaily}-${criteria.query}`}
+        className="grid gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+      >
         {related.length ? (
           related.map((record) => <RecordCard record={record} key={record.fileName || record.id} />)
         ) : (

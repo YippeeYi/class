@@ -207,3 +207,18 @@ Storage 只允许 `classrecord-private`：普通附件和书面页需 access；`
 10. **注释可读性**：注释 tooltip 的正文继承 tooltip 前景色而非页面正文色，文本与填充有足够对比；嵌套标记继续可读。
 11. **嵌套语法稳定性**：删除线、下划线、标红、注释、人物/名言/记录引用、插图、分式、箭头和表格均由递归平衡语法解析。子引用 hover 不应改变父级删除线的布局、透明度或绘制结构。
 12. **手写记录 Sticky**：宽屏采用约 `42% / 58%` 图文双栏；图片列在页面滚动时固定于顶栏下方，图片保持比例且不超过可用视口高度。窄屏恢复自然单列流，不强制固定。
+
+## 15. 第四次专项考古：尺寸门、固定致谢与状态过渡
+
+本轮再次回到 `b0923d471abbf85f0bf88fbb635cefbbbb041e37` 的 `js/recordRenderer.js`、`js/guide.js`、背景脚本、书面记录页与地图页，确认以下不是单纯视觉偏好，而是旧版完整体验的一部分：
+
+1. **插图尺寸门**：`preloadIllustrationDimensionsFromData()` 在内容渲染前扫描 records、quotes、pageMessages、pageSupplements、materials、credits 中的全部字符串；图片原文件只读取前 64 KiB 来解析 PNG、JPEG、GIF、WebP、SVG 尺寸，完整 `Image` 解码只是兼容回退。尺寸写入访问范围缓存，30 天新鲜、90 天可作为 stale 数据复用。
+2. **插图 tooltip 几何锁定**：`calculateIllustrationPreviewFrame()` 以源尺寸在 `360×280` 和当前视口内 fit；tooltip 的 loading 框、图片元素 width/height 与解码完成后的显示框使用同一组数值。常规路径下不会先显示 4:3 再跳为真实比例；只有元数据读取确实失败时才允许兼容降级。
+3. **手写图片稳定占位**：书面页在图片字节完成前已经知道页面图片比例；相邻页同时预热。宽屏图片列继续 sticky，换页时内容变化有克制过渡，但图片框本身不因解码完成改变高度。
+4. **蹭饭图稳定占位**：地图数据库行单独保存 `width/height`，旧版默认值 `4838×2721` 与实际图一致；加载、失败和最终图都位于同一比例容器，大图入口继续使用私有短期签名。
+5. **制作与致谢入口**：导览页不把致谢作为普通“探索卡片”重复陈列；全站固定入口与左侧导航入口并存，让贡献信息随时可达但不抢占主导航内容层级。
+6. **Sidebar 接缝**：折叠接缝属于 Sidebar 自身交互区域，hover、active、光标方向和折叠状态由官方 rail 行为表达；业务层只允许用 token 和 `className` 提高可见反馈。
+7. **背景切换**：背景图、遮罩、内容表面和文字对比共同构成一个系统。切换不应闪白或突然跳变；选择预览必须保持固定比例、显示加载/失败/当前状态和安全署名。
+8. **非导航状态变化**：提示轮换、筛选、排序、资料切换、书面换页、答题反馈和图表指标切换均使用短时淡入或组件原生过渡，并统一尊重 `prefers-reduced-motion`；页面跳转仍以快速进入新内容为主。
+
+关键基准位置：`js/recordRenderer.js` 的 `parseIllustrationDimensions`、`warmIllustrationAsset`、`warmIllustrationPaths`、`preloadIllustrationDimensionsFromData`、`calculateIllustrationPreviewFrame`；地图尺寸由私有资产表及 `map.html` 的固定 intrinsic geometry 提供；背景与导览行为分别位于 `js/backgroundSwitcher.js`、`js/backgroundOptions.js`、`js/guide.js`。

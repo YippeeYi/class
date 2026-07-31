@@ -26,12 +26,12 @@ export function MaterialsPage() {
     setParams(id ? { id } : {}, { replace: true })
   }
   return (
-    <div>
-      <PageHeading title="资料" description="班级档案的补充材料与专题内容。" />
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <PageHeading title="资料" description="班级档案的补充材料与专题内容。" className="shrink-0" />
       {resource.loading && <PageSkeleton rows={4} />}
       {resource.error && <ErrorState title="资料加载失败" onRetry={resource.retry} />}
       {resource.data && (
-        <div className="grid h-[calc(100svh-11rem)] min-h-[32rem] grid-rows-[minmax(10rem,.38fr)_minmax(0,1fr)] gap-5 md:grid-cols-[15rem_1fr] md:grid-rows-1">
+        <div className="grid min-h-0 flex-1 grid-rows-[minmax(9rem,.36fr)_minmax(0,1fr)] gap-5 md:grid-cols-[15rem_1fr] md:grid-rows-1">
           <Card className="min-h-0 gap-0 overflow-hidden py-0">
             <CardHeader className="border-b py-4">
               <CardTitle className="flex items-center gap-2">
@@ -65,7 +65,10 @@ export function MaterialsPage() {
             </CardHeader>
             <CardContent className="min-h-0 flex-1 pb-4">
               <ScrollArea className="h-full pr-4">
-                <div className="py-1">
+                <div
+                  key={activeId}
+                  className="py-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+                >
                   {active ? (
                     <MarkupContent content={active.content} />
                   ) : (

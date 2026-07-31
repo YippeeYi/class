@@ -10,6 +10,7 @@ const DEFAULT_FRESH = 24 * 60 * 60 * 1000
 const DEFAULT_STALE = 7 * 24 * 60 * 60 * 1000
 const memory = new Map<string, CacheEntry<unknown>>()
 const inflight = new Map<string, Promise<unknown>>()
+let generation = 0
 
 function accessScope() {
   try {
@@ -81,6 +82,7 @@ function openDatabase(): Promise<IDBDatabase | null> {
 
 async function readPersistent<T>(
   key: string,
+  freshTtl: number,
   staleTtl: number,
 ): Promise<(CacheEntry<T> & { stale: boolean }) | null> {
   const database = await openDatabase()
@@ -95,7 +97,7 @@ async function readPersistent<T>(
   })
   database.close()
   if (!result || !Number.isFinite(result.time) || Date.now() - result.time >= staleTtl) return null
-  return { ...result, stale: Date.now() - result.time >= DEFAULT_FRESH }
+  return { ...result, stale: Date.now() - result.time >= freshTtl }
 }
 
 async function writePersistent<T>(key: string, data: T) {
@@ -143,7 +145,7 @@ export async function loadCached<T>({
       return session.data
     }
     if (persistent) {
-      const stored = await readPersistent<T>(key, Math.max(staleTtl, freshTtl))
+      const stored = await readPersistent<T>(key, freshTtl, Math.max(staleTtl, freshTtl))
       if (stored && !stored.stale) {
         memory.set(scoped, stored)
         if (sessionTtl > 0) writeSession(key, stored.data)
@@ -153,8 +155,10 @@ export async function loadCached<T>({
     }
   }
 
+  const requestGeneration = generation
   const request = loader()
     .then((data) => {
+      if (requestGeneration !== generation) return data
       const entry = { time: Date.now(), data }
       memory.set(scoped, entry)
       if (sessionTtl > 0) writeSession(key, data)
@@ -175,6 +179,7 @@ export async function loadCached<T>({
 }
 
 export function clearRuntimeCache() {
+  generation += 1
   memory.clear()
   inflight.clear()
 }

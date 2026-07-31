@@ -33,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
 import { useAsyncData } from '@/hooks/use-async-data'
@@ -46,6 +47,7 @@ import {
   loadRecordPages,
   loadRecords,
 } from '@/services/data'
+import { rememberImageDimensions, useImageDimensions } from '@/services/image-metadata'
 import type { PageMessage, PageSupplement, RecordItem, RecordPage } from '@/types/domain'
 
 function criteriaFromSearch(params: URLSearchParams): RecordCriteria {
@@ -191,10 +193,14 @@ function WrittenRecordPages({
               value={String(safeIndex)}
               onValueChange={(value) => onPageChange(Number(value))}
             >
-              <SelectTrigger size="sm" aria-label="跳转书面页" className="w-24">
+              <SelectTrigger
+                size="sm"
+                aria-label="跳转书面页"
+                className="w-28 bg-background/85 transition-colors hover:bg-accent/55"
+              >
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent align="start">
                 {visiblePages.map((item, index) => (
                   <SelectItem key={item.page} value={String(index)}>
                     第 {item.page} 页
@@ -211,7 +217,10 @@ function WrittenRecordPages({
             下一页
           </Button>
         </div>
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(20rem,42%)_minmax(0,1fr)]">
+        <div
+          key={page.imagePath}
+          className="grid items-start gap-5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 lg:grid-cols-[minmax(20rem,42%)_minmax(0,1fr)]"
+        >
           <div className="min-h-0 self-start lg:sticky lg:top-20">
             <ImageViewer
               path={page.imagePath}
@@ -222,7 +231,7 @@ function WrittenRecordPages({
                   variant="ghost"
                   className="h-auto w-full overflow-hidden border bg-muted/40 p-2"
                 >
-                  <SignedPageImage path={page.imagePath} page={page.page} />
+                  <SignedPageImage key={page.imagePath} path={page.imagePath} page={page.page} />
                 </Button>
               }
             />
@@ -269,15 +278,45 @@ function WrittenRecordPages({
 
 function SignedPageImage({ path, page }: { path: string; page: string }) {
   const image = useSignedAsset(path)
-  if (image.loading) return <PageSkeleton rows={1} />
-  if (!image.src) return <ErrorState title="手写页图片加载失败" onRetry={image.retry} />
+  const dimensions = useImageDimensions(path) || { width: 2856, height: 4282 }
+  const [ready, setReady] = useState(false)
+  const ratio = dimensions.width / dimensions.height
   return (
-    <img
-      src={image.src}
-      alt={`手写记录第 ${page} 页`}
-      onError={() => void image.retry()}
-      className="mx-auto max-h-[calc(100svh-6rem)] w-full object-contain"
-    />
+    <div
+      className="relative mx-auto grid max-w-full place-items-center overflow-hidden rounded-md bg-muted/55"
+      style={{
+        aspectRatio: `${dimensions.width} / ${dimensions.height}`,
+        width: `min(100%, calc((100svh - 6rem) * ${ratio}))`,
+      }}
+      aria-busy={!ready && !image.error}
+    >
+      {!ready && !image.error && <Spinner className="size-7" />}
+      {image.error && !image.src && (
+        <p className="px-4 text-center text-sm text-muted-foreground">
+          手写页图片加载失败，点击图片后可在大图窗口重试。
+        </p>
+      )}
+      {image.src && (
+        <img
+          src={image.src}
+          width={dimensions.width}
+          height={dimensions.height}
+          alt={`手写记录第 ${page} 页`}
+          onLoad={(event) => {
+            rememberImageDimensions(path, {
+              width: event.currentTarget.naturalWidth,
+              height: event.currentTarget.naturalHeight,
+            })
+            setReady(true)
+          }}
+          onError={() => {
+            setReady(false)
+            void image.retry()
+          }}
+          className={`absolute inset-0 size-full object-contain transition-opacity duration-300 ${ready ? 'opacity-100' : 'opacity-0'}`}
+        />
+      )}
+    </div>
   )
 }
 
@@ -514,7 +553,10 @@ export function RecordsPage() {
       {loading && <PageSkeleton rows={5} />}
       {archive.error && !hidden && <ErrorState title="记录加载失败" onRetry={archive.retry} />}
       {!loading && (!archive.error || hidden) && view === 'list' && (
-        <div className="grid gap-4">
+        <div
+          key={`${criteria.year}-${criteria.month}-${criteria.day}-${criteria.important}-${criteria.excludeDaily}-${criteria.query}`}
+          className="grid gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+        >
           {filtered.length ? (
             filtered.map((record) => (
               <RecordCard key={record.fileName || record.id} record={record} />

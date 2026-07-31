@@ -421,15 +421,27 @@ export async function signAssetUrl(
   return promise
 }
 
+export function loadMealMapMetadata(force = false) {
+  return loadCached<{ width: number; height: number } | null>({
+    key: 'private-asset:meal-map:dimensions',
+    force,
+    loader: async () => {
+      const { data, error } = await currentClient()
+        .from(supabaseConfig.tables.privateAssets)
+        .select('asset_key,width,height,updated_at')
+        .eq('asset_key', 'meal-map')
+        .maybeSingle()
+      if (error) throw error
+      if (!data) return null
+      return { width: Number(data.width) || 4838, height: Number(data.height) || 2721 }
+    },
+  })
+}
+
 export async function loadMealMap() {
-  const { data, error } = await currentClient()
-    .from(supabaseConfig.tables.privateAssets)
-    .select('asset_key,width,height,updated_at')
-    .eq('asset_key', 'meal-map')
-    .maybeSingle()
-  if (error) throw error
-  if (!data) return null
+  const dimensions = await loadMealMapMetadata()
+  if (!dimensions) return null
   const url = await signAssetUrl('images/private/meal-map.png')
   if (!url) return null
-  return { url, width: Number(data.width) || 4838, height: Number(data.height) || 2721 }
+  return { url, ...dimensions }
 }

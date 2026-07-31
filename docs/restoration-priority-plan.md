@@ -73,3 +73,28 @@
 36. 恢复手写记录约 42% 图片列、视口高度限制和宽屏 Sticky。
 
 状态：25–36 已完成。新增/更新的静态契约覆盖 active Sidebar、背景透出、双 ScrollArea、手写 Sticky、近全屏 Dialog、饼图动画、题图预热、插图旧版几何和嵌套 AST；验收仍要求 TypeScript、Biome、11 组回归测试及两种 Vite base 构建全部通过。
+
+## 第五次专项验收项
+
+37. 统一答题题型与内容筛选的 shadcn Button 颜色和完整状态。
+38. 为全部管理员 `???` 题图建立进入题池前的尺寸门，并锁定加载前后容器比例。
+39. 以题干上方坐标为基准补偿切题滚动，避免阅读位置跳动。
+40. 收紧统一 PageHeading 的标题—正文节奏。
+41. 锁定资料页外层视口，保留目录与正文两个独立 shadcn ScrollArea。
+42. 将标记语法表格改为 shadcn Table 官方组合。
+43. 增加 Sidebar 路由意图预取，并阻止全局图片元数据任务强制加载无关数据。
+
+状态：37–43 均已完成；类型检查、Biome、11 组回归测试和 Vite 8 生产构建通过。浏览器运行时验证门禁页无控制台错误；受保护页面未使用邀请码绕过安全门禁。
+
+## 第四次专项验收项
+
+37. 建立共享图片 intrinsic metadata 服务，恢复 64 KiB Range 解析、完整解码回退、访问范围缓存和并发去重。
+38. 在 ProtectedApp 入口扫描全部公开标记内容、书面页路径及地图尺寸，提前填充图片几何缓存。
+39. 将插图 HoverCard 改为尺寸门控和单次打开 frame 锁定，禁止 loading → ready 改变 tooltip 大小。
+40. 为手写页和蹭饭图建立固定比例加载容器，保留 sticky、相邻预载、私有签名、大图查看和失败恢复。
+41. 删除导览页重复致谢 Item，保留 Sidebar 入口，并以 shadcn Button 添加全站右下固定入口。
+42. 继续使用官方 SidebarRail/SidebarMenuButton/Select，只通过业务 `className` 强化 rail、active、hover、open ring 和一致宽度。
+43. 重构背景为独立渐变遮罩层，统一 16:9 预览、Spinner、错误重试、选中反馈和 reduced-motion-safe 切换动画。
+44. 统一全站基础排版，并为筛选、排序、资料切换、搜索、时间线、答题反馈和页面内容添加克制过渡。
+
+状态：37–44 已实现。专项回归增加 PNG/GIF 元数据解析、全站预取源、tooltip frame 锁定、手写/地图比例容器、固定致谢入口和导览去重契约；最终状态以 TypeScript、Biome、完整测试、生产构建及浏览器视觉验收结果为准。

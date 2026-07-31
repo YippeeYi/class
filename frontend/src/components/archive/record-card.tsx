@@ -84,7 +84,7 @@ export function RecordCard({ record }: { record: RecordItem }) {
         </CardHeader>
         <CardContent className="py-3">
           <MarkupContent content={record.content} />
-          <CollapsibleContent>
+          <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden opacity-100 transition-[height,opacity] duration-200 ease-out data-ending-style:h-0 data-ending-style:opacity-0 data-starting-style:h-0 data-starting-style:opacity-0">
             <div className="mt-3 flex flex-wrap gap-2 border-t border-border/60 pt-3">
               {record.attachments.map((attachment) => (
                 <AttachmentLink key={attachment.file} attachment={attachment} />

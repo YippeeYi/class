@@ -42,10 +42,13 @@ export function QuotesPage() {
         actions={
           <>
             <Select value={sort} onValueChange={(value) => setSort(value as 'id' | 'quote')}>
-              <SelectTrigger aria-label="排序方式">
+              <SelectTrigger
+                aria-label="排序方式"
+                className="min-w-32 bg-background/85 transition-colors hover:bg-accent/55"
+              >
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent align="start">
                 <SelectItem value="id">按 ID</SelectItem>
                 <SelectItem value="quote">按内容</SelectItem>
               </SelectContent>
@@ -59,7 +62,10 @@ export function QuotesPage() {
       {resource.loading && <PageSkeleton rows={5} />}
       {resource.error && <ErrorState title="名言加载失败" onRetry={resource.retry} />}
       {resource.data && (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div
+          key={`${sort}-${descending}`}
+          className="grid gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:grid-cols-2"
+        >
           {quotes.map((quote) => (
             <Card id={`quote-${quote.id}`} key={quote.id} className="scroll-mt-24">
               <CardContent className="pt-4">

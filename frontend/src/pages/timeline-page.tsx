@@ -332,7 +332,10 @@ export function TimelinePage() {
       {resource.error && <ErrorState title="时间线加载失败" onRetry={resource.retry} />}
       {resource.data && !records.length && <EmptyState title="暂无可统计的记录" />}
       {resource.data && records.length > 0 && (
-        <>
+        <div
+          key={`${metric}-${year}-${month}`}
+          className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+        >
           <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {summaryStats.map(({ label, value, icon: Icon }) => (
               <Card key={label}>
@@ -542,7 +545,7 @@ export function TimelinePage() {
               </Link>
             </CardContent>
           </Card>
-        </>
+        </div>
       )}
     </div>
   )

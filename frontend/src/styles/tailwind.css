@@ -137,7 +137,21 @@
     @apply bg-background text-foreground;
     min-width: 320px;
     margin: 0;
+    line-height: 1.6;
+    letter-spacing: 0.005em;
     text-rendering: optimizeLegibility;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p,
+  li {
+    text-wrap: pretty;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 22%, transparent);
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {

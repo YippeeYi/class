@@ -132,3 +132,34 @@
 | 手写 Sticky | Card `overflow-hidden` 阻断 sticky，图片列也未设置 sticky | 业务 Card 覆盖为可见溢出，恢复 `42%/58%` 双栏，图片列 `top-20` sticky，图片高度限制到当前视口；移动端仍自然单列 | A/D |
 
 专项修复只调整业务组件和主题层；`frontend/src/components/ui` 保持 CLI 原生文件零改动。视觉定制使用 token、variant、props、`className` 和业务 wrapper，未创建 shadcn fork。
+
+## 8. 第四次专项差异审查与最终处理
+
+| 专项 | 修改前差异 | 最终实现 | 分类 |
+| --- | --- | --- | --- |
+| 全站插图尺寸预取 | React 版只在首次 hover 后解码完整图片并写入组件内 Map，loading 框会从 4:3 变为真实比例 | 新增共享元数据服务：Range 读取 64 KiB，解析 PNG/JPEG/GIF/WebP/SVG，30/90 天访问范围缓存，四 worker 并发；入口扫描全部公开内容源 | A/D |
+| Tooltip 尺寸一致 | HoverCard 可在尺寸未知时先打开，图片解码后修改 width/height | 使用受控 HoverCard；pointer/focus 先预热，真正打开前锁定一组尺寸，当前打开周期不再改变 frame | A |
+| 手写页加载稳定 | 签名阶段展示通用 Skeleton，图片出现时整列高度变化 | 根据共享 intrinsic geometry 预留比例容器；默认沿用旧版 `2856×4282`，Spinner、错误文案和最终图片共用容器，相邻页继续预载 | A/D |
+| 蹭饭图加载稳定 | 整张 Card 在数据和 URL 返回后才出现 | 尺寸元数据与短期 URL 分离缓存；使用官方 AspectRatio，默认 `4838×2721`，加载、重试和图片共用稳定区域 | A/D |
+| 致谢入口层级 | 导览“继续探索”重复显示独立致谢 Item，底部入口只在正常文档流末尾 | 移除导览重复项；Sidebar 原入口保留；AppShell 右下角使用 shadcn Button 固定显示且当前页有明确状态 | A |
+| Sidebar 接缝 | 已使用 SidebarRail，但默认 2px rail 在当前主题中反馈过弱 | 不改 rail 源码，只给官方 SidebarRail 增加 token 化 hover/active 过渡；MenuButton 继续使用官方 `isActive` | D |
+| 背景层级与切换 | 根元素直接替换 background-image，主面板遮罩偏重，切换突兀 | 独立 fixed 背景层、渐变遮罩、透明内容表面和 500ms reduced-motion-safe 淡入；预览用官方 AspectRatio/Spinner | D |
+| 全站排版 | body 缺统一行高/字距，PageHeading eyebrow 偏小，说明文字部分仅 14px | 统一 1.6 行高、轻微字距、balanced heading、pretty paragraph、selection token；页说明统一 16px/28px | A/D |
+| Select/Dropdown | 记录筛选触发器宽度随文字变化，几个页面的排序下拉视觉密度不一致 | 直接使用 shadcn Select 组合，统一 128/144px 业务宽度、背景/hover/open ring、`align=start`，弹层动画继续由官方组件提供 | A/D |
+| 状态过渡 | 部分筛选、资料切换、搜索结果、答题反馈直接替换 | 页面内容、记录筛选、资料、人物、名言、搜索、时间线、答题反馈和背景使用 150–500ms 克制过渡，并由全局 reduced-motion 规则关闭 | A/D |
+
+shadcn 复核：本轮调用的 SidebarRail、SidebarMenuButton、Select、HoverCard、AspectRatio、Spinner、Button、Card、Collapsible、Tabs、Alert/Dialog 均来自 CLI 下载的原生组件。`frontend/src/components/ui` 与 `node_modules` 没有任何修改；尺寸解析、图片预载和 zoom/pan 属于档案领域逻辑，放在 `lib`、`services`、`features/archive` 与业务 wrapper 中。
+
+## 9. 第五次专项差异审查：答题、资料、表格与切页性能
+
+| 专项 | 修改前差异 | 最终实现 | 分类 |
+| --- | --- | --- | --- |
+| 答题筛选按钮颜色 | 题型选中态为 `default`，内容选中态为 `secondary`，同一筛选器出现两套颜色语义 | 两组均直接使用 shadcn Button 的 `default / outline` 状态；hover、pressed、focus 与 disabled 由同一组件契约提供 | A |
+| `???` 题图尺寸门 | 只预热前 12 张完整图片；当前题仍以固定 `h-56` loading 框开始，解码后换成真实高度 | 管理员解锁题库后，先为全部题图并发读取尺寸，再开放隐藏题池；题图使用一次挂载周期内锁定的 intrinsic ratio，Spinner、错误、重试与最终图片共用容器 | A/D |
+| 切题阅读位置 | 新题内容高度变化时依赖浏览器自然回流，页面接近底部时题干会移动 | 切换前记录题干上方视口坐标，React layout 阶段按差值补偿滚动；题目内容同时保留稳定最小高度 | A/D |
+| 页面标题节奏 | PageHeading 的底部分隔、外边距和说明段间距叠加偏大 | 统一收紧为 24px 外间距、20px 底部 padding、8px 标题说明间距，保留清晰标题层级 | A/D |
+| 资料双区滚动 | 内部虽有两个 ScrollArea，但 AppShell 与资料网格高度叠加后仍可能产生 body 纵向滚动 | `/materials` 使用 `100svh - 4rem` 的固定主区；页面为 `flex` 高度链，目录和正文占用剩余空间并各自滚动，外层 `overflow-hidden` | A |
+| 标记表格 | AST 正确，但渲染仍维护原生 `<table>/<tbody>/<tr>/<td>` 组件树 | 直接组合 shadcn `Table / TableBody / TableRow / TableCell`，领域 CSS 只负责宽度估算、边框与内容排版 | A |
+| 页面切换速度 | 已有 route lazy，但只有点击后才开始取 chunk；全局图片元数据组件还会主动触发整套 Archive 加载 | 集中复用动态 import loader，并在 Sidebar pointer/focus 意图时预取；元数据组件改用无副作用 snapshot，只在档案数据已被页面需要后延迟预热 | D/A |
+
+专项回归已加入 `test-quiz-core`、`test-record-markup`、`test-static-site` 和 `test-illustration-preload`。生产构建确认各业务页保持独立 chunk；本轮仍未修改 `frontend/src/components/ui`。

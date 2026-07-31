@@ -50,6 +50,8 @@ import {
 } from '@/components/ui/sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAuth } from '@/features/auth/auth-context'
+import { preloadRoute } from '@/lib/route-preload'
+import { cn } from '@/lib/utils'
 
 const navigation = [
   { to: '/', label: '导览', icon: Home },
@@ -89,7 +91,13 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" tooltip="编日史" render={<Link to="/" />}>
+            <SidebarMenuButton
+              size="lg"
+              tooltip="编日史"
+              onPointerEnter={() => void preloadRoute('/')}
+              onFocus={() => void preloadRoute('/')}
+              render={<Link to="/" />}
+            >
               <span className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground">
                 编
               </span>
@@ -118,7 +126,9 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
                     <SidebarMenuButton
                       isActive={isActive}
                       tooltip={label}
-                      className="data-active:bg-sidebar-primary data-active:text-sidebar-primary-foreground data-active:hover:bg-sidebar-primary/90 data-active:hover:text-sidebar-primary-foreground"
+                      className="transition-colors duration-150 data-active:bg-sidebar-primary data-active:text-sidebar-primary-foreground data-active:hover:bg-sidebar-primary/90 data-active:hover:text-sidebar-primary-foreground"
+                      onPointerEnter={() => void preloadRoute(to)}
+                      onFocus={() => void preloadRoute(to)}
                       render={<NavLink to={to} />}
                     >
                       <Icon />
@@ -163,7 +173,7 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
-      <SidebarRail />
+      <SidebarRail className="after:rounded-full after:transition-colors after:duration-200 hover:after:bg-sidebar-primary/55 active:after:bg-sidebar-primary" />
     </Sidebar>
   )
 }
@@ -171,6 +181,7 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
 export function AppShell() {
   const { clearAccess } = useAuth()
   const location = useLocation()
+  const isMaterialsPage = location.pathname === '/materials'
   const [fullscreen, setFullscreen] = useState(Boolean(document.fullscreenElement))
 
   useEffect(() => {
@@ -199,8 +210,8 @@ export function AppShell() {
           跳到主要内容
         </a>
         <AppSidebar onClearAccess={clearAccess} />
-        <SidebarInset className="bg-background/82">
-          <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border/70 bg-background/82 px-4 backdrop-blur-xl">
+        <SidebarInset className="bg-background/78">
+          <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border/70 bg-background/84 px-4 backdrop-blur-xl">
             <SidebarTrigger />
             <span className="font-heading text-lg font-semibold">编日史</span>
             {document.fullscreenEnabled && (
@@ -219,15 +230,28 @@ export function AppShell() {
             id="page-content"
             tabIndex={-1}
             key={location.pathname}
-            className="mx-auto min-h-[calc(100svh-9rem)] w-full max-w-6xl px-4 py-8 sm:px-7 sm:py-10 lg:px-10 lg:py-12"
+            className={cn(
+              'mx-auto w-full max-w-6xl px-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-7 lg:px-10',
+              isMaterialsPage
+                ? 'h-[calc(100svh-4rem)] min-h-0 overflow-hidden py-6 pb-20 sm:py-7 sm:pb-20 lg:py-8 lg:pb-20'
+                : 'min-h-[calc(100svh-4rem)] py-8 pb-24 sm:py-10 sm:pb-24 lg:py-12 lg:pb-24',
+            )}
           >
             <Outlet />
           </div>
-          <footer className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 border-t border-border/60 px-4 py-6 text-xs text-muted-foreground sm:px-7 lg:px-10">
-            <span>班级共同记忆档案</span>
-            <Link className="text-primary underline-offset-4 hover:underline" to="/credits">
+          <footer className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-40">
+            <Button
+              size="sm"
+              variant={location.pathname === '/credits' ? 'default' : 'outline'}
+              className="bg-background/90 shadow-sm backdrop-blur-md transition-[background-color,color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-md"
+              render={<Link to="/credits" />}
+              aria-current={location.pathname === '/credits' ? 'page' : undefined}
+              onPointerEnter={() => void preloadRoute('/credits')}
+              onFocus={() => void preloadRoute('/credits')}
+            >
+              <Sparkles data-icon="inline-start" />
               制作与致谢
-            </Link>
+            </Button>
           </footer>
         </SidebarInset>
       </SidebarProvider>

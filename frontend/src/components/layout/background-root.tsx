@@ -189,17 +189,25 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
   }, [selected])
   return (
     <div
-      className="min-h-svh bg-background bg-cover bg-fixed bg-center"
+      className="relative isolate min-h-svh overflow-x-clip bg-background"
       data-background={current}
-      style={
-        selected?.image
-          ? {
-              backgroundImage: `linear-gradient(rgb(20 18 15 / .42), rgb(20 18 15 / .58)), url(${selected.image})`,
-            }
-          : undefined
-      }
     >
-      {children}
+      <div
+        key={current}
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-0 bg-cover bg-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-500"
+        style={
+          selected?.image
+            ? {
+                backgroundImage: `linear-gradient(to bottom, rgb(20 18 15 / .34), rgb(20 18 15 / .52)), url(${selected.image})`,
+              }
+            : {
+                backgroundImage:
+                  'radial-gradient(circle at 85% 10%, color-mix(in oklch, var(--primary) 11%, transparent), transparent 34%), linear-gradient(145deg, var(--background), color-mix(in oklch, var(--secondary) 42%, var(--background)))',
+              }
+        }
+      />
+      <div className="relative z-10 min-h-svh">{children}</div>
     </div>
   )
 }

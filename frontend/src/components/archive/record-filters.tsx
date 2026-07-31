@@ -108,7 +108,7 @@ export function RecordFilters({
   const update = (patch: Partial<RecordCriteria>) => onChange({ ...value, ...patch })
 
   return (
-    <Card className="mb-6">
+    <Card className="mb-6 bg-card/90 shadow-sm">
       <CardContent className="flex flex-col gap-3 pt-4">
         <div className="relative min-w-0 flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -119,7 +119,7 @@ export function RecordFilters({
             placeholder="搜索正文、日期、记录人或附件"
           />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {(
             [
               ['year', '全部年份', years, '年'],
@@ -132,10 +132,13 @@ export function RecordFilters({
               value={value[field] || '__all__'}
               onValueChange={(next) => update({ [field]: next === '__all__' ? '' : next || '' })}
             >
-              <SelectTrigger aria-label={String(allLabel)} className="w-auto min-w-28">
+              <SelectTrigger
+                aria-label={String(allLabel)}
+                className="w-36 bg-background/85 transition-[background-color,border-color,box-shadow] hover:bg-accent/55 data-popup-open:border-ring data-popup-open:ring-3 data-popup-open:ring-ring/20"
+              >
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent align="start">
                 <SelectItem value="__all__">{String(allLabel)}</SelectItem>
                 {options.map((option) => (
                   <SelectItem value={option} key={option}>

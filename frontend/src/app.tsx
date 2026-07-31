@@ -4,49 +4,51 @@ import { AppShell } from '@/components/layout/app-shell'
 import { BackgroundRoot } from '@/components/layout/background-root'
 import { Spinner } from '@/components/ui/spinner'
 import { ArchiveProvider } from '@/features/archive/archive-context'
+import { ImageMetadataPreloader } from '@/features/archive/image-metadata-preloader'
 import { AccessGate } from '@/features/auth/access-gate'
+import { routeModuleLoaders } from '@/lib/route-preload'
 
 const AuthPage = lazy(() =>
-  import('@/pages/auth-page').then((module) => ({ default: module.AuthPage })),
+  routeModuleLoaders.auth().then((module) => ({ default: module.AuthPage })),
 )
 const BackgroundsPage = lazy(() =>
-  import('@/pages/backgrounds-page').then((module) => ({ default: module.BackgroundsPage })),
+  routeModuleLoaders.backgrounds().then((module) => ({ default: module.BackgroundsPage })),
 )
 const CreditsPage = lazy(() =>
-  import('@/pages/credits-page').then((module) => ({ default: module.CreditsPage })),
+  routeModuleLoaders.credits().then((module) => ({ default: module.CreditsPage })),
 )
 const HomePage = lazy(() =>
-  import('@/pages/home-page').then((module) => ({ default: module.HomePage })),
+  routeModuleLoaders.home().then((module) => ({ default: module.HomePage })),
 )
 const MaterialsPage = lazy(() =>
-  import('@/pages/materials-page').then((module) => ({ default: module.MaterialsPage })),
+  routeModuleLoaders.materials().then((module) => ({ default: module.MaterialsPage })),
 )
 const MealMapPage = lazy(() =>
-  import('@/pages/meal-map-page').then((module) => ({ default: module.MealMapPage })),
+  routeModuleLoaders.map().then((module) => ({ default: module.MealMapPage })),
 )
 const NotFoundPage = lazy(() =>
-  import('@/pages/not-found-page').then((module) => ({ default: module.NotFoundPage })),
+  routeModuleLoaders.notFound().then((module) => ({ default: module.NotFoundPage })),
 )
 const PeoplePage = lazy(() =>
-  import('@/pages/people-page').then((module) => ({ default: module.PeoplePage })),
+  routeModuleLoaders.people().then((module) => ({ default: module.PeoplePage })),
 )
 const PersonPage = lazy(() =>
-  import('@/pages/person-page').then((module) => ({ default: module.PersonPage })),
+  routeModuleLoaders.person().then((module) => ({ default: module.PersonPage })),
 )
 const QuizPage = lazy(() =>
-  import('@/pages/quiz-page').then((module) => ({ default: module.QuizPage })),
+  routeModuleLoaders.quiz().then((module) => ({ default: module.QuizPage })),
 )
 const QuotesPage = lazy(() =>
-  import('@/pages/quotes-page').then((module) => ({ default: module.QuotesPage })),
+  routeModuleLoaders.quotes().then((module) => ({ default: module.QuotesPage })),
 )
 const RecordsPage = lazy(() =>
-  import('@/pages/records-page').then((module) => ({ default: module.RecordsPage })),
+  routeModuleLoaders.records().then((module) => ({ default: module.RecordsPage })),
 )
 const SearchPage = lazy(() =>
-  import('@/pages/search-page').then((module) => ({ default: module.SearchPage })),
+  routeModuleLoaders.search().then((module) => ({ default: module.SearchPage })),
 )
 const TimelinePage = lazy(() =>
-  import('@/pages/timeline-page').then((module) => ({ default: module.TimelinePage })),
+  routeModuleLoaders.timeline().then((module) => ({ default: module.TimelinePage })),
 )
 
 export function App() {
@@ -73,6 +75,7 @@ function ProtectedApp(): ReactElement {
   return (
     <AccessGate>
       <ArchiveProvider>
+        <ImageMetadataPreloader />
         <BackgroundRoot>
           <Routes>
             <Route element={<AppShell />}>

@@ -8,7 +8,6 @@ import {
   Map as MapIcon,
   MessageSquareQuote,
   Search,
-  Sparkles,
   Users,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -45,7 +44,6 @@ const secondary = [
   { to: '/materials', label: '资料', description: '阅读补充资料与专题', icon: FileText },
   { to: '/map', label: '蹭饭图', description: '班级成员内部地图', icon: MapIcon },
   { to: '/backgrounds', label: '背景', description: '选择全站视觉背景', icon: Image },
-  { to: '/credits', label: '制作与致谢', description: '记录每一位贡献者', icon: Sparkles },
 ]
 
 export function HomePage() {
@@ -141,7 +139,12 @@ export function HomePage() {
             把散落在日常里的事件、人物、话语和资料，整理成一部可以搜索、回看，也可以继续生长的班级档案。
           </p>
           <p className="guide-tip mt-4 text-sm text-muted-foreground" aria-live="polite">
-            {tips[tipIndex]}
+            <span
+              key={tipIndex}
+              className="inline-block motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+            >
+              {tips[tipIndex]}
+            </span>
           </p>
         </div>
       </section>

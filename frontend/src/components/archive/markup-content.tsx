@@ -1,17 +1,22 @@
-import { Fragment, type ReactNode, useEffect, useMemo, useState } from 'react'
+import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { ImageViewer } from '@/components/archive/image-viewer'
 import { Button } from '@/components/ui/button'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { Spinner } from '@/components/ui/spinner'
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
+import type { ImageDimensions } from '@/lib/image-metadata'
 import { type MarkupNode, parseMarkup } from '@/lib/markup'
 import { prepareRecordJump } from '@/lib/record-navigation'
-
-type ImageDimensions = { width: number; height: number }
-const illustrationDimensions = new Map<string, ImageDimensions>()
+import {
+  getImageDimensions,
+  preloadImageDimensions,
+  rememberImageDimensions,
+  useImageDimensions,
+} from '@/services/image-metadata'
 
 function previewFrame(dimensions: ImageDimensions | null) {
   const maxWidth = Math.max(1, Math.min(360, window.innerWidth - 40))
@@ -51,13 +56,14 @@ function Annotation({ note, children }: { note: string; children: ReactNode }) {
 
 function IllustrationReference({ path, children }: { path: string; children: ReactNode }) {
   const [requested, setRequested] = useState(false)
-  const [dimensions, setDimensions] = useState<ImageDimensions | null>(
-    () => illustrationDimensions.get(path) || null,
-  )
+  const dimensions = useImageDimensions(path)
+  const [lockedDimensions, setLockedDimensions] = useState<ImageDimensions | null>(null)
+  const [open, setOpen] = useState(false)
   const [ready, setReady] = useState(false)
   const [decodeFailed, setDecodeFailed] = useState(false)
+  const openRequest = useRef(0)
   const preview = useSignedAsset(requested ? path : '', { refresh: false })
-  const frame = previewFrame(dimensions)
+  const frame = previewFrame(lockedDimensions || dimensions)
 
   useEffect(() => {
     if (!preview.src) return
@@ -70,8 +76,7 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
     image.onload = () => {
       if (!active || !image.naturalWidth || !image.naturalHeight) return
       const next = { width: image.naturalWidth, height: image.naturalHeight }
-      illustrationDimensions.set(path, next)
-      setDimensions(next)
+      rememberImageDimensions(path, next)
       setReady(true)
     }
     image.onerror = () => {
@@ -83,9 +88,33 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
     }
   }, [path, preview.src])
 
-  const requestPreview = () => setRequested(true)
+  const requestPreview = () => {
+    setRequested(true)
+    void preloadImageDimensions(path)
+  }
+  const changeOpen = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      openRequest.current += 1
+      setOpen(false)
+      setLockedDimensions(null)
+      return
+    }
+    requestPreview()
+    const request = ++openRequest.current
+    const known = getImageDimensions(path)
+    if (known) {
+      setLockedDimensions(known)
+      setOpen(true)
+      return
+    }
+    void preloadImageDimensions(path).then((loaded) => {
+      if (request !== openRequest.current) return
+      setLockedDimensions(loaded || { width: 240, height: 180 })
+      setOpen(true)
+    })
+  }
   return (
-    <HoverCard onOpenChange={(open) => open && requestPreview()}>
+    <HoverCard open={open} onOpenChange={changeOpen}>
       <HoverCardTrigger
         render={
           <span className="inline">
@@ -112,7 +141,7 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
       />
       <HoverCardContent side="top" align="start" className="w-auto max-w-[calc(100vw-1rem)] p-2">
         <div
-          className="grid place-items-center overflow-hidden rounded-md bg-muted/55 transition-[width,height] duration-150"
+          className="grid place-items-center overflow-hidden rounded-md bg-muted/55"
           style={{ width: frame.width, height: frame.height }}
         >
           {(preview.loading || (preview.src && !ready && !decodeFailed)) && (
@@ -134,9 +163,9 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
             <img
               src={preview.src}
               alt="记录插图预览"
-              width={dimensions?.width}
-              height={dimensions?.height}
-              className="size-full object-contain"
+              width={lockedDimensions?.width || dimensions?.width}
+              height={lockedDimensions?.height || dimensions?.height}
+              className="size-full object-contain motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
             />
           )}
         </div>
@@ -223,23 +252,23 @@ export function MarkupContent({
           </span>
         )
       return (
-        <span key={key} className="record-table-scroll">
-          <table>
-            <tbody>
+        <div key={key} className="record-table-scroll">
+          <Table>
+            <TableBody>
               {node.rows.map((row, rowPosition) => {
                 const rowKey = `${key}-row-${rowPosition}`
                 return (
-                  <tr key={rowKey}>
+                  <TableRow key={rowKey}>
                     {row.map((cell, cellPosition) => {
                       const cellKey = `${rowKey}-cell-${cellPosition}`
-                      return <td key={cellKey}>{renderNodes(cell, cellKey)}</td>
+                      return <TableCell key={cellKey}>{renderNodes(cell, cellKey)}</TableCell>
                     })}
-                  </tr>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
-        </span>
+            </TableBody>
+          </Table>
+        </div>
       )
     })
 

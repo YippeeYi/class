@@ -62,10 +62,15 @@ export function ArchiveProvider({ children }: { children: ReactNode }) {
 }
 
 export function useArchive() {
-  const archive = use(ArchiveContext)
-  if (!archive) throw new Error('useArchive must be used inside ArchiveProvider')
+  const archive = useArchiveSnapshot()
   useEffect(() => {
     void archive.ensure()
   }, [archive.ensure])
+  return archive
+}
+
+export function useArchiveSnapshot() {
+  const archive = use(ArchiveContext)
+  if (!archive) throw new Error('useArchiveSnapshot must be used inside ArchiveProvider')
   return archive
 }

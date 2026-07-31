@@ -83,10 +83,14 @@ function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; 
         </CardTitle>
         <div className="flex flex-wrap gap-2">
           <Select value={sort} onValueChange={(value) => setSort(value as SortKey)}>
-            <SelectTrigger size="sm" aria-label={`${roleLabels[role]}排序方式`}>
+            <SelectTrigger
+              size="sm"
+              aria-label={`${roleLabels[role]}排序方式`}
+              className="min-w-32 bg-background/85 transition-colors hover:bg-accent/55"
+            >
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent align="start">
               <SelectItem value="id">按 ID</SelectItem>
               <SelectItem value="participation">按参与数</SelectItem>
               {role === 'student' && <SelectItem value="record">按记录数</SelectItem>}
@@ -110,49 +114,58 @@ function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; 
         </div>
       </CardHeader>
       <CardContent className="overflow-x-auto px-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="pl-5">序号</TableHead>
-              <TableHead>姓名</TableHead>
-              <TableHead>别名</TableHead>
-              <TableHead>参与</TableHead>
-              {role === 'student' && (
-                <>
-                  <TableHead>记录</TableHead>
-                  <TableHead>记录字数</TableHead>
-                </>
-              )}
-              {role === 'teacher' && <TableHead>学科</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {list.map((person, index) => (
-              <TableRow key={person.id}>
-                <TableCell className="pl-5 text-muted-foreground">{index + 1}</TableCell>
-                <TableCell className="font-medium">
-                  <Link
-                    className="text-primary underline-offset-4 hover:underline"
-                    to={`/person?id=${encodeURIComponent(person.id)}`}
-                  >
-                    {stripMarkup(person.name || person.id)}
-                  </Link>
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {stripMarkup(person.alias) || '—'}
-                </TableCell>
-                <TableCell>{stats.participation.get(person.id) || 0}</TableCell>
+        <div
+          key={`${sort}-${descending}-${mainFirst}`}
+          className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-5">序号</TableHead>
+                <TableHead>姓名</TableHead>
+                <TableHead>别名</TableHead>
+                <TableHead>参与</TableHead>
                 {role === 'student' && (
                   <>
-                    <TableCell>{stats.authored.get(person.id) || 0}</TableCell>
-                    <TableCell>{(stats.characters.get(person.id) || 0).toLocaleString()}</TableCell>
+                    <TableHead>记录</TableHead>
+                    <TableHead>记录字数</TableHead>
                   </>
                 )}
-                {role === 'teacher' && <TableCell>{stripMarkup(person.subject) || '—'}</TableCell>}
+                {role === 'teacher' && <TableHead>学科</TableHead>}
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {list.map((person, index) => (
+                <TableRow key={person.id}>
+                  <TableCell className="pl-5 text-muted-foreground">{index + 1}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link
+                      className="text-primary underline-offset-4 hover:underline"
+                      to={`/person?id=${encodeURIComponent(person.id)}`}
+                    >
+                      {stripMarkup(person.name || person.id)}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {stripMarkup(person.alias) || '—'}
+                  </TableCell>
+                  <TableCell>{stats.participation.get(person.id) || 0}</TableCell>
+                  {role === 'student' && (
+                    <>
+                      <TableCell>{stats.authored.get(person.id) || 0}</TableCell>
+                      <TableCell>
+                        {(stats.characters.get(person.id) || 0).toLocaleString()}
+                      </TableCell>
+                    </>
+                  )}
+                  {role === 'teacher' && (
+                    <TableCell>{stripMarkup(person.subject) || '—'}</TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   )

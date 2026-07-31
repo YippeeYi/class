@@ -1,5 +1,13 @@
 import { BrainCircuit, RefreshCw } from 'lucide-react'
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { PageHeading } from '@/components/archive/page-heading'
@@ -30,6 +38,11 @@ import {
   loadQuizQuestions,
   signAssetUrl,
 } from '@/services/data'
+import {
+  getImageDimensions,
+  preloadImageDimensionList,
+  rememberImageDimensions,
+} from '@/services/image-metadata'
 import type { RecordItem } from '@/types/domain'
 
 const quizImagePreloadCache = new Map<string, Promise<void>>()
@@ -57,34 +70,64 @@ function preloadQuizImage(path: string) {
 
 function SecretImage({ path }: { path: string }) {
   const resource = useSignedAsset(path)
-  if (resource.loading)
-    return (
-      <div
-        className="grid h-56 place-items-center rounded-xl bg-muted/60 text-sm text-muted-foreground"
-        role="status"
-        aria-live="polite"
-      >
-        <span className="flex items-center gap-2">
+  const [frameDimensions] = useState(() => getImageDimensions(path) || { width: 4, height: 3 })
+  const [ready, setReady] = useState(false)
+  const [decodeFailed, setDecodeFailed] = useState(false)
+  const ratio = frameDimensions.width / frameDimensions.height
+
+  return (
+    <div
+      className="relative mx-auto grid w-full place-items-center overflow-hidden rounded-xl bg-muted/60 text-sm text-muted-foreground"
+      style={{
+        aspectRatio: `${frameDimensions.width} / ${frameDimensions.height}`,
+        maxWidth: `min(48rem, calc(52svh * ${ratio}))`,
+      }}
+      aria-busy={!ready && !decodeFailed}
+    >
+      {!ready && !decodeFailed && (
+        <span className="flex items-center gap-2" role="status" aria-live="polite">
           <Spinner aria-hidden="true" />
           正在加载题图
         </span>
-      </div>
-    )
-  if (!resource.src)
-    return (
-      <Alert variant="destructive">
-        <AlertTitle>题图加载失败</AlertTitle>
-        <AlertDescription>暂时无法获取题图，请稍后重试。</AlertDescription>
-      </Alert>
-    )
-  return (
-    <img
-      src={resource.src}
-      alt="题目插图"
-      decoding="async"
-      fetchPriority="high"
-      className="mx-auto max-h-[52vh] rounded-xl object-contain"
-    />
+      )}
+      {(decodeFailed || (!resource.loading && !resource.src)) && (
+        <div className="grid gap-3 px-5 text-center">
+          <p>题图加载失败，请检查网络后重试。</p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setDecodeFailed(false)
+              void resource.retry()
+            }}
+          >
+            重试
+          </Button>
+        </div>
+      )}
+      {resource.src && !decodeFailed && (
+        <img
+          src={resource.src}
+          width={frameDimensions.width}
+          height={frameDimensions.height}
+          alt="题目插图"
+          decoding="async"
+          fetchPriority="high"
+          onLoad={(event) => {
+            rememberImageDimensions(path, {
+              width: event.currentTarget.naturalWidth,
+              height: event.currentTarget.naturalHeight,
+            })
+            setReady(true)
+          }}
+          onError={() => {
+            setReady(false)
+            setDecodeFailed(true)
+          }}
+          className={`absolute inset-0 size-full object-contain transition-opacity duration-200 ${ready ? 'opacity-100' : 'opacity-0'}`}
+        />
+      )}
+    </div>
   )
 }
 
@@ -144,6 +187,9 @@ export function QuizPage() {
   const [secretHint, setSecretHint] = useState('')
   const [secretError, setSecretError] = useState('')
   const [score, setScore] = useState({ correct: 0, total: 0 })
+  const questionAnchorRef = useRef<HTMLDivElement>(null)
+  const pendingQuestionTop = useRef<number | null>(null)
+  const secretUnlocking = useRef(false)
   const questions = useMemo(
     () =>
       resource.data
@@ -160,13 +206,29 @@ export function QuizPage() {
     [enabledContent, enabledTypes, questions],
   )
 
+  const captureQuestionPosition = useCallback(() => {
+    if (current && questionAnchorRef.current) {
+      pendingQuestionTop.current = questionAnchorRef.current.getBoundingClientRect().top
+    }
+  }, [current])
+
   const next = useCallback(() => {
+    captureQuestionPosition()
     setCurrent(pickQuestion(candidates, current?.id || ''))
     setInput('')
     setResult(null)
     setSecretProgress([])
     setSecretHint('')
-  }, [candidates, current?.id])
+  }, [candidates, captureQuestionPosition, current?.id])
+
+  useLayoutEffect(() => {
+    const previousTop = pendingQuestionTop.current
+    const anchor = questionAnchorRef.current
+    if (previousTop === null || !anchor) return
+    pendingQuestionTop.current = null
+    const offset = anchor.getBoundingClientRect().top - previousTop
+    if (Math.abs(offset) > 0.5) window.scrollBy({ top: offset, left: 0, behavior: 'auto' })
+  })
 
   useEffect(() => {
     document.title = '答题 · 编日史'
@@ -176,6 +238,7 @@ export function QuizPage() {
   }, [candidates, current, next])
   useEffect(() => {
     let buffer = ''
+    let active = true
     const listener = async (event: KeyboardEvent) => {
       if (
         !adminResource.data ||
@@ -186,19 +249,32 @@ export function QuizPage() {
       )
         return
       buffer = (buffer + event.key.toLowerCase()).slice(-6)
-      if (buffer !== 'lamian' || secret.length) return
+      if (buffer !== 'lamian' || secret.length || secretUnlocking.current) return
+      secretUnlocking.current = true
       try {
         const rows = await loadQuizQuestions(true)
         const extra = rows.filter((item) => item.answer).map(normalizeSecretQuestion)
         if (!extra.length) throw new Error('题库为空')
+        const imagePaths = [
+          ...new Set(
+            extra.map((question) => question.image).filter((path): path is string => Boolean(path)),
+          ),
+        ]
+        await preloadImageDimensionList(imagePaths)
+        if (!active) return
         setSecret(extra)
         setEnabledContent((value) => new Set([...value, 'secret']))
       } catch {
-        setSecretError('隐藏题库暂时无法加载，请稍后重试。')
+        if (active) setSecretError('隐藏题库暂时无法加载，请稍后重试。')
+      } finally {
+        secretUnlocking.current = false
       }
     }
     window.addEventListener('keydown', listener)
-    return () => window.removeEventListener('keydown', listener)
+    return () => {
+      active = false
+      window.removeEventListener('keydown', listener)
+    }
   }, [adminResource.data, secret.length])
   useEffect(() => {
     const paths = [
@@ -258,24 +334,24 @@ export function QuizPage() {
     event.preventDefault()
     answer(input)
   }
-  const toggleType = (type: PlayQuestion['type']) =>
-    setEnabledTypes((value) => {
-      const next = new Set(value)
-      if (next.has(type)) next.delete(type)
-      else next.add(type)
-      if (!filteredQuestions(questions, next, enabledContent).length) return value
-      setCurrent(null)
-      return next
-    })
-  const toggleContent = (content: PlayQuestion['content']) =>
-    setEnabledContent((value) => {
-      const next = new Set(value)
-      if (next.has(content)) next.delete(content)
-      else next.add(content)
-      if (!filteredQuestions(questions, enabledTypes, next).length) return value
-      setCurrent(null)
-      return next
-    })
+  const toggleType = (type: PlayQuestion['type']) => {
+    const next = new Set(enabledTypes)
+    if (next.has(type)) next.delete(type)
+    else next.add(type)
+    if (!filteredQuestions(questions, next, enabledContent).length) return
+    captureQuestionPosition()
+    setEnabledTypes(next)
+    setCurrent(null)
+  }
+  const toggleContent = (content: PlayQuestion['content']) => {
+    const next = new Set(enabledContent)
+    if (next.has(content)) next.delete(content)
+    else next.add(content)
+    if (!filteredQuestions(questions, enabledTypes, next).length) return
+    captureQuestionPosition()
+    setEnabledContent(next)
+    setCurrent(null)
+  }
   const labels = { author: '记录人', date: '日期', person: '人物', quote: '名言', secret: '???' }
   const secretBoxes =
     current?.content === 'secret'
@@ -348,7 +424,7 @@ export function QuizPage() {
                   <Button
                     key={content}
                     size="sm"
-                    variant={enabledContent.has(content) ? 'secondary' : 'outline'}
+                    variant={enabledContent.has(content) ? 'default' : 'outline'}
                     aria-pressed={enabledContent.has(content)}
                     disabled={contentCannotBeRemoved(content)}
                     onClick={() => toggleContent(content)}
@@ -391,8 +467,9 @@ export function QuizPage() {
             <CardContent>
               {current ? (
                 <div
+                  ref={questionAnchorRef}
                   key={current.id}
-                  className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+                  className="min-h-[30rem] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
                 >
                   <h2 className="font-heading text-xl font-semibold leading-relaxed text-foreground">
                     {current.prompt}
@@ -464,7 +541,7 @@ export function QuizPage() {
                     </div>
                   )}
                   {secretHint && (
-                    <Alert className="mt-5">
+                    <Alert className="mt-5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
                       <AlertTitle>继续尝试</AlertTitle>
                       <AlertDescription>{secretHint}</AlertDescription>
                     </Alert>
@@ -472,7 +549,7 @@ export function QuizPage() {
                   {result && (
                     <Alert
                       variant={result === 'wrong' ? 'destructive' : 'default'}
-                      className="mt-5"
+                      className="mt-5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
                     >
                       <AlertTitle>{result === 'correct' ? '回答正确' : '回答错误'}</AlertTitle>
                       <AlertDescription>
