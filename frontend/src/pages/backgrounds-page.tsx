@@ -13,9 +13,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export function BackgroundsPage() {
-  const [current, setCurrent] = useState<BackgroundId>(
-    () => (localStorage.getItem(BACKGROUND_KEY) as BackgroundId) || 'default',
-  )
+  const [current, setCurrent] = useState<BackgroundId>(() => {
+    const stored = localStorage.getItem(BACKGROUND_KEY) as BackgroundId | null
+    return stored && backgrounds.some((item) => item.id === stored) ? stored : 'default'
+  })
   useEffect(() => {
     document.title = '背景 · 编日史'
   }, [])
@@ -25,22 +26,22 @@ export function BackgroundsPage() {
   }
   return (
     <div>
-      <PageHeading title="背景" description="选择一个全站背景。设置保存在当前浏览器中。" />
+      <PageHeading
+        title="背景"
+        description={`共 ${backgrounds.length} 个背景；当前使用 ${backgrounds.find((item) => item.id === current)?.label || '默认'}。设置保存在当前浏览器中。`}
+      />
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
         {backgrounds.map((item) => (
           <Card key={item.id} className="bg-card/85">
-            <div
-              className="relative aspect-[16/10] overflow-hidden bg-[linear-gradient(145deg,#fffdf8,#e9dfd2)]"
-              style={
-                item.image
-                  ? {
-                      backgroundImage: `url(${item.image})`,
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                    }
-                  : undefined
-              }
-            >
+            <div className="relative aspect-[16/10] overflow-hidden bg-[linear-gradient(145deg,#fffdf8,#e9dfd2)]">
+              {item.image && (
+                <img
+                  src={item.image}
+                  alt=""
+                  loading={current === item.id ? 'eager' : 'lazy'}
+                  className="size-full object-cover"
+                />
+              )}
               {current === item.id && (
                 <span className="absolute right-3 top-3 grid size-8 place-items-center rounded-full bg-primary text-primary-foreground shadow">
                   <Check className="size-4" />

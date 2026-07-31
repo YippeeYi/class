@@ -11,13 +11,24 @@ import {
   Sparkles,
   Users,
 } from 'lucide-react'
-import { useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useArchive } from '@/features/archive/archive-context'
+
+const tips = [
+  '小提示：点击 logo 没有彩蛋。',
+  '小提示：图片均可点击查看大图。',
+  '小提示：人名可点击跳转至个人界面。',
+  '小提示：可以在背景页切换全站背景。',
+  '小提示：看看注释吧！',
+  '小提示：挑战一下答题吗？',
+  '小提示：每天看看左上角吧。',
+]
 
 const secondary = [
   { to: '/timeline', label: '时间线', description: '按年月回看档案密度', icon: Clock3 },
@@ -31,10 +42,58 @@ const secondary = [
 
 export function HomePage() {
   const resource = useArchive()
+  const navigate = useNavigate()
+  const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * tips.length))
+  const [logoAnimation, setLogoAnimation] = useState<'tap' | 'secret' | ''>('')
+  const logoTapCount = useRef(0)
+  const logoTapTimer = useRef<number | undefined>(undefined)
 
   useEffect(() => {
     document.title = '编日史 · 导览'
   }, [])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setTipIndex((current) => {
+        let next = current
+        while (next === current) next = Math.floor(Math.random() * tips.length)
+        return next
+      })
+    }, 3600)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(
+    () => () => {
+      if (logoTapTimer.current) window.clearTimeout(logoTapTimer.current)
+    },
+    [],
+  )
+
+  const today = useMemo(() => {
+    const now = new Date()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    const records = resource.data?.records || []
+    const matches = records
+      .filter((record) => /^\d{4}-\d{2}-\d{2}$/.test(record.date))
+      .filter((record) => record.date.slice(5, 7) === month && record.date.slice(8, 10) === day)
+    return { month, day, hasMatches: matches.length > 0 }
+  }, [resource.data])
+
+  const tapLogo = () => {
+    logoTapCount.current += 1
+    if (logoTapTimer.current) window.clearTimeout(logoTapTimer.current)
+    logoTapTimer.current = window.setTimeout(() => {
+      logoTapCount.current = 0
+    }, 1200)
+    const animation = logoTapCount.current >= 5 ? 'secret' : 'tap'
+    if (logoTapCount.current >= 5) {
+      logoTapCount.current = 0
+    }
+    setLogoAnimation('')
+    window.requestAnimationFrame(() => setLogoAnimation(animation))
+  }
 
   return (
     <div>
@@ -44,18 +103,43 @@ export function HomePage() {
           <Badge variant="outline" className="mb-5 bg-background/55">
             CLASS ARCHIVE · 共同记忆
           </Badge>
-          <img
-            src="/logo-guide.png"
-            alt="编日史"
-            width="1035"
-            height="462"
-            className="mb-5 h-auto w-72 max-w-full object-contain object-left sm:w-96"
-          />
+          <Button
+            type="button"
+            variant="ghost"
+            aria-label="编日史 Logo"
+            className="h-auto w-auto max-w-full justify-start p-0 hover:bg-transparent"
+            onClick={tapLogo}
+          >
+            <img
+              src={`${import.meta.env.BASE_URL}logo-guide.png`}
+              alt="编日史"
+              width="1035"
+              height="462"
+              className={`guide-logo mb-5 h-auto w-72 max-w-full object-contain object-left sm:w-96 ${logoAnimation ? `guide-logo-${logoAnimation}` : ''}`}
+            />
+          </Button>
           <p className="max-w-xl text-base leading-8 text-muted-foreground">
             把散落在日常里的事件、人物、话语和资料，整理成一部可以搜索、回看，也可以继续生长的班级档案。
           </p>
+          <p className="guide-tip mt-4 text-sm text-muted-foreground" aria-live="polite">
+            {tips[tipIndex]}
+          </p>
         </div>
       </section>
+
+      {today.hasMatches && (
+        <Button
+          className="fixed top-3 left-3 z-40 w-28 whitespace-normal text-xs sm:w-auto"
+          variant="outline"
+          onClick={() =>
+            navigate(
+              `/records?month=${encodeURIComponent(today.month)}&day=${encodeURIComponent(today.day)}`,
+            )
+          }
+        >
+          历史上的今天
+        </Button>
+      )}
 
       {resource.loading && <PageSkeleton rows={3} />}
       {resource.error && <ErrorState title="档案概览加载失败" onRetry={resource.retry} />}

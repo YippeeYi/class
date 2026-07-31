@@ -113,6 +113,7 @@ export function RecordsPage() {
   const [query, setQuery] = useState(params.get('q') || '')
   const [year, setYear] = useState(params.get('year') || '')
   const [month, setMonth] = useState(params.get('month') || '')
+  const [day, setDay] = useState(params.get('day') || '')
   const [important, setImportant] = useState(params.get('important') === '1')
   const [hidden, setHidden] = useState(false)
   const [hiddenRecords, setHiddenRecords] = useState<RecordItem[]>([])
@@ -162,6 +163,7 @@ export function RecordsPage() {
         .filter((record) => {
           if (year && !record.date.startsWith(year)) return false
           if (month && record.date.slice(5, 7) !== month) return false
+          if (day && record.date.slice(8, 10) !== day) return false
           if (important && record.importance !== 'important') return false
           return (
             !query ||
@@ -171,7 +173,7 @@ export function RecordsPage() {
           )
         })
         .sort((a, b) => b.id.localeCompare(a.id)),
-    [important, month, query, records, year],
+    [day, important, month, query, records, year],
   )
 
   useEffect(() => {
@@ -180,14 +182,16 @@ export function RecordsPage() {
     if (query) next.set('q', query)
     if (year) next.set('year', year)
     if (month) next.set('month', month)
+    if (day) next.set('day', day)
     if (important) next.set('important', '1')
     setParams(next, { replace: true })
-  }, [important, month, query, setParams, view, year])
+  }, [day, important, month, query, setParams, view, year])
 
   const clearFilters = () => {
     setQuery('')
     setYear('')
     setMonth('')
+    setDay('')
     setImportant(false)
     setPageIndex(0)
   }
@@ -258,6 +262,7 @@ export function RecordsPage() {
               onValueChange={(value) => {
                 setYear(value === '__all__' ? '' : value || '')
                 setMonth('')
+                setDay('')
                 setPageIndex(0)
               }}
             >
@@ -277,6 +282,7 @@ export function RecordsPage() {
               value={month || '__all__'}
               onValueChange={(value) => {
                 setMonth(value === '__all__' ? '' : value || '')
+                setDay('')
                 setPageIndex(0)
               }}
             >

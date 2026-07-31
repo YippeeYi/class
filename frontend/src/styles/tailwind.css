@@ -250,3 +250,39 @@
     transition-duration: 0.01ms;
   }
 }
+
+@keyframes guide-logo-tap {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.025) rotate(-1deg);
+  }
+}
+
+@keyframes guide-logo-secret {
+  0% {
+    transform: rotate(0) scale(1);
+    filter: saturate(1);
+  }
+  35% {
+    transform: rotate(-2deg) scale(1.04);
+    filter: saturate(1.35);
+  }
+  70% {
+    transform: rotate(2deg) scale(1.04);
+    filter: saturate(1.35);
+  }
+  100% {
+    transform: rotate(0) scale(1);
+    filter: saturate(1);
+  }
+}
+
+.guide-logo-tap {
+  animation: guide-logo-tap 0.34s ease;
+}
+.guide-logo-secret {
+  animation: guide-logo-secret 0.95s ease;
+}

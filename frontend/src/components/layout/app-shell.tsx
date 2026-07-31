@@ -117,11 +117,14 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => void }) {
 export function AppShell() {
   const { clearAccess } = useAuth()
   const location = useLocation()
+  const confirmClearAccess = () => {
+    if (window.confirm('确定移除本机保存的访问权限并清除本站缓存吗？')) clearAccess()
+  }
 
   return (
     <TooltipProvider>
       <SidebarProvider>
-        <AppSidebar onClearAccess={clearAccess} />
+        <AppSidebar onClearAccess={confirmClearAccess} />
         <SidebarInset>
           <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border/70 bg-background/82 px-4 backdrop-blur-xl">
             <SidebarTrigger />
