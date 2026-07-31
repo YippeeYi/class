@@ -14,4 +14,12 @@ assert.equal(markup.stripMarkup('[[under:甲]][[del:乙]]'), '甲乙')
 assert.equal(markup.countTextCharacters('甲 A-1'), 3)
 assert.equal(markup.parseMarkup('[[table:1x2|甲|乙]]')[0].type, 'table')
 assert.deepEqual(markup.parseMarkup('<script>alert(1)</script>'), [{ type: 'text', value: '<script>alert(1)</script>' }])
+const nestedDelete = markup.parseMarkup('[[del:前 [[person:p01|同学乙]] 后]]')
+assert.equal(nestedDelete[0].type, 'style')
+assert.equal(nestedDelete[0].style, 'del')
+assert.ok(
+  nestedDelete[0].children.some(
+    (node) => node.type === 'reference' && node.kind === 'person' && node.id === 'p01',
+  ),
+)
 console.log('React record markup parser checks passed.')

@@ -172,8 +172,8 @@ function WrittenRecordPages({
   const nextPath = visiblePages[safeIndex + 1]?.imagePath || ''
 
   return (
-    <Card>
-      <CardContent className="pt-4">
+    <Card className="overflow-visible">
+      <CardContent>
         <PageImagePreloader previousPath={previousPath} nextPath={nextPath} />
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <Button
@@ -211,20 +211,22 @@ function WrittenRecordPages({
             下一页
           </Button>
         </div>
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.08fr)_minmax(20rem,.92fr)]">
-          <ImageViewer
-            path={page.imagePath}
-            alt={`${hidden ? '隐藏' : '手写'}记录第 ${page.page} 页`}
-            trigger={
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-auto w-full overflow-hidden border bg-muted/40 p-2"
-              >
-                <SignedPageImage path={page.imagePath} page={page.page} />
-              </Button>
-            }
-          />
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(20rem,42%)_minmax(0,1fr)]">
+          <div className="min-h-0 self-start lg:sticky lg:top-20">
+            <ImageViewer
+              path={page.imagePath}
+              alt={`${hidden ? '隐藏' : '手写'}记录第 ${page.page} 页`}
+              trigger={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-auto w-full overflow-hidden border bg-muted/40 p-2"
+                >
+                  <SignedPageImage path={page.imagePath} page={page.page} />
+                </Button>
+              }
+            />
+          </div>
           <div className="grid content-start gap-4">
             {pageMessage &&
               (!activeFilter ||
@@ -274,7 +276,7 @@ function SignedPageImage({ path, page }: { path: string; page: string }) {
       src={image.src}
       alt={`手写记录第 ${page} 页`}
       onError={() => void image.retry()}
-      className="mx-auto max-h-[72vh] w-auto object-contain"
+      className="mx-auto max-h-[calc(100svh-6rem)] w-full object-contain"
     />
   )
 }

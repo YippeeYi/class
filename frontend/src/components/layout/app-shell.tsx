@@ -118,6 +118,7 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
                     <SidebarMenuButton
                       isActive={isActive}
                       tooltip={label}
+                      className="data-active:bg-sidebar-primary data-active:text-sidebar-primary-foreground data-active:hover:bg-sidebar-primary/90 data-active:hover:text-sidebar-primary-foreground"
                       render={<NavLink to={to} />}
                     >
                       <Icon />
@@ -198,7 +199,7 @@ export function AppShell() {
           跳到主要内容
         </a>
         <AppSidebar onClearAccess={clearAccess} />
-        <SidebarInset>
+        <SidebarInset className="bg-background/82">
           <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border/70 bg-background/82 px-4 backdrop-blur-xl">
             <SidebarTrigger />
             <span className="font-heading text-lg font-semibold">编日史</span>

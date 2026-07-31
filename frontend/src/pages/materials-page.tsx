@@ -31,22 +31,23 @@ export function MaterialsPage() {
       {resource.loading && <PageSkeleton rows={4} />}
       {resource.error && <ErrorState title="资料加载失败" onRetry={resource.retry} />}
       {resource.data && (
-        <div className="grid gap-5 md:grid-cols-[15rem_1fr]">
-          <Card className="h-fit">
-            <CardHeader>
+        <div className="grid h-[calc(100svh-11rem)] min-h-[32rem] grid-rows-[minmax(10rem,.38fr)_minmax(0,1fr)] gap-5 md:grid-cols-[15rem_1fr] md:grid-rows-1">
+          <Card className="min-h-0 gap-0 overflow-hidden py-0">
+            <CardHeader className="border-b py-4">
               <CardTitle className="flex items-center gap-2">
                 <FileText className="size-4" />
                 资料目录
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <ScrollArea className="max-h-[65vh]">
-                <div className="grid gap-1">
+            <CardContent className="min-h-0 flex-1 pb-4">
+              <ScrollArea className="h-full pr-3">
+                <div className="grid gap-1 py-1">
                   {resource.data.map((item) => (
                     <Button
                       key={item.id}
                       variant={activeId === item.id ? 'default' : 'ghost'}
                       className="h-auto justify-start whitespace-normal text-left"
+                      aria-current={activeId === item.id ? 'true' : undefined}
                       onClick={() => select(item.id)}
                     >
                       {item.title}
@@ -56,18 +57,22 @@ export function MaterialsPage() {
               </ScrollArea>
             </CardContent>
           </Card>
-          <Card className="min-h-80">
-            <CardHeader>
+          <Card className="min-h-0 gap-0 overflow-hidden py-0">
+            <CardHeader className="border-b py-4">
               <CardTitle className="font-heading text-2xl">
                 {active?.title || '请选择资料'}
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              {active ? (
-                <MarkupContent content={active.content} />
-              ) : (
-                <EmptyState title="暂无资料" />
-              )}
+            <CardContent className="min-h-0 flex-1 pb-4">
+              <ScrollArea className="h-full pr-4">
+                <div className="py-1">
+                  {active ? (
+                    <MarkupContent content={active.content} />
+                  ) : (
+                    <EmptyState title="暂无资料" />
+                  )}
+                </div>
+              </ScrollArea>
             </CardContent>
           </Card>
         </div>

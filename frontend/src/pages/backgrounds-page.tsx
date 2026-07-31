@@ -42,7 +42,7 @@ function BackgroundPreview({ src, active }: { src: string; active: boolean }) {
       loading={active ? 'eager' : 'lazy'}
       decoding="async"
       onError={() => setFailed(true)}
-      className="size-full object-cover"
+      className="size-full object-cover transition-transform duration-300 group-hover/card:scale-[1.015]"
     />
   )
 }
@@ -67,8 +67,11 @@ export function BackgroundsPage() {
       />
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
         {backgrounds.map((item) => (
-          <Card key={item.id} className="bg-card/85">
-            <div className="relative aspect-[16/10] overflow-hidden bg-[linear-gradient(145deg,#fffdf8,#e9dfd2)]">
+          <Card
+            key={item.id}
+            className={`bg-card/88 transition-shadow ${current === item.id ? 'ring-2 ring-primary' : ''}`}
+          >
+            <div className="relative aspect-video overflow-hidden border-b bg-[linear-gradient(145deg,#fffdf8,#e9dfd2)]">
               {item.image && <BackgroundPreview src={item.image} active={current === item.id} />}
               {current === item.id && (
                 <span className="absolute right-3 top-3 grid size-8 place-items-center rounded-full bg-primary text-primary-foreground shadow">
@@ -82,7 +85,7 @@ export function BackgroundsPage() {
                 <Badge variant="outline">{item.category}</Badge>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-1 flex-col">
               <p className="mb-4 text-xs text-muted-foreground">
                 {item.credit.href ? (
                   <a
@@ -98,8 +101,9 @@ export function BackgroundsPage() {
                 )}
               </p>
               <Button
-                className="w-full"
+                className="mt-auto w-full"
                 variant={current === item.id ? 'secondary' : 'default'}
+                aria-pressed={current === item.id}
                 onClick={() => choose(item.id)}
               >
                 <ImageIcon data-icon="inline-start" />

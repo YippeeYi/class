@@ -66,6 +66,109 @@ function countBy(records: RecordItem[], keys: (record: RecordItem) => string[], 
   return map
 }
 
+type AuthorPieDatum = {
+  id: string
+  name: string
+  value: number
+  color: string
+}
+
+function AuthorDistributionChart({
+  data,
+  config,
+  unit,
+}: {
+  data: AuthorPieDatum[]
+  config: ChartConfig
+  unit: string
+}) {
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const total = data.reduce((sum, item) => sum + item.value, 0)
+
+  return (
+    <div className="grid gap-4">
+      <div className="relative mx-auto w-full max-w-56">
+        <ChartContainer config={config} className="aspect-square w-full">
+          <PieChart onMouseLeave={() => setActiveId(null)}>
+            <ChartTooltip content={<ChartTooltipContent nameKey="name" />} />
+            <Pie
+              data={data}
+              dataKey="value"
+              nameKey="name"
+              innerRadius={48}
+              outerRadius={82}
+              paddingAngle={2}
+              strokeWidth={2}
+              isAnimationActive
+              animationDuration={550}
+              animationEasing="ease-out"
+            >
+              {data.map((item) => {
+                const subdued = activeId !== null && activeId !== item.id
+                return (
+                  <Cell
+                    key={item.id}
+                    fill={item.color}
+                    opacity={subdued ? 0.3 : 1}
+                    stroke="var(--background)"
+                    strokeWidth={activeId === item.id ? 4 : 2}
+                    tabIndex={0}
+                    role="img"
+                    aria-label={`${item.name}：${item.value.toLocaleString()} ${unit}`}
+                    className="cursor-pointer outline-none transition-opacity duration-200"
+                    onPointerEnter={() => setActiveId(item.id)}
+                    onPointerLeave={() => setActiveId(null)}
+                    onFocus={() => setActiveId(item.id)}
+                    onBlur={() => setActiveId(null)}
+                  />
+                )
+              })}
+            </Pie>
+          </PieChart>
+        </ChartContainer>
+        <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
+          <div>
+            <strong className="font-heading text-xl">{total.toLocaleString()}</strong>
+            <p className="text-xs text-muted-foreground">本月{unit}</p>
+          </div>
+        </div>
+      </div>
+      <ul className="grid list-none gap-1" aria-label="记录人占比图例">
+        {data.map((item) => {
+          const percentage = total ? Math.round((item.value / total) * 100) : 0
+          return (
+            <li key={item.id}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-auto w-full justify-between gap-3 px-2 py-1.5 text-xs"
+                aria-pressed={activeId === item.id}
+                onPointerEnter={() => setActiveId(item.id)}
+                onPointerLeave={() => setActiveId(null)}
+                onFocus={() => setActiveId(item.id)}
+                onBlur={() => setActiveId(null)}
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <i
+                    aria-hidden="true"
+                    className="size-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className="truncate">{item.name}</span>
+                </span>
+                <span className="shrink-0 text-muted-foreground">
+                  {item.value.toLocaleString()} {unit} · {percentage}%
+                </span>
+              </Button>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
 export function TimelinePage() {
   const resource = useArchive()
   const [params, setParams] = useSearchParams()
@@ -171,6 +274,12 @@ export function TimelinePage() {
       { label: id === '__other__' ? '其他' : knownPeople.get(id) || id, color: pieColors[index] },
     ]),
   ) as ChartConfig
+  const authorPieData: AuthorPieDatum[] = authorPie.map(([id, value], index) => ({
+    id,
+    name: id === '__other__' ? '其他' : knownPeople.get(id) || id,
+    value,
+    color: pieColors[index] || 'var(--muted-foreground)',
+  }))
   const summaryStats = [
     {
       label: metric === 'count' ? '全部记录' : '档案总字数',
@@ -280,44 +389,7 @@ export function TimelinePage() {
               </CardHeader>
               <CardContent>
                 {authorPie.length ? (
-                  <>
-                    <ChartContainer config={pieConfig} className="mx-auto aspect-square max-h-56">
-                      <PieChart>
-                        <ChartTooltip content={<ChartTooltipContent nameKey="name" />} />
-                        <Pie
-                          data={authorPie.map(([id, value]) => ({
-                            id,
-                            name: id === '__other__' ? '其他' : knownPeople.get(id) || id,
-                            value,
-                          }))}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius={48}
-                          strokeWidth={2}
-                        >
-                          {authorPie.map(([id], index) => (
-                            <Cell key={id} fill={pieColors[index]} />
-                          ))}
-                        </Pie>
-                      </PieChart>
-                    </ChartContainer>
-                    <div className="grid gap-1 text-xs">
-                      {authorPie.map(([id, value], index) => (
-                        <div key={id} className="flex justify-between gap-3">
-                          <span className="flex items-center gap-2">
-                            <i
-                              className="size-2 rounded-sm"
-                              style={{ backgroundColor: pieColors[index] }}
-                            />
-                            {id === '__other__' ? '其他' : knownPeople.get(id) || id}
-                          </span>
-                          <span>
-                            {value.toLocaleString()} {unit}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
+                  <AuthorDistributionChart data={authorPieData} config={pieConfig} unit={unit} />
                 ) : (
                   <EmptyState title="本月没有记录人数据" />
                 )}

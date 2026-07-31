@@ -45,8 +45,8 @@ function AttachmentLink({ attachment }: { attachment: Attachment }) {
 export function RecordCard({ record }: { record: RecordItem }) {
   return (
     <Collapsible>
-      <Card id={recordAnchor(record)} className="scroll-mt-24">
-        <CardHeader className="border-b border-border/60 pb-4">
+      <Card id={recordAnchor(record)} className="scroll-mt-24 gap-0 py-0">
+        <CardHeader className="border-b border-border/60 pt-3 !pb-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
             <Badge variant={record.importance === 'important' ? 'default' : 'outline'}>
               #{record.id}
@@ -82,10 +82,10 @@ export function RecordCard({ record }: { record: RecordItem }) {
             )}
           </div>
         </CardHeader>
-        <CardContent className="pt-5">
+        <CardContent className="py-3">
           <MarkupContent content={record.content} />
           <CollapsibleContent>
-            <div className="mt-5 flex flex-wrap gap-2 border-t border-border/60 pt-4">
+            <div className="mt-3 flex flex-wrap gap-2 border-t border-border/60 pt-3">
               {record.attachments.map((attachment) => (
                 <AttachmentLink key={attachment.file} attachment={attachment} />
               ))}

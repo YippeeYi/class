@@ -90,7 +90,7 @@ export function ImageViewer({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={trigger} />
-      <DialogContent className="flex h-[calc(100svh-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-3 p-3 sm:p-4">
+      <DialogContent className="flex h-[calc(100svh-1rem)] w-[calc(100vw-1rem)] max-w-none flex-col gap-3 p-3 sm:max-w-none sm:p-4">
         <DialogHeader className="sr-only">
           <DialogTitle>{alt}</DialogTitle>
           <DialogDescription>

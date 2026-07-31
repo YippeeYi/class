@@ -1,4 +1,4 @@
-import { BrainCircuit, Image as ImageIcon, RefreshCw } from 'lucide-react'
+import { BrainCircuit, RefreshCw } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
+import { Spinner } from '@/components/ui/spinner'
 import { useArchive } from '@/features/archive/archive-context'
 import {
   buildQuestions,
@@ -27,16 +28,46 @@ import {
   loadPageMessages,
   loadPageSupplements,
   loadQuizQuestions,
+  signAssetUrl,
 } from '@/services/data'
 import type { RecordItem } from '@/types/domain'
+
+const quizImagePreloadCache = new Map<string, Promise<void>>()
+
+function preloadQuizImage(path: string) {
+  const existing = quizImagePreloadCache.get(path)
+  if (existing) return existing
+  const promise = (async () => {
+    const src = await signAssetUrl(path)
+    if (!src) return
+    await new Promise<void>((resolve) => {
+      const image = new Image()
+      image.decoding = 'async'
+      image.fetchPriority = 'low'
+      image.onload = () => resolve()
+      image.onerror = () => resolve()
+      image.src = src
+      if (image.complete) resolve()
+    })
+  })()
+  quizImagePreloadCache.set(path, promise)
+  promise.catch(() => quizImagePreloadCache.delete(path))
+  return promise
+}
 
 function SecretImage({ path }: { path: string }) {
   const resource = useSignedAsset(path)
   if (resource.loading)
     return (
-      <div className="grid h-56 place-items-center rounded-xl bg-muted text-sm text-muted-foreground">
-        <ImageIcon className="mb-2 size-5" />
-        正在加载题图
+      <div
+        className="grid h-56 place-items-center rounded-xl bg-muted/60 text-sm text-muted-foreground"
+        role="status"
+        aria-live="polite"
+      >
+        <span className="flex items-center gap-2">
+          <Spinner aria-hidden="true" />
+          正在加载题图
+        </span>
       </div>
     )
   if (!resource.src)
@@ -50,6 +81,8 @@ function SecretImage({ path }: { path: string }) {
     <img
       src={resource.src}
       alt="题目插图"
+      decoding="async"
+      fetchPriority="high"
       className="mx-auto max-h-[52vh] rounded-xl object-contain"
     />
   )
@@ -167,6 +200,27 @@ export function QuizPage() {
     window.addEventListener('keydown', listener)
     return () => window.removeEventListener('keydown', listener)
   }, [adminResource.data, secret.length])
+  useEffect(() => {
+    const paths = [
+      ...new Set(
+        secret.map((question) => question.image).filter((path): path is string => Boolean(path)),
+      ),
+    ].slice(0, 12)
+    if (!paths.length) return
+    let cancelled = false
+    const warm = async () => {
+      for (const path of paths) {
+        if (cancelled) return
+        await preloadQuizImage(path).catch(() => undefined)
+      }
+    }
+    const schedule = () => void warm()
+    const timeoutId = globalThis.setTimeout(schedule, 250)
+    return () => {
+      cancelled = true
+      globalThis.clearTimeout(timeoutId)
+    }
+  }, [secret])
 
   const answer = (value: string) => {
     if (!current || result) return
@@ -336,12 +390,15 @@ export function QuizPage() {
             </CardHeader>
             <CardContent>
               {current ? (
-                <div>
-                  <h2 className="font-heading text-xl font-semibold leading-relaxed">
+                <div
+                  key={current.id}
+                  className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+                >
+                  <h2 className="font-heading text-xl font-semibold leading-relaxed text-foreground">
                     {current.prompt}
                   </h2>
                   {current.body && (
-                    <blockquote className="my-5 rounded-xl border-l-4 border-primary/40 bg-muted/65 px-5 py-4 text-sm leading-7 text-muted-foreground">
+                    <blockquote className="my-5 rounded-xl border-l-4 border-primary/50 bg-muted/45 px-5 py-4 text-base leading-8 text-foreground/90">
                       {current.body}
                     </blockquote>
                   )}

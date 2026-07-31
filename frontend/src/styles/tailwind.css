@@ -151,8 +151,8 @@
 @layer components {
   .record-markup {
     color: var(--foreground);
-    font-size: 0.95rem;
-    line-height: 1.95;
+    font-size: 1rem;
+    line-height: 1.85;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
   }
@@ -165,21 +165,30 @@
   .markup-link {
     display: inline;
     border: 0;
-    border-radius: 0.28rem;
-    background: color-mix(in oklch, var(--primary) 10%, transparent);
-    color: var(--primary);
-    padding-inline: 0.18rem;
+    border-radius: 0;
+    background: transparent;
+    color: color-mix(in oklch, var(--primary) 82%, var(--foreground));
+    padding: 0;
     font: inherit;
-    font-weight: 650;
-    text-decoration: none;
+    font-weight: inherit;
+    text-decoration-line: underline;
+    text-decoration-style: dotted;
+    text-decoration-thickness: 0.06em;
+    text-underline-offset: 0.2em;
   }
 
-  .markup-link:hover {
-    background: color-mix(in oklch, var(--primary) 18%, transparent);
+  .markup-link:hover,
+  .markup-link:focus-visible {
+    background: transparent;
+    color: var(--primary);
+    text-decoration-style: solid;
+    text-decoration-thickness: 0.1em;
+    outline: none;
   }
 
   .record-delete {
-    opacity: 0.72;
+    text-decoration-color: color-mix(in oklch, currentColor 72%, transparent);
+    text-decoration-thickness: 0.08em;
   }
   .record-underline {
     text-decoration: underline;
@@ -209,7 +218,20 @@
   }
   .record-annotation {
     border-bottom: 1px dotted currentColor;
+    background: transparent;
     cursor: help;
+  }
+  .record-annotation:hover,
+  .record-annotation:focus-visible {
+    background: color-mix(in oklch, var(--primary) 8%, transparent);
+  }
+  .record-markup.annotation-content {
+    color: inherit;
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
+  .annotation-content .markup-link {
+    color: inherit;
   }
   .record-stack {
     display: inline-grid;

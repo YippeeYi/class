@@ -113,3 +113,22 @@
 | 懒加载状态 | 路由 Suspense 只有文本 | 按 shadcn 模式组合 `Spinner` 与 `role=status` |
 
 二次审查仍未修改 `frontend/src/components/ui`；Dialog/AlertDialog/Sidebar/Sheet/Empty/Field/Spinner 均通过公开 props、组合 API 和业务 wrapper 使用。业务源码中没有手写原生 button/select/input 来模拟 shadcn，也没有恢复任何 legacy HTML 路由兼容层。
+
+## 7. 第三次专项 UI/体验对照（12 项）
+
+| 专项 | 修改前差异与根因 | 当前处理 | 分类 |
+| --- | --- | --- | --- |
+| 左侧选择栏 | `isActive` 已传入，但默认 accent 与页面底色接近 | 继续使用官方 `SidebarMenuButton isActive`，仅以公开 `className` 将 active 映射到 `sidebar-primary/foreground`，并保持 hover 反色 | A |
+| 超链接文字 | 正文引用使用 Button link 时叠加 padding、圆角和浅色填充，形成占位按钮感 | 保留 shadcn Button 的语义与焦点管理，改为行内、字体继承、无框、透明背景、点状下划线提示 | D |
+| 记录条目框 | Card/Header/Content 默认纵向间距叠加，正文 `0.95rem` 且离分隔线偏远 | 记录 Card 使用紧凑 spacing，正文恢复 `1rem/1.85`，正文和附件分隔区分别收紧 | A |
+| 背景显示/选择页 | 背景路径正确，但不透明 `SidebarInset` 覆盖根背景；预览比例与选中反馈偏弱 | 主内容改为 token 透明层；预览统一 16:9，选中 ring、`aria-pressed`、失败重试、署名和轻微预览反馈齐全 | A/D |
+| 统计饼图 | 只有静态扇区和文字列表，缺联动、高亮、百分比和明确动画 | 依据 shadcn Chart 官方组合使用 `ChartContainer + ChartTooltip + Pie`；图例用 shadcn Button，支持 pointer/focus 双向高亮、百分比、总量中心和入场动画 | A/D |
+| 答题页面 | 引用正文使用 muted 前景；隐藏题图只在当前题挂载后开始加载 | 正文提升到 `text-foreground/90` 与 `text-base`；题图使用稳定状态、Spinner、高优先级显示，并在题库解锁后有上限地预热 12 张低优先级图片 | A/D |
+| 资料页面 | 只有目录有滚动限制，正文仍推动整页 | 页面建立固定可用高度，目录和正文各自使用官方 ScrollArea，移动端仍保留上下两块可滚动区域 | A |
+| 插图标记 | HoverCard 为固定 fallback 尺寸，真实图解码后缺少受控比例和缓存 | pointer/focus/touch 先发起请求；4:3 占位后按真实尺寸更新并记忆，恢复 `360×280` 上限、视口边界、加载/错误/重试，定位交给 shadcn HoverCard 碰撞逻辑 | A/D |
+| 大图显示 | shadcn Dialog 默认 `sm:max-w-*` 覆盖业务 max-width，桌面只出现窄框 | 业务 wrapper 通过公开 className 同时覆盖基础和 `sm:` 宽度上限，使用 `100vw/100svh - 1rem`，保留比例、缩放、拖动和复位 | A |
+| 注释文本 | `record-markup` 的全局 foreground 覆盖 Tooltip 的反色前景 | 为注释内容增加限定 wrapper，继承 Tooltip 前景色并调整字号/行高；未改 Tooltip 源码 | A |
+| 嵌套标记 | 删除线内的引用是 inline-flex 且 hover 改背景/装饰，造成父级删除线重绘闪烁 | 引用恢复纯 inline、无背景和稳定装饰厚度；AST 增加“删除线嵌套人物”回归用例 | A |
+| 手写 Sticky | Card `overflow-hidden` 阻断 sticky，图片列也未设置 sticky | 业务 Card 覆盖为可见溢出，恢复 `42%/58%` 双栏，图片列 `top-20` sticky，图片高度限制到当前视口；移动端仍自然单列 | A/D |
+
+专项修复只调整业务组件和主题层；`frontend/src/components/ui` 保持 CLI 原生文件零改动。视觉定制使用 token、variant、props、`className` 和业务 wrapper，未创建 shadcn fork。
