@@ -2,7 +2,7 @@ import { FileText } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
-import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { MarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Button } from '@/components/ui/button'
@@ -34,7 +34,7 @@ export function MaterialsPage() {
       {resource.error && <ErrorState title="资料加载失败" onRetry={resource.retry} />}
       {resource.data && (
         <div className="grid gap-5 md:grid-cols-[15rem_1fr]">
-          <Card className="h-fit bg-card/80">
+          <Card className="h-fit">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="size-4" />
@@ -58,7 +58,7 @@ export function MaterialsPage() {
               </ScrollArea>
             </CardContent>
           </Card>
-          <Card className="min-h-80 bg-card/82">
+          <Card className="min-h-80">
             <CardHeader>
               <CardTitle className="font-heading text-2xl">
                 {active?.title || '请选择资料'}
@@ -68,7 +68,7 @@ export function MaterialsPage() {
               {active ? (
                 <MarkupContent content={active.content} />
               ) : (
-                <p className="text-muted-foreground">暂无资料</p>
+                <EmptyState title="暂无资料" />
               )}
             </CardContent>
           </Card>

@@ -5,10 +5,16 @@ import { Link } from 'react-router-dom'
 import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Badge } from '@/components/ui/badge'
-import { buttonVariants } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Progress } from '@/components/ui/progress'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
 import { countTextCharacters, extractParticipantIds } from '@/lib/markup'
@@ -67,19 +73,24 @@ export function TimelinePage() {
         description="按年份与月份查看记录密度、重要事件、活跃人物和档案字数。"
         actions={
           <>
-            <NativeSelect
-              value={year}
-              onChange={(event) => {
-                setYear(event.target.value)
+            <Select
+              value={year || null}
+              onValueChange={(value) => {
+                setYear(value || '')
                 setMonth('')
               }}
             >
-              {years.map((item) => (
-                <NativeSelectOption key={item} value={item}>
-                  {item} 年
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
+              <SelectTrigger aria-label="年份">
+                <SelectValue placeholder="选择年份" />
+              </SelectTrigger>
+              <SelectContent>
+                {years.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item} 年
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Tabs
               value={metric}
               onValueChange={(value) => setMetric(value as 'count' | 'characters')}
@@ -115,7 +126,7 @@ export function TimelinePage() {
                 icon: PenLine,
               },
             ].map(({ label, value, icon: Icon }) => (
-              <Card key={label} className="bg-card/78">
+              <Card key={label}>
                 <CardContent className="flex items-center gap-4 pt-4">
                   <span className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">
                     <Icon className="size-4" />
@@ -128,21 +139,23 @@ export function TimelinePage() {
               </Card>
             ))}
           </section>
-          <Card className="mb-6 bg-card/80">
+          <Card className="mb-6">
             <CardHeader>
               <CardTitle>{year} 年月度分布</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-6 gap-2 sm:grid-cols-12">
               {months.map((item) => (
-                <button
+                <Button
                   type="button"
+                  variant={selected?.key === item.key ? 'default' : 'ghost'}
                   key={item.key}
                   onClick={() => setMonth(item.key)}
-                  className={`group flex min-w-0 flex-col items-center gap-2 rounded-xl p-2 transition ${selected?.key === item.key ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                  className="h-auto min-w-0 flex-col p-2"
+                  aria-pressed={selected?.key === item.key}
                 >
-                  <div className="flex h-28 w-full items-end rounded-md bg-muted/55 p-1 group-hover:bg-muted">
+                  <div className="flex h-28 w-full items-end rounded-md bg-muted p-1">
                     <span
-                      className={`w-full rounded-sm ${selected?.key === item.key ? 'bg-primary-foreground/75' : 'bg-primary/70'}`}
+                      className="w-full rounded-sm bg-primary/70"
                       style={{
                         height: `${Math.max(item.value ? 8 : 2, (item.value / max) * 100)}%`,
                       }}
@@ -150,12 +163,12 @@ export function TimelinePage() {
                   </div>
                   <span className="text-[0.68rem]">{item.key}月</span>
                   <span className="text-[0.65rem] opacity-70">{item.value}</span>
-                </button>
+                </Button>
               ))}
             </CardContent>
           </Card>
           {selected && (
-            <Card className="bg-card/80">
+            <Card>
               <CardHeader>
                 <CardTitle>
                   {year} 年 {selected.key} 月

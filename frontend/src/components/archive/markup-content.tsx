@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode, useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -69,14 +70,16 @@ export function MarkupContent({
                   ? `/quotes#quote-${node.id}`
                   : ''
         return (
-          <button
+          <Button
             key={key}
             type="button"
-            className={`markup-link ${node.kind}-link`}
+            variant="link"
+            size="xs"
+            className={`markup-link inline h-auto min-h-0 whitespace-normal px-1 py-0 align-baseline font-inherit ${node.kind}-link`}
             onClick={() => target && navigate(target)}
           >
             {renderNodes(node.children, key)}
-          </button>
+          </Button>
         )
       }
       if (node.type === 'annotation')
@@ -87,14 +90,16 @@ export function MarkupContent({
         )
       if (node.type === 'illustration')
         return (
-          <button
+          <Button
             key={key}
             type="button"
-            className="markup-link illustration-link"
+            variant="link"
+            size="xs"
+            className="markup-link illustration-link inline h-auto min-h-0 whitespace-normal px-1 py-0 align-baseline font-inherit"
             onClick={() => openIllustration(node.path)}
           >
             {renderNodes(node.children, key)}
-          </button>
+          </Button>
         )
       if (node.type === 'stack')
         return (

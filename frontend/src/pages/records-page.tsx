@@ -2,14 +2,20 @@ import { Eye, FileImage, List, Search, ShieldAlert, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
-import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { PageHeading } from '@/components/archive/page-heading'
 import { RecordCard } from '@/components/archive/record-card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
 import { useAsyncData } from '@/hooks/use-async-data'
@@ -67,7 +73,7 @@ function WrittenRecordPages({
   const activePage = visiblePages[Math.min(pageIndex, Math.max(0, visiblePages.length - 1))]
 
   return (
-    <Card className="bg-card/82">
+    <Card>
       <CardContent className="pt-4">
         {activePage ? (
           <>
@@ -93,7 +99,7 @@ function WrittenRecordPages({
             <SignedPageImage page={activePage} />
           </>
         ) : (
-          <ErrorState title="当前条件下没有手写页" />
+          <EmptyState title="当前条件下没有手写页" />
         )}
       </CardContent>
     </Card>
@@ -235,7 +241,7 @@ export function RecordsPage() {
         </Alert>
       )}
 
-      <Card className="mb-6 bg-card/72">
+      <Card className="mb-6">
         <CardContent className="flex flex-col gap-3 pt-4 lg:flex-row lg:items-center">
           <div className="relative min-w-0 flex-1">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -247,35 +253,45 @@ export function RecordsPage() {
             />
           </div>
           <div className="flex flex-wrap gap-2">
-            <NativeSelect
-              value={year}
-              onChange={(event) => {
-                setYear(event.target.value)
+            <Select
+              value={year || '__all__'}
+              onValueChange={(value) => {
+                setYear(value === '__all__' ? '' : value || '')
                 setMonth('')
                 setPageIndex(0)
               }}
             >
-              <NativeSelectOption value="">全部年份</NativeSelectOption>
-              {years.map((item) => (
-                <NativeSelectOption value={item} key={item}>
-                  {item} 年
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-            <NativeSelect
-              value={month}
-              onChange={(event) => {
-                setMonth(event.target.value)
+              <SelectTrigger aria-label="年份">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">全部年份</SelectItem>
+                {years.map((item) => (
+                  <SelectItem value={item} key={item}>
+                    {item} 年
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={month || '__all__'}
+              onValueChange={(value) => {
+                setMonth(value === '__all__' ? '' : value || '')
                 setPageIndex(0)
               }}
             >
-              <NativeSelectOption value="">全部月份</NativeSelectOption>
-              {months.map((item) => (
-                <NativeSelectOption value={item} key={item}>
-                  {item} 月
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
+              <SelectTrigger aria-label="月份">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">全部月份</SelectItem>
+                {months.map((item) => (
+                  <SelectItem value={item} key={item}>
+                    {item} 月
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               variant={important ? 'default' : 'outline'}
               onClick={() => setImportant((value) => !value)}
@@ -301,7 +317,7 @@ export function RecordsPage() {
               <RecordCard key={record.fileName || record.id} record={record} />
             ))
           ) : (
-            <ErrorState title="没有匹配的记录" />
+            <EmptyState title="没有匹配的记录" />
           )}
         </div>
       )}

@@ -120,7 +120,7 @@ export function AppShell() {
 
   return (
     <TooltipProvider>
-      <SidebarProvider className="bg-background/92 shadow-[0_0_80px_rgb(20_16_10/0.12)] backdrop-blur-md">
+      <SidebarProvider>
         <AppSidebar onClearAccess={clearAccess} />
         <SidebarInset>
           <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border/70 bg-background/82 px-4 backdrop-blur-xl">

@@ -6,7 +6,13 @@ import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -74,19 +80,18 @@ export function PeoplePage() {
         description="查看档案中的同学、老师与其他人物，以及他们参与和记录事件的数量。"
         actions={
           <div className="flex gap-2">
-            <NativeSelect value={sort} onChange={(event) => setSort(event.target.value as SortKey)}>
-              <NativeSelectOption value="id">按 ID</NativeSelectOption>
-              <NativeSelectOption value="participation">按参与数</NativeSelectOption>
-              {role === 'student' && (
-                <NativeSelectOption value="record">按记录数</NativeSelectOption>
-              )}
-              {role === 'student' && (
-                <NativeSelectOption value="characters">按记录字数</NativeSelectOption>
-              )}
-              {role === 'teacher' && (
-                <NativeSelectOption value="subject">按学科</NativeSelectOption>
-              )}
-            </NativeSelect>
+            <Select value={sort} onValueChange={(value) => setSort(value as SortKey)}>
+              <SelectTrigger aria-label="排序方式">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="id">按 ID</SelectItem>
+                <SelectItem value="participation">按参与数</SelectItem>
+                {role === 'student' && <SelectItem value="record">按记录数</SelectItem>}
+                {role === 'student' && <SelectItem value="characters">按记录字数</SelectItem>}
+                {role === 'teacher' && <SelectItem value="subject">按学科</SelectItem>}
+              </SelectContent>
+            </Select>
             <Button
               variant="outline"
               size="icon"
@@ -136,9 +141,7 @@ export function PeoplePage() {
               </TableHeader>
               <TableBody>
                 {people.map((person) => (
-                  <TableRow
-                    key={person.id}
-                  >
+                  <TableRow key={person.id}>
                     <TableCell className="pl-5 font-medium">
                       <Link
                         className="text-primary underline-offset-4 hover:underline"

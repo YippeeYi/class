@@ -16,7 +16,7 @@ export function PageSkeleton({ rows = 4 }: { rows?: number }) {
   return (
     <div className="grid gap-4" role="status" aria-label="正在加载" aria-busy="true">
       {placeholders.slice(0, rows).map((key) => (
-        <Skeleton className="h-28 w-full rounded-2xl" key={key} />
+        <Skeleton className="h-28 w-full" key={key} />
       ))}
     </div>
   )

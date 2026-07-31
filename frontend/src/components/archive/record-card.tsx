@@ -34,52 +34,52 @@ export function RecordCard({ record }: { record: RecordItem }) {
   return (
     <Collapsible>
       <Card id={recordAnchor(record)} className="scroll-mt-24">
-      <CardHeader className="border-b border-border/60 pb-4">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-          <Badge variant={record.importance === 'important' ? 'default' : 'outline'}>
-            #{record.id}
-          </Badge>
-          <span className="inline-flex items-center gap-1.5">
-            <CalendarDays className="size-3.5" />
-            {record.date || '日期未记录'}
-          </span>
-          {record.time && (
+        <CardHeader className="border-b border-border/60 pb-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+            <Badge variant={record.importance === 'important' ? 'default' : 'outline'}>
+              #{record.id}
+            </Badge>
             <span className="inline-flex items-center gap-1.5">
-              <Clock className="size-3.5" />
-              {record.time}
+              <CalendarDays className="size-3.5" />
+              {record.date || '日期未记录'}
             </span>
-          )}
-          {record.author && (
-            <Link
-              to={`/person?id=${encodeURIComponent(record.author)}`}
-              className="inline-flex items-center gap-1.5 hover:text-primary"
-            >
-              <UserRound className="size-3.5" />
-              {record.author}
-            </Link>
-          )}
-          {record.attachments.length > 0 && (
-            <CollapsibleTrigger
-              render={
-                <Button variant="ghost" size="xs" className="ml-auto">
-                  <Paperclip data-icon="inline-start" />
-                  附件 {record.attachments.length}
-                </Button>
-              }
-            />
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="pt-5">
-        <MarkupContent content={record.content} />
-        <CollapsibleContent>
-          <div className="mt-5 flex flex-wrap gap-2 border-t border-border/60 pt-4">
-            {record.attachments.map((attachment) => (
-              <AttachmentLink key={attachment.file} attachment={attachment} />
-            ))}
+            {record.time && (
+              <span className="inline-flex items-center gap-1.5">
+                <Clock className="size-3.5" />
+                {record.time}
+              </span>
+            )}
+            {record.author && (
+              <Link
+                to={`/person?id=${encodeURIComponent(record.author)}`}
+                className="inline-flex items-center gap-1.5 hover:text-primary"
+              >
+                <UserRound className="size-3.5" />
+                {record.author}
+              </Link>
+            )}
+            {record.attachments.length > 0 && (
+              <CollapsibleTrigger
+                render={
+                  <Button variant="ghost" size="xs" className="ml-auto">
+                    <Paperclip data-icon="inline-start" />
+                    附件 {record.attachments.length}
+                  </Button>
+                }
+              />
+            )}
           </div>
-        </CollapsibleContent>
-      </CardContent>
+        </CardHeader>
+        <CardContent className="pt-5">
+          <MarkupContent content={record.content} />
+          <CollapsibleContent>
+            <div className="mt-5 flex flex-wrap gap-2 border-t border-border/60 pt-4">
+              {record.attachments.map((attachment) => (
+                <AttachmentLink key={attachment.file} attachment={attachment} />
+              ))}
+            </div>
+          </CollapsibleContent>
+        </CardContent>
       </Card>
     </Collapsible>
   )

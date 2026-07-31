@@ -8,7 +8,13 @@ import { PageHeading } from '@/components/archive/page-heading'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useArchive } from '@/features/archive/archive-context'
 
 export function QuotesPage() {
@@ -34,13 +40,15 @@ export function QuotesPage() {
         description="这些原话直接从记录标记中派生，并保留与原始事件之间的关联。"
         actions={
           <>
-            <NativeSelect
-              value={sort}
-              onChange={(event) => setSort(event.target.value as 'id' | 'quote')}
-            >
-              <NativeSelectOption value="id">按 ID</NativeSelectOption>
-              <NativeSelectOption value="quote">按内容</NativeSelectOption>
-            </NativeSelect>
+            <Select value={sort} onValueChange={(value) => setSort(value as 'id' | 'quote')}>
+              <SelectTrigger aria-label="排序方式">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="id">按 ID</SelectItem>
+                <SelectItem value="quote">按内容</SelectItem>
+              </SelectContent>
+            </Select>
             <Button variant="outline" size="icon" onClick={() => setDescending((value) => !value)}>
               {descending ? <ArrowDownAZ /> : <ArrowUpAZ />}
             </Button>
@@ -52,7 +60,7 @@ export function QuotesPage() {
       {resource.data && (
         <div className="grid gap-4 sm:grid-cols-2">
           {quotes.map((quote) => (
-            <Card id={`quote-${quote.id}`} key={quote.id} className="scroll-mt-24 bg-card/80">
+            <Card id={`quote-${quote.id}`} key={quote.id} className="scroll-mt-24">
               <CardContent className="pt-4">
                 <div className="mb-4 flex items-center justify-between">
                   <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">

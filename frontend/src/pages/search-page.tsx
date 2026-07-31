@@ -2,7 +2,7 @@ import { BookOpenText, MessageSquareQuote, Search, Users } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -83,7 +83,7 @@ export function SearchPage() {
   return (
     <div>
       <PageHeading title="全站搜索" description="一次搜索记录正文、人物资料与名言内容。" />
-      <Card className="mb-6 bg-card/80">
+      <Card className="mb-6">
         <CardContent className="pt-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -118,7 +118,7 @@ export function SearchPage() {
             const Icon = icon[result.type]
             return (
               <Link to={result.href} key={`${result.type}-${result.id}`}>
-                <Card className="bg-card/75 transition hover:ring-primary/25">
+                <Card className="transition hover:ring-primary/25">
                   <CardContent className="flex gap-4 pt-4">
                     <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted">
                       <Icon className="size-4" />
@@ -137,7 +137,7 @@ export function SearchPage() {
               </Link>
             )
           })}
-          {results.length === 0 && <ErrorState title="没有找到匹配内容" />}
+          {results.length === 0 && <EmptyState title="没有找到匹配内容" />}
         </div>
       )}
     </div>

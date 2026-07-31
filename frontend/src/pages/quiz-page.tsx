@@ -34,7 +34,7 @@ function SecretImage({ path }: { path: string }) {
     return (
       <Alert variant="destructive">
         <AlertTitle>题图加载失败</AlertTitle>
-        <AlertDescription>题图加载失败。</AlertDescription>
+        <AlertDescription>暂时无法获取题图，请稍后重试。</AlertDescription>
       </Alert>
     )
   return (

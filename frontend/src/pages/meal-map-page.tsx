@@ -36,12 +36,14 @@ export function MealMapPage() {
       {resource.loading && <PageSkeleton rows={1} />}
       {resource.error && <ErrorState title="蹭饭图加载失败" onRetry={resource.retry} />}
       {resource.data && (
-        <Card className="bg-card/80">
+        <Card>
           <CardContent className="pt-4">
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={() => setOpen(true)}
-              className="group relative block w-full overflow-hidden rounded-xl bg-muted"
+              className="group relative h-auto w-full overflow-hidden rounded-xl bg-muted p-0"
+              aria-label="查看蹭饭图大图"
             >
               <img
                 src={resource.data.url}
@@ -54,27 +56,24 @@ export function MealMapPage() {
                 <Expand className="size-3.5" />
                 查看大图
               </span>
-            </button>
+            </Button>
           </CardContent>
         </Card>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[96vw] bg-zinc-950 text-white">
+        <DialogContent className="max-w-[96vw]">
           <DialogHeader>
             <DialogTitle>蹭饭图</DialogTitle>
-            <DialogDescription className="text-zinc-400">
-              可使用浏览器缩放与滚动查看细节。
-            </DialogDescription>
+            <DialogDescription>可使用浏览器缩放与滚动查看细节。</DialogDescription>
           </DialogHeader>
-          <div className="max-h-[82vh] overflow-auto rounded-lg bg-black p-2">
+          <div className="max-h-[82vh] overflow-auto rounded-lg bg-muted p-2">
             {resource.data && (
               <img
                 src={resource.data.url}
                 width={resource.data.width}
                 height={resource.data.height}
                 alt="蹭饭图大图"
-                className="h-auto max-w-none"
-                style={{ width: 'min(1800px, 180vw)' }}
+                className="h-auto max-w-none w-[min(1800px,180vw)]"
               />
             )}
           </div>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
-import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { MarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { RecordCard } from '@/components/archive/record-card'
@@ -37,7 +37,7 @@ export function PersonPage() {
   }, [person])
   if (resource.loading) return <PageSkeleton rows={5} />
   if (resource.error) return <ErrorState title="人物资料加载失败" onRetry={resource.retry} />
-  if (!person) return <ErrorState title="没有找到这位人物" />
+  if (!person) return <EmptyState title="没有找到这位人物" />
   return (
     <div>
       <PageHeading
@@ -50,7 +50,7 @@ export function PersonPage() {
           </Link>
         }
       />
-      <Card className="mb-7 bg-card/80">
+      <Card className="mb-7">
         <CardHeader>
           <div className="flex flex-wrap items-center gap-2">
             <CardTitle className="font-heading text-xl">基本资料</CardTitle>
@@ -93,7 +93,7 @@ export function PersonPage() {
         {related.length ? (
           related.map((record) => <RecordCard record={record} key={record.fileName || record.id} />)
         ) : (
-          <ErrorState title="暂时没有相关记录" />
+          <EmptyState title="暂时没有相关记录" />
         )}
       </div>
     </div>
