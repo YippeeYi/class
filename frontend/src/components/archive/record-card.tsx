@@ -1,0 +1,86 @@
+import { CalendarDays, Clock, Paperclip, UserRound } from 'lucide-react'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+
+import { MarkupContent } from '@/components/archive/markup-content'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { recordAnchor } from '@/lib/markup'
+import { signAssetUrl } from '@/services/data'
+import type { Attachment, RecordItem } from '@/types/domain'
+
+function AttachmentLink({ attachment }: { attachment: Attachment }) {
+  const [loading, setLoading] = useState(false)
+  const open = async () => {
+    setLoading(true)
+    try {
+      const url = await signAssetUrl(attachment.file)
+      if (url) window.open(url, '_blank', 'noopener,noreferrer')
+    } finally {
+      setLoading(false)
+    }
+  }
+  return (
+    <Button variant="outline" size="sm" disabled={loading} onClick={open}>
+      <Paperclip data-icon="inline-start" />
+      {attachment.name || attachment.file}
+    </Button>
+  )
+}
+
+export function RecordCard({ record }: { record: RecordItem }) {
+  return (
+    <Collapsible>
+      <Card id={recordAnchor(record)} className="scroll-mt-24">
+      <CardHeader className="border-b border-border/60 pb-4">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+          <Badge variant={record.importance === 'important' ? 'default' : 'outline'}>
+            #{record.id}
+          </Badge>
+          <span className="inline-flex items-center gap-1.5">
+            <CalendarDays className="size-3.5" />
+            {record.date || '日期未记录'}
+          </span>
+          {record.time && (
+            <span className="inline-flex items-center gap-1.5">
+              <Clock className="size-3.5" />
+              {record.time}
+            </span>
+          )}
+          {record.author && (
+            <Link
+              to={`/person?id=${encodeURIComponent(record.author)}`}
+              className="inline-flex items-center gap-1.5 hover:text-primary"
+            >
+              <UserRound className="size-3.5" />
+              {record.author}
+            </Link>
+          )}
+          {record.attachments.length > 0 && (
+            <CollapsibleTrigger
+              render={
+                <Button variant="ghost" size="xs" className="ml-auto">
+                  <Paperclip data-icon="inline-start" />
+                  附件 {record.attachments.length}
+                </Button>
+              }
+            />
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="pt-5">
+        <MarkupContent content={record.content} />
+        <CollapsibleContent>
+          <div className="mt-5 flex flex-wrap gap-2 border-t border-border/60 pt-4">
+            {record.attachments.map((attachment) => (
+              <AttachmentLink key={attachment.file} attachment={attachment} />
+            ))}
+          </div>
+        </CollapsibleContent>
+      </CardContent>
+      </Card>
+    </Collapsible>
+  )
+}

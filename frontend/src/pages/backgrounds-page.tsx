@@ -1,0 +1,72 @@
+import { Check, Image as ImageIcon } from 'lucide-react'
+import { useEffect, useState } from 'react'
+
+import { PageHeading } from '@/components/archive/page-heading'
+import {
+  BACKGROUND_KEY,
+  type BackgroundId,
+  backgrounds,
+  setBackground,
+} from '@/components/layout/background-root'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+
+export function BackgroundsPage() {
+  const [current, setCurrent] = useState<BackgroundId>(
+    () => (localStorage.getItem(BACKGROUND_KEY) as BackgroundId) || 'default',
+  )
+  useEffect(() => {
+    document.title = '背景 · 编日史'
+  }, [])
+  const choose = (id: BackgroundId) => {
+    setBackground(id)
+    setCurrent(id)
+  }
+  return (
+    <div>
+      <PageHeading title="背景" description="选择一个全站背景。设置保存在当前浏览器中。" />
+      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        {backgrounds.map((item) => (
+          <Card key={item.id} className="bg-card/85">
+            <div
+              className="relative aspect-[16/10] overflow-hidden bg-[linear-gradient(145deg,#fffdf8,#e9dfd2)]"
+              style={
+                item.image
+                  ? {
+                      backgroundImage: `url(${item.image})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                    }
+                  : undefined
+              }
+            >
+              {current === item.id && (
+                <span className="absolute right-3 top-3 grid size-8 place-items-center rounded-full bg-primary text-primary-foreground shadow">
+                  <Check className="size-4" />
+                </span>
+              )}
+            </div>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>{item.label}</CardTitle>
+                <Badge variant="outline">{item.category}</Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="mb-4 text-xs text-muted-foreground">{item.credit}</p>
+              <Button
+                className="w-full"
+                variant={current === item.id ? 'secondary' : 'default'}
+                onClick={() => choose(item.id)}
+              >
+                <ImageIcon data-icon="inline-start" />
+                {current === item.id ? '正在使用' : '设为背景'}
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}

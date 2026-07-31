@@ -1,15 +1,28 @@
 {
+  "name": "class-record",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "frontend"
+  ],
   "scripts": {
+    "dev": "npm run dev --workspace frontend",
+    "build": "npm run build --workspace frontend",
+    "preview": "npm run preview --workspace frontend",
+    "typecheck": "npm run typecheck --workspace frontend",
+    "lint": "npm run lint --workspace frontend",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build",
     "admin": "node scripts/admin.mjs",
     "verify-security-live": "node scripts/verify-live-security.mjs",
     "test": "node scripts/test-security-boundaries.mjs && node scripts/test-secure-images.mjs && node scripts/test-image-loader.mjs && node scripts/test-auth-gate-loader.mjs && node scripts/test-cache-loader.mjs && node scripts/test-illustration-preload.mjs && node scripts/test-record-markup.mjs && node scripts/test-record-view.mjs && node scripts/test-quiz-core.mjs && node scripts/test-search.mjs && node scripts/test-static-site.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.0"
+    "@supabase/supabase-js": "^2.110.1"
   },
   "devDependencies": {
     "playwright": "^1.61.1"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

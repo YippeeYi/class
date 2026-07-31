@@ -1,4 +1,7 @@
 {
+  "buildCommand": "npm run build",
+  "outputDirectory": "frontend/dist",
+  "framework": "vite",
   "headers": [
     {
       "source": "/(.*\\.(?:js|css))",
@@ -68,27 +71,31 @@
   "rewrites": [
     {
       "source": "/map.png",
-      "destination": "/404.html"
+      "destination": "/404"
     },
     {
       "source": "/map.PNG",
-      "destination": "/404.html"
+      "destination": "/404"
     },
     {
       "source": "/data/(.*)",
-      "destination": "/404.html"
+      "destination": "/404"
     },
     {
       "source": "/images/record-pages/(.*)",
-      "destination": "/404.html"
+      "destination": "/404"
     },
     {
       "source": "/images/quiz/(.*)",
-      "destination": "/404.html"
+      "destination": "/404"
     },
     {
       "source": "/images/private/(.*)",
-      "destination": "/404.html"
+      "destination": "/404"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }

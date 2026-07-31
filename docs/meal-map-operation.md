@@ -21,7 +21,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-local-service-role-key
 CLASS_RECORD_BUCKET=classrecord-private
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` 只供 Node 上传/迁移脚本使用，绝不能放进 `js/`、HTML、浏览器环境变量或部署配置。
+`SUPABASE_SERVICE_ROLE_KEY` 只供 Node 上传/迁移脚本使用，绝不能放进 `frontend/src/`、HTML、浏览器环境变量或部署配置。
 
 ## 上传步骤
 

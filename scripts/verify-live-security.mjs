@@ -4,17 +4,17 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const root = new URL('../', import.meta.url);
-const configSource = await readFile(new URL('js/supabaseConfig.js', root), 'utf8');
-const url = configSource.match(/\burl:\s*["']([^"']+)["']/)?.[1]?.replace(/\/$/, '');
-const anonKey = configSource.match(/\banonKey:\s*["']([^"']+)["']/)?.[1];
-const bucket = configSource.match(/\bprivateBucket:\s*["']([^"']+)["']/)?.[1] || 'classrecord-private';
+const configSource = await readFile(new URL('frontend/src/services/supabase.ts', root), 'utf8');
+const url = configSource.match(/FALLBACK_URL\s*=\s*["']([^"']+)["']/)?.[1]?.replace(/\/$/, '');
+const anonKey = configSource.match(/FALLBACK_ANON_KEY\s*=\s*\n?\s*["']([^"']+)["']/)?.[1];
+const bucket = configSource.match(/bucket:\s*["']([^"']+)["']/)?.[1] || 'classrecord-private';
 const assetArgument = process.argv.find((value) => value.startsWith('--asset='));
 const knownAsset = assetArgument?.slice('--asset='.length) || 'images/record-pages/01.jpeg';
 const sensitiveAsset = 'images/quiz/lamian/01.png';
 const accessToken = String(process.env.CLASS_RECORD_ACCESS_TOKEN || '').trim();
 const invalidToken = '0'.repeat(64);
 
-assert.ok(url && anonKey, 'Unable to read Supabase URL/anon key from js/supabaseConfig.js');
+assert.ok(url && anonKey, 'Unable to read Supabase URL/anon key from frontend/src/services/supabase.ts');
 assert.ok(!knownAsset.includes('..') && !knownAsset.startsWith('/'), 'Invalid --asset path');
 
 const headers = {

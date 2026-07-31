@@ -2,6 +2,32 @@
 
 一个接入 Supabase 的班级档案前端。敏感记录、人物、名言、答题数据和图片资源都从 Supabase 读取；访问者必须先通过一次性邀请码验证，前端才会加载站点内容。
 
+前端已整体迁移为 React 19 + TypeScript 7 单页应用，使用 Vite 8、Tailwind CSS v4，以及由官方 shadcn CLI 下载的 Base UI 全组件源码。原生 HTML/CSS/JS 运行时已经移除，旧 `.html` 地址由 React 路由兼容跳转。
+
+## 项目结构
+
+```text
+frontend/
+├─ index.html          # Vite / React 入口
+├─ components.json     # shadcn CLI（Base UI / Nova）配置
+├─ public/             # 字体、背景、Logo 等静态资源
+├─ src/
+│  ├─ components/ui/   # shadcn CLI 下载的完整 Base UI 组件源码
+│  ├─ components/      # 档案业务组件和应用壳层
+│  ├─ features/auth/   # 邀请码门禁与访问状态
+│  ├─ pages/           # React 路由页面
+│  ├─ services/        # Supabase 与安全数据访问
+│  └─ lib/             # 标记解析、统计与通用工具
+├─ package.json        # 前端依赖与命令
+├─ tsconfig*.json      # TypeScript 7 严格模式配置
+├─ vite.config.ts      # React 与 Tailwind v4 插件配置
+└─ biome.json          # 不受 TS 7 peer 范围限制的代码检查配置
+scripts/               # 本地管理、安全验证和回归测试脚本
+sql/                   # Supabase 初始化与安全检查 SQL
+docs/                  # 运维和内容格式文档
+private-assets/        # 本地私密源文件（Git 忽略）
+```
+
 ## 当前安全模型
 
 - 没有账号体系：没有注册、登录、用户身份表、用户 ID、管理员账号或个人中心。
@@ -16,37 +42,48 @@
 
 | 页面 | 文件 | 说明 |
 | --- | --- | --- |
-| 邀请码验证 | `auth.html` | 输入一次性邀请码 |
-| 导览 | `index.html` | 站点入口和统计卡片 |
-| 记录 | `record.html` | 普通记录和书面记录展示 |
-| 人物 | `people.html`, `person.html` | 人物列表和详情 |
-| 名言 | `quotes.html` | 名言列表，点击后定位到对应记录 |
-| 搜索 | `search.html` | 记录、人物、名言搜索 |
-| 时间线 | `timeline.html` | 档案统计视图 |
-| 答题 | `quiz.html` | 本地判题，不上传答题结果 |
-| 背景 | `shop.html` | 本地背景切换，不写入服务器 |
+| 邀请码验证 | `/auth` | 输入一次性邀请码 |
+| 导览 | `/` | 站点入口和统计卡片 |
+| 记录 | `/records` | 普通记录和书面记录展示 |
+| 人物 | `/people`, `/person?id=...` | 人物列表和详情 |
+| 名言 | `/quotes` | 名言列表，点击后定位到对应记录 |
+| 搜索 | `/search` | 记录、人物、名言搜索 |
+| 时间线 | `/timeline` | 档案统计视图 |
+| 答题 | `/quiz` | 本地判题，不上传答题结果 |
+| 资料、地图、背景、致谢 | `/materials`, `/map`, `/backgrounds`, `/credits` | 其他档案功能 |
 
 ## 关键文件
 
-- `js/authGate.js`：统一邀请码门禁和本地验证状态管理。
-- `js/authPage.js`：邀请码输入页逻辑。
-- `js/supabaseClient.js`：Supabase 客户端与 `verify_invite_code` RPC。
-- `js/secureData.js`：记录、人物、名言、答题、书面页和 Storage 签名 URL 读取。
-- `js/recordStore.js`、`js/peopleStore.js`、`js/quoteStore.js`：运行时只读数据仓库。
-- `js/recordRenderer.js`：记录正文、人物链接、名言链接、隐藏内容、上下标和附件展示。
+- `frontend/src/features/auth/`：统一邀请码门禁、本地候选 token 和服务端刷新。
+- `frontend/src/services/supabase.ts`：Supabase 客户端配置。
+- `frontend/src/services/data.ts`：记录、人物、资料、答题、书面页和 Storage 签名 URL 读取。
+- `frontend/src/lib/markup.ts`：记录正文标记的安全解析、引用提取与纯文本转换。
+- `frontend/src/components/ui/`：由 `npx shadcn@latest add --all` 下载的 Base UI 组件源码。
 - `sql/setup.sql`：当前无账号方案的 Supabase 建表、函数、RLS 与 Storage policy SQL。
 - `sql/check.sql`：Supabase 安全状态只读检查 SQL。
 
 ## 本地运行
 
 ```bash
-python -m http.server 8000
+npm install
+npm run dev
 ```
 
 访问：
 
 ```text
-http://localhost:8000/index.html
+http://127.0.0.1:5173/
+```
+
+常用检查命令：
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+# 或一次运行全部检查
+npm run check
 ```
 
 ## 记录正文跳转标记
@@ -57,7 +94,7 @@ http://localhost:8000/index.html
 参见 [[record:2025-01-06-01|这条记录]]。
 ```
 
-文件名可带或不带 `.json`。点击后会复用记录页现有的平滑滚动与高亮动画；书面记录模式会保持书面模式并定位到目标所在页，其他页面或按条模式会进入按条记录。定位完成后，目标记录旁会提供“留在这里”和“返回原位置”操作。
+文件名可带或不带 `.json`。点击后会通过 React Router 进入记录页，并使用查询参数定位目标记录。
 
 正文也支持行内分式 `[[frac:上方文字|下方文字]]`，以及悬浮或点击显示说明的注解
 `[[anno:注解内容|被注释文字]]`。格式不完整的标记会安全地按原文显示。
@@ -69,8 +106,9 @@ http://localhost:8000/index.html
 
 下划线使用 `[[under:被标记文字]]`，标红使用 `[[red:被标记文字]]`；两者均支持递归嵌套其他正文标记。
 
-上述 `[[...]]` 标记使用平衡括号递归解析，参数中的嵌套标记会继续渲染；普通文本默认进行
-HTML 转义。插图路径严格限制在 `data/attachments/` 目录。
+上述 `[[...]]` 标记使用平衡括号递归解析为类型化 AST，参数中的嵌套标记会继续渲染；
+普通文本直接作为 React 文本节点输出，不拼接 HTML 字符串。插图路径严格限制在
+`data/attachments/` 目录。
 
 注解内容同样支持人物、名言、跳转及文字样式标记；注解或插图的二次悬浮标记会在浮层中
 安全降级为标签文字。注解与插图浮层均支持移入停留，并在离开触发文字和浮层后延迟关闭。
