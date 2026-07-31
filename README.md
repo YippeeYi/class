@@ -2,7 +2,7 @@
 
 一个接入 Supabase 的班级档案前端。敏感记录、人物、名言、答题数据和图片资源都从 Supabase 读取；访问者必须先通过一次性邀请码验证，前端才会加载站点内容。
 
-前端已整体迁移为 React 19 + TypeScript 7 单页应用，使用 Vite 8、Tailwind CSS v4，以及由官方 shadcn CLI 下载的 Base UI 全组件源码。原生 HTML/CSS/JS 运行时已经移除，旧 `.html` 地址由 React 路由兼容跳转。
+前端已整体迁移为 React 19 + TypeScript 7 单页应用，使用 Vite 8、Tailwind CSS v4，以及由官方 shadcn CLI 下载的 Base UI 全组件源码。原生 HTML/CSS/JS 运行时已经移除。
 
 ## 项目结构
 
@@ -85,6 +85,12 @@ npm run build
 # 或一次运行全部检查
 npm run check
 ```
+
+## GitHub Pages 部署
+
+仓库包含 [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml)。推送到 `main` 分支或手动运行该 workflow 后，它会安装依赖、执行类型检查、lint、测试和生产构建，并将 `frontend/dist` 部署到 GitHub Pages。
+
+首次使用时，在仓库 `Settings → Pages → Build and deployment` 中将 Source 设置为 `GitHub Actions`。Vite 会在 Actions 中根据 `GITHUB_REPOSITORY` 自动设置项目路径，React Router 和静态资源也会使用对应的 `basename` 与 base URL。
 
 ## 记录正文跳转标记
 

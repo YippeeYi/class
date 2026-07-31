@@ -136,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       consumeTarget: () => {
         const target = sessionStorage.getItem(REDIRECT_KEY) || '/'
         sessionStorage.removeItem(REDIRECT_KEY)
-        return target.replace(/\.html(?=\?|#|$)/, '')
+        return target
       },
     }),
     [clearAccess, state, token, verifyInvite],

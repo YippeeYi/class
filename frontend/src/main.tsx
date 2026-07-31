@@ -9,9 +9,11 @@ import '@/styles/tailwind.css'
 const container = document.getElementById('root')
 if (!container) throw new Error('React root element was not found.')
 
+const basename = import.meta.env.BASE_URL.replace(/\/$/, '') || undefined
+
 createRoot(container).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={basename}>
       <AuthProvider>
         <App />
       </AuthProvider>

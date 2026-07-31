@@ -4,7 +4,10 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
+const repositoryName = process.env.GITHUB_REPOSITORY?.split('/')[1] || 'class'
+
 export default defineConfig({
+  base: process.env.GITHUB_ACTIONS ? `/${repositoryName}/` : '/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {

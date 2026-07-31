@@ -1,5 +1,5 @@
 import { lazy, type ReactElement, Suspense } from 'react'
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import { AppShell } from '@/components/layout/app-shell'
 import { BackgroundRoot } from '@/components/layout/background-root'
 import { ArchiveProvider } from '@/features/archive/archive-context'
@@ -48,26 +48,6 @@ const TimelinePage = lazy(() =>
   import('@/pages/timeline-page').then((module) => ({ default: module.TimelinePage })),
 )
 
-function LegacyRedirect({ to }: { to: string }) {
-  const location = useLocation()
-  return <Navigate to={`${to}${location.search}${location.hash}`} replace />
-}
-
-const legacyRoutes: Array<[string, string]> = [
-  ['/index.html', '/'],
-  ['/record.html', '/records'],
-  ['/people.html', '/people'],
-  ['/person.html', '/person'],
-  ['/quotes.html', '/quotes'],
-  ['/timeline.html', '/timeline'],
-  ['/search.html', '/search'],
-  ['/quiz.html', '/quiz'],
-  ['/materials.html', '/materials'],
-  ['/map.html', '/map'],
-  ['/shop.html', '/backgrounds'],
-  ['/credits.html', '/credits'],
-]
-
 export function App() {
   return (
     <Suspense
@@ -79,10 +59,6 @@ export function App() {
     >
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
-        <Route path="/auth.html" element={<LegacyRedirect to="/auth" />} />
-        {legacyRoutes.map(([from, to]) => (
-          <Route key={from} path={from} element={<LegacyRedirect to={to} />} />
-        ))}
         <Route path="*" element={<ProtectedApp />} />
       </Routes>
     </Suspense>
@@ -98,7 +74,6 @@ function ProtectedApp(): ReactElement {
             <Route element={<AppShell />}>
               <Route index element={<HomePage />} />
               <Route path="records" element={<RecordsPage />} />
-              <Route path="record" element={<Navigate to="/records" replace />} />
               <Route path="people" element={<PeoplePage />} />
               <Route path="person" element={<PersonPage />} />
               <Route path="quotes" element={<QuotesPage />} />

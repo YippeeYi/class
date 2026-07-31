@@ -2,6 +2,8 @@ import { type ReactNode, useEffect, useState } from 'react'
 
 export const BACKGROUND_KEY = 'classRecord:background'
 
+const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`
+
 export type BackgroundId = 'default' | 'mountain' | 'cloud'
 
 export const backgrounds: Array<{
@@ -16,14 +18,14 @@ export const backgrounds: Array<{
     id: 'mountain',
     label: '山',
     category: '风景',
-    image: '/images/backgrounds/mountain.jpg',
+    image: assetUrl('images/backgrounds/mountain.jpg'),
     credit: 'Alessio Soggetti · Unsplash',
   },
   {
     id: 'cloud',
     label: '云',
     category: '风景',
-    image: '/images/backgrounds/cloud.jpg',
+    image: assetUrl('images/backgrounds/cloud.jpg'),
     credit: 'Agnese Rudzīte · Unsplash',
   },
 ]
