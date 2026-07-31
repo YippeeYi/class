@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useArchive } from '@/features/archive/archive-context'
+import { prepareRecordJump } from '@/lib/record-navigation'
 
 export function QuotesPage() {
   const [sort, setSort] = useState<'id' | 'quote'>('id')
@@ -74,6 +75,9 @@ export function QuotesPage() {
                   <Link
                     className={buttonVariants({ variant: 'link', size: 'xs' })}
                     to={`/records?view=list#record-${quote.recordFile.replace(/\.json$/i, '')}`}
+                    onClick={() =>
+                      prepareRecordJump(`record-${quote.recordFile.replace(/\.json$/i, '')}`)
+                    }
                   >
                     查看来源
                   </Link>

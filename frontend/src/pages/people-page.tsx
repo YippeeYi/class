@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -21,154 +21,172 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Toggle } from '@/components/ui/toggle'
 import { useArchive } from '@/features/archive/archive-context'
 import { stripMarkup } from '@/lib/markup'
 import { buildPeopleStats } from '@/lib/stats'
+import type { Person } from '@/types/domain'
 
 const roleLabels = { student: '同学', teacher: '老师', other: '其他' }
+const subjectOrder = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '政治', '地理']
 type Role = keyof typeof roleLabels
 type SortKey = 'id' | 'participation' | 'record' | 'characters' | 'subject'
+type Stats = ReturnType<typeof buildPeopleStats>
 
-export function PeoplePage() {
-  const [role, setRole] = useState<Role>('student')
+function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; stats: Stats }) {
   const [sort, setSort] = useState<SortKey>('id')
   const [descending, setDescending] = useState(false)
-  const resource = useArchive()
+  const [mainFirst, setMainFirst] = useState(false)
+  const list = useMemo(() => {
+    const direction = descending ? -1 : 1
+    return [...people].sort((a, b) => {
+      if (role === 'teacher' && mainFirst && a.main !== b.main)
+        return Number(b.main) - Number(a.main)
+      const idOrder = a.id.localeCompare(b.id) * direction
+      if (sort === 'participation')
+        return (
+          ((stats.participation.get(a.id) || 0) - (stats.participation.get(b.id) || 0)) *
+            direction || idOrder
+        )
+      if (sort === 'record')
+        return (
+          ((stats.authored.get(a.id) || 0) - (stats.authored.get(b.id) || 0)) * direction || idOrder
+        )
+      if (sort === 'characters')
+        return (
+          ((stats.characters.get(a.id) || 0) - (stats.characters.get(b.id) || 0)) * direction ||
+          idOrder
+        )
+      if (sort === 'subject') {
+        const rank = (person: Person) => {
+          const index = subjectOrder.indexOf(stripMarkup(person.subject).trim())
+          return index < 0 ? Number.MAX_SAFE_INTEGER : index
+        }
+        const aRank = rank(a)
+        const bRank = rank(b)
+        if (aRank === Number.MAX_SAFE_INTEGER || bRank === Number.MAX_SAFE_INTEGER) {
+          if (aRank !== bRank) return aRank === Number.MAX_SAFE_INTEGER ? 1 : -1
+        }
+        return (aRank - bRank) * direction || idOrder
+      }
+      return idOrder
+    })
+  }, [descending, mainFirst, people, role, sort, stats])
+  if (!list.length) return null
 
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <CardTitle>
+          {roleLabels[role]}{' '}
+          <span className="text-sm font-normal text-muted-foreground">{list.length}</span>
+        </CardTitle>
+        <div className="flex flex-wrap gap-2">
+          <Select value={sort} onValueChange={(value) => setSort(value as SortKey)}>
+            <SelectTrigger size="sm" aria-label={`${roleLabels[role]}排序方式`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="id">按 ID</SelectItem>
+              <SelectItem value="participation">按参与数</SelectItem>
+              {role === 'student' && <SelectItem value="record">按记录数</SelectItem>}
+              {role === 'student' && <SelectItem value="characters">按记录字数</SelectItem>}
+              {role === 'teacher' && <SelectItem value="subject">按学科</SelectItem>}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label={descending ? '切换为升序' : '切换为降序'}
+            onClick={() => setDescending((value) => !value)}
+          >
+            {descending ? <ArrowDownAZ /> : <ArrowUpAZ />}
+          </Button>
+          {role === 'teacher' && (
+            <Toggle size="sm" variant="outline" pressed={mainFirst} onPressedChange={setMainFirst}>
+              主要老师优先
+            </Toggle>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="overflow-x-auto px-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-5">序号</TableHead>
+              <TableHead>姓名</TableHead>
+              <TableHead>别名</TableHead>
+              <TableHead>参与</TableHead>
+              {role === 'student' && (
+                <>
+                  <TableHead>记录</TableHead>
+                  <TableHead>记录字数</TableHead>
+                </>
+              )}
+              {role === 'teacher' && <TableHead>学科</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {list.map((person, index) => (
+              <TableRow key={person.id}>
+                <TableCell className="pl-5 text-muted-foreground">{index + 1}</TableCell>
+                <TableCell className="font-medium">
+                  <Link
+                    className="text-primary underline-offset-4 hover:underline"
+                    to={`/person?id=${encodeURIComponent(person.id)}`}
+                  >
+                    {stripMarkup(person.name || person.id)}
+                  </Link>
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {stripMarkup(person.alias) || '—'}
+                </TableCell>
+                <TableCell>{stats.participation.get(person.id) || 0}</TableCell>
+                {role === 'student' && (
+                  <>
+                    <TableCell>{stats.authored.get(person.id) || 0}</TableCell>
+                    <TableCell>{(stats.characters.get(person.id) || 0).toLocaleString()}</TableCell>
+                  </>
+                )}
+                {role === 'teacher' && <TableCell>{stripMarkup(person.subject) || '—'}</TableCell>}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  )
+}
+
+export function PeoplePage() {
+  const resource = useArchive()
   useEffect(() => {
     document.title = '人物名单 · 编日史'
   }, [])
   const stats = useMemo(() => buildPeopleStats(resource.data?.records || []), [resource.data])
-  const people = useMemo(
-    () =>
-      (resource.data?.people || [])
-        .filter(
-          (person) =>
-            (['student', 'teacher'].includes(person.role) ? person.role : 'other') === role,
-        )
-        .sort((a, b) => {
-          const direction = descending ? -1 : 1
-          if (sort === 'participation')
-            return (
-              ((stats.participation.get(a.id) || 0) - (stats.participation.get(b.id) || 0)) *
-                direction || a.id.localeCompare(b.id)
-            )
-          if (sort === 'record')
-            return (
-              ((stats.authored.get(a.id) || 0) - (stats.authored.get(b.id) || 0)) * direction ||
-              a.id.localeCompare(b.id)
-            )
-          if (sort === 'characters')
-            return (
-              ((stats.characters.get(a.id) || 0) - (stats.characters.get(b.id) || 0)) * direction ||
-              a.id.localeCompare(b.id)
-            )
-          if (sort === 'subject')
-            return (
-              a.subject.localeCompare(b.subject, 'zh-CN') * direction || a.id.localeCompare(b.id)
-            )
-          return a.id.localeCompare(b.id) * direction
-        }),
-    [descending, resource.data, role, sort, stats],
-  )
+  const groups = useMemo(() => {
+    const output: Record<Role, Person[]> = { student: [], teacher: [], other: [] }
+    for (const person of resource.data?.people || []) {
+      const role = person.role === 'student' || person.role === 'teacher' ? person.role : 'other'
+      output[role].push(person)
+    }
+    return output
+  }, [resource.data])
 
   return (
     <div>
       <PageHeading
         title="人物名单"
-        description="查看档案中的同学、老师与其他人物，以及他们参与和记录事件的数量。"
-        actions={
-          <div className="flex gap-2">
-            <Select value={sort} onValueChange={(value) => setSort(value as SortKey)}>
-              <SelectTrigger aria-label="排序方式">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="id">按 ID</SelectItem>
-                <SelectItem value="participation">按参与数</SelectItem>
-                {role === 'student' && <SelectItem value="record">按记录数</SelectItem>}
-                {role === 'student' && <SelectItem value="characters">按记录字数</SelectItem>}
-                {role === 'teacher' && <SelectItem value="subject">按学科</SelectItem>}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label={descending ? '切换升序' : '切换降序'}
-              onClick={() => setDescending((value) => !value)}
-            >
-              {descending ? <ArrowDownAZ /> : <ArrowUpAZ />}
-            </Button>
-          </div>
-        }
+        description="同学、老师与其他人物按组同时呈现；每一组可独立排序。"
       />
-      <Tabs
-        value={role}
-        onValueChange={(value) => {
-          setRole(value as Role)
-          setSort('id')
-        }}
-        className="mb-5"
-      >
-        <TabsList>
-          {Object.entries(roleLabels).map(([value, label]) => (
-            <TabsTrigger value={value} key={value}>
-              {label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
       {resource.loading && <PageSkeleton rows={5} />}
       {resource.error && <ErrorState title="人物名单加载失败" onRetry={resource.retry} />}
       {resource.data && (
-        <Card>
-          <CardContent className="px-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="pl-5">姓名</TableHead>
-                  <TableHead>别名</TableHead>
-                  <TableHead>参与</TableHead>
-                  {role === 'student' && (
-                    <>
-                      <TableHead>记录</TableHead>
-                      <TableHead>字数</TableHead>
-                    </>
-                  )}
-                  {role === 'teacher' && <TableHead>学科</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {people.map((person) => (
-                  <TableRow key={person.id}>
-                    <TableCell className="pl-5 font-medium">
-                      <Link
-                        className="text-primary underline-offset-4 hover:underline"
-                        to={`/person?id=${encodeURIComponent(person.id)}`}
-                      >
-                        {stripMarkup(person.name || person.id)}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {stripMarkup(person.alias) || '—'}
-                    </TableCell>
-                    <TableCell>{stats.participation.get(person.id) || 0}</TableCell>
-                    {role === 'student' && (
-                      <>
-                        <TableCell>{stats.authored.get(person.id) || 0}</TableCell>
-                        <TableCell>{stats.characters.get(person.id) || 0}</TableCell>
-                      </>
-                    )}
-                    {role === 'teacher' && (
-                      <TableCell>{stripMarkup(person.subject) || '—'}</TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <div className="grid gap-6">
+          {(['student', 'teacher', 'other'] as const).map((role) => (
+            <PeopleSection key={role} role={role} people={groups[role]} stats={stats} />
+          ))}
+        </div>
       )}
     </div>
   )

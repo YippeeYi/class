@@ -1,6 +1,6 @@
 import { BookOpenText, MessageSquareQuote, Search, Users } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { PageHeading } from '@/components/archive/page-heading'
@@ -10,67 +10,200 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useArchive } from '@/features/archive/archive-context'
 import { normalizeText } from '@/lib/archive'
-import { stripMarkup } from '@/lib/markup'
+import { extractMarkupReferences, recordAnchor, stripMarkup } from '@/lib/markup'
+import { prepareRecordJump } from '@/lib/record-navigation'
+import type { Quote, RecordItem } from '@/types/domain'
 
 type SearchType = 'record' | 'person' | 'quote'
+type SearchResult = {
+  type: SearchType
+  id: string
+  title: string
+  meta: string
+  text: string
+  href: string
+  sortKey: string
+  normalized: string
+}
+
+const labels: Record<SearchType, string> = { record: '记录', person: '人物', quote: '名言' }
+const icons = { record: BookOpenText, person: Users, quote: MessageSquareQuote }
+
+function quoteHref(quote: Quote, records: RecordItem[]) {
+  const recordFile = quote.recordFile.replace(/\.json$/i, '')
+  const direct = records.find(
+    (record) => (record.fileName || record.id).replace(/\.json$/i, '') === recordFile,
+  )
+  if (direct) return `/records?view=list#${recordAnchor(direct)}`
+  const matches = records.filter((record) =>
+    extractMarkupReferences(record.content).quoteIds.includes(quote.id),
+  )
+  const [match] = matches
+  return matches.length === 1 && match ? `/records?view=list#${recordAnchor(match)}` : ''
+}
+
+function score(result: SearchResult, query: string) {
+  const needle = normalizeText(query)
+  if (!needle) return 0
+  const title = normalizeText(result.title)
+  if (title === needle) return 100
+  if (title.startsWith(needle)) return 80
+  if (title.includes(needle)) return 62
+  return result.normalized.includes(needle) ? 36 : 0
+}
+
+function Snippet({ text, query }: { text: string; query: string }) {
+  const plain = stripMarkup(text).replace(/\s+/g, ' ').trim()
+  const needle = normalizeText(query)
+  const index = needle ? plain.toLocaleLowerCase('zh-CN').indexOf(needle) : -1
+  const start = index >= 0 ? Math.max(0, index - 34) : 0
+  const end =
+    index >= 0 ? Math.min(plain.length, index + needle.length + 56) : Math.min(96, plain.length)
+  const before = plain.slice(start, index >= 0 ? index : end)
+  const match = index >= 0 ? plain.slice(index, index + needle.length) : ''
+  const after = index >= 0 ? plain.slice(index + needle.length, end) : ''
+  return (
+    <>
+      {start > 0 && '···'}
+      {before}
+      {match && <mark>{match}</mark>}
+      {after}
+      {end < plain.length && '···'}
+    </>
+  )
+}
+
+function ResultCard({ result, query }: { result: SearchResult; query: string }) {
+  const Icon = icons[result.type]
+  const content = (
+    <Card>
+      <CardContent className="flex gap-4">
+        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-muted">
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <strong className="text-sm">{result.title}</strong>
+            <Badge variant="outline">{labels[result.type]}</Badge>
+          </div>
+          <p className="mb-1 text-xs text-muted-foreground">{result.meta || result.id}</p>
+          <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">
+            <Snippet text={result.text} query={query} />
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  )
+  if (!result.href) return <div aria-disabled="true">{content}</div>
+  const anchor = result.href.split('#')[1]
+  return (
+    <Link to={result.href} onClick={() => anchor && prepareRecordJump(anchor)}>
+      {content}
+    </Link>
+  )
+}
 
 export function SearchPage() {
-  const [query, setQuery] = useState('')
+  const [params, setParams] = useSearchParams()
+  const [query, setQuery] = useState(() => params.get('q') || '')
+  const [debouncedQuery, setDebouncedQuery] = useState(query)
   const [types, setTypes] = useState<Set<SearchType>>(new Set(['record', 'person', 'quote']))
   const resource = useArchive()
+
   useEffect(() => {
     document.title = '全站搜索 · 编日史'
   }, [])
-  const results = useMemo(() => {
-    const needle = normalizeText(query)
-    if (!needle || !resource.data) return []
-    const output: Array<{
-      type: SearchType
-      id: string
-      title: string
-      detail: string
-      href: string
-    }> = []
-    if (types.has('record'))
-      for (const record of resource.data.records) {
-        const body = stripMarkup(record.content)
-        if (normalizeText([record.id, record.date, record.author, body].join(' ')).includes(needle))
-          output.push({
-            type: 'record',
-            id: record.id,
-            title: `${record.date || '未注明日期'} · ${record.author || '匿名记录'}`,
-            detail: body,
-            href: `/records?view=list#record-${record.fileName.replace(/\.json$/i, '')}`,
-          })
-      }
-    if (types.has('person'))
-      for (const person of resource.data.people) {
-        if (
-          normalizeText(
-            [person.id, person.name, person.alias, person.bio, person.subject].join(' '),
-          ).includes(needle)
-        )
-          output.push({
-            type: 'person',
-            id: person.id,
-            title: stripMarkup(person.name || person.id),
-            detail: stripMarkup(person.bio || person.alias),
-            href: `/person?id=${encodeURIComponent(person.id)}`,
-          })
-      }
-    if (types.has('quote'))
-      for (const quote of resource.data.quotes) {
-        if (normalizeText([quote.id, stripMarkup(quote.quote)].join(' ')).includes(needle))
-          output.push({
-            type: 'quote',
-            id: quote.id,
-            title: stripMarkup(quote.quote),
-            detail: quote.sourceDate,
-            href: `/records?view=list#record-${quote.recordFile.replace(/\.json$/i, '')}`,
-          })
-      }
-    return output.slice(0, 100)
-  }, [query, resource.data, types])
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedQuery(query)
+      setParams(
+        (current) => {
+          const next = new URLSearchParams(current)
+          if (query.trim()) next.set('q', query.trim())
+          else next.delete('q')
+          return next
+        },
+        { replace: true },
+      )
+    }, 120)
+    return () => window.clearTimeout(timer)
+  }, [query, setParams])
+
+  const index = useMemo<SearchResult[]>(() => {
+    if (!resource.data) return []
+    const { records, people, quotes } = resource.data
+    return [
+      ...records.map((record) => {
+        const text = [
+          record.id,
+          record.fileName,
+          record.date,
+          record.time,
+          record.author,
+          record.content,
+          ...record.attachments.flatMap((attachment) => [attachment.name, attachment.file]),
+        ].join(' ')
+        return {
+          type: 'record' as const,
+          id: record.id,
+          title: `#${record.id} · ${record.date || '未知日期'}`,
+          meta: [record.author && `记录人 ${record.author}`, record.time]
+            .filter(Boolean)
+            .join(' · '),
+          text,
+          href: `/records?view=list#${recordAnchor(record)}`,
+          sortKey: record.id || record.fileName,
+          normalized: normalizeText(stripMarkup(text)),
+        }
+      }),
+      ...people.map((person) => {
+        const text = [
+          person.id,
+          person.name,
+          person.alias,
+          person.bio,
+          person.role,
+          person.subject,
+        ].join(' ')
+        return {
+          type: 'person' as const,
+          id: person.id,
+          title: stripMarkup(person.name || person.alias || person.id),
+          meta: person.role ? `身份 ${person.role}` : '人物条目',
+          text,
+          href: `/person?id=${encodeURIComponent(person.id)}`,
+          sortKey: person.id,
+          normalized: normalizeText(stripMarkup(text)),
+        }
+      }),
+      ...quotes.map((quote) => {
+        const text = [quote.id, quote.quote, quote.content, quote.sourceDate].join(' ')
+        return {
+          type: 'quote' as const,
+          id: quote.id,
+          title: stripMarkup(quote.quote || quote.id),
+          meta: quote.sourceDate ? `来源 ${quote.sourceDate}` : '名言条目',
+          text,
+          href: quoteHref(quote, records),
+          sortKey: quote.sourceDate || quote.id,
+          normalized: normalizeText(stripMarkup(text)),
+        }
+      }),
+    ]
+  }, [resource.data])
+
+  const grouped = useMemo(() => {
+    const matches = index
+      .filter((item) => types.has(item.type))
+      .map((item) => ({ ...item, score: score(item, debouncedQuery) }))
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score || b.sortKey.localeCompare(a.sortKey))
+    return (['record', 'person', 'quote'] as const)
+      .map((type) => ({ type, items: matches.filter((item) => item.type === type) }))
+      .filter((group) => group.items.length)
+  }, [debouncedQuery, index, types])
+  const total = grouped.reduce((sum, group) => sum + group.items.length, 0)
+
   const toggle = (type: SearchType) =>
     setTypes((current) => {
       const next = new Set(current)
@@ -78,13 +211,44 @@ export function SearchPage() {
       else next.add(type)
       return next
     })
-  const icon = { record: BookOpenText, person: Users, quote: MessageSquareQuote }
-  const labels = { record: '记录', person: '人物', quote: '名言' }
+
+  let body: ReactNode = null
+  if (resource.loading) body = <PageSkeleton rows={4} />
+  else if (resource.error) body = <ErrorState title="搜索索引建立失败" onRetry={resource.retry} />
+  else if (!debouncedQuery.trim())
+    body = <EmptyState title={`已索引 ${index.length} 个条目，输入关键词开始搜索`} />
+  else if (!total) body = <EmptyState title="没有找到匹配条目" />
+  else
+    body = (
+      <div className="grid gap-7">
+        <p className="text-sm text-muted-foreground">找到 {total} 个结果</p>
+        {grouped.map((group) => (
+          <section key={group.type} aria-labelledby={`search-${group.type}`}>
+            <h2 id={`search-${group.type}`} className="mb-3 font-heading text-xl font-semibold">
+              {labels[group.type]}{' '}
+              <span className="text-sm font-normal text-muted-foreground">
+                {group.items.length}
+              </span>
+            </h2>
+            <div className="grid gap-3">
+              {group.items.map((result) => (
+                <ResultCard
+                  key={`${result.type}-${result.id}`}
+                  result={result}
+                  query={debouncedQuery}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    )
+
   return (
     <div>
       <PageHeading title="全站搜索" description="一次搜索记录正文、人物资料与名言内容。" />
       <Card className="mb-6">
-        <CardContent className="pt-4">
+        <CardContent>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -95,12 +259,13 @@ export function SearchPage() {
               autoFocus
             />
           </div>
-          <div className="mt-3 flex gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             {(['record', 'person', 'quote'] as const).map((type) => (
               <Button
                 key={type}
                 variant={types.has(type) ? 'default' : 'outline'}
                 size="sm"
+                aria-pressed={types.has(type)}
                 onClick={() => toggle(type)}
               >
                 {labels[type]}
@@ -109,37 +274,7 @@ export function SearchPage() {
           </div>
         </CardContent>
       </Card>
-      {resource.loading && <PageSkeleton rows={4} />}
-      {resource.error && <ErrorState title="搜索索引建立失败" onRetry={resource.retry} />}
-      {resource.data && query && (
-        <div className="grid gap-3">
-          <p className="mb-1 text-sm text-muted-foreground">找到 {results.length} 项结果</p>
-          {results.map((result) => {
-            const Icon = icon[result.type]
-            return (
-              <Link to={result.href} key={`${result.type}-${result.id}`}>
-                <Card className="transition hover:ring-primary/25">
-                  <CardContent className="flex gap-4 pt-4">
-                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted">
-                      <Icon className="size-4" />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="mb-1 flex items-center gap-2">
-                        <strong className="truncate text-sm">{result.title}</strong>
-                        <Badge variant="outline">{labels[result.type]}</Badge>
-                      </div>
-                      <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
-                        {result.detail || result.id}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            )
-          })}
-          {results.length === 0 && <EmptyState title="没有找到匹配内容" />}
-        </div>
-      )}
+      {body}
     </div>
   )
 }

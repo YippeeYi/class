@@ -1,17 +1,83 @@
-import { Fragment, type ReactNode, useCallback, useMemo, useState } from 'react'
+import { Fragment, type ReactNode, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { ImageViewer } from '@/components/archive/image-viewer'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { Spinner } from '@/components/ui/spinner'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { type MarkupNode, parseMarkup } from '@/lib/markup'
-import { signAssetUrl } from '@/services/data'
+import { prepareRecordJump } from '@/lib/record-navigation'
+
+function Annotation({ note, children }: { note: string; children: ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            variant="link"
+            size="xs"
+            className="record-annotation inline h-auto min-h-0 whitespace-normal px-0 py-0 align-baseline font-inherit"
+          >
+            {children}
+          </Button>
+        }
+      />
+      <TooltipContent className="max-w-sm text-sm leading-6">
+        <MarkupContent content={note} />
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+function IllustrationReference({ path, children }: { path: string; children: ReactNode }) {
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const preview = useSignedAsset(previewOpen ? path : '', { refresh: false })
+  return (
+    <HoverCard onOpenChange={setPreviewOpen}>
+      <HoverCardTrigger
+        render={
+          <span className="inline-flex">
+            <ImageViewer
+              path={path}
+              alt="记录插图"
+              initialUrl={preview.src}
+              trigger={
+                <Button
+                  type="button"
+                  variant="link"
+                  size="xs"
+                  className="markup-link illustration-link inline h-auto min-h-0 whitespace-normal px-1 py-0 align-baseline font-inherit"
+                >
+                  {children}
+                </Button>
+              }
+            />
+          </span>
+        }
+      />
+      <HoverCardContent className="w-auto max-w-[min(86vw,34rem)] p-2">
+        <div className="grid min-h-32 min-w-48 place-items-center overflow-hidden rounded-md bg-muted/55">
+          {preview.loading && <Spinner className="size-6" />}
+          {preview.error && (
+            <Button variant="outline" size="sm" onClick={() => void preview.retry()}>
+              图片加载失败，重试
+            </Button>
+          )}
+          {preview.src && (
+            <img
+              src={preview.src}
+              alt="记录插图预览"
+              className="max-h-[52vh] max-w-[80vw] object-contain"
+            />
+          )}
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  )
+}
 
 export function MarkupContent({
   content,
@@ -21,19 +87,7 @@ export function MarkupContent({
   className?: string
 }) {
   const navigate = useNavigate()
-  const [image, setImage] = useState<{
-    open: boolean
-    src: string
-    loading: boolean
-    error: boolean
-  }>({ open: false, src: '', loading: false, error: false })
   const tree = useMemo(() => parseMarkup(content), [content])
-  const openIllustration = useCallback((path: string) => {
-    setImage({ open: true, src: '', loading: true, error: false })
-    signAssetUrl(path)
-      .then((src) => setImage({ open: true, src, loading: false, error: !src }))
-      .catch(() => setImage({ open: true, src: '', loading: false, error: true }))
-  }, [])
 
   const renderNodes = (nodes: MarkupNode[], path: string): ReactNode =>
     nodes.map((node, position) => {
@@ -76,7 +130,10 @@ export function MarkupContent({
             variant="link"
             size="xs"
             className={`markup-link inline h-auto min-h-0 whitespace-normal px-1 py-0 align-baseline font-inherit ${node.kind}-link`}
-            onClick={() => target && navigate(target)}
+            onClick={() => {
+              if (node.kind === 'record') prepareRecordJump(`record-${node.id}`)
+              if (target) navigate(target)
+            }}
           >
             {renderNodes(node.children, key)}
           </Button>
@@ -84,22 +141,15 @@ export function MarkupContent({
       }
       if (node.type === 'annotation')
         return (
-          <span key={key} className="record-annotation" title={node.note}>
+          <Annotation key={key} note={node.note}>
             {renderNodes(node.children, key)}
-          </span>
+          </Annotation>
         )
       if (node.type === 'illustration')
         return (
-          <Button
-            key={key}
-            type="button"
-            variant="link"
-            size="xs"
-            className="markup-link illustration-link inline h-auto min-h-0 whitespace-normal px-1 py-0 align-baseline font-inherit"
-            onClick={() => openIllustration(node.path)}
-          >
+          <IllustrationReference key={key} path={node.path}>
             {renderNodes(node.children, key)}
-          </Button>
+          </IllustrationReference>
         )
       if (node.type === 'stack')
         return (
@@ -129,31 +179,5 @@ export function MarkupContent({
       )
     })
 
-  return (
-    <>
-      <div className={`record-markup ${className}`}>{renderNodes(tree, 'root')}</div>
-      <Dialog
-        open={image.open}
-        onOpenChange={(open) => setImage((current) => ({ ...current, open }))}
-      >
-        <DialogContent className="max-w-[min(94vw,72rem)] bg-zinc-950 text-white">
-          <DialogHeader>
-            <DialogTitle>记录插图</DialogTitle>
-            <DialogDescription className="text-zinc-400">点击关闭按钮返回记录。</DialogDescription>
-          </DialogHeader>
-          <div className="grid min-h-64 place-items-center overflow-auto rounded-lg bg-black/40 p-3">
-            {image.loading && <Spinner className="size-7" />}
-            {image.error && <p className="text-zinc-300">图片加载失败，请稍后重试。</p>}
-            {image.src && (
-              <img
-                src={image.src}
-                alt="记录插图"
-                className="max-h-[76vh] max-w-full object-contain"
-              />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
-  )
+  return <div className={`record-markup ${className}`}>{renderNodes(tree, 'root')}</div>
 }

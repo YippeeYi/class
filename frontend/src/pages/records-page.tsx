@@ -1,14 +1,31 @@
-import { Eye, FileImage, List, Search, ShieldAlert, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { Eye, FileImage, List, ShieldAlert } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { ImageViewer } from '@/components/archive/image-viewer'
+import { MarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { RecordCard } from '@/components/archive/record-card'
+import {
+  EMPTY_RECORD_CRITERIA,
+  filterRecords,
+  type RecordCriteria,
+  RecordFilters,
+} from '@/components/archive/record-filters'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -19,30 +36,23 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
 import { useAsyncData } from '@/hooks/use-async-data'
-import { normalizeRecordKey, normalizeText, unique } from '@/lib/archive'
-import { stripMarkup } from '@/lib/markup'
-import { hasAdminAccess, loadRecordPages, loadRecords, signAssetUrl } from '@/services/data'
-import type { RecordItem, RecordPage } from '@/types/domain'
-
-function SignedPageImage({ page }: { page: RecordPage }) {
-  const image = useAsyncData(() => signAssetUrl(page.imagePath), [page.imagePath])
-  if (image.loading) return <PageSkeleton rows={1} />
-  if (!image.data) return <ErrorState title="手写页图片加载失败" onRetry={image.retry} />
-  return (
-    <img
-      src={image.data}
-      alt={`手写记录第 ${page.page} 页`}
-      className="mx-auto max-h-[72vh] w-auto rounded-xl object-contain shadow-lg"
-    />
-  )
-}
+import { useSignedAsset } from '@/hooks/use-signed-asset'
+import { normalizeRecordKey } from '@/lib/archive'
+import { consumeRecordJump, type PendingRecordJump } from '@/lib/record-navigation'
+import {
+  hasAdminAccess,
+  loadPageMessages,
+  loadPageSupplements,
+  loadRecordPages,
+  loadRecords,
+} from '@/services/data'
+import type { PageMessage, PageSupplement, RecordItem, RecordPage } from '@/types/domain'
 
 function withinPage(page: RecordPage, record: RecordItem, records: RecordItem[]) {
-  const key = normalizeRecordKey(record.fileName || record.id)
   const ordered = records.map((item) => normalizeRecordKey(item.fileName || item.id))
+  const index = ordered.indexOf(normalizeRecordKey(record.fileName || record.id))
   const start = ordered.indexOf(normalizeRecordKey(page.startFile))
   const end = ordered.indexOf(normalizeRecordKey(page.endFile))
-  const index = ordered.indexOf(key)
   return (
     index >= 0 &&
     start >= 0 &&
@@ -52,78 +62,262 @@ function withinPage(page: RecordPage, record: RecordItem, records: RecordItem[])
   )
 }
 
+function pageDate(page: RecordPage, records: RecordItem[]) {
+  return records.find((record) => withinPage(page, record, records))?.date || ''
+}
+
+function supplementalRecords(
+  pages: RecordPage[],
+  records: RecordItem[],
+  messages: PageMessage[],
+  supplements: PageSupplement[],
+) {
+  const dates = new Map(pages.map((page) => [page.page, pageDate(page, records)]))
+  const messageRecords: RecordItem[] = messages.map((item, index) => ({
+    id: `message-${item.page || index + 1}`,
+    fileName: `message-${item.page || index + 1}`,
+    recordIndex: index,
+    date: dates.get(item.page) || '',
+    time: '',
+    author: item.author,
+    recorder: item.author,
+    content: item.content,
+    text: item.content,
+    importance: 'normal',
+    attachments: [],
+    hidden: false,
+    recordType: 'message',
+    page: item.page,
+  }))
+  const supplementRecords: RecordItem[] = supplements.map((item) => ({
+    id: item.id,
+    fileName: item.fileName || item.id,
+    recordIndex: item.supplementIndex,
+    date: item.date || dates.get(item.page) || '',
+    time: item.time,
+    author: item.author,
+    recorder: item.author,
+    content: item.content,
+    text: item.content,
+    importance: item.importance || 'normal',
+    attachments: [],
+    hidden: item.hidden,
+    recordType: 'supplement',
+    page: item.page,
+    supplementIndex: item.supplementIndex,
+  }))
+  return [...messageRecords, ...supplementRecords]
+}
+
 function WrittenRecordPages({
-  filtered,
+  pages,
   records,
+  matched,
+  messages,
+  supplements,
+  activeFilter,
   pageIndex,
+  hidden,
   onPageChange,
 }: {
-  filtered: RecordItem[]
+  pages: RecordPage[]
   records: RecordItem[]
+  matched: RecordItem[]
+  messages: PageMessage[]
+  supplements: PageSupplement[]
+  activeFilter: boolean
   pageIndex: number
+  hidden: boolean
   onPageChange: (next: number) => void
 }) {
-  const pages = useAsyncData(() => loadRecordPages(false))
-  if (pages.loading) return <PageSkeleton rows={1} />
-  if (pages.error) return <ErrorState title="手写页加载失败" onRetry={pages.retry} />
+  const visiblePages = pages.filter((page) => {
+    if (!activeFilter) return Boolean(page.imagePath)
+    return matched.some((record) =>
+      record.recordType ? String(record.page) === page.page : withinPage(page, record, records),
+    )
+  })
+  const safeIndex = Math.min(pageIndex, Math.max(0, visiblePages.length - 1))
+  const page = visiblePages[safeIndex]
+  if (!page)
+    return <EmptyState title={hidden ? '没有可展示的隐藏书面页' : '当前条件下没有手写页'} />
 
-  const visiblePages = (pages.data || []).filter((page) =>
-    filtered.some((record) => withinPage(page, record, records)),
+  const pageRecords = matched.filter(
+    (record) => !record.recordType && withinPage(page, record, records),
   )
-  const activePage = visiblePages[Math.min(pageIndex, Math.max(0, visiblePages.length - 1))]
+  const pageMessage = messages.find((item) => item.page === page.page)
+  const pageSupplements = supplements.filter((item) => item.page === page.page)
+  const previousPath = visiblePages[safeIndex - 1]?.imagePath || ''
+  const nextPath = visiblePages[safeIndex + 1]?.imagePath || ''
 
   return (
     <Card>
       <CardContent className="pt-4">
-        {activePage ? (
-          <>
-            <div className="mb-4 flex items-center justify-between gap-3">
+        <PageImagePreloader previousPath={previousPath} nextPath={nextPath} />
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <Button
+            variant="outline"
+            disabled={safeIndex <= 0}
+            onClick={() => onPageChange(safeIndex - 1)}
+          >
+            上一页
+          </Button>
+          <div className="flex items-center gap-2">
+            <strong className="text-sm">
+              {hidden ? '隐藏 ' : ''}第 {page.page} 页 · {safeIndex + 1}/{visiblePages.length}
+            </strong>
+            <Select
+              value={String(safeIndex)}
+              onValueChange={(value) => onPageChange(Number(value))}
+            >
+              <SelectTrigger size="sm" aria-label="跳转书面页" className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {visiblePages.map((item, index) => (
+                  <SelectItem key={item.page} value={String(index)}>
+                    第 {item.page} 页
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            variant="outline"
+            disabled={safeIndex >= visiblePages.length - 1}
+            onClick={() => onPageChange(safeIndex + 1)}
+          >
+            下一页
+          </Button>
+        </div>
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.08fr)_minmax(20rem,.92fr)]">
+          <ImageViewer
+            path={page.imagePath}
+            alt={`${hidden ? '隐藏' : '手写'}记录第 ${page.page} 页`}
+            trigger={
               <Button
-                variant="outline"
-                disabled={pageIndex <= 0}
-                onClick={() => onPageChange(pageIndex - 1)}
+                type="button"
+                variant="ghost"
+                className="h-auto w-full overflow-hidden border bg-muted/40 p-2"
               >
-                上一页
+                <SignedPageImage path={page.imagePath} page={page.page} />
               </Button>
-              <strong className="text-sm">
-                第 {activePage.page} 页 · {pageIndex + 1}/{visiblePages.length}
-              </strong>
-              <Button
-                variant="outline"
-                disabled={pageIndex >= visiblePages.length - 1}
-                onClick={() => onPageChange(pageIndex + 1)}
-              >
-                下一页
-              </Button>
-            </div>
-            <SignedPageImage page={activePage} />
-          </>
-        ) : (
-          <EmptyState title="当前条件下没有手写页" />
-        )}
+            }
+          />
+          <div className="grid content-start gap-4">
+            {pageMessage &&
+              (!activeFilter ||
+                matched.some(
+                  (item) => item.recordType === 'message' && item.page === page.page,
+                )) && (
+                <Card className="bg-muted/45">
+                  <CardContent className="pt-4">
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">
+                      箴言{pageMessage.author ? ` · ${pageMessage.author}` : ''}
+                    </p>
+                    <MarkupContent content={pageMessage.content} />
+                  </CardContent>
+                </Card>
+              )}
+            {pageSupplements
+              .filter(
+                (item) =>
+                  !activeFilter ||
+                  matched.some(
+                    (record) => record.recordType === 'supplement' && record.id === item.id,
+                  ),
+              )
+              .map((item) => {
+                const [record] = supplementalRecords([page], records, [], [item])
+                return record ? <RecordCard key={item.id} record={record} /> : null
+              })}
+            {pageRecords.map((record) => (
+              <RecordCard key={record.fileName || record.id} record={record} />
+            ))}
+            {!pageMessage && !pageSupplements.length && !pageRecords.length && (
+              <EmptyState title="这张书面页没有对应的文字记录" />
+            )}
+          </div>
+        </div>
       </CardContent>
     </Card>
   )
 }
 
+function SignedPageImage({ path, page }: { path: string; page: string }) {
+  const image = useSignedAsset(path)
+  if (image.loading) return <PageSkeleton rows={1} />
+  if (!image.src) return <ErrorState title="手写页图片加载失败" onRetry={image.retry} />
+  return (
+    <img
+      src={image.src}
+      alt={`手写记录第 ${page} 页`}
+      onError={() => void image.retry()}
+      className="mx-auto max-h-[72vh] w-auto object-contain"
+    />
+  )
+}
+
+function PageImagePreloader({
+  previousPath,
+  nextPath,
+}: {
+  previousPath: string
+  nextPath: string
+}) {
+  const previous = useSignedAsset(previousPath, { refresh: false })
+  const next = useSignedAsset(nextPath, { refresh: false })
+  useEffect(() => {
+    for (const src of [previous.src, next.src].filter(Boolean)) {
+      const image = new Image()
+      image.decoding = 'async'
+      image.src = src
+    }
+  }, [next.src, previous.src])
+  return null
+}
+
 export function RecordsPage() {
   const archive = useArchive()
   const [params, setParams] = useSearchParams()
-  const [view, setView] = useState(params.get('view') === 'written' ? 'written' : 'list')
-  const [query, setQuery] = useState(params.get('q') || '')
-  const [year, setYear] = useState(params.get('year') || '')
-  const [month, setMonth] = useState(params.get('month') || '')
-  const [day, setDay] = useState(params.get('day') || '')
-  const [important, setImportant] = useState(params.get('important') === '1')
+  const [view, setView] = useState<'list' | 'written'>(
+    params.get('view') === 'written' ? 'written' : 'list',
+  )
+  const [criteria, setCriteria] = useState<RecordCriteria>({
+    year: params.get('year') || '',
+    month: params.get('month') || '',
+    day: params.get('day') || '',
+    important: ['1', 'true'].includes(params.get('important') || ''),
+    excludeDaily: ['1', 'true'].includes(params.get('excludeDaily') || ''),
+    query: params.get('q') || '',
+  })
   const [hidden, setHidden] = useState(false)
   const [hiddenRecords, setHiddenRecords] = useState<RecordItem[]>([])
   const [hiddenError, setHiddenError] = useState('')
   const [pageIndex, setPageIndex] = useState(0)
+  const pendingJump = useRef<PendingRecordJump | null>(
+    consumeRecordJump() ||
+      (window.location.hash
+        ? {
+            targetAnchorId: decodeURIComponent(window.location.hash.slice(1)),
+            originHref: '',
+            createdAt: Date.now(),
+          }
+        : null),
+  )
+  const [jumpDialogOpen, setJumpDialogOpen] = useState(false)
+  const [jumpOriginHref, setJumpOriginHref] = useState('')
+  const written = useAsyncData(async () => {
+    const [pages, messages, supplements] = await Promise.all([
+      loadRecordPages(hidden),
+      hidden ? Promise.resolve([]) : loadPageMessages(),
+      loadPageSupplements({ hidden }),
+    ])
+    return { pages, messages, supplements }
+  }, [hidden])
 
   useEffect(() => {
     document.title = '编日史 · 记录'
   }, [])
-
   useEffect(() => {
     let buffer = ''
     const listener = async (event: KeyboardEvent) => {
@@ -133,69 +327,87 @@ export function RecordsPage() {
       buffer = (buffer + event.key.toLowerCase()).slice(-16)
       if (!buffer.endsWith('qibaishihuaxia')) return
       buffer = ''
-      if (!(await hasAdminAccess())) {
-        setHiddenError('当前访问凭证没有隐藏记录权限。')
-        return
+      try {
+        if (!(await hasAdminAccess())) return
+        setHiddenRecords(await loadRecords({ hidden: true }))
+        setHidden(true)
+        setCriteria(EMPTY_RECORD_CRITERIA)
+      } catch {
+        setHiddenError('隐藏记录暂时无法加载，请稍后重试。')
       }
-      const records = await loadRecords({ hidden: true })
-      setHiddenRecords(records)
-      setHidden(true)
-      setView('list')
     }
     window.addEventListener('keydown', listener)
     return () => window.removeEventListener('keydown', listener)
   }, [])
 
   const records = hidden ? hiddenRecords : archive.data?.records || []
-  const loading = !hidden && (!archive.data || archive.loading)
-  const years = unique(records.map((record) => record.date.slice(0, 4)).filter(Boolean))
-    .sort()
-    .reverse()
-  const months = unique(
-    records
-      .filter((record) => !year || record.date.startsWith(year))
-      .map((record) => record.date.slice(5, 7))
-      .filter(Boolean),
-  ).sort()
-  const filtered = useMemo(
+  const extras = useMemo(
     () =>
-      records
-        .filter((record) => {
-          if (year && !record.date.startsWith(year)) return false
-          if (month && record.date.slice(5, 7) !== month) return false
-          if (day && record.date.slice(8, 10) !== day) return false
-          if (important && record.importance !== 'important') return false
-          return (
-            !query ||
-            normalizeText(
-              [record.id, record.date, record.author, stripMarkup(record.content)].join(' '),
-            ).includes(normalizeText(query))
+      written.data
+        ? supplementalRecords(
+            written.data.pages,
+            records,
+            written.data.messages,
+            written.data.supplements,
           )
-        })
-        .sort((a, b) => b.id.localeCompare(a.id)),
-    [day, important, month, query, records, year],
+        : [],
+    [records, written.data],
   )
+  const sources = view === 'written' ? [...records, ...extras] : records
+  const filtered = useMemo(
+    () => filterRecords(sources, criteria).sort((a, b) => b.id.localeCompare(a.id)),
+    [criteria, sources],
+  )
+  const activeFilter = Object.values(criteria).some(Boolean)
 
   useEffect(() => {
     const next = new URLSearchParams()
     if (view === 'written') next.set('view', view)
-    if (query) next.set('q', query)
-    if (year) next.set('year', year)
-    if (month) next.set('month', month)
-    if (day) next.set('day', day)
-    if (important) next.set('important', '1')
+    if (criteria.query) next.set('q', criteria.query)
+    if (criteria.year) next.set('year', criteria.year)
+    if (criteria.month) next.set('month', criteria.month)
+    if (criteria.day) next.set('day', criteria.day)
+    if (criteria.important) next.set('important', '1')
+    if (criteria.excludeDaily) next.set('excludeDaily', '1')
     setParams(next, { replace: true })
-  }, [day, important, month, query, setParams, view, year])
+  }, [criteria, setParams, view])
 
-  const clearFilters = () => {
-    setQuery('')
-    setYear('')
-    setMonth('')
-    setDay('')
-    setImportant(false)
-    setPageIndex(0)
+  const loading = !hidden && (!archive.data || archive.loading)
+
+  useEffect(() => {
+    const pending = pendingJump.current
+    if (loading || view !== 'list' || !pending || !filtered.length) return
+    const target = document.getElementById(pending.targetAnchorId)
+    if (!target) return
+    pendingJump.current = null
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    target.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-background')
+    const timer = window.setTimeout(
+      () =>
+        target.classList.remove(
+          'ring-2',
+          'ring-primary',
+          'ring-offset-2',
+          'ring-offset-background',
+        ),
+      3200,
+    )
+    if (pending.originHref) {
+      setJumpOriginHref(pending.originHref)
+      setJumpDialogOpen(true)
+    }
+    return () => window.clearTimeout(timer)
+  }, [filtered, loading, view])
+
+  const returnToOrigin = () => {
+    if (!jumpOriginHref) return
+    try {
+      const url = new URL(jumpOriginHref)
+      if (url.origin === window.location.origin) window.location.assign(url.href)
+    } catch {
+      // Ignore malformed session data.
+    }
   }
-
   return (
     <div>
       <PageHeading
@@ -214,7 +426,7 @@ export function RecordsPage() {
                 <List data-icon="inline-start" />
                 列表
               </TabsTrigger>
-              <TabsTrigger value="written" disabled={hidden}>
+              <TabsTrigger value="written">
                 <FileImage data-icon="inline-start" />
                 手写页
               </TabsTrigger>
@@ -232,7 +444,7 @@ export function RecordsPage() {
           <Eye />
           <AlertTitle>隐藏记录模式</AlertTitle>
           <AlertDescription className="flex items-center justify-between gap-3">
-            本模式不会写入本地偏好。
+            仅本次会话可见，刷新后恢复普通记录。
             <Button size="xs" variant="outline" onClick={() => setHidden(false)}>
               退出
             </Button>
@@ -244,79 +456,17 @@ export function RecordsPage() {
           <AlertDescription>{hiddenError}</AlertDescription>
         </Alert>
       )}
-
-      <Card className="mb-6">
-        <CardContent className="flex flex-col gap-3 pt-4 lg:flex-row lg:items-center">
-          <div className="relative min-w-0 flex-1">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="搜索记录内容、日期或记录人"
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Select
-              value={year || '__all__'}
-              onValueChange={(value) => {
-                setYear(value === '__all__' ? '' : value || '')
-                setMonth('')
-                setDay('')
-                setPageIndex(0)
-              }}
-            >
-              <SelectTrigger aria-label="年份">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">全部年份</SelectItem>
-                {years.map((item) => (
-                  <SelectItem value={item} key={item}>
-                    {item} 年
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={month || '__all__'}
-              onValueChange={(value) => {
-                setMonth(value === '__all__' ? '' : value || '')
-                setDay('')
-                setPageIndex(0)
-              }}
-            >
-              <SelectTrigger aria-label="月份">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">全部月份</SelectItem>
-                {months.map((item) => (
-                  <SelectItem value={item} key={item}>
-                    {item} 月
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant={important ? 'default' : 'outline'}
-              onClick={() => setImportant((value) => !value)}
-            >
-              重要记录
-            </Button>
-            {(query || year || month || important) && (
-              <Button variant="ghost" onClick={clearFilters}>
-                <X data-icon="inline-start" />
-                清除
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
+      <RecordFilters
+        records={sources}
+        value={criteria}
+        onChange={(value) => {
+          setCriteria(value)
+          setPageIndex(0)
+        }}
+      />
       {loading && <PageSkeleton rows={5} />}
       {archive.error && !hidden && <ErrorState title="记录加载失败" onRetry={archive.retry} />}
-      {!loading && !archive.error && view === 'list' && (
+      {!loading && (!archive.error || hidden) && view === 'list' && (
         <div className="grid gap-4">
           {filtered.length ? (
             filtered.map((record) => (
@@ -327,14 +477,40 @@ export function RecordsPage() {
           )}
         </div>
       )}
-      {!loading && !archive.error && view === 'written' && (
-        <WrittenRecordPages
-          filtered={filtered}
-          records={records}
-          pageIndex={pageIndex}
-          onPageChange={setPageIndex}
-        />
-      )}
+      {!loading &&
+        (!archive.error || hidden) &&
+        view === 'written' &&
+        (written.loading ? (
+          <PageSkeleton rows={2} />
+        ) : written.error || !written.data ? (
+          <ErrorState title="书面记录加载失败" onRetry={written.retry} />
+        ) : (
+          <WrittenRecordPages
+            pages={written.data.pages}
+            records={records}
+            matched={filtered}
+            messages={written.data.messages}
+            supplements={written.data.supplements}
+            activeFilter={activeFilter}
+            pageIndex={pageIndex}
+            hidden={hidden}
+            onPageChange={setPageIndex}
+          />
+        ))}
+      <AlertDialog open={jumpDialogOpen} onOpenChange={setJumpDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>已定位到来源记录</AlertDialogTitle>
+            <AlertDialogDescription>
+              你可以留在记录页继续浏览，或返回刚才的页面。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>留在这里</AlertDialogCancel>
+            <AlertDialogAction onClick={returnToOrigin}>返回上一页</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

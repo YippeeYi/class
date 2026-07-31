@@ -148,7 +148,7 @@ function parseSquare(body: string, raw: string, depth: number): MarkupNode {
     const path = illustrationPath(first)
     return path
       ? { type: 'illustration', path, children: parseNodes(second, depth + 1) }
-      : textNode(second)
+      : textNode(raw)
   }
   if (kind === 'frac' || kind === 'arrow')
     return {
@@ -157,7 +157,7 @@ function parseSquare(body: string, raw: string, depth: number): MarkupNode {
       top: parseNodes(first, depth + 1),
       bottom: parseNodes(second, depth + 1),
     }
-  return textNode(second)
+  return textNode(raw)
 }
 
 function parseNodes(source: string, depth = 0): MarkupNode[] {

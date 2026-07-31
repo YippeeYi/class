@@ -1,9 +1,12 @@
 import { getStoredAccessToken } from '@/features/auth/auth-storage'
 import { extractQuoteMarkers } from '@/lib/markup'
+import { clearRuntimeCache, loadCached } from '@/services/cache'
 import { getSupabase, supabaseConfig } from '@/services/supabase'
 import type {
   CreditsPage,
   Material,
+  PageMessage,
+  PageSupplement,
   Person,
   QuizQuestion,
   Quote,
@@ -12,18 +15,10 @@ import type {
 } from '@/types/domain'
 
 type Row = Record<string, unknown>
-const promises = new Map<string, Promise<unknown>>()
+const signedUrls = new Map<string, { promise: Promise<string>; refreshAt: number }>()
 
 function cached<T>(key: string, loader: () => Promise<T>, force = false): Promise<T> {
-  if (force) promises.delete(key)
-  const existing = promises.get(key)
-  if (existing) return existing as Promise<T>
-  const promise = loader().catch((error) => {
-    promises.delete(key)
-    throw error
-  })
-  promises.set(key, promise)
-  return promise
+  return loadCached({ key, loader, force })
 }
 
 function objectValue(value: unknown): Row {
@@ -58,13 +53,17 @@ function currentClient() {
 }
 
 export function clearDataCache() {
-  promises.clear()
+  signedUrls.clear()
+  clearRuntimeCache()
 }
 
 export function loadRecords({ hidden = false, force = false } = {}) {
-  return cached<RecordItem[]>(
-    `records:${hidden}`,
-    async () => {
+  return loadCached<RecordItem[]>({
+    key: `records:${hidden}`,
+    force,
+    persistent: !hidden,
+    sessionTtl: hidden ? 0 : undefined,
+    loader: async () => {
       let query = currentClient()
         .from(supabaseConfig.tables.records)
         .select('*')
@@ -105,8 +104,7 @@ export function loadRecords({ hidden = false, force = false } = {}) {
         })
         .filter((item) => item.hidden === hidden)
     },
-    force,
-  )
+  })
 }
 
 export function loadPeople(force = false) {
@@ -186,9 +184,12 @@ export function loadMaterials(force = false) {
 }
 
 export function loadQuizQuestions(force = false) {
-  return cached<QuizQuestion[]>(
-    'quiz',
-    async () => {
+  return loadCached<QuizQuestion[]>({
+    key: 'quiz',
+    force,
+    persistent: false,
+    sessionTtl: 0,
+    loader: async () => {
       const { data, error } = await currentClient()
         .from(supabaseConfig.tables.quizQuestions)
         .select('*')
@@ -220,29 +221,95 @@ export function loadQuizQuestions(force = false) {
         }
       }) as QuizQuestion[]
     },
+  })
+}
+
+export function loadRecordPages(hidden = false) {
+  return loadCached<RecordPage[]>({
+    key: `record-pages:${hidden}`,
+    persistent: !hidden,
+    sessionTtl: hidden ? 0 : undefined,
+    loader: async () => {
+      const { data, error } = await currentClient()
+        .from(supabaseConfig.tables.recordPages)
+        .select('*')
+        .eq('hidden', hidden)
+        .order('sort_order', { ascending: true })
+      if (error) throw error
+      return ((data || []) as Row[]).map((row, index) => {
+        const raw = objectValue(row.raw)
+        return {
+          ...raw,
+          page: text(row.page ?? raw.page ?? index + 1),
+          startFile: text(row.start_file || raw.startFile || raw.start),
+          endFile: text(row.end_file || raw.endFile || raw.end),
+          imagePath: normalizePrivatePath(row.image_path || raw.imagePath || raw.image),
+          hidden: bool(row.hidden ?? raw.hidden),
+        } as RecordPage
+      })
+    },
+  })
+}
+
+export function loadPageMessages(force = false) {
+  return cached<PageMessage[]>(
+    'page-messages',
+    async () => {
+      const { data, error } = await currentClient()
+        .from(supabaseConfig.tables.pageMessages)
+        .select('*')
+        .order('page', { ascending: true })
+      if (error) throw error
+      return ((data || []) as Row[])
+        .map((row) => {
+          const raw = objectValue(row.raw)
+          return {
+            ...raw,
+            page: text(row.page ?? raw.page).trim(),
+            content: text(row.content || raw.content || raw.text),
+            author: text(row.author || raw.author || raw.recorder),
+          } as PageMessage
+        })
+        .filter((item) => item.page && item.content)
+    },
     force,
   )
 }
 
-export function loadRecordPages(hidden = false) {
-  return cached<RecordPage[]>(`record-pages:${hidden}`, async () => {
-    const { data, error } = await currentClient()
-      .from(supabaseConfig.tables.recordPages)
-      .select('*')
-      .eq('hidden', hidden)
-      .order('sort_order', { ascending: true })
-    if (error) throw error
-    return ((data || []) as Row[]).map((row, index) => {
-      const raw = objectValue(row.raw)
-      return {
-        ...raw,
-        page: text(row.page ?? raw.page ?? index + 1),
-        startFile: text(row.start_file || raw.startFile || raw.start),
-        endFile: text(row.end_file || raw.endFile || raw.end),
-        imagePath: normalizePrivatePath(row.image_path || raw.imagePath || raw.image),
-        hidden: bool(row.hidden ?? raw.hidden),
-      } as RecordPage
-    })
+export function loadPageSupplements({ hidden = false, force = false } = {}) {
+  return loadCached<PageSupplement[]>({
+    key: `page-supplements:${hidden}`,
+    force,
+    persistent: !hidden,
+    sessionTtl: hidden ? 0 : undefined,
+    loader: async () => {
+      const { data, error } = await currentClient()
+        .from(supabaseConfig.tables.pageSupplements)
+        .select('*')
+        .eq('hidden', hidden)
+        .order('sort_order', { ascending: true })
+      if (error) throw error
+      return ((data || []) as Row[])
+        .map((row, index) => {
+          const raw = objectValue(row.raw)
+          const page = text(row.page ?? raw.page).trim()
+          const supplementIndex = Number(row.supplement_index ?? raw.supplementIndex ?? index + 1)
+          return {
+            ...raw,
+            id: text(row.file_name || raw.id || `supplement-${page}-${supplementIndex}`),
+            fileName: text(row.file_name || raw.fileName),
+            page,
+            supplementIndex,
+            author: text(row.author || raw.author || raw.recorder),
+            content: text(row.content || raw.content || raw.text),
+            hidden: bool(row.hidden ?? raw.hidden),
+            importance: text(raw.importance || 'normal'),
+            date: text(raw.date),
+            time: text(raw.time),
+          } as PageSupplement
+        })
+        .filter((item) => item.page && item.content && item.hidden === hidden)
+    },
   })
 }
 
@@ -319,16 +386,39 @@ export function normalizePrivatePath(value: unknown, requiredPrefix = '') {
   return requiredPrefix && !path.startsWith(requiredPrefix) ? '' : path
 }
 
-export async function signAssetUrl(path: string, expiresIn = 180) {
+function isSensitivePath(path: string) {
+  return (
+    path === 'images/private/meal-map.png' ||
+    path.startsWith('hidden/') ||
+    path.startsWith('images/quiz/')
+  )
+}
+
+export async function signAssetUrl(
+  path: string,
+  options: number | { expiresIn?: number; forceRefresh?: boolean } = {},
+) {
   const safePath = normalizePrivatePath(path)
   if (!safePath) return ''
-  return cached<string>(`asset:${safePath}`, async () => {
+  const settings = typeof options === 'number' ? { expiresIn: options } : options
+  const configured = isSensitivePath(safePath) ? 180 : 600
+  const expiresIn = Math.min(configured, Math.max(30, settings.expiresIn || configured))
+  const key = `asset:${safePath}:${expiresIn}`
+  if (settings.forceRefresh) signedUrls.delete(key)
+  const cachedUrl = signedUrls.get(key)
+  if (cachedUrl && cachedUrl.refreshAt > Date.now()) return cachedUrl.promise
+  const promise = (async () => {
     const { data, error } = await currentClient()
       .storage.from(supabaseConfig.bucket)
       .createSignedUrl(safePath, Math.min(900, Math.max(30, expiresIn)))
     if (error) throw error
     return data.signedUrl
+  })().catch((error) => {
+    signedUrls.delete(key)
+    throw error
   })
+  signedUrls.set(key, { promise, refreshAt: Date.now() + expiresIn * 800 })
+  return promise
 }
 
 export async function loadMealMap() {

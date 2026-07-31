@@ -13,20 +13,32 @@ import type { Attachment, RecordItem } from '@/types/domain'
 
 function AttachmentLink({ attachment }: { attachment: Attachment }) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const open = async () => {
     setLoading(true)
+    setError('')
     try {
       const url = await signAssetUrl(attachment.file)
-      if (url) window.open(url, '_blank', 'noopener,noreferrer')
+      if (!url) throw new Error('附件地址不可用')
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch {
+      setError('附件打开失败，请重试。')
     } finally {
       setLoading(false)
     }
   }
   return (
-    <Button variant="outline" size="sm" disabled={loading} onClick={open}>
-      <Paperclip data-icon="inline-start" />
-      {attachment.name || attachment.file}
-    </Button>
+    <span className="inline-grid gap-1">
+      <Button variant="outline" size="sm" disabled={loading} onClick={open}>
+        <Paperclip data-icon="inline-start" />
+        {loading ? '正在打开…' : attachment.name || attachment.file}
+      </Button>
+      {error && (
+        <span className="text-xs text-destructive" role="status">
+          {error}
+        </span>
+      )}
+    </span>
   )
 }
 

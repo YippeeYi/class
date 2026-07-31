@@ -5,20 +5,50 @@ import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async
 import { MarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { RecordCard } from '@/components/archive/record-card'
+import {
+  EMPTY_RECORD_CRITERIA,
+  filterRecords,
+  type RecordCriteria,
+  RecordFilters,
+} from '@/components/archive/record-filters'
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
+import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { extractAuthorIds, extractParticipantIds, stripMarkup } from '@/lib/markup'
+import type { Person } from '@/types/domain'
+
+function PersonAvatar({ person }: { person: Person }) {
+  const [failed, setFailed] = useState(false)
+  const remote = /^https?:\/\//i.test(person.avatarUrl)
+  const signed = useSignedAsset(remote ? '' : person.avatarUrl)
+  const src = remote ? person.avatarUrl : signed.src
+  if (!src || failed) return null
+  return (
+    <img
+      src={src}
+      alt={stripMarkup(person.name || person.id)}
+      width={192}
+      height={192}
+      loading="eager"
+      decoding="async"
+      fetchPriority="high"
+      onError={() => setFailed(true)}
+      className="aspect-square w-full max-w-48 rounded-xl border object-cover"
+    />
+  )
+}
 
 export function PersonPage() {
   const [params] = useSearchParams()
   const id = params.get('id') || ''
   const [mode, setMode] = useState('participated')
+  const [criteria, setCriteria] = useState<RecordCriteria>(EMPTY_RECORD_CRITERIA)
   const resource = useArchive()
   const person = resource.data?.people.find((item) => item.id === id)
-  const related = useMemo(
+  const allRelated = useMemo(
     () =>
       (resource.data?.records || [])
         .filter((record) =>
@@ -29,6 +59,7 @@ export function PersonPage() {
         .sort((a, b) => b.id.localeCompare(a.id)),
     [id, mode, resource.data],
   )
+  const related = useMemo(() => filterRecords(allRelated, criteria), [allRelated, criteria])
 
   useEffect(() => {
     document.title = person
@@ -60,21 +91,24 @@ export function PersonPage() {
             {person.subject && <Badge variant="secondary">{stripMarkup(person.subject)}</Badge>}
           </div>
         </CardHeader>
-        <CardContent className="grid gap-5 sm:grid-cols-2">
-          <div>
-            <p className="mb-1 text-xs font-medium text-muted-foreground">别名</p>
-            <p>{stripMarkup(person.alias) || '—'}</p>
-          </div>
-          <div>
-            <p className="mb-1 text-xs font-medium text-muted-foreground">人物 ID</p>
-            <p>{person.id}</p>
-          </div>
-          {person.bio && (
-            <div className="sm:col-span-2">
-              <p className="mb-2 text-xs font-medium text-muted-foreground">简介</p>
-              <MarkupContent content={person.bio} />
+        <CardContent className="grid gap-5 sm:grid-cols-[12rem_minmax(0,1fr)]">
+          {person.avatarUrl && <PersonAvatar person={person} />}
+          <div className={`grid gap-5 sm:grid-cols-2 ${person.avatarUrl ? '' : 'sm:col-span-2'}`}>
+            <div>
+              <p className="mb-1 text-xs font-medium text-muted-foreground">别名</p>
+              <p>{stripMarkup(person.alias) || '—'}</p>
             </div>
-          )}
+            <div>
+              <p className="mb-1 text-xs font-medium text-muted-foreground">人物 ID</p>
+              <p>{person.id}</p>
+            </div>
+            {person.bio && (
+              <div className="sm:col-span-2">
+                <p className="mb-2 text-xs font-medium text-muted-foreground">简介</p>
+                <MarkupContent content={person.bio} />
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -82,13 +116,20 @@ export function PersonPage() {
           相关记录{' '}
           <span className="text-sm font-normal text-muted-foreground">{related.length}</span>
         </h2>
-        <Tabs value={mode} onValueChange={setMode}>
+        <Tabs
+          value={mode}
+          onValueChange={(value) => {
+            setMode(value)
+            setCriteria(EMPTY_RECORD_CRITERIA)
+          }}
+        >
           <TabsList>
             <TabsTrigger value="participated">参与的事件</TabsTrigger>
             <TabsTrigger value="authored">记录的事件</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
+      <RecordFilters records={allRelated} value={criteria} onChange={setCriteria} />
       <div className="grid gap-4">
         {related.length ? (
           related.map((record) => <RecordCard record={record} key={record.fileName || record.id} />)

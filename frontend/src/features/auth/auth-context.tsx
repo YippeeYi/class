@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react'
 import { ACCESS_KEY, LAST_VISIT_KEY, REDIRECT_KEY } from '@/features/auth/auth-storage'
-import { clearDataCache } from '@/services/data'
+import { clearAllSiteState } from '@/services/site-cache'
 import { clearSupabaseClients, getSupabase } from '@/services/supabase'
 
 const IDLE_TTL = 90 * 24 * 60 * 60 * 1000
@@ -27,7 +27,7 @@ type AuthContextValue = {
   state: AuthState
   token: string
   verifyInvite: (code: string) => Promise<{ ok: boolean; message?: string }>
-  clearAccess: () => void
+  clearAccess: () => Promise<void>
   rememberTarget: (target: string) => void
   consumeTarget: () => string
 }
@@ -65,21 +65,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>('loading')
   const [token, setToken] = useState('')
 
-  const clearAccess = useCallback(() => {
-    localStorage.removeItem(ACCESS_KEY)
-    localStorage.removeItem(LAST_VISIT_KEY)
-    sessionStorage.clear()
-    clearSupabaseClients()
-    clearDataCache()
+  const [validationRevision, setValidationRevision] = useState(0)
+
+  const clearAccess = useCallback(async () => {
+    await clearAllSiteState()
     setToken('')
     setState('anonymous')
   }, [])
 
   useEffect(() => {
+    const restore = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        setState('loading')
+        setValidationRevision((value) => value + 1)
+      }
+    }
+    window.addEventListener('pageshow', restore)
+    return () => window.removeEventListener('pageshow', restore)
+  }, [])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: validationRevision intentionally requests a full server revalidation after bfcache restoration.
+  useEffect(() => {
     let active = true
     const candidate = readCandidate()
     if (!candidate) {
-      clearAccess()
+      void clearAccess()
       return
     }
     const validate = async () => {
@@ -89,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
         if (!active) return
         if (error || data !== true) {
-          clearAccess()
+          void clearAccess()
           return
         }
         persistAccess(candidate.token, candidate)
@@ -103,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false
     }
-  }, [clearAccess])
+  }, [clearAccess, validationRevision])
 
   const verifyInvite = useCallback(async (code: string) => {
     const value = code.trim()

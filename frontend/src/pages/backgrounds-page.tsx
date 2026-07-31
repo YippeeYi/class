@@ -12,6 +12,41 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
+function BackgroundPreview({ src, active }: { src: string; active: boolean }) {
+  const [revision, setRevision] = useState(0)
+  const [failed, setFailed] = useState(false)
+  if (failed)
+    return (
+      <div className="grid size-full place-items-center text-center text-sm text-muted-foreground">
+        <div>
+          <ImageIcon className="mx-auto mb-2 size-5" />
+          <p className="mb-2">预览加载失败</p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setFailed(false)
+              setRevision((value) => value + 1)
+            }}
+          >
+            重试
+          </Button>
+        </div>
+      </div>
+    )
+  return (
+    <img
+      key={revision}
+      src={src}
+      alt=""
+      loading={active ? 'eager' : 'lazy'}
+      decoding="async"
+      onError={() => setFailed(true)}
+      className="size-full object-cover"
+    />
+  )
+}
+
 export function BackgroundsPage() {
   const [current, setCurrent] = useState<BackgroundId>(() => {
     const stored = localStorage.getItem(BACKGROUND_KEY) as BackgroundId | null
@@ -34,14 +69,7 @@ export function BackgroundsPage() {
         {backgrounds.map((item) => (
           <Card key={item.id} className="bg-card/85">
             <div className="relative aspect-[16/10] overflow-hidden bg-[linear-gradient(145deg,#fffdf8,#e9dfd2)]">
-              {item.image && (
-                <img
-                  src={item.image}
-                  alt=""
-                  loading={current === item.id ? 'eager' : 'lazy'}
-                  className="size-full object-cover"
-                />
-              )}
+              {item.image && <BackgroundPreview src={item.image} active={current === item.id} />}
               {current === item.id && (
                 <span className="absolute right-3 top-3 grid size-8 place-items-center rounded-full bg-primary text-primary-foreground shadow">
                   <Check className="size-4" />

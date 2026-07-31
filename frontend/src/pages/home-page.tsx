@@ -18,6 +18,14 @@ import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from '@/components/ui/item'
 import { useArchive } from '@/features/archive/archive-context'
 
 const tips = [
@@ -45,6 +53,7 @@ export function HomePage() {
   const navigate = useNavigate()
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * tips.length))
   const [logoAnimation, setLogoAnimation] = useState<'tap' | 'secret' | ''>('')
+  const [logoFailed, setLogoFailed] = useState(false)
   const logoTapCount = useRef(0)
   const logoTapTimer = useRef<number | undefined>(undefined)
 
@@ -110,13 +119,23 @@ export function HomePage() {
             className="h-auto w-auto max-w-full justify-start p-0 hover:bg-transparent"
             onClick={tapLogo}
           >
-            <img
-              src={`${import.meta.env.BASE_URL}logo-guide.png`}
-              alt="编日史"
-              width="1035"
-              height="462"
-              className={`guide-logo mb-5 h-auto w-72 max-w-full object-contain object-left sm:w-96 ${logoAnimation ? `guide-logo-${logoAnimation}` : ''}`}
-            />
+            {logoFailed ? (
+              <span className="mb-5 block font-heading text-5xl font-semibold tracking-tight">
+                编日史
+              </span>
+            ) : (
+              <img
+                src={`${import.meta.env.BASE_URL}logo-guide.png`}
+                alt="编日史"
+                width="1035"
+                height="462"
+                draggable={false}
+                decoding="async"
+                fetchPriority="high"
+                onError={() => setLogoFailed(true)}
+                className={`guide-logo mb-5 h-auto w-72 max-w-full object-contain object-left brightness-0 sm:w-96 dark:invert ${logoAnimation ? `guide-logo-${logoAnimation}` : ''}`}
+              />
+            )}
           </Button>
           <p className="max-w-xl text-base leading-8 text-muted-foreground">
             把散落在日常里的事件、人物、话语和资料，整理成一部可以搜索、回看，也可以继续生长的班级档案。
@@ -203,20 +222,18 @@ export function HomePage() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {secondary.map(({ to, label, description, icon: Icon }) => (
-                <Link
-                  to={to}
-                  key={to}
-                  className="group flex items-center gap-4 rounded-2xl border border-border/70 bg-card/65 p-4 transition hover:border-primary/25 hover:bg-card"
-                >
-                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground transition group-hover:bg-primary group-hover:text-primary-foreground">
-                    <Icon className="size-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <strong className="block text-sm">{label}</strong>
-                    <span className="text-xs text-muted-foreground">{description}</span>
-                  </span>
-                  <ArrowRight className="ml-auto size-4 shrink-0 text-muted-foreground" />
-                </Link>
+                <Item key={to} variant="outline" render={<Link to={to} />}>
+                  <ItemMedia variant="icon">
+                    <Icon />
+                  </ItemMedia>
+                  <ItemContent>
+                    <ItemTitle>{label}</ItemTitle>
+                    <ItemDescription>{description}</ItemDescription>
+                  </ItemContent>
+                  <ItemActions>
+                    <ArrowRight className="size-4 text-muted-foreground" />
+                  </ItemActions>
+                </Item>
               ))}
             </div>
           </section>

@@ -77,3 +77,24 @@ export type RecordPage = {
   hidden: boolean
   [key: string]: unknown
 }
+
+export type PageMessage = {
+  page: string
+  content: string
+  author: string
+  [key: string]: unknown
+}
+
+export type PageSupplement = {
+  id: string
+  fileName: string
+  page: string
+  supplementIndex: number
+  author: string
+  content: string
+  hidden: boolean
+  importance: string
+  date: string
+  time: string
+  [key: string]: unknown
+}

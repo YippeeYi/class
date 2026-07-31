@@ -1,9 +1,10 @@
 import { unique } from '@/lib/archive'
-import { extractParticipantIds, stripMarkup } from '@/lib/markup'
+import { extractMarkupReferences, stripMarkup } from '@/lib/markup'
 import type { Person, QuizQuestion, Quote, RecordItem } from '@/types/domain'
 
 export type PlayQuestion = {
   id: string
+  sourceId: string
   type: 'choice' | 'fill' | 'judge'
   content: 'author' | 'date' | 'person' | 'quote' | 'secret'
   prompt: string
@@ -14,96 +15,210 @@ export type PlayQuestion = {
   image?: string
 }
 
-function sample<T>(items: T[], count: number) {
-  return [...items].sort(() => Math.random() - 0.5).slice(0, count)
+function shuffle<T>(items: T[]) {
+  const copy = [...items]
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.random() * (index + 1))
+    const current = copy[index]
+    const other = copy[swap]
+    if (current === undefined || other === undefined) continue
+    copy[index] = other
+    copy[swap] = current
+  }
+  return copy
 }
 
 function choicePool(answer: string, pool: string[]) {
-  return sample(unique(pool.filter(Boolean).filter((item) => item !== answer)), 3)
+  return shuffle(unique(pool.filter(Boolean).filter((item) => item !== answer)))
+    .slice(0, 3)
     .concat(answer)
     .sort(() => Math.random() - 0.5)
 }
 
-export function buildQuestions(
-  records: RecordItem[],
-  people: Person[],
-  quotes: Quote[],
-): PlayQuestion[] {
-  const authors = unique(records.map((record) => record.author).filter(Boolean))
-  const dates = unique(records.map((record) => record.date).filter(Boolean))
+function addJudge(
+  questions: PlayQuestion[],
+  base: Omit<PlayQuestion, 'id' | 'type' | 'answer' | 'choices' | 'prompt'>,
+  answer: string,
+  pool: string[],
+  label: string,
+) {
+  const alternatives = unique(pool.filter((item) => item && item !== answer))
+  if (!alternatives.length) return
+  const correct = Math.random() >= 0.5
+  const proposed = correct
+    ? answer
+    : alternatives[Math.floor(Math.random() * alternatives.length)] || answer
+  questions.push({
+    ...base,
+    id: `${base.content}-judge-${base.sourceId}`,
+    type: 'judge',
+    prompt: `判断：${label}是“${proposed}”。`,
+    answer: correct ? '正确' : '错误',
+    choices: ['正确', '错误'],
+    explanation: correct ? '' : `正确答案应为“${answer}”。`,
+  })
+}
+
+export function buildQuestions(records: RecordItem[], people: Person[], quotes: Quote[]) {
+  const ordinary = records.filter((record) => !record.recordType || record.recordType === 'record')
+  const authors = unique(ordinary.map((record) => record.author).filter(Boolean))
+  const dates = unique(ordinary.map((record) => record.date).filter(Boolean))
   const personNames = new Map(
     people.map((person) => [person.id, stripMarkup(person.name || person.id)]),
   )
+  const allPersonNames = [...personNames.values()]
+  const quoteText = new Map(quotes.map((quote) => [quote.id, stripMarkup(quote.quote)]))
+  const allQuotes = [...quoteText.values()].filter(Boolean)
   const questions: PlayQuestion[] = []
-  records
-    .filter((record) => record.content && !record.fileName.replace(/\.json$/i, '').endsWith('-00'))
-    .forEach((record, index) => {
-      const body = stripMarkup(record.content).slice(0, 220)
-      if (record.author && authors.length > 1)
+
+  for (const record of records.filter(
+    (item) => item.content && !item.fileName.replace(/\.json$/i, '').endsWith('-00'),
+  )) {
+    const sourceId = `${record.recordType || 'record'}:${record.fileName || record.id}`
+    const body = stripMarkup(record.content).trim()
+    const source = { sourceId, body }
+    if (!record.recordType || record.recordType === 'record') {
+      if (record.author && authors.length >= 4) {
         questions.push({
-          id: `author-${record.id}`,
-          type: index % 4 === 0 ? 'fill' : 'choice',
+          ...source,
+          id: `author-choice-${sourceId}`,
+          type: 'choice',
           content: 'author',
-          prompt: '这条记录由谁写下？',
-          body,
+          prompt: '请选择这条记录的记录人。',
           answer: record.author,
           choices: choicePool(record.author, authors),
         })
-      if (record.date && dates.length > 1)
         questions.push({
-          id: `date-${record.id}`,
-          type: index % 5 === 0 ? 'judge' : 'choice',
+          ...source,
+          id: `author-fill-${sourceId}`,
+          type: 'fill',
+          content: 'author',
+          prompt: '请填写这条记录的记录人。',
+          answer: record.author,
+          choices: [],
+        })
+        addJudge(
+          questions,
+          { ...source, content: 'author' },
+          record.author,
+          authors,
+          '这条记录的记录人',
+        )
+      }
+      if (record.date && dates.length >= 4)
+        questions.push({
+          ...source,
+          id: `date-choice-${sourceId}`,
+          type: 'choice',
           content: 'date',
-          prompt:
-            index % 5 === 0 ? `判断：这条记录发生在 ${record.date}` : '这条记录发生在哪一天？',
-          body,
-          answer: index % 5 === 0 ? '正确' : record.date,
-          choices: index % 5 === 0 ? ['正确', '错误'] : choicePool(record.date, dates),
+          prompt: '请选择这条记录的记录时间。',
+          answer: record.date,
+          choices: choicePool(record.date, dates),
         })
-      const participant = extractParticipantIds(record.content)[0]
-      const participantName = participant ? personNames.get(participant) : ''
-      if (participantName && people.length > 3)
-        questions.push({
-          id: `person-${record.id}`,
-          type: 'choice',
-          content: 'person',
-          prompt: '这条记录中提到了谁？',
-          body,
-          answer: participantName,
-          choices: choicePool(participantName, [...personNames.values()]),
-        })
-      const recordQuote = quotes.find(
-        (quote) =>
-          quote.recordFile.replace(/\.json$/i, '') === record.fileName.replace(/\.json$/i, ''),
+    }
+
+    const references = extractMarkupReferences(record.content)
+    const participantId = references.participantIds.find((id) => personNames.has(id))
+    const participant = participantId ? personNames.get(participantId) || '' : ''
+    if (participant && allPersonNames.length >= 4) {
+      const blanked = body.replaceAll(participant, '____')
+      questions.push({
+        sourceId,
+        body: blanked,
+        id: `person-choice-${sourceId}`,
+        type: 'choice',
+        content: 'person',
+        prompt: '空白处提到的是谁？',
+        answer: participant,
+        choices: choicePool(participant, allPersonNames),
+      })
+      questions.push({
+        sourceId,
+        body: blanked,
+        id: `person-fill-${sourceId}`,
+        type: 'fill',
+        content: 'person',
+        prompt: '请填写空白处的人名。',
+        answer: participant,
+        choices: [],
+      })
+      addJudge(
+        questions,
+        { ...source, content: 'person' },
+        participant,
+        allPersonNames,
+        '记录中提到的人物',
       )
-      if (recordQuote && quotes.length > 3)
-        questions.push({
-          id: `quote-${record.id}`,
-          type: 'choice',
-          content: 'quote',
-          prompt: '哪句话来自这条记录？',
-          body: `${record.date} · ${record.author || '匿名记录'}`,
-          answer: stripMarkup(recordQuote.quote),
-          choices: choicePool(
-            stripMarkup(recordQuote.quote),
-            quotes.map((quote) => stripMarkup(quote.quote)),
-          ),
-        })
-    })
+    }
+
+    const linkedQuote = quotes.find(
+      (quote) =>
+        quote.recordFile.replace(/\.json$/i, '') === record.fileName.replace(/\.json$/i, ''),
+    )
+    const quoteId = linkedQuote?.id || references.quoteIds.find((id) => quoteText.has(id))
+    const answerQuote = linkedQuote
+      ? stripMarkup(linkedQuote.quote)
+      : quoteId
+        ? quoteText.get(quoteId) || ''
+        : ''
+    if (answerQuote && allQuotes.length >= 4) {
+      const blanked = body.replaceAll(answerQuote, '____')
+      questions.push({
+        sourceId,
+        body: blanked,
+        id: `quote-choice-${sourceId}`,
+        type: 'choice',
+        content: 'quote',
+        prompt: '空白处是哪句原话？',
+        answer: answerQuote,
+        choices: choicePool(answerQuote, allQuotes),
+      })
+      questions.push({
+        sourceId,
+        body: blanked,
+        id: `quote-fill-${sourceId}`,
+        type: 'fill',
+        content: 'quote',
+        prompt: '请补全记录中的原话。',
+        answer: answerQuote,
+        choices: [],
+      })
+      addJudge(questions, { ...source, content: 'quote' }, answerQuote, allQuotes, '记录中的原话')
+    }
+  }
   return questions
+}
+
+export function filteredQuestions(
+  questions: PlayQuestion[],
+  types: Set<PlayQuestion['type']>,
+  contents: Set<PlayQuestion['content']>,
+) {
+  return questions.filter((question) => types.has(question.type) && contents.has(question.content))
+}
+
+export function pickQuestion(questions: PlayQuestion[], previousId = '') {
+  const usable = questions.filter((question) => question.id !== previousId)
+  const pool = usable.length ? usable : questions
+  const sources = unique(pool.map((question) => question.sourceId))
+  const source = sources[Math.floor(Math.random() * sources.length)]
+  const sourceQuestions = pool.filter((question) => question.sourceId === source)
+  const contents = unique(sourceQuestions.map((question) => question.content))
+  const content = contents[Math.floor(Math.random() * contents.length)]
+  const contentQuestions = sourceQuestions.filter((question) => question.content === content)
+  return contentQuestions[Math.floor(Math.random() * contentQuestions.length)] || null
 }
 
 export function normalizeSecretQuestion(question: QuizQuestion): PlayQuestion {
   return {
     id: `secret-${question.id}`,
-    type: ['choice', 'fill', 'judge'].includes(question.type)
-      ? (question.type as PlayQuestion['type'])
-      : 'choice',
+    sourceId: `secret:${question.id}`,
+    type: 'fill',
     content: 'secret',
     prompt: question.prompt || '请完成这道题。',
     body: '',
     answer: question.answer,
-    choices: question.choices,
+    choices: [],
     explanation: question.explanation,
     image: question.image,
   }

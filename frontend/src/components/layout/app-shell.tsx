@@ -7,12 +7,28 @@ import {
   Image,
   LogOut,
   Map as MapIcon,
+  Maximize2,
   MessageSquareQuote,
+  Minimize2,
   Search,
   Sparkles,
   Users,
 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 
 import {
   Sidebar,
@@ -48,7 +64,7 @@ const navigation = [
   { to: '/credits', label: '致谢', icon: Sparkles },
 ]
 
-function AppSidebar({ onClearAccess }: { onClearAccess: () => void }) {
+function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
   const location = useLocation()
 
   return (
@@ -102,10 +118,30 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => void }) {
         <SidebarSeparator />
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="移除访问权限" onClick={onClearAccess}>
-              <LogOut />
-              <span>移除访问权限</span>
-            </SidebarMenuButton>
+            <AlertDialog>
+              <AlertDialogTrigger
+                render={
+                  <SidebarMenuButton tooltip="移除访问权限">
+                    <LogOut />
+                    <span>移除访问权限</span>
+                  </SidebarMenuButton>
+                }
+              />
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>移除本机访问权限？</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    这会清除本机保存的访问凭证、档案缓存和私有图片缓存；下次访问需要新的邀请码。
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>取消</AlertDialogCancel>
+                  <AlertDialogAction variant="destructive" onClick={() => void onClearAccess()}>
+                    移除并清理
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
@@ -117,18 +153,42 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => void }) {
 export function AppShell() {
   const { clearAccess } = useAuth()
   const location = useLocation()
-  const confirmClearAccess = () => {
-    if (window.confirm('确定移除本机保存的访问权限并清除本站缓存吗？')) clearAccess()
+  const [fullscreen, setFullscreen] = useState(Boolean(document.fullscreenElement))
+
+  useEffect(() => {
+    const update = () => setFullscreen(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', update)
+    return () => document.removeEventListener('fullscreenchange', update)
+  }, [])
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen()
+      else await document.documentElement.requestFullscreen()
+    } catch {
+      // Fullscreen may be blocked by browser or embedding policy.
+    }
   }
 
   return (
     <TooltipProvider>
       <SidebarProvider>
-        <AppSidebar onClearAccess={confirmClearAccess} />
+        <AppSidebar onClearAccess={clearAccess} />
         <SidebarInset>
           <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border/70 bg-background/82 px-4 backdrop-blur-xl">
             <SidebarTrigger />
             <span className="font-heading text-lg font-semibold">编日史</span>
+            {document.fullscreenEnabled && (
+              <Button
+                className="ml-auto"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={fullscreen ? '退出全屏' : '进入全屏'}
+                onClick={() => void toggleFullscreen()}
+              >
+                {fullscreen ? <Minimize2 /> : <Maximize2 />}
+              </Button>
+            )}
           </header>
           <div
             key={location.pathname}
