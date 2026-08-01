@@ -1,4 +1,4 @@
-import { BrainCircuit, RefreshCw } from 'lucide-react'
+import { BrainCircuit, Check, RefreshCw, RotateCcw, X } from 'lucide-react'
 import {
   type FormEvent,
   useCallback,
@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react'
 
-import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -31,6 +31,7 @@ import { useAsyncData } from '@/hooks/use-async-data'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { normalizeText } from '@/lib/archive'
 import { stripMarkup } from '@/lib/markup'
+import { cn } from '@/lib/utils'
 import {
   hasAdminAccess,
   loadPageMessages,
@@ -44,6 +45,116 @@ import {
   rememberImageDimensions,
 } from '@/services/image-metadata'
 import type { RecordItem } from '@/types/domain'
+
+const TYPE_LABELS: Record<PlayQuestion['type'], string> = {
+  choice: '选择题',
+  fill: '填空题',
+  judge: '判断题',
+}
+
+const CONTENT_LABELS: Record<PlayQuestion['content'], string> = {
+  author: '记录人',
+  date: '记录时间',
+  person: '人名',
+  quote: '名言',
+  secret: '???',
+}
+
+function normalizeSecretAnswer(value: string) {
+  return String(value || '')
+    .normalize('NFC')
+    .trim()
+}
+
+function splitAnswerCharacters(value: string) {
+  const normalized = normalizeSecretAnswer(value)
+  if (typeof Intl.Segmenter === 'function') {
+    return [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(normalized)].map(
+      (item) => item.segment,
+    )
+  }
+  return Array.from(normalized)
+}
+
+function BlankQuestionBody({ question, revealed }: { question: PlayQuestion; revealed: boolean }) {
+  const answer = question.blankAnswer || ''
+  const index = answer ? question.body.indexOf(answer) : -1
+  if (index < 0) return <>{question.body}</>
+  return (
+    <>
+      {question.body.slice(0, index)}
+      <span
+        className={cn('quiz-answer-blank', revealed && 'is-revealed')}
+        style={{ minWidth: `${Math.max(2, Array.from(answer).length)}em` }}
+      >
+        <span aria-hidden={!revealed}>{revealed ? answer : ''}</span>
+        {!revealed && <span className="sr-only">此处挖空</span>}
+      </span>
+      {question.body.slice(index + answer.length)}
+    </>
+  )
+}
+
+function CorrectedQuestionBody({
+  question,
+  revealed,
+}: {
+  question: PlayQuestion
+  revealed: boolean
+}) {
+  const corrections = [...(question.corrections || [])].sort((a, b) => a.index - b.index)
+  if (!revealed || !corrections.length) return <>{question.body}</>
+  const output = []
+  let cursor = 0
+  for (const correction of corrections) {
+    const index =
+      question.body.slice(correction.index, correction.index + correction.wrongText.length) ===
+      correction.wrongText
+        ? correction.index
+        : question.body.indexOf(correction.wrongText, cursor)
+    if (index < cursor) continue
+    output.push(<span key={`text-${cursor}`}>{question.body.slice(cursor, index)}</span>)
+    output.push(
+      <span className="quiz-judge-correction" key={`correction-${index}`}>
+        <span className="quiz-judge-wrong">{correction.wrongText}</span>
+        <span className="quiz-judge-answer">{correction.correctText}</span>
+      </span>,
+    )
+    cursor = index + correction.wrongText.length
+  }
+  output.push(<span key={`text-${cursor}`}>{question.body.slice(cursor)}</span>)
+  return <>{output}</>
+}
+
+function QuestionSource({ question, revealed }: { question: PlayQuestion; revealed: boolean }) {
+  if (!question.body && !question.sideText) return null
+  return (
+    <div className="mt-5 grid gap-3">
+      {question.body && (
+        <blockquote className="quiz-question-source text-foreground/90">
+          {question.blankAnswer ? (
+            <BlankQuestionBody question={question} revealed={revealed} />
+          ) : (
+            <CorrectedQuestionBody question={question} revealed={revealed} />
+          )}
+        </blockquote>
+      )}
+      {question.sideText && (
+        <div className="quiz-question-side">
+          <span className="quiz-question-side-label">{question.sideLabel}</span>
+          {revealed && question.sideCorrection ? (
+            <span className="quiz-judge-correction">
+              <span className="quiz-judge-wrong">{question.sideText}</span>
+              <span className="quiz-judge-answer">{question.sideCorrection.correctText}</span>
+            </span>
+          ) : (
+            <span className="quiz-question-side-value">{question.sideText}</span>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const quizImagePreloadCache = new Map<string, Promise<void>>()
 
@@ -301,8 +412,8 @@ export function QuizPage() {
   const answer = (value: string) => {
     if (!current || result) return
     if (current.content === 'secret') {
-      const answerChars = Array.from(normalizeText(stripMarkup(current.answer)).replace(/\s+/g, ''))
-      const inputChars = Array.from(normalizeText(stripMarkup(value)).replace(/\s+/g, ''))
+      const answerChars = splitAnswerCharacters(current.answer)
+      const inputChars = splitAnswerCharacters(value)
       if (inputChars.length !== answerChars.length) {
         setSecretHint(`答案应为 ${answerChars.length} 个字符。`)
         return
@@ -311,7 +422,7 @@ export function QuizPage() {
         inputChars[index] === character ? character : secretProgress[index] || '',
       )
       setSecretProgress(nextProgress)
-      const correct = nextProgress.every((character, index) => character === answerChars[index])
+      const correct = inputChars.every((character, index) => character === answerChars[index])
       if (!correct) {
         setSecretHint(
           nextProgress.some(Boolean)
@@ -352,12 +463,12 @@ export function QuizPage() {
     setEnabledContent(next)
     setCurrent(null)
   }
-  const labels = { author: '记录人', date: '日期', person: '人物', quote: '名言', secret: '???' }
   const secretBoxes =
     current?.content === 'secret'
-      ? Array.from(normalizeText(stripMarkup(current.answer)).replace(/\s+/g, '')).map(
-          (character, index) => ({ character, key: `${current.id}-${character}-${index}` }),
-        )
+      ? splitAnswerCharacters(current.answer).map((character, index) => ({
+          character,
+          key: `${current.id}-${character}-${index}`,
+        }))
       : []
   const typeCannotBeRemoved = (type: PlayQuestion['type']) => {
     if (!enabledTypes.has(type)) return false
@@ -370,6 +481,25 @@ export function QuizPage() {
     const next = new Set(enabledContent)
     next.delete(content)
     return !filteredQuestions(questions, enabledTypes, next).length
+  }
+  const allAvailableSelected =
+    enabledTypes.size === 3 &&
+    enabledContent.size === (secret.length ? 5 : 4) &&
+    (!secret.length || enabledContent.has('secret'))
+  const selectAllAvailable = () => {
+    if (allAvailableSelected) return
+    captureQuestionPosition()
+    setEnabledTypes(new Set(['choice', 'fill', 'judge']))
+    setEnabledContent(
+      new Set([
+        'author',
+        'date',
+        'person',
+        'quote',
+        ...(secret.length ? (['secret'] as const) : []),
+      ]),
+    )
+    setCurrent(null)
   }
   return (
     <div>
@@ -393,10 +523,10 @@ export function QuizPage() {
               <AlertDescription>{secretError}</AlertDescription>
             </Alert>
           )}
-          <Card className="mb-5">
-            <CardContent>
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <span className="mr-1 text-xs font-medium text-muted-foreground">题型</span>
+          <Card className="mb-5 bg-card/90 shadow-sm">
+            <CardContent className="flex flex-col gap-3 pt-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="mr-1 text-sm font-medium text-muted-foreground">题型</span>
                 {(['choice', 'fill', 'judge'] as const).map((type) => (
                   <Button
                     key={type}
@@ -406,12 +536,13 @@ export function QuizPage() {
                     disabled={typeCannotBeRemoved(type)}
                     onClick={() => toggleType(type)}
                   >
-                    {type === 'choice' ? '选择题' : type === 'fill' ? '填空题' : '判断题'}
+                    {enabledTypes.has(type) && <Check data-icon="inline-start" />}
+                    {TYPE_LABELS[type]}
                   </Button>
                 ))}
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="mr-1 text-xs font-medium text-muted-foreground">内容</span>
+                <span className="mr-1 text-sm font-medium text-muted-foreground">内容</span>
                 {(
                   [
                     'author',
@@ -429,33 +560,46 @@ export function QuizPage() {
                     disabled={contentCannotBeRemoved(content)}
                     onClick={() => toggleContent(content)}
                   >
-                    {labels[content]}
+                    {enabledContent.has(content) && <Check data-icon="inline-start" />}
+                    {CONTENT_LABELS[content]}
                   </Button>
                 ))}
+                <Button
+                  className="ml-auto"
+                  size="sm"
+                  variant="ghost"
+                  disabled={allAvailableSelected}
+                  onClick={selectAllAvailable}
+                >
+                  <RotateCcw data-icon="inline-start" />
+                  全选可用
+                </Button>
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="border-b">
+          <Card
+            className="quiz-question-card overflow-hidden"
+            data-question-type={current?.type || 'choice'}
+          >
+            <CardHeader className="quiz-question-header border-b">
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="quiz-question-type-icon grid size-9 shrink-0 place-items-center rounded-lg">
                     <BrainCircuit className="size-4" />
                   </span>
                   {current && (
                     <>
-                      <Badge variant="outline">
-                        {current.type === 'choice'
-                          ? '选择题'
-                          : current.type === 'fill'
-                            ? '填空题'
-                            : '判断题'}
+                      <Badge className="quiz-question-type-badge" variant="outline">
+                        {TYPE_LABELS[current.type]}
                       </Badge>
-                      <Badge variant="secondary">{labels[current.content]}</Badge>
+                      <Badge variant="secondary">{CONTENT_LABELS[current.content]}</Badge>
+                      <span className="hidden truncate text-sm text-muted-foreground sm:inline">
+                        条目 {current.entryId}
+                      </span>
                     </>
                   )}
                 </div>
-                <span className="text-xs text-muted-foreground">
+                <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
                   正确 {score.correct} / {score.total}
                 </span>
               </div>
@@ -464,21 +608,17 @@ export function QuizPage() {
                 aria-label="答题正确率"
               />
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-5 sm:pt-6">
               {current ? (
                 <div
                   ref={questionAnchorRef}
                   key={current.id}
                   className="min-h-[30rem] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
                 >
-                  <h2 className="font-heading text-xl font-semibold leading-relaxed text-foreground">
+                  <h2 className="quiz-question-prompt font-heading text-xl font-semibold leading-relaxed text-foreground sm:text-2xl">
                     {current.prompt}
                   </h2>
-                  {current.body && (
-                    <blockquote className="my-5 rounded-xl border-l-4 border-primary/50 bg-muted/45 px-5 py-4 text-base leading-8 text-foreground/90">
-                      {current.body}
-                    </blockquote>
-                  )}
+                  <QuestionSource question={current} revealed={Boolean(result)} />
                   {current.image && (
                     <div className="my-5">
                       <SecretImage path={current.image} />
@@ -490,7 +630,7 @@ export function QuizPage() {
                       {secretBoxes.map((box, index) => (
                         <span
                           key={box.key}
-                          className="grid size-10 place-items-center rounded-md border bg-muted font-heading text-lg font-semibold"
+                          className="quiz-secret-answer-box grid size-10 place-items-center rounded-md border bg-muted font-heading text-lg font-semibold"
                         >
                           {secretProgress[index] || ''}
                         </span>
@@ -500,7 +640,7 @@ export function QuizPage() {
                   {current.type === 'fill' ? (
                     <form onSubmit={submit} className="mt-6">
                       <Field>
-                        <FieldLabel htmlFor="quiz-answer">完整答案</FieldLabel>
+                        <FieldLabel htmlFor="quiz-answer">填入完整答案（需完全相同）</FieldLabel>
                         <div className="flex gap-2">
                           <Input
                             id="quiz-answer"
@@ -508,6 +648,8 @@ export function QuizPage() {
                             onChange={(event) => setInput(event.target.value)}
                             disabled={Boolean(result)}
                             autoComplete="off"
+                            autoFocus
+                            placeholder="请输入挖空内容"
                           />
                           <Button type="submit" disabled={!input.trim() || Boolean(result)}>
                             提交
@@ -517,27 +659,40 @@ export function QuizPage() {
                     </form>
                   ) : (
                     <div className="mt-6 grid gap-2 sm:grid-cols-2">
-                      {current.choices.map((choice) => (
-                        <Button
-                          key={choice}
-                          size="lg"
-                          variant={
-                            result && normalizeText(choice) === normalizeText(current.answer)
-                              ? 'default'
-                              : result && normalizeText(choice) === normalizeText(input)
-                                ? 'destructive'
-                                : 'outline'
-                          }
-                          className="h-auto min-h-12 whitespace-normal py-3"
-                          disabled={Boolean(result)}
-                          onClick={() => {
-                            setInput(choice)
-                            answer(choice)
-                          }}
-                        >
-                          {choice}
-                        </Button>
-                      ))}
+                      {current.choices.map((choice, index) => {
+                        const isAnswer = normalizeText(choice) === normalizeText(current.answer)
+                        const isSelected = normalizeText(choice) === normalizeText(input)
+                        return (
+                          <Button
+                            key={choice}
+                            size="lg"
+                            variant="outline"
+                            className={cn(
+                              'quiz-option h-auto min-h-16 justify-start whitespace-normal px-4 py-3 text-left',
+                              result && isAnswer && 'is-correct',
+                              result && isSelected && !isAnswer && 'is-wrong',
+                            )}
+                            disabled={Boolean(result)}
+                            onClick={() => {
+                              setInput(choice)
+                              answer(choice)
+                            }}
+                          >
+                            <span className="quiz-option-label">
+                              {current.type === 'judge' ? (
+                                index === 0 ? (
+                                  <Check />
+                                ) : (
+                                  <X />
+                                )
+                              ) : (
+                                String.fromCharCode(65 + index)
+                              )}
+                            </span>
+                            <span>{choice}</span>
+                          </Button>
+                        )
+                      })}
                     </div>
                   )}
                   {secretHint && (
@@ -565,7 +720,10 @@ export function QuizPage() {
                   )}
                 </div>
               ) : (
-                <ErrorState title="当前筛选下没有可生成的题目" />
+                <EmptyState
+                  title="当前筛选下没有可生成的题目"
+                  description="请重新选择题型或题目内容；至少保留一个可生成组合。"
+                />
               )}
             </CardContent>
           </Card>
