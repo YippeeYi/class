@@ -57,6 +57,11 @@ export function HomePage() {
 
   useEffect(() => {
     document.title = '编日史 · 导览'
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
+    const resetScroll = () => window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    resetScroll()
+    window.addEventListener('pageshow', resetScroll)
+    return () => window.removeEventListener('pageshow', resetScroll)
   }, [])
 
   useEffect(() => {

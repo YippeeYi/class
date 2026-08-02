@@ -48,18 +48,28 @@ export function PersonPage() {
   const [criteria, setCriteria] = useState<RecordCriteria>(EMPTY_RECORD_CRITERIA)
   const resource = useArchive()
   const person = resource.data?.people.find((item) => item.id === id)
-  const allRelated = useMemo(
+  const participatedRecords = useMemo(
     () =>
       (resource.data?.records || [])
-        .filter((record) =>
-          mode === 'authored'
-            ? extractAuthorIds(record).includes(id)
-            : extractParticipantIds(record.content).includes(id),
-        )
+        .filter((record) => extractParticipantIds(record.content).includes(id))
         .sort((a, b) => b.id.localeCompare(a.id)),
-    [id, mode, resource.data],
+    [id, resource.data],
   )
+  const authoredRecords = useMemo(
+    () =>
+      (resource.data?.records || [])
+        .filter((record) => extractAuthorIds(record).includes(id))
+        .sort((a, b) => b.id.localeCompare(a.id)),
+    [id, resource.data],
+  )
+  const allRelated = mode === 'authored' ? authoredRecords : participatedRecords
   const related = useMemo(() => filterRecords(allRelated, criteria), [allRelated, criteria])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: same-route person links must reset view-local controls when the URL id changes.
+  useEffect(() => {
+    setMode('participated')
+    setCriteria(EMPTY_RECORD_CRITERIA)
+  }, [id])
 
   useEffect(() => {
     document.title = person
@@ -68,7 +78,14 @@ export function PersonPage() {
   }, [person])
   if (resource.loading) return <PageSkeleton rows={5} />
   if (resource.error) return <ErrorState title="人物资料加载失败" onRetry={resource.retry} />
-  if (!person) return <EmptyState title="没有找到这位人物" />
+  if (!person)
+    return (
+      <EmptyState
+        title={id ? '没有找到这位人物' : '人物参数缺失'}
+        description="请从人物名单页重新打开。"
+      />
+    )
+  const aliasText = stripMarkup(person.alias || person.aliases.join('、')) || '—'
   return (
     <div>
       <PageHeading
@@ -92,11 +109,11 @@ export function PersonPage() {
           </div>
         </CardHeader>
         <CardContent className="grid gap-5 sm:grid-cols-[12rem_minmax(0,1fr)]">
-          {person.avatarUrl && <PersonAvatar person={person} />}
+          {person.avatarUrl && <PersonAvatar key={person.avatarUrl} person={person} />}
           <div className={`grid gap-5 sm:grid-cols-2 ${person.avatarUrl ? '' : 'sm:col-span-2'}`}>
             <div>
               <p className="mb-1 text-xs font-medium text-muted-foreground">别名</p>
-              <p>{stripMarkup(person.alias) || '—'}</p>
+              <p>{aliasText}</p>
             </div>
             <div>
               <p className="mb-1 text-xs font-medium text-muted-foreground">人物 ID</p>
@@ -116,18 +133,20 @@ export function PersonPage() {
           相关记录{' '}
           <span className="text-sm font-normal text-muted-foreground">{related.length}</span>
         </h2>
-        <Tabs
-          value={mode}
-          onValueChange={(value) => {
-            setMode(value)
-            setCriteria(EMPTY_RECORD_CRITERIA)
-          }}
-        >
-          <TabsList>
-            <TabsTrigger value="participated">参与的事件</TabsTrigger>
-            <TabsTrigger value="authored">记录的事件</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {authoredRecords.length > 0 && (
+          <Tabs
+            value={mode}
+            onValueChange={(value) => {
+              setMode(value)
+              setCriteria(EMPTY_RECORD_CRITERIA)
+            }}
+          >
+            <TabsList>
+              <TabsTrigger value="participated">参与的事件</TabsTrigger>
+              <TabsTrigger value="authored">记录的事件</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
       </div>
       <RecordFilters records={allRelated} value={criteria} onChange={setCriteria} />
       <div

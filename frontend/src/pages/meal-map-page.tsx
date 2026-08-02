@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { useAsyncData } from '@/hooks/use-async-data'
+import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { loadMealMap } from '@/services/data'
 import { rememberImageDimensions, useImageDimensions } from '@/services/image-metadata'
@@ -18,12 +19,14 @@ const MAP_PATH = 'images/private/meal-map.png'
 export function MealMapPage() {
   const resource = useAsyncData(() => loadMealMap())
   const asset = useSignedAsset(MAP_PATH)
+  const imageFailure = useBoundedImageRetry(MAP_PATH, asset.retry)
   const src = asset.src || resource.data?.url || ''
   const knownDimensions = useImageDimensions(MAP_PATH)
   const dimensions = resource.data || knownDimensions || { width: 4838, height: 2721 }
   const loading = (resource.loading || asset.loading) && !src
   const failed = Boolean(
-    (resource.error || asset.error || (!resource.loading && !resource.data)) && !src,
+    imageFailure.failed ||
+      ((resource.error || asset.error || (!resource.loading && !resource.data)) && !src),
   )
   useEffect(() => {
     document.title = '蹭饭图 · 编日史'
@@ -44,7 +47,7 @@ export function MealMapPage() {
       </Alert>
       <Card>
         <CardContent className="p-3 sm:p-4">
-          {src ? (
+          {src && !imageFailure.failed ? (
             <ImageViewer
               path={MAP_PATH}
               initialUrl={src}
@@ -58,17 +61,19 @@ export function MealMapPage() {
                 >
                   <AspectRatio ratio={dimensions.width / dimensions.height}>
                     <img
+                      key={src}
                       src={src}
                       width={dimensions.width}
                       height={dimensions.height}
                       alt="蹭饭图"
-                      onLoad={(event) =>
+                      onLoad={(event) => {
+                        imageFailure.markLoaded()
                         rememberImageDimensions(MAP_PATH, {
                           width: event.currentTarget.naturalWidth,
                           height: event.currentTarget.naturalHeight,
                         })
-                      }
-                      onError={() => void asset.retry()}
+                      }}
+                      onError={imageFailure.markFailed}
                       className="absolute inset-0 size-full object-contain motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300"
                     />
                     <span className="absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-md bg-background/90 px-3 py-2 text-xs text-foreground opacity-0 shadow-sm transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
@@ -84,7 +89,7 @@ export function MealMapPage() {
               ratio={dimensions.width / dimensions.height}
               className="grid place-items-center overflow-hidden rounded-md bg-muted/55"
             >
-              {loading && (
+              {(loading || imageFailure.retrying) && !failed && (
                 <div
                   className="flex items-center gap-3 text-sm text-muted-foreground"
                   role="status"
@@ -102,7 +107,7 @@ export function MealMapPage() {
                     variant="outline"
                     onClick={() => {
                       resource.retry()
-                      void asset.retry()
+                      void imageFailure.retryManually()
                     }}
                   >
                     重试

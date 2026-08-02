@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import type { ImageDimensions } from '@/lib/image-metadata'
-import { type MarkupNode, parseMarkup } from '@/lib/markup'
+import { type MarkupNode, parseMarkup, recordAnchor } from '@/lib/markup'
 import { prepareRecordJump } from '@/lib/record-navigation'
 import {
   getImageDimensions,
@@ -177,9 +177,11 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
 export function MarkupContent({
   content,
   className = '',
+  onRecordReference,
 }: {
   content: string
   className?: string
+  onRecordReference?: (recordId: string, source: HTMLElement) => void
 }) {
   const tree = useMemo(() => parseMarkup(content), [content])
 
@@ -207,11 +209,12 @@ export function MarkupContent({
         )
       }
       if (node.type === 'reference') {
+        const recordTarget = node.kind === 'record' ? recordAnchor({ fileName: node.id }) : ''
         const target =
           node.kind === 'person' || node.kind === 'author'
             ? `/person?id=${encodeURIComponent(node.id)}`
             : node.kind === 'record'
-              ? `/records?view=list#record-${node.id}`
+              ? `/records?view=list#${recordTarget}`
               : node.kind === 'material'
                 ? `/materials?id=${encodeURIComponent(node.id)}`
                 : node.kind === 'quote'
@@ -224,8 +227,14 @@ export function MarkupContent({
             size="xs"
             render={<Link to={target} />}
             className={`markup-link inline h-auto min-h-0 whitespace-normal rounded-none border-0 px-0 py-0 align-baseline text-[1em] leading-[inherit] font-[inherit] select-text focus-visible:border-transparent focus-visible:ring-0 ${node.kind}-link`}
-            onClick={() => {
-              if (node.kind === 'record') prepareRecordJump(`record-${node.id}`)
+            onClick={(event) => {
+              if (node.kind !== 'record') return
+              if (onRecordReference) {
+                event.preventDefault()
+                onRecordReference(node.id, event.currentTarget)
+                return
+              }
+              prepareRecordJump(recordTarget)
             }}
           >
             {renderNodes(node.children, key)}

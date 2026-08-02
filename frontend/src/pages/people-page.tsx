@@ -2,7 +2,7 @@ import { ArrowDownAZ, ArrowUpAZ } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -102,6 +102,7 @@ function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; 
             variant="outline"
             size="icon-sm"
             aria-label={descending ? '切换为升序' : '切换为降序'}
+            title={descending ? '切换为升序' : '切换为降序'}
             onClick={() => setDescending((value) => !value)}
           >
             {descending ? <ArrowDownAZ /> : <ArrowUpAZ />}
@@ -147,7 +148,7 @@ function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; 
                     </Link>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {stripMarkup(person.alias) || '—'}
+                    {stripMarkup(person.alias || person.aliases.join('、')) || '—'}
                   </TableCell>
                   <TableCell>{stats.participation.get(person.id) || 0}</TableCell>
                   {role === 'student' && (
@@ -194,7 +195,10 @@ export function PeoplePage() {
       />
       {resource.loading && <PageSkeleton rows={5} />}
       {resource.error && <ErrorState title="人物名单加载失败" onRetry={resource.retry} />}
-      {resource.data && (
+      {resource.data && resource.data.people.length === 0 && (
+        <EmptyState title="人物名单为空" description="人物资料尚未上传，稍后再来查看。" />
+      )}
+      {resource.data && resource.data.people.length > 0 && (
         <div className="grid gap-6">
           {(['student', 'teacher', 'other'] as const).map((role) => (
             <PeopleSection key={role} role={role} people={groups[role]} stats={stats} />

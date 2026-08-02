@@ -158,6 +158,10 @@ function readBackground(): BackgroundId {
 export function BackgroundRoot({ children }: { children: ReactNode }) {
   const [current, setCurrent] = useState(readBackground)
   useEffect(() => {
+    document.documentElement.style.removeProperty('background')
+    delete document.documentElement.dataset.backgroundBootstrap
+  }, [])
+  useEffect(() => {
     const update = (event: Event) =>
       setCurrent((event as CustomEvent<BackgroundId>).detail || readBackground())
     window.addEventListener('classrecord:background', update)

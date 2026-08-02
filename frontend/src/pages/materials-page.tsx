@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom'
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { MarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -18,6 +19,9 @@ export function MaterialsPage() {
     document.title = '资料 · 编日史'
   }, [])
   const requestedId = params.get('id') || ''
+  const invalidRequestedId = Boolean(
+    requestedId && resource.data && !resource.data.some((item) => item.id === requestedId),
+  )
   const activeId = resource.data?.some((item) => item.id === requestedId)
     ? requestedId
     : resource.data?.[0]?.id || ''
@@ -30,7 +34,16 @@ export function MaterialsPage() {
       <PageHeading title="资料" description="班级档案的补充材料与专题内容。" className="shrink-0" />
       {resource.loading && <PageSkeleton rows={4} />}
       {resource.error && <ErrorState title="资料加载失败" onRetry={resource.retry} />}
-      {resource.data && (
+      {resource.data?.length === 0 && (
+        <EmptyState title="暂无资料" description="补充材料与专题内容尚未上传。" />
+      )}
+      {invalidRequestedId && (
+        <Alert className="mb-4 shrink-0">
+          <AlertTitle>未找到指定资料</AlertTitle>
+          <AlertDescription>已为你显示资料目录中的第一项。</AlertDescription>
+        </Alert>
+      )}
+      {resource.data && resource.data.length > 0 && (
         <div className="grid min-h-0 flex-1 grid-rows-[minmax(9rem,.36fr)_minmax(0,1fr)] gap-5 md:grid-cols-[15rem_1fr] md:grid-rows-1">
           <Card className="min-h-0 gap-0 overflow-hidden py-0">
             <CardHeader className="border-b py-4">

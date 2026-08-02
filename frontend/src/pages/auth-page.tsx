@@ -14,6 +14,11 @@ export function AuthPage() {
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const displayedError =
+    error ||
+    (auth.state === 'error'
+      ? '无法确认本机已有的访问凭证。你可以检查网络，或输入新的邀请码重试。'
+      : '')
 
   useEffect(() => {
     document.title = '邀请码 · 编日史'
@@ -45,28 +50,30 @@ export function AuthPage() {
         <CardContent>
           <form onSubmit={submit}>
             <FieldGroup>
-              <Field data-invalid={Boolean(error)}>
+              <Field data-invalid={Boolean(displayedError)}>
                 <FieldLabel htmlFor="invite-code">邀请码</FieldLabel>
                 <Input
                   id="invite-code"
+                  className="h-11"
                   value={code}
                   onChange={(event) => setCode(event.target.value)}
                   placeholder="CR-ABCD-EFGH-2345"
                   autoComplete="one-time-code"
                   required
                   autoFocus
-                  aria-invalid={Boolean(error)}
-                  aria-describedby={error ? 'invite-code-error' : undefined}
+                  disabled={submitting || auth.state === 'loading'}
+                  aria-invalid={Boolean(displayedError)}
+                  aria-describedby={displayedError ? 'invite-code-error' : undefined}
                 />
                 <FieldDescription>
                   邀请码仅在验证时发送到 Supabase，不会写入页面源码。
                 </FieldDescription>
-                <FieldError id="invite-code-error">{error}</FieldError>
+                <FieldError id="invite-code-error">{displayedError}</FieldError>
               </Field>
               <Button
                 type="submit"
                 size="lg"
-                className="w-full"
+                className="h-11 w-full"
                 disabled={submitting || auth.state === 'loading'}
               >
                 {submitting ? (

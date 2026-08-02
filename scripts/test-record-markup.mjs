@@ -13,6 +13,7 @@ assert.ok(tree.some((node) => node.type === 'reference' && node.kind === 'person
 assert.ok(tree.some((node) => node.type === 'reference' && node.kind === 'record' && node.id === '2025-01-01-01'))
 assert.equal(markup.stripMarkup('[[under:甲]][[del:乙]]'), '甲乙')
 assert.equal(markup.countTextCharacters('甲 A-1'), 3)
+assert.equal(markup.recordAnchor({ fileName: 'folder/2025 01.json' }), 'record-folder-2025-01')
 assert.equal(markup.parseMarkup('[[table:1x2|甲|乙]]')[0].type, 'table')
 assert.match(markupContent, /<Table>/, 'markup tables must use the shadcn Table component')
 assert.match(markupContent, /<TableBody>/, 'markup tables must use the shadcn Table composition')

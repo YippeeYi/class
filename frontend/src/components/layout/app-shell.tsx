@@ -67,6 +67,8 @@ const navigation = [
   { to: '/credits', label: '致谢', icon: Sparkles },
 ]
 
+const FULLSCREEN_STORAGE_KEY = 'classRecord:keepFullscreen'
+
 function ScrollToTop() {
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
@@ -185,9 +187,46 @@ export function AppShell() {
   const [fullscreen, setFullscreen] = useState(Boolean(document.fullscreenElement))
 
   useEffect(() => {
-    const update = () => setFullscreen(Boolean(document.fullscreenElement))
+    const update = () => {
+      const active = Boolean(document.fullscreenElement)
+      setFullscreen(active)
+      try {
+        if (active) sessionStorage.setItem(FULLSCREEN_STORAGE_KEY, '1')
+        else sessionStorage.removeItem(FULLSCREEN_STORAGE_KEY)
+      } catch {
+        // Fullscreen remains usable when storage is unavailable.
+      }
+    }
+    const shouldRestore = () => {
+      try {
+        return sessionStorage.getItem(FULLSCREEN_STORAGE_KEY) === '1'
+      } catch {
+        return false
+      }
+    }
+    const restore = (event?: PointerEvent) => {
+      if (event?.target instanceof Element && event.target.closest('[data-fullscreen-toggle]'))
+        return
+      if (!shouldRestore() || document.fullscreenElement || !document.fullscreenEnabled) return
+      void document.documentElement.requestFullscreen().catch(() => undefined)
+    }
+    const preserveBeforeExit = () => {
+      if (!document.fullscreenElement) return
+      try {
+        sessionStorage.setItem(FULLSCREEN_STORAGE_KEY, '1')
+      } catch {
+        // Ignore storage failures during navigation.
+      }
+    }
     document.addEventListener('fullscreenchange', update)
-    return () => document.removeEventListener('fullscreenchange', update)
+    document.addEventListener('pointerdown', restore, { once: true, capture: true })
+    window.addEventListener('pagehide', preserveBeforeExit)
+    restore()
+    return () => {
+      document.removeEventListener('fullscreenchange', update)
+      document.removeEventListener('pointerdown', restore, true)
+      window.removeEventListener('pagehide', preserveBeforeExit)
+    }
   }, [])
 
   const toggleFullscreen = async () => {
@@ -217,9 +256,11 @@ export function AppShell() {
             {document.fullscreenEnabled && (
               <Button
                 className="ml-auto"
+                data-fullscreen-toggle
                 variant="ghost"
                 size="icon-sm"
                 aria-label={fullscreen ? '退出全屏' : '进入全屏'}
+                title={fullscreen ? '退出全屏' : '进入全屏'}
                 onClick={() => void toggleFullscreen()}
               >
                 {fullscreen ? <Minimize2 /> : <Maximize2 />}

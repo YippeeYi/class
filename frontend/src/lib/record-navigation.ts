@@ -4,6 +4,20 @@ export type PendingRecordJump = {
   targetAnchorId: string
   originHref: string
   createdAt: number
+  origin?: {
+    view: 'list' | 'written'
+    pageIndex: number
+    criteria: {
+      year: string
+      month: string
+      day: string
+      important: boolean
+      excludeDaily: boolean
+      query: string
+    }
+    anchorId: string
+    scrollY: number
+  }
 }
 
 export function prepareRecordJump(targetAnchorId: string) {

@@ -34,16 +34,27 @@ export function ArchiveProvider({ children }: { children: ReactNode }) {
     setLoading(true)
     setError(null)
     request.current = (async () => {
-      try {
-        const [records, people] = await Promise.all([loadRecords(), loadPeople()])
-        const quotes = await loadQuotes(records)
-        setData({ records, people, quotes })
-      } catch (reason) {
-        setError(reason instanceof Error ? reason : new Error(String(reason)))
-      } finally {
-        setLoading(false)
-        request.current = null
+      const failures: string[] = []
+      const [recordsResult, peopleResult] = await Promise.allSettled([loadRecords(), loadPeople()])
+      const records = recordsResult.status === 'fulfilled' ? recordsResult.value : []
+      const people = peopleResult.status === 'fulfilled' ? peopleResult.value : []
+      if (recordsResult.status === 'rejected') failures.push('记录')
+      if (peopleResult.status === 'rejected') failures.push('人物')
+
+      let quotes: Quote[] = []
+      if (recordsResult.status === 'fulfilled') {
+        try {
+          quotes = await loadQuotes(records)
+        } catch {
+          failures.push('名言')
+        }
       }
+
+      setData({ records, people, quotes })
+      if (failures.length)
+        setError(new Error(`以下档案数据加载失败：${[...new Set(failures)].join('、')}`))
+      setLoading(false)
+      request.current = null
     })()
     return request.current
   }, [data])

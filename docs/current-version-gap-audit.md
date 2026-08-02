@@ -182,3 +182,23 @@ shadcn 复核：本轮调用的 SidebarRail、SidebarMenuButton、Select、Hover
 | 答案状态 | 正确项使用普通 primary，错误项使用 destructive，正确语义不够明确 | 保留 shadcn Button 外壳，以低饱和绿/红业务状态覆盖已禁用选项；A–D 与 ✓/× 标记、正确项、用户错选项均同时可见 | A/D |
 
 终审验证：TypeScript、Biome、11 组回归测试和 Vite 8 生产构建通过；桌面 `1280px` 与移动 `390×844` 视觉检查确认筛选换行、题干可读性、四项按钮、反馈区和三种题型色无溢出。门禁生产页无控制台错误。`frontend/src/components/ui` 在本轮仍为零修改。
+
+## 11. 第七次终审：生命周期、恢复语义与错误上限
+
+此前文档把全屏、精确记录定位和图片失败恢复归为 A/D，但逐事件流复核后确认仍有细粒度缺口。本轮以实际代码修改收敛如下：
+
+| 专项 | 终审发现 | 最终实现 | 分类 |
+| --- | --- | --- | --- |
+| 公共 404 | 未授权未知路径先进入门禁，成功后才看到 404，并错误消耗一次邀请码 | 顶层先区分已知受保护路径与未知路径；404 不挂载 Archive 数据，按认证态返回验证页或导览页 | A/D |
+| 首屏背景 | 背景只在受保护应用挂载后恢复，认证与懒加载阶段会短暂回到默认表面 | 新增同源外部 `theme-bootstrap.js`，React 启动前恢复背景预载与 palette 快照；`BackgroundRoot` 统一覆盖认证、404 和业务页 | A/D |
+| 全屏偏好 | 只有页头开关，没有 `sessionStorage` 保留及首次手势恢复 | 恢复 `classRecord:keepFullscreen`、`pagehide` 保留、`fullscreenchange` 同步和首次 pointer 恢复；明确退出仍清除 | A |
+| 导览 bfcache | React 路由只在 pathname 挂载时回顶 | 导览页恢复 `history.scrollRestoration = manual` 与 `pageshow` 回顶 | A |
+| 邀请码提交 | 按钮禁用但输入仍可编辑；已有凭证复验错误缺少可操作说明 | 输入与主按钮均锁定，移动端点击区提高到 44px；字段错误同时覆盖复验异常与新邀请码重试 | A/D |
+| 人物边界 | `aliases` 数组未回退显示；无 authored 记录仍展示空切换页；同页换人保留旧筛选 | 恢复别名回退、按人物 id 复位局部状态、无 authored 时隐藏切换器；名单全空显示 Empty | A |
+| 名言来源与空态 | 来源文件失效时仍生成死链接；空集合显示空白网格；排序图标缺少可见语义 | 点击前按旧版 direct/fallback 规则校验来源，以 shadcn Alert 反馈 0/多来源；增加 Empty；排序显示“升序/降序”文字 | A/D |
+| 记录内部引用 | 所有引用强制进入列表，不能恢复书面页、筛选与滚动；`.json`/特殊字符锚点可能失配 | 业务回调协调同页跳转，保存并恢复 view/pageIndex/criteria/scrollY；目标无书面页时明确降级列表；统一 `recordAnchor` | A/D |
+| 图片解码失败 | 地图、手写页和大图查看器的 `onError` 会持续强制重签，缺失对象可形成无界请求 | 新建共享有界重试 Hook：自动刷新一次，耗尽后稳定错误态，用户可显式重试；三处图片入口统一使用 | A |
+| 部分公共数据失败 | Archive `Promise.all` 令任一数据源失败时全部页面丢失已有数据 | 改为 `Promise.allSettled` 和派生名言独立错误收集；保留成功 records/people/quotes 并同时显示可重试错误 | A/D |
+| 资料边界 | 空资料渲染两块空 Card；非法 id 静默回退 | 空集合使用 shadcn Empty；非法 id 明确说明已回退第一项 | A |
+
+本轮仍只使用 shadcn 的公开组合 API 和业务 `className`；`frontend/src/components/ui` 未改动。新增/更新回归契约覆盖有界图片重试、内部记录跳转原状态、锚点规范化、认证锁定、首屏主题与全屏会话。

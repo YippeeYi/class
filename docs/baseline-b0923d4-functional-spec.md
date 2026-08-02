@@ -222,3 +222,16 @@ Storage 只允许 `classrecord-private`：普通附件和书面页需 access；`
 8. **非导航状态变化**：提示轮换、筛选、排序、资料切换、书面换页、答题反馈和图表指标切换均使用短时淡入或组件原生过渡，并统一尊重 `prefers-reduced-motion`；页面跳转仍以快速进入新内容为主。
 
 关键基准位置：`js/recordRenderer.js` 的 `parseIllustrationDimensions`、`warmIllustrationAsset`、`warmIllustrationPaths`、`preloadIllustrationDimensionsFromData`、`calculateIllustrationPreviewFrame`；地图尺寸由私有资产表及 `map.html` 的固定 intrinsic geometry 提供；背景与导览行为分别位于 `js/backgroundSwitcher.js`、`js/backgroundOptions.js`、`js/guide.js`。
+
+## 16. 第七次源码复核：浏览器生命周期与失败边界
+
+本轮继续逐函数核对 `navigation.js`、`guide.js`、`authPage.js`、`person.js`、`quotes.js`、`script.js`、`recordRenderer.js` 和图片加载分支，补充以下不可由页面名称推断的行为：
+
+1. **公共 404 边界**：旧版 `404.html` 不加载门禁脚本，不展示私有数据；未知地址或不可直达资源可以先看到错误说明，再主动返回邀请码验证页。
+2. **邀请码提交锁定**：提交期间输入框与提交按钮同时禁用；服务端复验异常与邀请码无效均要留在可操作的认证页，并通过字段级可访问错误提示恢复。
+3. **导览 bfcache**：导览页不只在首次执行时回顶，`pageshow` 恢复同样强制回到顶部，并把浏览器滚动恢复改为手动。
+4. **全屏偏好**：全屏状态写入 `sessionStorage`；跨文档跳转前保留，下一页加载或首次指针操作时尝试恢复，用户明确退出时清除。
+5. **人物详情分支**：别名优先使用单值 `alias`，缺失时拼接 `aliases`；人物没有任何记录事件时隐藏“参与/记录”切换器；同页更换 `id` 等价于旧版新文档加载，局部筛选必须复位。
+6. **记录内部引用**：正文中的 `record` 标记先确认目标存在；内部跳转保存当前视图、书面页索引、筛选、来源记录和 `scrollY`，定位后可完整恢复。外部来源仍保存原始 URL。文件名先去 `.json` 并执行锚点安全规范化。
+7. **图片失败预算**：图片解码失败允许强制刷新一次短期签名 URL；再次失败进入稳定错误态，由用户点击重试。缺失对象不得通过 `onerror → force refresh` 形成无界请求循环。
+8. **导览部分数据**：记录、人物、名言统计使用独立完成结果；单个公共数据源失败时保留其余可用统计，并提供整体重试，而不是把成功数据一并清空。

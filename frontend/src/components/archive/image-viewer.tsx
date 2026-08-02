@@ -11,6 +11,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Spinner } from '@/components/ui/spinner'
+import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 
 export function ImageViewer({
@@ -26,6 +27,7 @@ export function ImageViewer({
 }) {
   const [open, setOpen] = useState(false)
   const asset = useSignedAsset(open ? path : '', { refresh: open })
+  const imageFailure = useBoundedImageRetry(open ? path : '', asset.retry)
   const [scale, setScale] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [natural, setNatural] = useState({ width: 0, height: 0 })
@@ -104,6 +106,7 @@ export function ImageViewer({
             size="icon-sm"
             variant="outline"
             aria-label="缩小"
+            title="缩小"
             onClick={() => setScale((value) => Math.max(0.25, value / 1.25))}
           >
             <Minus />
@@ -115,11 +118,12 @@ export function ImageViewer({
             size="icon-sm"
             variant="outline"
             aria-label="放大"
+            title="放大"
             onClick={() => setScale((value) => Math.min(8, value * 1.25))}
           >
             <Plus />
           </Button>
-          <Button size="icon-sm" variant="outline" aria-label="复位" onClick={reset}>
+          <Button size="icon-sm" variant="outline" aria-label="复位" title="复位" onClick={reset}>
             <RotateCcw />
           </Button>
         </div>
@@ -175,33 +179,35 @@ export function ImageViewer({
             drag.current = null
           }}
         >
-          {asset.loading && !src && (
+          {(asset.loading || imageFailure.retrying) && !src && (
             <div className="grid size-full place-items-center">
               <Spinner className="size-7" />
             </div>
           )}
-          {asset.error && !src && (
+          {(imageFailure.failed || asset.error) && !src && (
             <div className="grid size-full place-items-center text-center">
               <div>
                 <p className="mb-3 text-sm text-muted-foreground">图片加载失败。</p>
-                <Button variant="outline" onClick={() => void asset.retry()}>
+                <Button variant="outline" onClick={() => void imageFailure.retryManually()}>
                   重试
                 </Button>
               </div>
             </div>
           )}
-          {src && (
+          {src && !imageFailure.failed && (
             <img
+              key={src}
               src={src}
               alt={alt}
               draggable={false}
-              onLoad={(event) =>
+              onLoad={(event) => {
+                imageFailure.markLoaded()
                 setNatural({
                   width: event.currentTarget.naturalWidth,
                   height: event.currentTarget.naturalHeight,
                 })
-              }
-              onError={() => void asset.retry()}
+              }}
+              onError={imageFailure.markFailed}
               className="absolute left-1/2 top-1/2 max-w-none select-none will-change-transform"
               style={{
                 width: base.width ? `${base.width * scale}px` : 'auto',
@@ -209,6 +215,16 @@ export function ImageViewer({
                 transform: `translate3d(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px), 0)`,
               }}
             />
+          )}
+          {imageFailure.failed && src && (
+            <div className="grid size-full place-items-center text-center">
+              <div>
+                <p className="mb-3 text-sm text-muted-foreground">图片加载失败。</p>
+                <Button variant="outline" onClick={() => void imageFailure.retryManually()}>
+                  重试
+                </Button>
+              </div>
+            </div>
           )}
         </div>
       </DialogContent>

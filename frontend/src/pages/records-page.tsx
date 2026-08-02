@@ -1,6 +1,6 @@
 import { Eye, FileImage, List, ShieldAlert } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { ImageViewer } from '@/components/archive/image-viewer'
@@ -37,8 +37,10 @@ import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
 import { useAsyncData } from '@/hooks/use-async-data'
+import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { normalizeRecordKey } from '@/lib/archive'
+import { recordAnchor } from '@/lib/markup'
 import { consumeRecordJump, type PendingRecordJump } from '@/lib/record-navigation'
 import {
   hasAdminAccess,
@@ -143,6 +145,7 @@ function WrittenRecordPages({
   pageIndex,
   hidden,
   onPageChange,
+  onRecordReference,
 }: {
   pages: RecordPage[]
   records: RecordItem[]
@@ -153,6 +156,7 @@ function WrittenRecordPages({
   pageIndex: number
   hidden: boolean
   onPageChange: (next: number) => void
+  onRecordReference: (recordId: string, source: HTMLElement) => void
 }) {
   const visiblePages = pages.filter((page) => {
     if (!activeFilter) return Boolean(page.imagePath)
@@ -247,7 +251,10 @@ function WrittenRecordPages({
                     <p className="mb-2 text-xs font-medium text-muted-foreground">
                       箴言{pageMessage.author ? ` · ${pageMessage.author}` : ''}
                     </p>
-                    <MarkupContent content={pageMessage.content} />
+                    <MarkupContent
+                      content={pageMessage.content}
+                      onRecordReference={onRecordReference}
+                    />
                   </CardContent>
                 </Card>
               )}
@@ -261,10 +268,16 @@ function WrittenRecordPages({
               )
               .map((item) => {
                 const [record] = supplementalRecords([page], records, [], [item])
-                return record ? <RecordCard key={item.id} record={record} /> : null
+                return record ? (
+                  <RecordCard key={item.id} record={record} onRecordReference={onRecordReference} />
+                ) : null
               })}
             {pageRecords.map((record) => (
-              <RecordCard key={record.fileName || record.id} record={record} />
+              <RecordCard
+                key={record.fileName || record.id}
+                record={record}
+                onRecordReference={onRecordReference}
+              />
             ))}
             {!pageMessage && !pageSupplements.length && !pageRecords.length && (
               <EmptyState title="这张书面页没有对应的文字记录" />
@@ -278,6 +291,7 @@ function WrittenRecordPages({
 
 function SignedPageImage({ path, page }: { path: string; page: string }) {
   const image = useSignedAsset(path)
+  const imageFailure = useBoundedImageRetry(path, image.retry)
   const dimensions = useImageDimensions(path) || { width: 2856, height: 4282 }
   const [ready, setReady] = useState(false)
   const ratio = dimensions.width / dimensions.height
@@ -288,16 +302,20 @@ function SignedPageImage({ path, page }: { path: string; page: string }) {
         aspectRatio: `${dimensions.width} / ${dimensions.height}`,
         width: `min(100%, calc((100svh - 6rem) * ${ratio}))`,
       }}
-      aria-busy={!ready && !image.error}
+      aria-busy={!ready && !image.error && !imageFailure.failed}
     >
-      {!ready && !image.error && <Spinner className="size-7" />}
-      {image.error && !image.src && (
-        <p className="px-4 text-center text-sm text-muted-foreground">
-          手写页图片加载失败，点击图片后可在大图窗口重试。
-        </p>
+      {!ready && !image.error && !imageFailure.failed && <Spinner className="size-7" />}
+      {(imageFailure.failed || (image.error && !image.src)) && (
+        <div className="grid gap-3 px-4 text-center text-sm text-muted-foreground">
+          <p>手写页图片加载失败。</p>
+          <Button size="sm" variant="outline" onClick={() => void imageFailure.retryManually()}>
+            重试
+          </Button>
+        </div>
       )}
       {image.src && (
         <img
+          key={image.src}
           src={image.src}
           width={dimensions.width}
           height={dimensions.height}
@@ -307,13 +325,14 @@ function SignedPageImage({ path, page }: { path: string; page: string }) {
               width: event.currentTarget.naturalWidth,
               height: event.currentTarget.naturalHeight,
             })
+            imageFailure.markLoaded()
             setReady(true)
           }}
           onError={() => {
             setReady(false)
-            void image.retry()
+            imageFailure.markFailed()
           }}
-          className={`absolute inset-0 size-full object-contain transition-opacity duration-300 ${ready ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute inset-0 size-full object-contain transition-opacity duration-300 ${ready && !imageFailure.failed ? 'opacity-100' : 'opacity-0'}`}
         />
       )}
     </div>
@@ -342,6 +361,7 @@ function PageImagePreloader({
 export function RecordsPage() {
   const archive = useArchive()
   const location = useLocation()
+  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const [view, setView] = useState<'list' | 'written'>(
     params.get('view') === 'written' ? 'written' : 'list',
@@ -366,6 +386,10 @@ export function RecordsPage() {
   const [jumpRevision, setJumpRevision] = useState(0)
   const [jumpDialogOpen, setJumpDialogOpen] = useState(false)
   const [jumpOriginHref, setJumpOriginHref] = useState('')
+  const [jumpOrigin, setJumpOrigin] = useState<PendingRecordJump['origin']>()
+  const [jumpError, setJumpError] = useState('')
+  const pendingReturn = useRef<{ scrollY: number } | null>(null)
+  const suppressNextLocationJump = useRef(false)
   const written = useAsyncData(async () => {
     const [pages, messages, supplements] = await Promise.all([
       loadRecordPages(hidden),
@@ -387,6 +411,11 @@ export function RecordsPage() {
   useEffect(() => {
     if (observedLocationKey.current === location.key) return
     observedLocationKey.current = location.key
+    if (suppressNextLocationJump.current) {
+      suppressNextLocationJump.current = false
+      observedHash.current = location.hash
+      return
+    }
     const hashChanged = observedHash.current !== location.hash
     observedHash.current = location.hash
     const next =
@@ -444,6 +473,58 @@ export function RecordsPage() {
   )
   const activeFilter = Object.values(criteria).some(Boolean)
 
+  const navigateToRecord = (recordId: string, source: HTMLElement) => {
+    const normalized = normalizeRecordKey(recordId)
+    const target = records.find(
+      (record) => normalizeRecordKey(record.fileName || record.id) === normalized,
+    )
+    if (!target) {
+      setJumpError('未找到要跳转的记录，请检查正文中的记录标记。')
+      return
+    }
+
+    let targetView = view
+    let targetPageIndex = pageIndex
+    if (view === 'written') {
+      const visiblePages = (written.data?.pages || []).filter((page) => Boolean(page.imagePath))
+      const nextIndex = visiblePages.findIndex((page) => withinPage(page, target, records))
+      if (nextIndex >= 0) targetPageIndex = nextIndex
+      else {
+        targetView = 'list'
+        targetPageIndex = 0
+        setJumpError('目标记录没有对应的手写页，已切换到列表并完成定位。')
+      }
+    }
+
+    const anchor = recordAnchor(target)
+    const sourceRecord = source.closest<HTMLElement>('[id^="record-"]')
+    pendingJump.current = {
+      targetAnchorId: anchor,
+      originHref: '',
+      createdAt: Date.now(),
+      origin: {
+        view,
+        pageIndex,
+        criteria: { ...criteria },
+        anchorId: sourceRecord?.id || '',
+        scrollY: window.scrollY,
+      },
+    }
+    setCriteria(EMPTY_RECORD_CRITERIA)
+    setView(targetView)
+    setPageIndex(targetPageIndex)
+    setJumpRevision((value) => value + 1)
+    suppressNextLocationJump.current = true
+    navigate(
+      {
+        pathname: '/records',
+        search: targetView === 'written' ? '?view=written' : '',
+        hash: `#${anchor}`,
+      },
+      { replace: true },
+    )
+  }
+
   useEffect(() => {
     const next = new URLSearchParams()
     if (view === 'written') next.set('view', view)
@@ -462,9 +543,13 @@ export function RecordsPage() {
   // biome-ignore lint/correctness/useExhaustiveDependencies: jumpRevision re-runs the locator after a same-page route stores a new pending jump in the ref.
   useEffect(() => {
     const pending = pendingJump.current
-    if (loading || view !== 'list' || !pending || !filtered.length) return
+    if (loading || (view === 'written' && written.loading) || !pending) return
     const target = document.getElementById(pending.targetAnchorId)
-    if (!target) return
+    if (!target) {
+      pendingJump.current = null
+      setJumpError('未找到要跳转的记录，请检查来源是否仍然存在。')
+      return
+    }
     pendingJump.current = null
     target.scrollIntoView({ behavior: 'smooth', block: 'center' })
     target.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-background')
@@ -480,12 +565,46 @@ export function RecordsPage() {
     )
     if (pending.originHref) {
       setJumpOriginHref(pending.originHref)
-      setJumpDialogOpen(true)
     }
+    setJumpOrigin(pending.origin)
+    if (pending.originHref || pending.origin) setJumpDialogOpen(true)
     return () => window.clearTimeout(timer)
-  }, [filtered, jumpRevision, loading, view])
+  }, [filtered, jumpRevision, loading, view, written.loading])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: filtered/pageIndex are render-completion signals for restoring an exact pre-jump scroll position.
+  useEffect(() => {
+    const pending = pendingReturn.current
+    if (!pending || loading || (view === 'written' && written.loading)) return
+    pendingReturn.current = null
+    const restore = () => window.scrollTo({ top: pending.scrollY, left: 0, behavior: 'smooth' })
+    const frame = window.requestAnimationFrame(() => window.requestAnimationFrame(restore))
+    return () => window.cancelAnimationFrame(frame)
+  }, [filtered, loading, pageIndex, view, written.loading])
 
   const returnToOrigin = () => {
+    if (jumpOrigin) {
+      pendingReturn.current = { scrollY: jumpOrigin.scrollY }
+      setCriteria(jumpOrigin.criteria)
+      setView(jumpOrigin.view)
+      setPageIndex(jumpOrigin.pageIndex)
+      setJumpDialogOpen(false)
+      setJumpOrigin(undefined)
+      setJumpOriginHref('')
+      suppressNextLocationJump.current = true
+      const search = new URLSearchParams()
+      if (jumpOrigin.view === 'written') search.set('view', 'written')
+      if (jumpOrigin.criteria.query) search.set('q', jumpOrigin.criteria.query)
+      if (jumpOrigin.criteria.year) search.set('year', jumpOrigin.criteria.year)
+      if (jumpOrigin.criteria.month) search.set('month', jumpOrigin.criteria.month)
+      if (jumpOrigin.criteria.day) search.set('day', jumpOrigin.criteria.day)
+      if (jumpOrigin.criteria.important) search.set('important', '1')
+      if (jumpOrigin.criteria.excludeDaily) search.set('excludeDaily', '1')
+      navigate(
+        { pathname: '/records', search: search.toString() ? `?${search}` : '', hash: '' },
+        { replace: true },
+      )
+      return
+    }
     if (!jumpOriginHref) return
     try {
       const url = new URL(jumpOriginHref)
@@ -542,6 +661,16 @@ export function RecordsPage() {
           <AlertDescription>{hiddenError}</AlertDescription>
         </Alert>
       )}
+      {jumpError && (
+        <Alert variant="destructive" className="mb-5" role="alert">
+          <AlertDescription className="flex items-center justify-between gap-3">
+            {jumpError}
+            <Button size="xs" variant="outline" onClick={() => setJumpError('')}>
+              关闭
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
       <RecordFilters
         records={sources}
         value={criteria}
@@ -559,7 +688,11 @@ export function RecordsPage() {
         >
           {filtered.length ? (
             filtered.map((record) => (
-              <RecordCard key={record.fileName || record.id} record={record} />
+              <RecordCard
+                key={record.fileName || record.id}
+                record={record}
+                onRecordReference={navigateToRecord}
+              />
             ))
           ) : (
             <EmptyState title="没有匹配的记录" />
@@ -584,6 +717,7 @@ export function RecordsPage() {
             pageIndex={pageIndex}
             hidden={hidden}
             onPageChange={setPageIndex}
+            onRecordReference={navigateToRecord}
           />
         ))}
       <AlertDialog open={jumpDialogOpen} onOpenChange={setJumpDialogOpen}>
@@ -591,12 +725,16 @@ export function RecordsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>已定位到来源记录</AlertDialogTitle>
             <AlertDialogDescription>
-              你可以留在记录页继续浏览，或返回刚才的页面。
+              {jumpOrigin
+                ? '你可以留在目标记录，或恢复跳转前的视图、筛选、手写页和滚动位置。'
+                : '你可以留在记录页继续浏览，或返回刚才的页面。'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>留在这里</AlertDialogCancel>
-            <AlertDialogAction onClick={returnToOrigin}>返回上一页</AlertDialogAction>
+            <AlertDialogAction onClick={returnToOrigin}>
+              {jumpOrigin ? '返回原位置' : '返回上一页'}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

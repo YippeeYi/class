@@ -1,5 +1,5 @@
 import { lazy, type ReactElement, Suspense } from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Route, Routes, useLocation } from 'react-router-dom'
 import { AppShell } from '@/components/layout/app-shell'
 import { BackgroundRoot } from '@/components/layout/background-root'
 import { Spinner } from '@/components/ui/spinner'
@@ -53,22 +53,45 @@ const TimelinePage = lazy(() =>
 
 export function App() {
   return (
-    <Suspense
-      fallback={
-        <div className="grid min-h-svh place-items-center text-sm text-muted-foreground">
-          <div className="flex items-center gap-3" role="status">
-            <Spinner className="size-5" />
-            正在打开档案…
+    <BackgroundRoot>
+      <Suspense
+        fallback={
+          <div className="grid min-h-svh place-items-center text-sm text-muted-foreground">
+            <div className="flex items-center gap-3" role="status">
+              <Spinner className="size-5" />
+              正在打开档案…
+            </div>
           </div>
-        </div>
-      }
-    >
-      <Routes>
-        <Route path="/auth" element={<AuthPage />} />
-        <Route path="*" element={<ProtectedApp />} />
-      </Routes>
-    </Suspense>
+        }
+      >
+        <Routes>
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/404" element={<NotFoundPage />} />
+          <Route path="*" element={<AppEntry />} />
+        </Routes>
+      </Suspense>
+    </BackgroundRoot>
   )
+}
+
+const protectedPaths = new Set([
+  '/',
+  '/records',
+  '/people',
+  '/person',
+  '/quotes',
+  '/timeline',
+  '/search',
+  '/quiz',
+  '/materials',
+  '/map',
+  '/backgrounds',
+  '/credits',
+])
+
+function AppEntry(): ReactElement {
+  const location = useLocation()
+  return protectedPaths.has(location.pathname) ? <ProtectedApp /> : <NotFoundPage />
 }
 
 function ProtectedApp(): ReactElement {
@@ -76,26 +99,22 @@ function ProtectedApp(): ReactElement {
     <AccessGate>
       <ArchiveProvider>
         <ImageMetadataPreloader />
-        <BackgroundRoot>
-          <Routes>
-            <Route element={<AppShell />}>
-              <Route index element={<HomePage />} />
-              <Route path="records" element={<RecordsPage />} />
-              <Route path="people" element={<PeoplePage />} />
-              <Route path="person" element={<PersonPage />} />
-              <Route path="quotes" element={<QuotesPage />} />
-              <Route path="timeline" element={<TimelinePage />} />
-              <Route path="search" element={<SearchPage />} />
-              <Route path="quiz" element={<QuizPage />} />
-              <Route path="materials" element={<MaterialsPage />} />
-              <Route path="map" element={<MealMapPage />} />
-              <Route path="backgrounds" element={<BackgroundsPage />} />
-              <Route path="credits" element={<CreditsPage />} />
-              <Route path="404" element={<NotFoundPage />} />
-              <Route path="*" element={<NotFoundPage />} />
-            </Route>
-          </Routes>
-        </BackgroundRoot>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<HomePage />} />
+            <Route path="records" element={<RecordsPage />} />
+            <Route path="people" element={<PeoplePage />} />
+            <Route path="person" element={<PersonPage />} />
+            <Route path="quotes" element={<QuotesPage />} />
+            <Route path="timeline" element={<TimelinePage />} />
+            <Route path="search" element={<SearchPage />} />
+            <Route path="quiz" element={<QuizPage />} />
+            <Route path="materials" element={<MaterialsPage />} />
+            <Route path="map" element={<MealMapPage />} />
+            <Route path="backgrounds" element={<BackgroundsPage />} />
+            <Route path="credits" element={<CreditsPage />} />
+          </Route>
+        </Routes>
       </ArchiveProvider>
     </AccessGate>
   )

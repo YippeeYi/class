@@ -42,7 +42,13 @@ function AttachmentLink({ attachment }: { attachment: Attachment }) {
   )
 }
 
-export function RecordCard({ record }: { record: RecordItem }) {
+export function RecordCard({
+  record,
+  onRecordReference,
+}: {
+  record: RecordItem
+  onRecordReference?: (recordId: string, source: HTMLElement) => void
+}) {
   return (
     <Collapsible>
       <Card id={recordAnchor(record)} className="scroll-mt-24 gap-0 py-0">
@@ -83,7 +89,7 @@ export function RecordCard({ record }: { record: RecordItem }) {
           </div>
         </CardHeader>
         <CardContent className="py-3">
-          <MarkupContent content={record.content} />
+          <MarkupContent content={record.content} onRecordReference={onRecordReference} />
           <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden opacity-100 transition-[height,opacity] duration-200 ease-out data-ending-style:h-0 data-ending-style:opacity-0 data-starting-style:h-0 data-starting-style:opacity-0">
             <div className="mt-3 flex flex-wrap gap-2 border-t border-border/60 pt-3">
               {record.attachments.map((attachment) => (
