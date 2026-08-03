@@ -9,9 +9,25 @@ const boundedRetryHook = await readFrontend('src/hooks/use-bounded-image-retry.t
 assert.match(markupComponent, /useSignedAsset\(requested \? path : ''/, 'record illustrations must be signed only on demand')
 assert.match(markupComponent, /preview\.loading/, 'illustrations need an explicit loading state')
 assert.match(signedAssetHook, /signAssetUrl\(path, \{ forceRefresh \}\)/, 'the image hook must use the secure signer')
+assert.match(
+  signedAssetHook,
+  /state\.path === path/,
+  'the image hook must never expose a signed URL left over from another asset path',
+)
 assert.match(boundedRetryHook, /automaticRetryUsed/, 'decode failures need a bounded automatic retry budget')
 assert.match(boundedRetryHook, /setFailed\(true\)/, 'exhausted image retries must expose a stable error state')
-assert.match(mapPage, /loadMealMap/, 'meal map must use the secure data loader')
+assert.match(mapPage, /loadMealMapMetadata/, 'meal map must load its gated intrinsic metadata')
+assert.match(mapPage, /useSignedAsset\(MAP_PATH\)/, 'the signed-asset hook must be the sole URL owner')
+assert.doesNotMatch(
+  mapPage,
+  /useImageDimensions\(MAP_PATH\)/,
+  'database-backed map geometry must not start a second signed image probe',
+)
+assert.doesNotMatch(
+  mapPage,
+  /resource\.data\?\.url/,
+  'meal-map metadata and signed URLs must not compete as two image sources',
+)
 assert.match(mapPage, /ImageViewer/, 'meal map must use the shared zoom and pan viewer')
 assert.match(recordsPage, /SignedPageImage/, 'written record pages need a signed image component')
 console.log('React image loading checks passed.')

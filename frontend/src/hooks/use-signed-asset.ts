@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { signAssetUrl } from '@/services/data'
 
-type AssetState = { src: string; loading: boolean; error: Error | null }
+type AssetState = { path: string; src: string; loading: boolean; error: Error | null }
 
 function sensitive(path: string) {
   return (
@@ -13,25 +13,39 @@ function sensitive(path: string) {
 }
 
 export function useSignedAsset(path: string, { refresh = true } = {}) {
-  const [state, setState] = useState<AssetState>({ src: '', loading: Boolean(path), error: null })
+  const [state, setState] = useState<AssetState>({
+    path,
+    src: '',
+    loading: Boolean(path),
+    error: null,
+  })
   const revision = useRef(0)
 
   const load = useCallback(
     async (forceRefresh = false) => {
       const token = ++revision.current
       if (!path) {
-        setState({ src: '', loading: false, error: null })
+        setState({ path: '', src: '', loading: false, error: null })
         return ''
       }
-      setState((current) => ({ ...current, loading: !current.src, error: null }))
+      setState((current) => {
+        const src = current.path === path ? current.src : ''
+        return { path, src, loading: !src, error: null }
+      })
       try {
         const src = await signAssetUrl(path, { forceRefresh })
         if (revision.current === token)
-          setState({ src, loading: false, error: src ? null : new Error('图片不可用') })
+          setState({ path, src, loading: false, error: src ? null : new Error('图片不可用') })
         return src
       } catch (reason) {
         const error = reason instanceof Error ? reason : new Error(String(reason))
-        if (revision.current === token) setState({ src: '', loading: false, error })
+        if (revision.current === token)
+          setState((current) => ({
+            path,
+            src: forceRefresh && current.path === path ? current.src : '',
+            loading: false,
+            error,
+          }))
         return ''
       }
     },
@@ -42,7 +56,7 @@ export function useSignedAsset(path: string, { refresh = true } = {}) {
     void load()
     if (!path || !refresh) return () => undefined
     const interval = window.setInterval(() => void load(true), (sensitive(path) ? 180 : 600) * 800)
-    const clear = () => setState({ src: '', loading: false, error: null })
+    const clear = () => setState({ path: '', src: '', loading: false, error: null })
     window.addEventListener('classrecordcacheclearing', clear)
     return () => {
       window.clearInterval(interval)
@@ -51,5 +65,11 @@ export function useSignedAsset(path: string, { refresh = true } = {}) {
     }
   }, [load, path, refresh])
 
-  return { ...state, retry: () => load(true) }
+  const current = state.path === path
+  return {
+    src: current ? state.src : '',
+    loading: current ? state.loading : Boolean(path),
+    error: current ? state.error : null,
+    retry: () => load(true),
+  }
 }

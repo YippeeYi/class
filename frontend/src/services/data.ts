@@ -437,11 +437,3 @@ export function loadMealMapMetadata(force = false) {
     },
   })
 }
-
-export async function loadMealMap() {
-  const dimensions = await loadMealMapMetadata()
-  if (!dimensions) return null
-  const url = await signAssetUrl('images/private/meal-map.png')
-  if (!url) return null
-  return { url, ...dimensions }
-}

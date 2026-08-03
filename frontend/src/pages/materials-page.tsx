@@ -7,7 +7,6 @@ import { MarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { loadMaterials } from '@/services/data'
@@ -31,8 +30,18 @@ export function MaterialsPage() {
   }
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <PageHeading title="资料" description="班级档案的补充材料与专题内容。" className="shrink-0" />
-      {resource.loading && <PageSkeleton rows={4} />}
+      <PageHeading
+        eyebrow={null}
+        title="资料"
+        description="班级档案的补充材料与专题内容。目录和正文可分别滚动。"
+        className="shrink-0"
+        compact
+      />
+      {resource.loading && (
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <PageSkeleton rows={4} />
+        </div>
+      )}
       {resource.error && <ErrorState title="资料加载失败" onRetry={resource.retry} />}
       {resource.data?.length === 0 && (
         <EmptyState title="暂无资料" description="补充材料与专题内容尚未上传。" />
@@ -44,54 +53,52 @@ export function MaterialsPage() {
         </Alert>
       )}
       {resource.data && resource.data.length > 0 && (
-        <div className="grid min-h-0 flex-1 grid-rows-[minmax(9rem,.36fr)_minmax(0,1fr)] gap-5 md:grid-cols-[15rem_1fr] md:grid-rows-1">
-          <Card className="min-h-0 gap-0 overflow-hidden py-0">
-            <CardHeader className="border-b py-4">
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="size-4" />
-                资料目录
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="min-h-0 flex-1 pb-4">
-              <ScrollArea className="h-full pr-3">
-                <div className="grid gap-1 py-1">
-                  {resource.data.map((item) => (
-                    <Button
-                      key={item.id}
-                      variant={activeId === item.id ? 'default' : 'ghost'}
-                      className="h-auto justify-start whitespace-normal text-left"
-                      aria-current={activeId === item.id ? 'true' : undefined}
-                      onClick={() => select(item.id)}
-                    >
-                      {item.title}
-                    </Button>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-          <Card className="min-h-0 gap-0 overflow-hidden py-0">
-            <CardHeader className="border-b py-4">
-              <CardTitle className="font-heading text-2xl">
+        <section
+          className="grid min-h-0 flex-1 grid-rows-[minmax(8rem,.32fr)_minmax(0,1fr)] overflow-hidden rounded-xl border border-border/75 bg-card/82 shadow-sm backdrop-blur-md md:grid-cols-[17rem_minmax(0,1fr)] md:grid-rows-1"
+          aria-label="资料阅读区"
+        >
+          <aside className="flex min-h-0 flex-col overflow-hidden border-b border-border/70 md:border-b-0 md:border-r">
+            <div className="flex shrink-0 items-center gap-2 px-4 py-3 font-heading text-sm font-semibold">
+              <FileText className="size-4" />
+              资料目录
+            </div>
+            <ScrollArea className="min-h-0 flex-1 border-t border-border/60">
+              <nav className="grid gap-1 p-2 pr-4" aria-label="资料目录">
+                {resource.data.map((item) => (
+                  <Button
+                    key={item.id}
+                    variant={activeId === item.id ? 'secondary' : 'ghost'}
+                    className="h-auto min-h-10 justify-start whitespace-normal px-3 py-2 text-left leading-6 data-[active=true]:font-semibold data-[active=true]:text-foreground"
+                    data-active={activeId === item.id}
+                    aria-current={activeId === item.id ? 'true' : undefined}
+                    onClick={() => select(item.id)}
+                  >
+                    {item.title}
+                  </Button>
+                ))}
+              </nav>
+            </ScrollArea>
+          </aside>
+          <article className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+            <header className="shrink-0 border-b border-border/70 px-5 py-3 sm:px-7">
+              <h2 className="font-heading text-xl font-semibold tracking-[-0.02em] sm:text-2xl">
                 {active?.title || '请选择资料'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="min-h-0 flex-1 pb-4">
-              <ScrollArea className="h-full pr-4">
-                <div
-                  key={activeId}
-                  className="py-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
-                >
-                  {active ? (
-                    <MarkupContent content={active.content} />
-                  ) : (
-                    <EmptyState title="暂无资料" />
-                  )}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
+              </h2>
+            </header>
+            <ScrollArea className="min-h-0 flex-1">
+              <div
+                key={activeId}
+                className="material-reading mx-auto w-full max-w-[64rem] px-5 py-5 pr-8 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-8 sm:py-7 sm:pr-10 lg:px-10 lg:py-8 lg:pr-12"
+              >
+                {active ? (
+                  <MarkupContent content={active.content} />
+                ) : (
+                  <EmptyState title="暂无资料" />
+                )}
+              </div>
+            </ScrollArea>
+          </article>
+        </section>
       )}
     </div>
   )

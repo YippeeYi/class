@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react'
 
 export const BACKGROUND_KEY = 'classRecord:background'
 const PALETTE_KEY = 'classRecord:backgroundPalette:v1'
@@ -155,8 +155,23 @@ function readBackground(): BackgroundId {
   return backgrounds.some((item) => item.id === value) ? (value as BackgroundId) : 'default'
 }
 
+function backgroundLayerStyle(id: BackgroundId): CSSProperties {
+  const background = backgrounds.find((item) => item.id === id)
+  return background?.image
+    ? {
+        backgroundImage: `linear-gradient(to bottom, rgb(20 18 15 / .28), rgb(20 18 15 / .46)), url(${background.image})`,
+      }
+    : {
+        backgroundImage:
+          'radial-gradient(circle at 85% 10%, color-mix(in oklch, var(--primary) 13%, transparent), transparent 34%), linear-gradient(145deg, var(--background), color-mix(in oklch, var(--secondary) 46%, var(--background)))',
+      }
+}
+
 export function BackgroundRoot({ children }: { children: ReactNode }) {
   const [current, setCurrent] = useState(readBackground)
+  const [visible, setVisible] = useState(readBackground)
+  const [previous, setPrevious] = useState<BackgroundId | null>(null)
+  const transitionTimer = useRef<number | null>(null)
   useEffect(() => {
     document.documentElement.style.removeProperty('background')
     delete document.documentElement.dataset.backgroundBootstrap
@@ -168,21 +183,58 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('classrecord:background', update)
   }, [])
   const selected = backgrounds.find((item) => item.id === current)
+  const visibleBackground = backgrounds.find((item) => item.id === visible)
+
+  useEffect(() => {
+    if (current === visible) return
+    let active = true
+    const commit = () => {
+      if (!active) return
+      setPrevious(visible)
+      setVisible(current)
+      if (transitionTimer.current) window.clearTimeout(transitionTimer.current)
+      transitionTimer.current = window.setTimeout(() => {
+        setPrevious(null)
+        transitionTimer.current = null
+      }, 560)
+    }
+    if (!selected?.image) {
+      commit()
+      return () => {
+        active = false
+      }
+    }
+    const image = new Image()
+    image.decoding = 'async'
+    image.src = selected.image
+    void image.decode().then(commit, commit)
+    return () => {
+      active = false
+    }
+  }, [current, selected, visible])
+
+  useEffect(
+    () => () => {
+      if (transitionTimer.current) window.clearTimeout(transitionTimer.current)
+    },
+    [],
+  )
+
   useEffect(() => {
     let active = true
-    if (!selected?.image) {
+    if (!visibleBackground?.image) {
       applyPalette(null)
       return () => {
         active = false
       }
     }
-    const cached = readPalette(selected.id)
+    const cached = readPalette(visibleBackground.id)
     if (cached) applyPalette(cached)
-    void extractPalette(selected.image)
+    void extractPalette(visibleBackground.image)
       .then((palette) => {
         if (!active || !palette) return
         applyPalette(palette)
-        storePalette(selected.id, palette)
+        storePalette(visibleBackground.id, palette)
       })
       .catch(() => {
         if (active && !cached) applyPalette(null)
@@ -190,26 +242,24 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
     return () => {
       active = false
     }
-  }, [selected])
+  }, [visibleBackground])
   return (
     <div
       className="relative isolate min-h-svh overflow-x-clip bg-background"
       data-background={current}
     >
+      {previous && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 z-0 bg-cover bg-center"
+          style={backgroundLayerStyle(previous)}
+        />
+      )}
       <div
-        key={current}
+        key={visible}
         aria-hidden="true"
         className="pointer-events-none fixed inset-0 z-0 bg-cover bg-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-500"
-        style={
-          selected?.image
-            ? {
-                backgroundImage: `linear-gradient(to bottom, rgb(20 18 15 / .34), rgb(20 18 15 / .52)), url(${selected.image})`,
-              }
-            : {
-                backgroundImage:
-                  'radial-gradient(circle at 85% 10%, color-mix(in oklch, var(--primary) 11%, transparent), transparent 34%), linear-gradient(145deg, var(--background), color-mix(in oklch, var(--secondary) 42%, var(--background)))',
-              }
-        }
+        style={backgroundLayerStyle(visible)}
       />
       <div className="relative z-10 min-h-svh">{children}</div>
     </div>

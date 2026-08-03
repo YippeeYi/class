@@ -47,8 +47,13 @@ assert.match(shell, /classRecord:keepFullscreen/, 'fullscreen preference must su
 assert.match(shell, /href="#page-content"/, 'the skip-to-content link is missing')
 assert.match(shell, /setOpenMobile\(false\)/, 'mobile sidebar must close after navigation')
 assert.match(shell, /data-active:bg-sidebar-primary/, 'active sidebar items need a clear inverse state')
-assert.match(shell, /SidebarInset className="bg-background\/78"/, 'the selected background must remain visible')
-assert.match(shell, /footer className="fixed/, 'credits must remain available at the bottom-right of every page')
+assert.match(shell, /bg-background\/72/, 'the selected background must remain visible')
+assert.match(shell, /viewportLockedPaths/, 'workspace routes must share one viewport-lock contract')
+for (const route of ['/materials', '/quiz', '/map']) {
+  assert.match(shell, new RegExp(`'${route}'`), `${route} must lock the outer viewport`)
+}
+assert.doesNotMatch(shell, /footer className="fixed/, 'credits must not cover content with a fixed footer')
+assert.match(shell, /to: '\/credits'/, 'credits must remain available from the global sidebar')
 assert.doesNotMatch(home, /记录每一位贡献者/, 'credits must not be duplicated as a standalone guide tile')
 assert.match(app, /lazy\(\(\) =>\s*routeModuleLoaders/, 'route-level code splitting is missing')
 assert.match(routePreload, /import\('@\/pages\//, 'route modules must remain dynamic imports')
@@ -63,13 +68,15 @@ assert.match(auth, /<FieldError/, 'invite errors must use the shadcn field error
 assert.doesNotMatch(auth, /useNavigate/, 'invite success must have a single redirect owner')
 assert.match(materials, /params\.get\('id'\)/, 'material selection must follow the current URL')
 assert.equal(
-  (materials.match(/<ScrollArea className="h-full/g) || []).length,
+  (materials.match(/<ScrollArea/g) || []).length,
   2,
   'material navigation and content must scroll independently',
 )
 assert.match(materials, /flex h-full min-h-0 flex-col overflow-hidden/, 'materials must lock its outer viewport')
 assert.match(credits, /!hasContent/, 'credits must expose an explicit empty state')
 assert.match(backgroundsPage, /noopener noreferrer/, 'external background credits must open safely')
+assert.match(backgroundsPage, /<RadioGroup/, 'background choices must use a radio-group contract')
+assert.doesNotMatch(backgroundsPage, /hover:-translate-y/, 'background choices must not jump on hover')
 assert.match(records, /criteriaFromSearch\(params\)/, 'record filters must restore from URL changes')
 assert.match(records, /observedLocationKey/, 'same-page record links must refresh the pending jump')
 assert.match(records, /lg:sticky lg:top-20/, 'written record images must keep the baseline sticky behavior')
@@ -88,6 +95,7 @@ assert.match(timeline, /openQuoteSource/, 'timeline quote chips must resolve the
 assert.match(quoteNavigation, /resolveQuoteSources/, 'quote source resolution must be shared by all entry points')
 assert.match(quiz, /preloadQuizImage/, 'secret quiz image preloading is missing')
 assert.match(quiz, /text-foreground\/90/, 'quiz source text needs sufficient contrast')
+assert.match(quiz, /<ScrollArea key=\{current\.id\}/, 'quiz questions must scroll inside the card')
 for (const route of ['records', 'people', 'person', 'quotes', 'timeline', 'search', 'quiz', 'materials', 'map', 'backgrounds', 'credits']) {
   assert.match(app, new RegExp(`path="${route}"`), `${route} route is missing`)
 }

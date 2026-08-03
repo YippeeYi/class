@@ -44,9 +44,11 @@ assert.match(styles, /data-question-type="fill"/, 'fill questions need a distinc
 assert.match(styles, /data-question-type="judge"/, 'judge questions need a distinct low-saturation tone')
 assert.match(
   quiz,
-  /quiz-question-card gap-0 overflow-hidden py-0/,
+  /quiz-question-card min-h-0 flex-1 gap-0 overflow-hidden[^"]*py-0/,
   'the question type surface must meet the card edge without a padding gap',
 )
+assert.match(quiz, /<ScrollArea key={current.id}/, 'each question must own an internal scroll viewport')
+assert.match(quiz, /<CardFooter/, 'answer feedback and next-question controls must remain visible')
 assert.doesNotMatch(
   quiz,
   /setSecret\(extra\)\s*setEnabledContent/,

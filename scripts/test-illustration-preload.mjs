@@ -85,5 +85,10 @@ assert.match(preloader, /loadRecordPages\(false\)/, 'written page geometry must 
 assert.match(preloader, /void archive\.ensure\(\)/, 'entry-time metadata warming must start archive loading')
 assert.match(app, /<ImageMetadataPreloader \/>/, 'metadata discovery must start at protected-app entry')
 assert.match(recordsPage, /useImageDimensions\(path\)/, 'written pages must reserve their real ratio')
-assert.match(mapPage, /<AspectRatio/, 'the meal map must keep a stable ratio while loading')
+assert.match(
+  mapPage,
+  /<figure className="[^"]*min-h-0 flex-1[^"]*overflow-hidden/,
+  'the meal map must keep one stable viewport frame while loading',
+)
+assert.match(mapPage, /object-contain/, 'the meal map must remain fully visible in its stable frame')
 console.log('React illustration checks passed.')

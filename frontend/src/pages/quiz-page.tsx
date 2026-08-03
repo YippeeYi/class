@@ -14,10 +14,11 @@ import { PageHeading } from '@/components/archive/page-heading'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Spinner } from '@/components/ui/spinner'
 import { useArchive } from '@/features/archive/archive-context'
 import {
@@ -501,10 +502,13 @@ export function QuizPage() {
     setCurrent(null)
   }
   return (
-    <div>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <PageHeading
+        eyebrow={null}
         title="档案答题"
         description="题目从记录、人物与名言实时生成；筛选题型和内容后开始挑战。"
+        className="shrink-0"
+        compact
         actions={
           <Button variant="outline" onClick={next} disabled={!candidates.length}>
             <RefreshCw data-icon="inline-start" />
@@ -515,72 +519,73 @@ export function QuizPage() {
       {resource.loading && <PageSkeleton rows={3} />}
       {resource.error && <ErrorState title="题库加载失败" onRetry={resource.retry} />}
       {resource.data && (
-        <>
+        <div className="flex min-h-0 flex-1 flex-col">
           {secretError && (
-            <Alert variant="destructive" className="mb-5">
+            <Alert variant="destructive" className="mb-3 shrink-0">
               <AlertTitle>隐藏题库加载失败</AlertTitle>
               <AlertDescription>{secretError}</AlertDescription>
             </Alert>
           )}
-          <Card className="mb-5 bg-card/90 shadow-sm">
-            <CardContent className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="mr-1 text-sm font-medium text-muted-foreground">题型</span>
-                {(['choice', 'fill', 'judge'] as const).map((type) => (
-                  <Button
-                    key={type}
-                    size="sm"
-                    variant={enabledTypes.has(type) ? 'default' : 'outline'}
-                    aria-pressed={enabledTypes.has(type)}
-                    disabled={typeCannotBeRemoved(type)}
-                    onClick={() => toggleType(type)}
-                  >
-                    {enabledTypes.has(type) && <Check data-icon="inline-start" />}
-                    {TYPE_LABELS[type]}
-                  </Button>
-                ))}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="mr-1 text-sm font-medium text-muted-foreground">内容</span>
-                {(
-                  [
-                    'author',
-                    'date',
-                    'person',
-                    'quote',
-                    ...(secret.length ? ['secret' as const] : []),
-                  ] as const
-                ).map((content) => (
-                  <Button
-                    key={content}
-                    size="sm"
-                    variant={enabledContent.has(content) ? 'default' : 'outline'}
-                    aria-pressed={enabledContent.has(content)}
-                    disabled={contentCannotBeRemoved(content)}
-                    onClick={() => toggleContent(content)}
-                  >
-                    {enabledContent.has(content) && <Check data-icon="inline-start" />}
-                    {CONTENT_LABELS[content]}
-                  </Button>
-                ))}
+          <section
+            aria-label="答题筛选"
+            className="mb-3 flex shrink-0 flex-wrap items-center gap-x-5 gap-y-2 border-b border-border/70 pb-3"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="mr-1 text-sm font-medium text-muted-foreground">题型</span>
+              {(['choice', 'fill', 'judge'] as const).map((type) => (
                 <Button
-                  className="ml-auto"
+                  key={type}
                   size="sm"
-                  variant="ghost"
-                  disabled={allAvailableSelected}
-                  onClick={selectAllAvailable}
+                  variant={enabledTypes.has(type) ? 'default' : 'outline'}
+                  aria-pressed={enabledTypes.has(type)}
+                  disabled={typeCannotBeRemoved(type)}
+                  onClick={() => toggleType(type)}
                 >
-                  <RotateCcw data-icon="inline-start" />
-                  全选可用
+                  {enabledTypes.has(type) && <Check data-icon="inline-start" />}
+                  {TYPE_LABELS[type]}
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="mr-1 text-sm font-medium text-muted-foreground">内容</span>
+              {(
+                [
+                  'author',
+                  'date',
+                  'person',
+                  'quote',
+                  ...(secret.length ? ['secret' as const] : []),
+                ] as const
+              ).map((content) => (
+                <Button
+                  key={content}
+                  size="sm"
+                  variant={enabledContent.has(content) ? 'default' : 'outline'}
+                  aria-pressed={enabledContent.has(content)}
+                  disabled={contentCannotBeRemoved(content)}
+                  onClick={() => toggleContent(content)}
+                >
+                  {enabledContent.has(content) && <Check data-icon="inline-start" />}
+                  {CONTENT_LABELS[content]}
+                </Button>
+              ))}
+              <Button
+                className="ml-auto"
+                size="sm"
+                variant="ghost"
+                disabled={allAvailableSelected}
+                onClick={selectAllAvailable}
+              >
+                <RotateCcw data-icon="inline-start" />
+                全选可用
+              </Button>
+            </div>
+          </section>
           <Card
-            className="quiz-question-card gap-0 overflow-hidden py-0"
+            className="quiz-question-card min-h-0 flex-1 gap-0 overflow-hidden bg-card/88 py-0 shadow-sm backdrop-blur-md"
             data-question-type={current?.type || 'choice'}
           >
-            <CardHeader className="quiz-question-header rounded-t-xl border-b pt-4">
+            <CardHeader className="quiz-question-header shrink-0 rounded-none border-b py-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="quiz-question-type-icon grid size-9 shrink-0 place-items-center rounded-lg">
@@ -609,126 +614,138 @@ export function QuizPage() {
                 </span>
               )}
             </CardHeader>
-            <CardContent className="py-5 sm:py-6">
+            <CardContent className="min-h-0 flex-1 p-0">
               {current ? (
-                <div
-                  ref={questionAnchorRef}
-                  key={current.id}
-                  className="min-h-[30rem] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
-                >
-                  <h2 className="quiz-question-prompt font-heading text-xl font-semibold leading-relaxed text-foreground sm:text-2xl">
-                    {current.prompt}
-                  </h2>
-                  <QuestionSource question={current} revealed={Boolean(result)} />
-                  {current.image && (
-                    <div className="my-5">
-                      <SecretImage path={current.image} />
-                    </div>
-                  )}
-                  {current.content === 'secret' && (
-                    <fieldset className="my-5 flex flex-wrap justify-center gap-2">
-                      <legend className="sr-only">答案字数 {secretBoxes.length}</legend>
-                      {secretBoxes.map((box, index) => (
-                        <span
-                          key={box.key}
-                          className="quiz-secret-answer-box grid size-10 place-items-center rounded-md border bg-muted font-heading text-lg font-semibold"
-                        >
-                          {secretProgress[index] || ''}
-                        </span>
-                      ))}
-                    </fieldset>
-                  )}
-                  {current.type === 'fill' ? (
-                    <form onSubmit={submit} className="mt-6">
-                      <Field>
-                        <FieldLabel htmlFor="quiz-answer">填入完整答案（需完全相同）</FieldLabel>
-                        <div className="flex gap-2">
-                          <Input
-                            id="quiz-answer"
-                            value={input}
-                            onChange={(event) => setInput(event.target.value)}
-                            disabled={Boolean(result)}
-                            autoComplete="off"
-                            autoFocus
-                            placeholder="请输入挖空内容"
-                          />
-                          <Button type="submit" disabled={!input.trim() || Boolean(result)}>
-                            提交
-                          </Button>
-                        </div>
-                      </Field>
-                    </form>
-                  ) : (
-                    <div className="mt-6 grid gap-2 sm:grid-cols-2">
-                      {current.choices.map((choice, index) => {
-                        const isAnswer = normalizeText(choice) === normalizeText(current.answer)
-                        const isSelected = normalizeText(choice) === normalizeText(input)
-                        return (
-                          <Button
-                            key={choice}
-                            size="lg"
-                            variant="outline"
-                            className={cn(
-                              'quiz-option h-auto min-h-16 justify-start whitespace-normal px-4 py-3 text-left',
-                              result && isAnswer && 'is-correct',
-                              result && isSelected && !isAnswer && 'is-wrong',
-                            )}
-                            disabled={Boolean(result)}
-                            onClick={() => {
-                              setInput(choice)
-                              answer(choice)
-                            }}
+                <ScrollArea key={current.id} className="h-full">
+                  <div
+                    ref={questionAnchorRef}
+                    key={current.id}
+                    className="min-h-full px-4 py-4 pr-7 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-6 sm:py-5 sm:pr-9"
+                  >
+                    <h2 className="quiz-question-prompt font-heading text-xl font-semibold leading-relaxed text-foreground sm:text-2xl">
+                      {current.prompt}
+                    </h2>
+                    <QuestionSource question={current} revealed={Boolean(result)} />
+                    {current.image && (
+                      <div className="my-5">
+                        <SecretImage path={current.image} />
+                      </div>
+                    )}
+                    {current.content === 'secret' && (
+                      <fieldset className="my-5 flex flex-wrap justify-center gap-2">
+                        <legend className="sr-only">答案字数 {secretBoxes.length}</legend>
+                        {secretBoxes.map((box, index) => (
+                          <span
+                            key={box.key}
+                            className="quiz-secret-answer-box grid size-10 place-items-center rounded-md border bg-muted font-heading text-lg font-semibold"
                           >
-                            <span className="quiz-option-label">
-                              {current.type === 'judge' ? (
-                                index === 0 ? (
-                                  <Check />
-                                ) : (
-                                  <X />
-                                )
-                              ) : (
-                                String.fromCharCode(65 + index)
+                            {secretProgress[index] || ''}
+                          </span>
+                        ))}
+                      </fieldset>
+                    )}
+                    {current.type === 'fill' ? (
+                      <form onSubmit={submit} className="mt-6">
+                        <Field>
+                          <FieldLabel htmlFor="quiz-answer">填入完整答案（需完全相同）</FieldLabel>
+                          <div className="flex gap-2">
+                            <Input
+                              id="quiz-answer"
+                              value={input}
+                              onChange={(event) => setInput(event.target.value)}
+                              disabled={Boolean(result)}
+                              autoComplete="off"
+                              autoFocus
+                              placeholder="请输入挖空内容"
+                            />
+                            <Button type="submit" disabled={!input.trim() || Boolean(result)}>
+                              提交
+                            </Button>
+                          </div>
+                        </Field>
+                      </form>
+                    ) : (
+                      <div className="mt-6 grid gap-2 sm:grid-cols-2">
+                        {current.choices.map((choice, index) => {
+                          const isAnswer = normalizeText(choice) === normalizeText(current.answer)
+                          const isSelected = normalizeText(choice) === normalizeText(input)
+                          return (
+                            <Button
+                              key={choice}
+                              size="lg"
+                              variant="outline"
+                              className={cn(
+                                'quiz-option h-auto min-h-16 justify-start whitespace-normal px-4 py-3 text-left',
+                                result && isAnswer && 'is-correct',
+                                result && isSelected && !isAnswer && 'is-wrong',
                               )}
-                            </span>
-                            <span>{choice}</span>
-                          </Button>
-                        )
-                      })}
-                    </div>
-                  )}
-                  {secretHint && (
-                    <Alert className="mt-5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
-                      <AlertTitle>继续尝试</AlertTitle>
-                      <AlertDescription>{secretHint}</AlertDescription>
-                    </Alert>
-                  )}
-                  {result && (
-                    <Alert
-                      variant={result === 'wrong' ? 'destructive' : 'default'}
-                      className="mt-5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
-                    >
-                      <AlertTitle>{result === 'correct' ? '回答正确' : '回答错误'}</AlertTitle>
-                      <AlertDescription>
-                        {result === 'wrong' && <>正确答案：{current.answer}。</>}
-                        {current.explanation && ` ${current.explanation}`}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                  {result && (
-                    <div className="mt-5 flex justify-end">
-                      <Button onClick={next}>下一题</Button>
-                    </div>
-                  )}
-                </div>
+                              disabled={Boolean(result)}
+                              onClick={() => {
+                                setInput(choice)
+                                answer(choice)
+                              }}
+                            >
+                              <span className="quiz-option-label">
+                                {current.type === 'judge' ? (
+                                  index === 0 ? (
+                                    <Check />
+                                  ) : (
+                                    <X />
+                                  )
+                                ) : (
+                                  String.fromCharCode(65 + index)
+                                )}
+                              </span>
+                              <span>{choice}</span>
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {secretHint && (
+                      <Alert className="mt-5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+                        <AlertTitle>继续尝试</AlertTitle>
+                        <AlertDescription>{secretHint}</AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                </ScrollArea>
               ) : (
-                <EmptyState
-                  title="当前筛选下没有可生成的题目"
-                  description="请重新选择题型或题目内容；至少保留一个可生成组合。"
-                />
+                <div className="grid h-full place-items-center p-5">
+                  <EmptyState
+                    title="当前筛选下没有可生成的题目"
+                    description="请重新选择题型或题目内容；至少保留一个可生成组合。"
+                  />
+                </div>
               )}
             </CardContent>
+            {current && (
+              <CardFooter className="min-h-16 shrink-0 justify-between gap-4 bg-muted/38 px-4 py-3 sm:px-5">
+                <div
+                  className={cn(
+                    'min-w-0 flex-1 text-sm leading-6',
+                    !result && 'text-muted-foreground',
+                    result === 'correct' && 'text-[oklch(0.4_0.1_155)]',
+                    result === 'wrong' && 'text-destructive',
+                  )}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {result ? (
+                    <>
+                      <strong>{result === 'correct' ? '回答正确' : '回答错误'}</strong>
+                      {result === 'wrong' && <> · 正确答案：{current.answer}。</>}
+                      {current.explanation && ` ${current.explanation}`}
+                    </>
+                  ) : (
+                    '选择答案或填写完整内容后提交。'
+                  )}
+                </div>
+                {result && <Button onClick={next}>下一题</Button>}
+              </CardFooter>
+            )}
           </Card>
-        </>
+        </div>
       )}
     </div>
   )

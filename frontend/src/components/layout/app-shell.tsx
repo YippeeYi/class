@@ -68,6 +68,7 @@ const navigation = [
 ]
 
 const FULLSCREEN_STORAGE_KEY = 'classRecord:keepFullscreen'
+const viewportLockedPaths = new Set(['/materials', '/quiz', '/map'])
 
 function ScrollToTop() {
   useEffect(() => {
@@ -183,8 +184,23 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
 export function AppShell() {
   const { clearAccess } = useAuth()
   const location = useLocation()
-  const isMaterialsPage = location.pathname === '/materials'
+  const isViewportLocked = viewportLockedPaths.has(location.pathname)
   const [fullscreen, setFullscreen] = useState(Boolean(document.fullscreenElement))
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (isViewportLocked) {
+      root.dataset.viewportLocked = 'true'
+      document.body.dataset.viewportLocked = 'true'
+    } else {
+      delete root.dataset.viewportLocked
+      delete document.body.dataset.viewportLocked
+    }
+    return () => {
+      delete root.dataset.viewportLocked
+      delete document.body.dataset.viewportLocked
+    }
+  }, [isViewportLocked])
 
   useEffect(() => {
     const update = () => {
@@ -249,8 +265,10 @@ export function AppShell() {
           跳到主要内容
         </a>
         <AppSidebar onClearAccess={clearAccess} />
-        <SidebarInset className="bg-background/78">
-          <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border/70 bg-background/84 px-4 backdrop-blur-xl">
+        <SidebarInset
+          className={cn('bg-background/72', isViewportLocked && 'h-svh min-h-0 overflow-hidden')}
+        >
+          <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b border-border/70 bg-background/82 px-4 backdrop-blur-xl">
             <SidebarTrigger />
             <span className="font-heading text-lg font-semibold">编日史</span>
             {document.fullscreenEnabled && (
@@ -272,28 +290,15 @@ export function AppShell() {
             tabIndex={-1}
             key={location.pathname}
             className={cn(
-              'mx-auto w-full max-w-6xl px-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-7 lg:px-10',
-              isMaterialsPage
-                ? 'h-[calc(100svh-4rem)] min-h-0 overflow-hidden py-6 pb-20 sm:py-7 sm:pb-20 lg:py-8 lg:pb-20'
+              'mx-auto w-full px-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-7 lg:px-10',
+              isViewportLocked
+                ? 'h-[calc(100dvh-4rem)] min-h-0 max-w-[90rem] overflow-hidden py-3 sm:py-4 lg:py-5'
                 : 'min-h-[calc(100svh-4rem)] py-8 pb-24 sm:py-10 sm:pb-24 lg:py-12 lg:pb-24',
+              !isViewportLocked && 'max-w-6xl',
             )}
           >
             <Outlet />
           </div>
-          <footer className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-40">
-            <Button
-              size="sm"
-              variant={location.pathname === '/credits' ? 'default' : 'outline'}
-              className="bg-background/90 shadow-sm backdrop-blur-md transition-[background-color,color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-md"
-              render={<Link to="/credits" />}
-              aria-current={location.pathname === '/credits' ? 'page' : undefined}
-              onPointerEnter={() => void preloadRoute('/credits')}
-              onFocus={() => void preloadRoute('/credits')}
-            >
-              <Sparkles data-icon="inline-start" />
-              制作与致谢
-            </Button>
-          </footer>
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>

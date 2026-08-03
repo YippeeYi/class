@@ -141,6 +141,13 @@
     letter-spacing: 0.005em;
     text-rendering: optimizeLegibility;
   }
+  html[data-viewport-locked="true"],
+  body[data-viewport-locked="true"],
+  html[data-viewport-locked="true"] #root {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
   h1,
   h2,
   h3 {
@@ -273,6 +280,17 @@
   .record-table-scroll td {
     border: 1px solid var(--border);
     padding: 0.55rem 0.75rem;
+  }
+
+  .material-reading .record-markup {
+    font-size: clamp(1.025rem, 0.25vw + 0.98rem, 1.125rem);
+    line-height: 1.92;
+  }
+  .material-reading .record-paragraph {
+    margin-block: 0.2rem 1rem;
+  }
+  .material-reading .record-table-scroll {
+    margin-block: 1.25rem;
   }
 
   .quiz-question-card {
