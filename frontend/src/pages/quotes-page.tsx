@@ -17,20 +17,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useArchive } from '@/features/archive/archive-context'
-import { extractQuoteMarkers, recordAnchor } from '@/lib/markup'
+import { quoteRecordTarget } from '@/lib/quote-navigation'
 import { prepareRecordJump } from '@/lib/record-navigation'
-import type { Quote, RecordItem } from '@/types/domain'
-
-function quoteSources(quote: Quote, records: RecordItem[]) {
-  const directKey = quote.recordFile.replace(/\.json$/i, '')
-  const direct = records.find(
-    (record) => (record.fileName || record.id).replace(/\.json$/i, '') === directKey,
-  )
-  if (direct) return [direct]
-  return records.filter((record) =>
-    extractQuoteMarkers(record.content).some((marker) => marker.id === quote.id),
-  )
-}
 
 export function QuotesPage() {
   const [sort, setSort] = useState<'id' | 'quote'>('id')
@@ -92,9 +80,10 @@ export function QuotesPage() {
           className="grid gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:grid-cols-2"
         >
           {quotes.map((quote) => {
-            const sources = quoteSources(quote, resource.data?.records || [])
-            const source = sources.length === 1 ? sources[0] : null
-            const anchor = source ? recordAnchor(source) : ''
+            const { anchor, source, sources } = quoteRecordTarget(
+              quote,
+              resource.data?.records || [],
+            )
             return (
               <Card id={`quote-${quote.id}`} key={quote.id} className="scroll-mt-24">
                 <CardContent className="pt-4">

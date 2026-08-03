@@ -480,16 +480,14 @@ export function filteredQuestions(
   return questions.filter((question) => types.has(question.type) && contents.has(question.content))
 }
 
-export function pickQuestion(questions: PlayQuestion[], previousId = '') {
-  const usable = questions.filter((question) => question.id !== previousId)
-  const pool = usable.length ? usable : questions
-  const sources = unique(pool.map((question) => question.sourceId))
-  const source = pickRandom(sources)
-  const sourceQuestions = pool.filter((question) => question.sourceId === source)
+export function pickQuestion(questions: PlayQuestion[], random = Math.random) {
+  const sources = unique(questions.map((question) => question.sourceId))
+  const source = pickRandom(sources, random)
+  const sourceQuestions = questions.filter((question) => question.sourceId === source)
   const contents = unique(sourceQuestions.map((question) => question.content))
-  const content = pickRandom(contents)
+  const content = pickRandom(contents, random)
   const contentQuestions = sourceQuestions.filter((question) => question.content === content)
-  const question = pickRandom(contentQuestions)
+  const question = pickRandom(contentQuestions, random)
   return question ? randomizeQuestion(question) : null
 }
 

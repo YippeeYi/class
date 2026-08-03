@@ -4,6 +4,8 @@
 提交时间：2026-07-29 16:51:47 +0800  
 审查范围：提交中的全部 HTML、CSS、JavaScript、SQL、部署配置、管理脚本、资源约定、说明文档和自动化测试。
 
+逐功能 20 字段维护矩阵见 [`baseline-b0923d4-maintenance-matrix.md`](./baseline-b0923d4-maintenance-matrix.md)。本文件保留跨模块规格与源码考古结论，矩阵负责逐项状态、差异、实施结果和验证证据。
+
 ## 1. 产品边界与总体架构
 
 - 产品是无自建后端的静态班级档案站。页面运行在浏览器中，Supabase 提供 PostgreSQL、RPC、RLS 和私有 Storage。

@@ -1,10 +1,11 @@
 import { BookOpenText, CalendarDays, MessageSquareQuote, PenLine, Users } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from 'recharts'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { PageHeading } from '@/components/archive/page-heading'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,7 +17,15 @@ import {
 } from '@/components/ui/chart'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
-import { countTextCharacters, extractMarkupReferences, extractParticipantIds } from '@/lib/markup'
+import {
+  countTextCharacters,
+  extractMarkupReferences,
+  extractParticipantIds,
+  stripMarkup,
+} from '@/lib/markup'
+import { quoteRecordTarget } from '@/lib/quote-navigation'
+import { prepareRecordJump } from '@/lib/record-navigation'
+import { fixedTimelineChartScale } from '@/lib/timeline'
 import type { RecordItem } from '@/types/domain'
 
 type Metric = 'count' | 'characters'
@@ -56,6 +65,20 @@ function topEntries(map: Map<string, number>, limit: number) {
   return [...map.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, limit)
 }
 
+function timelineScale(values: number[], metric: Metric, period: 'month' | 'day') {
+  if (period === 'month')
+    return fixedTimelineChartScale(
+      values,
+      metric === 'characters' ? 3000 : 100,
+      metric === 'characters' ? 750 : 25,
+    )
+  return fixedTimelineChartScale(
+    values,
+    metric === 'characters' ? 1000 : 12,
+    metric === 'characters' ? 250 : 3,
+  )
+}
+
 function countBy(records: RecordItem[], keys: (record: RecordItem) => string[], metric: Metric) {
   const map = new Map<string, number>()
   for (const record of records) {
@@ -71,6 +94,94 @@ type AuthorPieDatum = {
   name: string
   value: number
   color: string
+}
+
+function buildAuthorPie(records: RecordItem[], metric: Metric, knownPeople: Map<string, string>) {
+  const sorted = [
+    ...countBy(records, (record) => [record.author || 'unknown'], metric).entries(),
+  ].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+  const entries = sorted.slice(0, 5)
+  const remaining = sorted.slice(5).reduce((sum, [, value]) => sum + value, 0)
+  if (remaining) entries.push(['__other__', remaining])
+  const config = Object.fromEntries(
+    entries.map(([id], index) => [
+      id,
+      {
+        label: id === '__other__' ? '其他' : knownPeople.get(id) || id,
+        color: pieColors[index] || 'var(--muted-foreground)',
+      },
+    ]),
+  ) as ChartConfig
+  const data: AuthorPieDatum[] = entries.map(([id, value], index) => ({
+    id,
+    name: id === '__other__' ? '其他' : knownPeople.get(id) || id,
+    value,
+    color: pieColors[index] || 'var(--muted-foreground)',
+  }))
+  return { config, data, totalAuthors: sorted.length }
+}
+
+const dailyAuthorPalette = [
+  '#3978d4',
+  '#e56b36',
+  '#2ca46f',
+  '#d84f91',
+  '#16a6b6',
+  '#d94b4b',
+  '#7b61d1',
+  '#d5a51f',
+  '#2369a8',
+  '#ef8f2f',
+  '#238b57',
+  '#b946a8',
+]
+
+function dailyAuthorColor(index: number) {
+  if (dailyAuthorPalette[index]) return dailyAuthorPalette[index]
+  const generated = index - dailyAuthorPalette.length
+  const hue = (205 + generated * 137.508) % 360
+  return `hsl(${hue.toFixed(1)} ${66 + (generated % 3) * 5}% ${generated % 2 ? 58 : 52}%)`
+}
+
+function MiniAuthorPie({
+  entries,
+  colors,
+  activeId,
+}: {
+  entries: [string, number][]
+  colors: Map<string, string>
+  activeId: string | null
+}) {
+  const total = entries.reduce((sum, [, value]) => sum + value, 0)
+  let offset = 0
+  return (
+    <svg viewBox="0 0 40 40" className="size-8 shrink-0" aria-hidden="true">
+      <circle cx="20" cy="20" r="10" fill="var(--muted)" />
+      {entries.map(([id, value]) => {
+        const length = total ? (value / total) * 100 : 0
+        const dashOffset = -offset
+        offset += length
+        return (
+          <circle
+            key={id}
+            cx="20"
+            cy="20"
+            r="10"
+            pathLength="100"
+            fill="none"
+            stroke={colors.get(id) || 'var(--muted-foreground)'}
+            strokeWidth="20"
+            strokeDasharray={`${length} ${100 - length}`}
+            strokeDashoffset={dashOffset}
+            transform="rotate(-90 20 20)"
+            opacity={activeId && activeId !== id ? 0.18 : 1}
+            className="transition-opacity duration-150"
+          />
+        )
+      })}
+      <circle cx="20" cy="20" r="19" fill="none" stroke="var(--border)" strokeWidth="1" />
+    </svg>
+  )
 }
 
 function AuthorDistributionChart({
@@ -171,8 +282,11 @@ function AuthorDistributionChart({
 
 export function TimelinePage() {
   const resource = useArchive()
+  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const [metric, setMetric] = useState<Metric>('count')
+  const [navigationError, setNavigationError] = useState('')
+  const [activeDailyAuthor, setActiveDailyAuthor] = useState<string | null>(null)
   const records = resource.data?.records || []
   const years = useMemo(
     () =>
@@ -186,6 +300,19 @@ export function TimelinePage() {
         .sort()
         .reverse(),
     [records],
+  )
+  const yearTotals = useMemo(
+    () =>
+      new Map(
+        years.map((item) => [
+          item,
+          metricValue(
+            records.filter((record) => dateParts(record)?.year === item),
+            metric,
+          ),
+        ]),
+      ),
+    [metric, records, years],
   )
   const [year, setYear] = useState(() => params.get('year') || '')
   const [month, setMonth] = useState(() => params.get('month') || '')
@@ -219,7 +346,7 @@ export function TimelinePage() {
 
   useEffect(() => {
     if (!year) return
-    if (!monthly.some((item) => item.key === month && item.records.length)) {
+    if (!monthly.some((item) => item.key === month)) {
       setMonth([...monthly].reverse().find((item) => item.records.length)?.key || '01')
     }
   }, [month, monthly, year])
@@ -233,6 +360,7 @@ export function TimelinePage() {
 
   const selected = monthly.find((item) => item.key === month) || monthly[0]
   const selectedRecords = selected?.records || []
+  const yearRecords = monthly.flatMap((item) => item.records)
   const unit = metric === 'count' ? '条' : '字'
   const knownPeople = new Map(
     (resource.data?.people || []).map((person) => [
@@ -240,7 +368,10 @@ export function TimelinePage() {
       person.name || person.alias || person.id,
     ]),
   )
-  const knownQuotes = new Map((resource.data?.quotes || []).map((quote) => [quote.id, quote.quote]))
+  const knownQuotes = new Map(
+    (resource.data?.quotes || []).map((quote) => [quote.id, stripMarkup(quote.quote)]),
+  )
+  const quoteById = new Map((resource.data?.quotes || []).map((quote) => [quote.id, quote]))
   const people = countBy(selectedRecords, (record) => extractParticipantIds(record.content), metric)
   const authors = countBy(selectedRecords, (record) => [record.author], metric)
   const quotes = countBy(
@@ -259,27 +390,70 @@ export function TimelinePage() {
       day,
       records: items,
       value: metricValue(items, metric),
-      important: items.some((record) => record.importance === 'important'),
+      important: metricValue(
+        items.filter((record) => record.importance === 'important'),
+        metric,
+      ),
+      authors: [...countBy(items, (record) => [record.author || 'unknown'], metric).entries()],
     }
   })
-  const sortedAuthors = [...authors.entries()].sort(
+  const overallAuthorPie = buildAuthorPie(records, metric, knownPeople)
+  const yearAuthorPie = buildAuthorPie(yearRecords, metric, knownPeople)
+  const monthAuthorPie = buildAuthorPie(selectedRecords, metric, knownPeople)
+  const allMonths = useMemo(() => {
+    const groups = new Map<string, RecordItem[]>()
+    for (const record of records) {
+      const date = dateParts(record)
+      if (!date) continue
+      const key = `${date.year}-${date.month}`
+      groups.set(key, [...(groups.get(key) || []), record])
+    }
+    return [...groups.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, items]) => ({ key, label: key, value: metricValue(items, metric) }))
+  }, [metric, records])
+  const overallMonthScale = timelineScale(
+    allMonths.map((item) => item.value),
+    metric,
+    'month',
+  )
+  const yearMonthScale = timelineScale(
+    monthly.map((item) => item.value),
+    metric,
+    'month',
+  )
+  const dailyScale = timelineScale(
+    daily.map((item) => item.value),
+    metric,
+    'day',
+  )
+  const authorIds = [...new Set(records.map((record) => record.author || 'unknown'))].sort((a, b) =>
+    a.localeCompare(b),
+  )
+  const dailyAuthorColors = new Map(authorIds.map((id, index) => [id, dailyAuthorColor(index)]))
+  const dailyAuthorLegend = [...authors.entries()].sort(
     (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
   )
-  const authorPie = sortedAuthors.slice(0, 5)
-  const remainingAuthors = sortedAuthors.slice(5).reduce((sum, [, value]) => sum + value, 0)
-  if (remainingAuthors) authorPie.push(['__other__', remainingAuthors])
-  const pieConfig = Object.fromEntries(
-    authorPie.map(([id], index) => [
-      id,
-      { label: id === '__other__' ? '其他' : knownPeople.get(id) || id, color: pieColors[index] },
-    ]),
-  ) as ChartConfig
-  const authorPieData: AuthorPieDatum[] = authorPie.map(([id, value], index) => ({
-    id,
-    name: id === '__other__' ? '其他' : knownPeople.get(id) || id,
-    value,
-    color: pieColors[index] || 'var(--muted-foreground)',
-  }))
+
+  const openQuoteSource = (id: string) => {
+    const quote = quoteById.get(id)
+    if (!quote) {
+      setNavigationError('没有找到这条名言。')
+      return
+    }
+    const target = quoteRecordTarget(quote, records)
+    if (!target.href || !target.anchor) {
+      setNavigationError(
+        target.sources.length > 1
+          ? '这条名言匹配到多条记录，请检查记录标记。'
+          : '没有找到这条名言对应的记录。',
+      )
+      return
+    }
+    setNavigationError('')
+    prepareRecordJump(target.anchor)
+    navigate(target.href)
+  }
   const summaryStats = [
     {
       label: metric === 'count' ? '全部记录' : '档案总字数',
@@ -330,6 +504,12 @@ export function TimelinePage() {
       />
       {resource.loading && <PageSkeleton rows={5} />}
       {resource.error && <ErrorState title="时间线加载失败" onRetry={resource.retry} />}
+      {navigationError && (
+        <Alert variant="destructive" className="mb-5" role="alert">
+          <AlertTitle>无法打开名言来源</AlertTitle>
+          <AlertDescription>{navigationError}</AlertDescription>
+        </Alert>
+      )}
       {resource.data && !records.length && <EmptyState title="暂无可统计的记录" />}
       {resource.data && records.length > 0 && (
         <div
@@ -349,202 +529,373 @@ export function TimelinePage() {
               </Card>
             ))}
           </section>
-          <Tabs
-            value={year}
-            onValueChange={(value) => {
-              setYear(value)
-              setMonth('')
-            }}
-            className="mb-6 overflow-x-auto"
-          >
-            <TabsList>
-              {years.map((item) => (
-                <TabsTrigger key={item} value={item}>
-                  {item} 年
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-          <div className="mb-6 grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(18rem,.6fr)]">
+          <div className="mb-6 grid gap-6 lg:grid-cols-[minmax(18rem,.7fr)_minmax(0,1.3fr)]">
             <Card>
               <CardHeader>
-                <CardTitle>
-                  {year} 年月度{metric === 'count' ? '记录' : '字数'}
-                </CardTitle>
+                <CardTitle>整体记录人{metric === 'count' ? '记录条数' : '记录字数'}占比</CardTitle>
               </CardHeader>
               <CardContent>
-                <ChartContainer config={chartConfig} className="min-h-64 w-full">
-                  <BarChart data={monthly}>
-                    <CartesianGrid vertical={false} />
-                    <XAxis dataKey="label" tickLine={false} axisLine={false} />
-                    <YAxis width={42} domain={[0, metric === 'count' ? 300 : 3000]} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="value" fill="var(--color-value)" radius={4} />
-                  </BarChart>
-                </ChartContainer>
+                {overallAuthorPie.data.length ? (
+                  <AuthorDistributionChart
+                    data={overallAuthorPie.data}
+                    config={overallAuthorPie.config}
+                    unit={unit}
+                  />
+                ) : (
+                  <EmptyState title="暂无整体记录人数据" />
+                )}
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>
-                  {year} 年 {month} 月记录人占比
-                </CardTitle>
+                <CardTitle>全档案月度{metric === 'count' ? '记录' : '字数'}趋势</CardTitle>
               </CardHeader>
-              <CardContent>
-                {authorPie.length ? (
-                  <AuthorDistributionChart data={authorPieData} config={pieConfig} unit={unit} />
+              <CardContent className="overflow-x-auto">
+                {allMonths.length ? (
+                  <ChartContainer
+                    config={chartConfig}
+                    className="min-h-64 w-full"
+                    style={{ minWidth: `${Math.max(40, allMonths.length * 2.75)}rem` }}
+                  >
+                    <BarChart data={allMonths}>
+                      <CartesianGrid vertical={false} />
+                      <XAxis
+                        dataKey="label"
+                        interval="preserveStartEnd"
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis
+                        width={42}
+                        domain={[0, overallMonthScale.max]}
+                        ticks={overallMonthScale.ticks}
+                      />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="value" fill="var(--color-value)" radius={4} />
+                    </BarChart>
+                  </ChartContainer>
                 ) : (
-                  <EmptyState title="本月没有记录人数据" />
+                  <EmptyState
+                    title="没有可绘制的月份"
+                    description="记录中缺少符合 YYYY-MM-DD 的有效日期。"
+                  />
                 )}
               </CardContent>
             </Card>
           </div>
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>选择月份</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-12">
-              {monthly.map((item) => (
-                <Button
-                  key={item.key}
-                  variant={month === item.key ? 'default' : 'outline'}
-                  disabled={!item.records.length}
-                  className="h-auto flex-col py-2"
-                  onClick={() => setMonth(item.key)}
-                >
-                  <span>{item.label}</span>
-                  <span className="text-xs opacity-70">
-                    {item.value.toLocaleString()} {unit}
-                  </span>
-                </Button>
-              ))}
-            </CardContent>
-          </Card>
-          <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              ['本月统计', metricValue(selectedRecords, metric)],
-              [
-                '重要记录',
-                metricValue(
-                  selectedRecords.filter((record) => record.importance === 'important'),
-                  metric,
-                ),
-              ],
-              ['有记录天数', activeDays],
-              ['全月天数', daysInMonth],
-              ['活跃人物', people.size],
-              ['记录人', authors.size],
-              ['高频名言', quotes.size],
-              [
-                '平均每条',
-                selectedRecords.length
-                  ? Math.round(metricValue(selectedRecords, metric) / selectedRecords.length)
-                  : 0,
-              ],
-            ].map(([label, value]) => (
-              <Card key={String(label)}>
-                <CardContent>
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                  <strong className="font-heading text-xl">{Number(value).toLocaleString()}</strong>
+          {years.length ? (
+            <>
+              <Tabs
+                value={year}
+                onValueChange={(value) => {
+                  setYear(value)
+                  setMonth('')
+                }}
+                className="mb-6 overflow-x-auto"
+              >
+                <TabsList>
+                  {years.map((item) => (
+                    <TabsTrigger key={item} value={item}>
+                      <span>{item} 年</span>
+                      <span className="text-xs opacity-65">
+                        {yearTotals.get(item)?.toLocaleString()} {unit}
+                      </span>
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+              <div className="mb-6 grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(18rem,.6fr)]">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
+                      {year} 年月度{metric === 'count' ? '记录' : '字数'}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ChartContainer config={chartConfig} className="min-h-64 w-full">
+                      <BarChart data={monthly}>
+                        <CartesianGrid vertical={false} />
+                        <XAxis dataKey="label" tickLine={false} axisLine={false} />
+                        <YAxis
+                          width={42}
+                          domain={[0, yearMonthScale.max]}
+                          ticks={yearMonthScale.ticks}
+                        />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="value" fill="var(--color-value)" radius={4} />
+                      </BarChart>
+                    </ChartContainer>
+                    <div className="mt-4 flex justify-end">
+                      <Button
+                        variant="outline"
+                        render={<Link to={`/records?year=${encodeURIComponent(year)}`} />}
+                      >
+                        查看本年记录
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
+                      {year} 年记录人{metric === 'count' ? '记录条数' : '记录字数'}占比
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {yearAuthorPie.data.length ? (
+                      <AuthorDistributionChart
+                        data={yearAuthorPie.data}
+                        config={yearAuthorPie.config}
+                        unit={unit}
+                      />
+                    ) : (
+                      <EmptyState title="本年没有记录人数据" />
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+              <Card className="mb-6">
+                <CardHeader>
+                  <CardTitle>选择月份</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-12">
+                  {monthly.map((item) => (
+                    <Button
+                      key={item.key}
+                      variant={month === item.key ? 'default' : 'outline'}
+                      disabled={!item.records.length}
+                      className="h-auto flex-col py-2"
+                      onClick={() => setMonth(item.key)}
+                    >
+                      <span>{item.label}</span>
+                      <span className="text-xs opacity-70">
+                        {item.value.toLocaleString()} {unit}
+                      </span>
+                    </Button>
+                  ))}
                 </CardContent>
               </Card>
-            ))}
-          </section>
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>
-                {year} 年 {month} 月每日分布
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer config={chartConfig} className="min-h-64 w-full">
-                <BarChart data={daily}>
-                  <CartesianGrid vertical={false} />
-                  <XAxis dataKey="day" interval={2} tickLine={false} axisLine={false} />
-                  <YAxis width={42} domain={[0, metric === 'count' ? 50 : 1000]} />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="value" fill="var(--color-value)" radius={3} />
-                </BarChart>
-              </ChartContainer>
-              <div className="mt-4 grid grid-cols-7 gap-1 sm:grid-cols-10 lg:grid-cols-16">
-                {daily.map((item) => (
-                  <Button
-                    key={item.day}
-                    size="sm"
-                    variant={item.important ? 'secondary' : 'ghost'}
-                    disabled={!item.records.length}
-                    render={
-                      item.records.length ? (
-                        <Link to={`/records?year=${year}&month=${month}&day=${item.day}`} />
-                      ) : undefined
-                    }
-                  >
-                    {item.day}
-                  </Button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-          <div className="mb-6 grid gap-6 lg:grid-cols-3">
-            {[
-              {
-                title: '活跃人物',
-                values: topEntries(people, 10),
-                label: (id: string) => knownPeople.get(id) || id,
-                href: (id: string) => `/person?id=${encodeURIComponent(id)}`,
-              },
-              {
-                title: '记录人',
-                values: topEntries(authors, 8),
-                label: (id: string) => knownPeople.get(id) || id,
-                href: (id: string) => `/person?id=${encodeURIComponent(id)}`,
-              },
-              {
-                title: '高频名言',
-                values: topEntries(quotes, 8),
-                label: (id: string) => knownQuotes.get(id) || id,
-                href: (id: string) => `/quotes#quote-${id}`,
-              },
-            ].map((group) => (
-              <Card key={group.title}>
+              <Card className="mb-6">
                 <CardHeader>
-                  <CardTitle>{group.title}</CardTitle>
+                  <CardTitle>
+                    {year} 年 {month} 月记录人{metric === 'count' ? '记录条数' : '记录字数'}占比
+                  </CardTitle>
                 </CardHeader>
-                <CardContent className="flex flex-wrap gap-2">
-                  {group.values.length ? (
-                    group.values.map(([id, value]) => (
-                      <Button
-                        key={id}
-                        variant="outline"
-                        size="sm"
-                        render={<Link to={group.href(id)} />}
-                      >
-                        {group.label(id)}{' '}
-                        <Badge variant="secondary">
-                          {value.toLocaleString()} {unit}
-                        </Badge>
-                      </Button>
-                    ))
+                <CardContent>
+                  {monthAuthorPie.data.length ? (
+                    <AuthorDistributionChart
+                      data={monthAuthorPie.data}
+                      config={monthAuthorPie.config}
+                      unit={unit}
+                    />
                   ) : (
-                    <span className="text-sm text-muted-foreground">暂无数据</span>
+                    <EmptyState title="本月没有记录人数据" />
                   )}
                 </CardContent>
               </Card>
-            ))}
-          </div>
-          <Card>
-            <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <span className="text-sm text-muted-foreground">
-                本月共 {selectedRecords.length} 条记录。
-              </span>
-              <Link
-                to={`/records?year=${year}&month=${month}`}
-                className={buttonVariants({ variant: 'outline' })}
-              >
-                查看本月记录
-              </Link>
-            </CardContent>
-          </Card>
+              <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  ['本月统计', metricValue(selectedRecords, metric)],
+                  [
+                    '重要记录',
+                    metricValue(
+                      selectedRecords.filter((record) => record.importance === 'important'),
+                      metric,
+                    ),
+                  ],
+                  ['有记录天数', activeDays],
+                  ['全月天数', daysInMonth],
+                  ['活跃人物', people.size],
+                  ['记录人', authors.size],
+                  ['高频名言', quotes.size],
+                  [
+                    '平均每条',
+                    selectedRecords.length
+                      ? Math.round(metricValue(selectedRecords, metric) / selectedRecords.length)
+                      : 0,
+                  ],
+                ].map(([label, value]) => (
+                  <Card key={String(label)}>
+                    <CardContent>
+                      <p className="text-xs text-muted-foreground">{label}</p>
+                      <strong className="font-heading text-xl">
+                        {Number(value).toLocaleString()}
+                      </strong>
+                    </CardContent>
+                  </Card>
+                ))}
+              </section>
+              <Card className="mb-6">
+                <CardHeader>
+                  <CardTitle>
+                    {year} 年 {month} 月每日分布
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ChartContainer config={chartConfig} className="min-h-64 w-full">
+                    <BarChart data={daily}>
+                      <CartesianGrid vertical={false} />
+                      <XAxis dataKey="day" interval={2} tickLine={false} axisLine={false} />
+                      <YAxis width={42} domain={[0, dailyScale.max]} ticks={dailyScale.ticks} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="value" fill="var(--color-value)" radius={3} />
+                    </BarChart>
+                  </ChartContainer>
+                  <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-7 lg:grid-cols-10 xl:grid-cols-16">
+                    {daily.map((item) => (
+                      <Button
+                        key={item.day}
+                        size="sm"
+                        variant={item.important > 0 ? 'secondary' : 'ghost'}
+                        disabled={!item.records.length}
+                        className="h-auto min-h-24 flex-col gap-1 px-1 py-2"
+                        render={
+                          item.records.length ? (
+                            <Link to={`/records?year=${year}&month=${month}&day=${item.day}`} />
+                          ) : undefined
+                        }
+                      >
+                        <span className="text-xs">{item.day} 日</span>
+                        {item.records.length ? (
+                          <MiniAuthorPie
+                            entries={item.authors}
+                            colors={dailyAuthorColors}
+                            activeId={activeDailyAuthor}
+                          />
+                        ) : (
+                          <span
+                            className="size-8 rounded-full border border-dashed"
+                            aria-hidden="true"
+                          />
+                        )}
+                        <strong className="tabular-nums">
+                          {item.value.toLocaleString()} {unit}
+                        </strong>
+                        <span className="min-h-4 text-[0.65rem] opacity-70">
+                          {item.important > 0
+                            ? `重要 ${item.important.toLocaleString()} ${unit}`
+                            : ''}
+                        </span>
+                      </Button>
+                    ))}
+                  </div>
+                  {dailyAuthorLegend.length > 0 && (
+                    <div className="mt-4 border-t pt-4">
+                      <p className="mb-2 text-xs font-medium text-muted-foreground">记录人图例</p>
+                      <ul className="flex list-none flex-wrap gap-1.5">
+                        {dailyAuthorLegend.map(([id]) => (
+                          <li key={id}>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 gap-2 px-2 text-xs"
+                              aria-pressed={activeDailyAuthor === id}
+                              onPointerEnter={() => setActiveDailyAuthor(id)}
+                              onPointerLeave={() => setActiveDailyAuthor(null)}
+                              onFocus={() => setActiveDailyAuthor(id)}
+                              onBlur={() => setActiveDailyAuthor(null)}
+                            >
+                              <i
+                                className="size-2.5 rounded-full"
+                                style={{ backgroundColor: dailyAuthorColors.get(id) }}
+                                aria-hidden="true"
+                              />
+                              {knownPeople.get(id) || id}
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              <div className="mb-6 grid gap-6 lg:grid-cols-3">
+                {[
+                  {
+                    title: '活跃人物',
+                    values: topEntries(people, 10),
+                    label: (id: string) => knownPeople.get(id) || id,
+                    href: (id: string) => `/person?id=${encodeURIComponent(id)}`,
+                    onSelect: undefined,
+                  },
+                  {
+                    title: '记录人',
+                    values: topEntries(authors, 8),
+                    label: (id: string) => knownPeople.get(id) || id,
+                    href: (id: string) => `/person?id=${encodeURIComponent(id)}`,
+                    onSelect: undefined,
+                  },
+                  {
+                    title: '高频名言',
+                    values: topEntries(quotes, 8),
+                    label: (id: string) => knownQuotes.get(id) || id,
+                    href: undefined,
+                    onSelect: openQuoteSource,
+                  },
+                ].map((group) => (
+                  <Card key={group.title}>
+                    <CardHeader>
+                      <CardTitle>{group.title}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-2">
+                      {group.values.length ? (
+                        group.values.map(([id, value]) => {
+                          const content = (
+                            <>
+                              {group.label(id)}{' '}
+                              <Badge variant="secondary">
+                                {value.toLocaleString()} {unit}
+                              </Badge>
+                            </>
+                          )
+                          return group.onSelect ? (
+                            <Button
+                              key={id}
+                              variant="outline"
+                              size="sm"
+                              onClick={() => group.onSelect?.(id)}
+                            >
+                              {content}
+                            </Button>
+                          ) : (
+                            <Button
+                              key={id}
+                              variant="outline"
+                              size="sm"
+                              render={<Link to={group.href?.(id) || '/'} />}
+                            >
+                              {content}
+                            </Button>
+                          )
+                        })
+                      ) : (
+                        <span className="text-sm text-muted-foreground">暂无数据</span>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              <Card>
+                <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    本月共 {selectedRecords.length} 条记录。
+                  </span>
+                  <Link
+                    to={`/records?year=${year}&month=${month}`}
+                    className={buttonVariants({ variant: 'outline' })}
+                  >
+                    查看本月记录
+                  </Link>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <EmptyState
+              title="没有可统计的日期"
+              description="现有记录缺少符合 YYYY-MM-DD 的日期，无法建立年度、月度和每日层级。"
+            />
+          )}
         </div>
       )}
     </div>

@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
-import { readFrontend } from './test-react-helpers.mjs'
+import path from 'node:path'
+import { createServer } from 'vite'
+import { frontend, readFrontend } from './test-react-helpers.mjs'
 
 const quiz = await readFrontend('src/pages/quiz-page.tsx')
 const engine = await readFrontend('src/features/quiz/quiz-engine.ts')
@@ -30,14 +32,76 @@ assert.match(quiz, /pendingQuestionTop/, 'question changes must preserve the pro
 assert.match(quiz, /Intl\.Segmenter/, 'hidden answers must be split by grapheme clusters')
 assert.match(quiz, /inputChars\.every/, 'hidden questions must require one fully correct attempt')
 assert.match(quiz, /BlankQuestionBody/, 'person and quote answers must reveal in place after submission')
+assert.match(
+  quiz,
+  /aria-hidden=\{!revealed\}>\{answer\}/,
+  'the hidden answer glyphs must remain mounted so revealing an answer cannot change blank width',
+)
 assert.match(quiz, /CorrectedQuestionBody/, 'judge corrections must render in the source text')
 assert.match(quiz, /全选可用/, 'the baseline reset-to-all filter action must be available')
 assert.match(quiz, /data-question-type/, 'the question card must expose its current type for theming')
 assert.match(styles, /data-question-type="fill"/, 'fill questions need a distinct low-saturation tone')
 assert.match(styles, /data-question-type="judge"/, 'judge questions need a distinct low-saturation tone')
+assert.match(
+  quiz,
+  /quiz-question-card gap-0 overflow-hidden py-0/,
+  'the question type surface must meet the card edge without a padding gap',
+)
+assert.doesNotMatch(
+  quiz,
+  /setSecret\(extra\)\s*setEnabledContent/,
+  'unlocking the hidden pool must expose, but not automatically select, the hidden content filter',
+)
 assert.equal(
   (quiz.match(/variant=\{enabled(?:Types|Content)\.has\([^)]*\) \? 'default' : 'outline'\}/g) || []).length,
   2,
   'question type and content filters must share one selected-state color system',
 )
-console.log('React quiz generation checks passed.')
+
+const vite = await createServer({
+  configFile: false,
+  root: frontend,
+  resolve: { alias: { '@': path.join(frontend, 'src') } },
+  server: { middlewareMode: true },
+  appType: 'custom',
+  logLevel: 'silent',
+})
+try {
+  const { pickQuestion } = await vite.ssrLoadModule('/src/features/quiz/quiz-engine.ts')
+  const { fixedTimelineChartScale } = await vite.ssrLoadModule('/src/lib/timeline.ts')
+  const runtimeQuestions = [
+    { id: 'a-person-choice', sourceId: 'a', content: 'person', type: 'choice' },
+    { id: 'a-person-fill', sourceId: 'a', content: 'person', type: 'fill' },
+    { id: 'a-quote-fill', sourceId: 'a', content: 'quote', type: 'fill' },
+    { id: 'b-person-fill', sourceId: 'b', content: 'person', type: 'fill' },
+    { id: 'c-date-choice', sourceId: 'c', content: 'date', type: 'choice' },
+  ]
+  const sequenceRandom = (values) => {
+    let index = 0
+    return () => values[index++ % values.length]
+  }
+  const sourceCounts = { a: 0, b: 0, c: 0 }
+  const equalSourceRandom = sequenceRandom([0.01, 0, 0, 0.34, 0, 0, 0.67, 0, 0])
+  for (let index = 0; index < 300; index += 1) {
+    const picked = pickQuestion(runtimeQuestions, equalSourceRandom)
+    sourceCounts[picked.sourceId] += 1
+  }
+  assert.deepEqual(sourceCounts, { a: 100, b: 100, c: 100 }, 'eligible sources need equal weight')
+  assert.equal(
+    pickQuestion(runtimeQuestions, () => 0).id,
+    pickQuestion(runtimeQuestions, () => 0).id,
+    'baseline sampling must not remove the previous question and distort source weights',
+  )
+  assert.deepEqual(fixedTimelineChartScale([0, 88], 100, 25), {
+    max: 100,
+    ticks: [0, 25, 50, 75, 100],
+  })
+  assert.deepEqual(fixedTimelineChartScale([126], 100, 25), {
+    max: 150,
+    ticks: [0, 25, 50, 75, 100, 125, 150],
+  })
+} finally {
+  await vite.close()
+}
+
+console.log('React quiz generation and timeline scale checks passed.')

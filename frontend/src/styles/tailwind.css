@@ -365,10 +365,17 @@
       color 220ms ease,
       background-color 220ms ease;
   }
+  .quiz-answer-blank > span:not(.sr-only) {
+    display: inline-block;
+    color: transparent;
+    line-height: inherit;
+  }
   .quiz-answer-blank.is-revealed {
     border-radius: 0.2rem 0.2rem 0 0;
     background: color-mix(in oklch, var(--quiz-type-accent) 10%, transparent);
-    font-weight: 700;
+  }
+  .quiz-answer-blank.is-revealed > span:not(.sr-only) {
+    color: currentColor;
   }
   .quiz-judge-correction {
     display: inline-flex;

@@ -10,7 +10,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useArchive } from '@/features/archive/archive-context'
 import { normalizeText } from '@/lib/archive'
-import { extractMarkupReferences, recordAnchor, stripMarkup } from '@/lib/markup'
+import { recordAnchor, stripMarkup } from '@/lib/markup'
+import { quoteRecordTarget } from '@/lib/quote-navigation'
 import { prepareRecordJump } from '@/lib/record-navigation'
 import type { Quote, RecordItem } from '@/types/domain'
 
@@ -30,16 +31,7 @@ const labels: Record<SearchType, string> = { record: '记录', person: '人物',
 const icons = { record: BookOpenText, person: Users, quote: MessageSquareQuote }
 
 function quoteHref(quote: Quote, records: RecordItem[]) {
-  const recordFile = quote.recordFile.replace(/\.json$/i, '')
-  const direct = records.find(
-    (record) => (record.fileName || record.id).replace(/\.json$/i, '') === recordFile,
-  )
-  if (direct) return `/records?view=list#${recordAnchor(direct)}`
-  const matches = records.filter((record) =>
-    extractMarkupReferences(record.content).quoteIds.includes(quote.id),
-  )
-  const [match] = matches
-  return matches.length === 1 && match ? `/records?view=list#${recordAnchor(match)}` : ''
+  return quoteRecordTarget(quote, records).href
 }
 
 function score(result: SearchResult, query: string) {

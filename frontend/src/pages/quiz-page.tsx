@@ -87,7 +87,7 @@ function BlankQuestionBody({ question, revealed }: { question: PlayQuestion; rev
         className={cn('quiz-answer-blank', revealed && 'is-revealed')}
         style={{ minWidth: `${Math.max(2, Array.from(answer).length)}em` }}
       >
-        <span aria-hidden={!revealed}>{revealed ? answer : ''}</span>
+        <span aria-hidden={!revealed}>{answer}</span>
         {!revealed && <span className="sr-only">此处挖空</span>}
       </span>
       {question.body.slice(index + answer.length)}
@@ -325,12 +325,12 @@ export function QuizPage() {
 
   const next = useCallback(() => {
     captureQuestionPosition()
-    setCurrent(pickQuestion(candidates, current?.id || ''))
+    setCurrent(pickQuestion(candidates))
     setInput('')
     setResult(null)
     setSecretProgress([])
     setSecretHint('')
-  }, [candidates, captureQuestionPosition, current?.id])
+  }, [candidates, captureQuestionPosition])
 
   useLayoutEffect(() => {
     const previousTop = pendingQuestionTop.current
@@ -374,7 +374,6 @@ export function QuizPage() {
         await preloadImageDimensionList(imagePaths)
         if (!active) return
         setSecret(extra)
-        setEnabledContent((value) => new Set([...value, 'secret']))
       } catch {
         if (active) setSecretError('隐藏题库暂时无法加载，请稍后重试。')
       } finally {
@@ -524,7 +523,7 @@ export function QuizPage() {
             </Alert>
           )}
           <Card className="mb-5 bg-card/90 shadow-sm">
-            <CardContent className="flex flex-col gap-3 pt-4">
+            <CardContent className="flex flex-col gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="mr-1 text-sm font-medium text-muted-foreground">题型</span>
                 {(['choice', 'fill', 'judge'] as const).map((type) => (
@@ -578,10 +577,10 @@ export function QuizPage() {
             </CardContent>
           </Card>
           <Card
-            className="quiz-question-card overflow-hidden"
+            className="quiz-question-card gap-0 overflow-hidden py-0"
             data-question-type={current?.type || 'choice'}
           >
-            <CardHeader className="quiz-question-header border-b">
+            <CardHeader className="quiz-question-header rounded-t-xl border-b pt-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="quiz-question-type-icon grid size-9 shrink-0 place-items-center rounded-lg">
@@ -593,9 +592,6 @@ export function QuizPage() {
                         {TYPE_LABELS[current.type]}
                       </Badge>
                       <Badge variant="secondary">{CONTENT_LABELS[current.content]}</Badge>
-                      <span className="hidden truncate text-sm text-muted-foreground sm:inline">
-                        条目 {current.entryId}
-                      </span>
                     </>
                   )}
                 </div>
@@ -607,8 +603,13 @@ export function QuizPage() {
                 value={score.total ? (score.correct / score.total) * 100 : 0}
                 aria-label="答题正确率"
               />
+              {current && (
+                <span className="truncate text-xs text-muted-foreground sm:text-sm">
+                  条目 {current.entryId}
+                </span>
+              )}
             </CardHeader>
-            <CardContent className="pt-5 sm:pt-6">
+            <CardContent className="py-5 sm:py-6">
               {current ? (
                 <div
                   ref={questionAnchorRef}
