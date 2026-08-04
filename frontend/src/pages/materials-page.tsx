@@ -54,7 +54,7 @@ export function MaterialsPage() {
       )}
       {resource.data && resource.data.length > 0 && (
         <section
-          className="grid min-h-0 flex-1 grid-rows-[minmax(8rem,.32fr)_minmax(0,1fr)] overflow-hidden rounded-xl border border-border/75 bg-card/82 shadow-sm backdrop-blur-md md:grid-cols-[17rem_minmax(0,1fr)] md:grid-rows-1"
+          className="grid min-h-0 flex-1 grid-rows-[minmax(8rem,.3fr)_minmax(0,1fr)] overflow-hidden rounded-xl border border-border/75 bg-card/80 shadow-sm backdrop-blur-md md:grid-cols-[minmax(14rem,22%)_minmax(0,1fr)] md:grid-rows-1"
           aria-label="资料阅读区"
         >
           <aside className="flex min-h-0 flex-col overflow-hidden border-b border-border/70 md:border-b-0 md:border-r">
@@ -88,7 +88,7 @@ export function MaterialsPage() {
             <ScrollArea className="min-h-0 flex-1">
               <div
                 key={activeId}
-                className="material-reading mx-auto w-full max-w-[64rem] px-5 py-5 pr-8 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-8 sm:py-7 sm:pr-10 lg:px-10 lg:py-8 lg:pr-12"
+                className="material-reading mx-auto w-full max-w-[68rem] px-5 py-5 pr-7 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-7 sm:py-7 sm:pr-9 lg:px-8 lg:py-8 lg:pr-10"
               >
                 {active ? (
                   <MarkupContent content={active.content} />

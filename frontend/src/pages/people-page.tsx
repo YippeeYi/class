@@ -119,7 +119,7 @@ function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; 
           key={`${sort}-${descending}-${mainFirst}`}
           className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
         >
-          <Table>
+          <Table className="text-[0.9375rem] leading-6">
             <TableHeader>
               <TableRow>
                 <TableHead className="pl-5">序号</TableHead>

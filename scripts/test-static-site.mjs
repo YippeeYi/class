@@ -22,6 +22,8 @@ const themeBootstrap = await readFrontend('public/theme-bootstrap.js')
 const backgrounds = await readFrontend('src/components/layout/background-root.tsx')
 const imageViewer = await readFrontend('src/components/archive/image-viewer.tsx')
 const recordCard = await readFrontend('src/components/archive/record-card.tsx')
+const pageHeading = await readFrontend('src/components/archive/page-heading.tsx')
+const pageHeader = await readFrontend('src/components/layout/page-header.tsx')
 const shell = await readFrontend('src/components/layout/app-shell.tsx')
 const archiveContext = await readFrontend('src/features/archive/archive-context.tsx')
 const markup = await readFrontend('src/lib/markup.ts')
@@ -47,7 +49,19 @@ assert.match(shell, /classRecord:keepFullscreen/, 'fullscreen preference must su
 assert.match(shell, /href="#page-content"/, 'the skip-to-content link is missing')
 assert.match(shell, /setOpenMobile\(false\)/, 'mobile sidebar must close after navigation')
 assert.match(shell, /data-active:bg-sidebar-primary/, 'active sidebar items need a clear inverse state')
-assert.match(shell, /bg-background\/72/, 'the selected background must remain visible')
+assert.match(shell, /app-main-surface/, 'the selected background must remain visible through one shared surface')
+assert.match(shell, /<Breadcrumb/, 'brand and current-page title must share the application top bar')
+assert.match(shell, /PAGE_HEADER_ACTIONS_ID/, 'page-level actions need a stable top-bar slot')
+assert.match(pageHeader, /createPortal/, 'page actions must be composed into the shared top bar')
+assert.match(pageHeader, /matchMedia\('\(min-width: 640px\)'\)/, 'page actions must choose one responsive mount point')
+assert.match(pageHeading, /usePageHeaderTitle\(title\)/, 'every page heading must register its title with the top bar')
+assert.equal(
+  pageHeading.match(/<PageHeaderActions/g)?.length,
+  1,
+  'page actions must not mount duplicate desktop and mobile control trees',
+)
+assert.doesNotMatch(pageHeading, /<h1/, 'page titles must not be duplicated in the content area')
+assert.doesNotMatch(home, /fixed top-3 left-3/, 'today history must not cover the top-left navigation')
 assert.match(shell, /viewportLockedPaths/, 'workspace routes must share one viewport-lock contract')
 for (const route of ['/materials', '/quiz', '/map']) {
   assert.match(shell, new RegExp(`'${route}'`), `${route} must lock the outer viewport`)

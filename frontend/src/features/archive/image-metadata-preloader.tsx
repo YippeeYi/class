@@ -38,10 +38,6 @@ export function ImageMetadataPreloader() {
   const archive = useArchiveSnapshot()
 
   useEffect(() => {
-    void archive.ensure()
-  }, [archive.ensure])
-
-  useEffect(() => {
     if (!archive.data) return
     let active = true
     const run = async () => {
@@ -77,10 +73,17 @@ export function ImageMetadataPreloader() {
       if (mapMetadata) rememberImageDimensions(MAP_PATH, mapMetadata)
       await preloadImageDimensionList(paths)
     }
-    const timeoutId = window.setTimeout(() => void run(), 450)
+    let timeoutId: number | undefined
+    let idleId: number | undefined
+    if ('requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(() => void run(), { timeout: 2500 })
+    } else {
+      timeoutId = setTimeout(() => void run(), 900)
+    }
     return () => {
       active = false
-      window.clearTimeout(timeoutId)
+      if (timeoutId !== undefined) clearTimeout(timeoutId)
+      if (idleId !== undefined) window.cancelIdleCallback(idleId)
     }
   }, [archive.data])
 

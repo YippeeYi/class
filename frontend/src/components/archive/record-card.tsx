@@ -1,5 +1,5 @@
 import { CalendarDays, Clock, Paperclip, UserRound } from 'lucide-react'
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { MarkupContent } from '@/components/archive/markup-content'
@@ -34,7 +34,7 @@ function AttachmentLink({ attachment }: { attachment: Attachment }) {
         {loading ? '正在打开…' : attachment.name || attachment.file}
       </Button>
       {error && (
-        <span className="text-xs text-destructive" role="status">
+        <span className="text-sm text-destructive" role="status">
           {error}
         </span>
       )}
@@ -42,7 +42,7 @@ function AttachmentLink({ attachment }: { attachment: Attachment }) {
   )
 }
 
-export function RecordCard({
+export const RecordCard = memo(function RecordCard({
   record,
   onRecordReference,
 }: {
@@ -53,7 +53,7 @@ export function RecordCard({
     <Collapsible>
       <Card id={recordAnchor(record)} className="scroll-mt-24 gap-0 py-0">
         <CardHeader className="border-b border-border/60 pt-3 !pb-3">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[0.8125rem] leading-5 text-muted-foreground">
             <Badge variant={record.importance === 'important' ? 'default' : 'outline'}>
               #{record.id}
             </Badge>
@@ -101,4 +101,4 @@ export function RecordCard({
       </Card>
     </Collapsible>
   )
-}
+})

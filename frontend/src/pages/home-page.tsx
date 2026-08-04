@@ -14,6 +14,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { PageHeaderActions } from '@/components/layout/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -155,17 +156,33 @@ export function HomePage() {
       </section>
 
       {today.hasMatches && (
-        <Button
-          className="fixed top-3 left-3 z-40 w-28 whitespace-normal text-xs sm:w-auto"
-          variant="outline"
-          onClick={() =>
-            navigate(
-              `/records?month=${encodeURIComponent(today.month)}&day=${encodeURIComponent(today.day)}`,
-            )
-          }
-        >
-          历史上的今天
-        </Button>
+        <>
+          <PageHeaderActions>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                navigate(
+                  `/records?month=${encodeURIComponent(today.month)}&day=${encodeURIComponent(today.day)}`,
+                )
+              }
+            >
+              历史上的今天
+            </Button>
+          </PageHeaderActions>
+          <Button
+            className="mb-6 sm:hidden"
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              navigate(
+                `/records?month=${encodeURIComponent(today.month)}&day=${encodeURIComponent(today.day)}`,
+              )
+            }
+          >
+            历史上的今天
+          </Button>
+        </>
       )}
 
       {resource.loading && <PageSkeleton rows={3} />}

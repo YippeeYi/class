@@ -1,5 +1,5 @@
 import { Eye, FileImage, List, ShieldAlert } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
@@ -35,12 +35,11 @@ import {
 } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useArchive } from '@/features/archive/archive-context'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { normalizeRecordKey } from '@/lib/archive'
-import { recordAnchor } from '@/lib/markup'
+import { extractMarkupReferences, recordAnchor } from '@/lib/markup'
 import { consumeRecordJump, type PendingRecordJump } from '@/lib/record-navigation'
 import {
   hasAdminAccess,
@@ -49,7 +48,11 @@ import {
   loadRecordPages,
   loadRecords,
 } from '@/services/data'
-import { rememberImageDimensions, useImageDimensions } from '@/services/image-metadata'
+import {
+  preloadImageDimensionList,
+  rememberImageDimensions,
+  useImageDimensions,
+} from '@/services/image-metadata'
 import type { PageMessage, PageSupplement, RecordItem, RecordPage } from '@/types/domain'
 
 function criteriaFromSearch(params: URLSearchParams): RecordCriteria {
@@ -359,7 +362,7 @@ function PageImagePreloader({
 }
 
 export function RecordsPage() {
-  const archive = useArchive()
+  const recordsResource = useAsyncData(() => loadRecords())
   const location = useLocation()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
@@ -391,13 +394,14 @@ export function RecordsPage() {
   const pendingReturn = useRef<{ scrollY: number } | null>(null)
   const suppressNextLocationJump = useRef(false)
   const written = useAsyncData(async () => {
+    if (view !== 'written') return null
     const [pages, messages, supplements] = await Promise.all([
       loadRecordPages(hidden),
       hidden ? Promise.resolve([]) : loadPageMessages(),
       loadPageSupplements({ hidden }),
     ])
     return { pages, messages, supplements }
-  }, [hidden])
+  }, [hidden, view])
 
   useEffect(() => {
     document.title = '编日史 · 记录'
@@ -453,7 +457,37 @@ export function RecordsPage() {
     return () => window.removeEventListener('keydown', listener)
   }, [])
 
-  const records = hidden ? hiddenRecords : archive.data?.records || []
+  useEffect(() => {
+    const records = recordsResource.data
+    if (!records?.length) return
+    let active = true
+    let timeoutId: number | undefined
+    let idleId: number | undefined
+    const warmVisibleIllustrations = () => {
+      if (!active) return
+      const paths = new Set<string>()
+      for (let index = records.length - 1; index >= 0 && paths.size < 16; index -= 1) {
+        const record = records[index]
+        if (!record) continue
+        extractMarkupReferences(record.content).illustrationPaths.forEach((path) => {
+          paths.add(path)
+        })
+      }
+      void preloadImageDimensionList(paths, 3)
+    }
+    if ('requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(warmVisibleIllustrations, { timeout: 1800 })
+    } else {
+      timeoutId = setTimeout(warmVisibleIllustrations, 650)
+    }
+    return () => {
+      active = false
+      if (timeoutId !== undefined) clearTimeout(timeoutId)
+      if (idleId !== undefined) window.cancelIdleCallback(idleId)
+    }
+  }, [recordsResource.data])
+
+  const records = hidden ? hiddenRecords : recordsResource.data || []
   const extras = useMemo(
     () =>
       written.data
@@ -466,64 +500,85 @@ export function RecordsPage() {
         : [],
     [records, written.data],
   )
-  const sources = view === 'written' ? [...records, ...extras] : records
+  const sources = useMemo(
+    () => (view === 'written' ? [...records, ...extras] : records),
+    [extras, records, view],
+  )
   const filtered = useMemo(
     () => filterRecords(sources, criteria).sort((a, b) => b.id.localeCompare(a.id)),
     [criteria, sources],
   )
   const activeFilter = Object.values(criteria).some(Boolean)
-
-  const navigateToRecord = (recordId: string, source: HTMLElement) => {
-    const normalized = normalizeRecordKey(recordId)
-    const target = records.find(
-      (record) => normalizeRecordKey(record.fileName || record.id) === normalized,
-    )
-    if (!target) {
-      setJumpError('未找到要跳转的记录，请检查正文中的记录标记。')
-      return
-    }
-
-    let targetView = view
-    let targetPageIndex = pageIndex
-    if (view === 'written') {
-      const visiblePages = (written.data?.pages || []).filter((page) => Boolean(page.imagePath))
-      const nextIndex = visiblePages.findIndex((page) => withinPage(page, target, records))
-      if (nextIndex >= 0) targetPageIndex = nextIndex
-      else {
-        targetView = 'list'
-        targetPageIndex = 0
-        setJumpError('目标记录没有对应的手写页，已切换到列表并完成定位。')
-      }
-    }
-
-    const anchor = recordAnchor(target)
-    const sourceRecord = source.closest<HTMLElement>('[id^="record-"]')
-    pendingJump.current = {
-      targetAnchorId: anchor,
-      originHref: '',
-      createdAt: Date.now(),
-      origin: {
-        view,
-        pageIndex,
-        criteria: { ...criteria },
-        anchorId: sourceRecord?.id || '',
-        scrollY: window.scrollY,
-      },
-    }
-    setCriteria(EMPTY_RECORD_CRITERIA)
-    setView(targetView)
-    setPageIndex(targetPageIndex)
-    setJumpRevision((value) => value + 1)
-    suppressNextLocationJump.current = true
-    navigate(
-      {
-        pathname: '/records',
-        search: targetView === 'written' ? '?view=written' : '',
-        hash: `#${anchor}`,
-      },
-      { replace: true },
-    )
+  const recordNavigation = useRef({
+    view,
+    pageIndex,
+    criteria,
+    records,
+    pages: written.data?.pages || [],
+  })
+  recordNavigation.current = {
+    view,
+    pageIndex,
+    criteria,
+    records,
+    pages: written.data?.pages || [],
   }
+
+  const navigateToRecord = useCallback(
+    (recordId: string, source: HTMLElement) => {
+      const state = recordNavigation.current
+      const normalized = normalizeRecordKey(recordId)
+      const target = state.records.find(
+        (record) => normalizeRecordKey(record.fileName || record.id) === normalized,
+      )
+      if (!target) {
+        setJumpError('未找到要跳转的记录，请检查正文中的记录标记。')
+        return
+      }
+
+      let targetView = state.view
+      let targetPageIndex = state.pageIndex
+      if (state.view === 'written') {
+        const visiblePages = state.pages.filter((page) => Boolean(page.imagePath))
+        const nextIndex = visiblePages.findIndex((page) => withinPage(page, target, state.records))
+        if (nextIndex >= 0) targetPageIndex = nextIndex
+        else {
+          targetView = 'list'
+          targetPageIndex = 0
+          setJumpError('目标记录没有对应的手写页，已切换到列表并完成定位。')
+        }
+      }
+
+      const anchor = recordAnchor(target)
+      const sourceRecord = source.closest<HTMLElement>('[id^="record-"]')
+      pendingJump.current = {
+        targetAnchorId: anchor,
+        originHref: '',
+        createdAt: Date.now(),
+        origin: {
+          view: state.view,
+          pageIndex: state.pageIndex,
+          criteria: { ...state.criteria },
+          anchorId: sourceRecord?.id || '',
+          scrollY: window.scrollY,
+        },
+      }
+      setCriteria(EMPTY_RECORD_CRITERIA)
+      setView(targetView)
+      setPageIndex(targetPageIndex)
+      setJumpRevision((value) => value + 1)
+      suppressNextLocationJump.current = true
+      navigate(
+        {
+          pathname: '/records',
+          search: targetView === 'written' ? '?view=written' : '',
+          hash: `#${anchor}`,
+        },
+        { replace: true },
+      )
+    },
+    [navigate],
+  )
 
   useEffect(() => {
     const next = new URLSearchParams()
@@ -538,7 +593,7 @@ export function RecordsPage() {
     if (next.toString() !== current.toString()) setParams(next, { replace: true })
   }, [criteria, setParams, view])
 
-  const loading = !hidden && (!archive.data || archive.loading)
+  const loading = !hidden && recordsResource.loading
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: jumpRevision re-runs the locator after a same-page route stores a new pending jump in the ref.
   useEffect(() => {
@@ -680,12 +735,11 @@ export function RecordsPage() {
         }}
       />
       {loading && <PageSkeleton rows={5} />}
-      {archive.error && !hidden && <ErrorState title="记录加载失败" onRetry={archive.retry} />}
-      {!loading && (!archive.error || hidden) && view === 'list' && (
-        <div
-          key={`${criteria.year}-${criteria.month}-${criteria.day}-${criteria.important}-${criteria.excludeDaily}-${criteria.query}`}
-          className="grid gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
-        >
+      {recordsResource.error && !hidden && (
+        <ErrorState title="记录加载失败" onRetry={recordsResource.retry} />
+      )}
+      {!loading && (!recordsResource.error || hidden) && view === 'list' && (
+        <div className="grid gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
           {filtered.length ? (
             filtered.map((record) => (
               <RecordCard
@@ -700,7 +754,7 @@ export function RecordsPage() {
         </div>
       )}
       {!loading &&
-        (!archive.error || hidden) &&
+        (!recordsResource.error || hidden) &&
         view === 'written' &&
         (written.loading ? (
           <PageSkeleton rows={2} />

@@ -14,9 +14,10 @@ import {
   Sparkles,
   Users,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 
+import { PAGE_HEADER_ACTIONS_ID, PageHeaderProvider } from '@/components/layout/page-header'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,6 +29,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
 import { Button } from '@/components/ui/button'
 
 import {
@@ -69,6 +78,20 @@ const navigation = [
 
 const FULLSCREEN_STORAGE_KEY = 'classRecord:keepFullscreen'
 const viewportLockedPaths = new Set(['/materials', '/quiz', '/map'])
+const pageTitles = new Map([
+  ['/', '导览'],
+  ['/records', '记录'],
+  ['/people', '人物名单'],
+  ['/person', '人物详情'],
+  ['/quotes', '名言'],
+  ['/timeline', '档案时间线'],
+  ['/search', '全站搜索'],
+  ['/quiz', '档案答题'],
+  ['/materials', '资料'],
+  ['/map', '蹭饭图'],
+  ['/backgrounds', '背景'],
+  ['/credits', '制作组与致谢'],
+])
 
 function ScrollToTop() {
   useEffect(() => {
@@ -186,6 +209,16 @@ export function AppShell() {
   const location = useLocation()
   const isViewportLocked = viewportLockedPaths.has(location.pathname)
   const [fullscreen, setFullscreen] = useState(Boolean(document.fullscreenElement))
+  const [registeredTitle, setRegisteredTitle] = useState<{
+    token: symbol
+    title: string
+  } | null>(null)
+  const registerTitle = useCallback((title: string) => {
+    const token = Symbol(title)
+    setRegisteredTitle({ token, title })
+    return () => setRegisteredTitle((current) => (current?.token === token ? null : current))
+  }, [])
+  const pageTitle = registeredTitle?.title || pageTitles.get(location.pathname) || '档案'
 
   useEffect(() => {
     const root = document.documentElement
@@ -255,52 +288,75 @@ export function AppShell() {
   }
 
   return (
-    <TooltipProvider>
-      <SidebarProvider>
-        <ScrollToTop key={location.pathname} />
-        <a
-          href="#page-content"
-          className="sr-only fixed left-3 top-3 z-50 rounded-md bg-background px-3 py-2 text-sm font-medium shadow focus:not-sr-only"
-        >
-          跳到主要内容
-        </a>
-        <AppSidebar onClearAccess={clearAccess} />
-        <SidebarInset
-          className={cn('bg-background/72', isViewportLocked && 'h-svh min-h-0 overflow-hidden')}
-        >
-          <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b border-border/70 bg-background/82 px-4 backdrop-blur-xl">
-            <SidebarTrigger />
-            <span className="font-heading text-lg font-semibold">编日史</span>
-            {document.fullscreenEnabled && (
-              <Button
-                className="ml-auto"
-                data-fullscreen-toggle
-                variant="ghost"
-                size="icon-sm"
-                aria-label={fullscreen ? '退出全屏' : '进入全屏'}
-                title={fullscreen ? '退出全屏' : '进入全屏'}
-                onClick={() => void toggleFullscreen()}
-              >
-                {fullscreen ? <Minimize2 /> : <Maximize2 />}
-              </Button>
-            )}
-          </header>
-          <div
-            id="page-content"
-            tabIndex={-1}
-            key={location.pathname}
-            className={cn(
-              'mx-auto w-full px-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-7 lg:px-10',
-              isViewportLocked
-                ? 'h-[calc(100dvh-4rem)] min-h-0 max-w-[90rem] overflow-hidden py-3 sm:py-4 lg:py-5'
-                : 'min-h-[calc(100svh-4rem)] py-8 pb-24 sm:py-10 sm:pb-24 lg:py-12 lg:pb-24',
-              !isViewportLocked && 'max-w-6xl',
-            )}
+    <PageHeaderProvider registerTitle={registerTitle}>
+      <TooltipProvider>
+        <SidebarProvider>
+          <ScrollToTop key={location.pathname} />
+          <a
+            href="#page-content"
+            className="sr-only fixed left-3 top-3 z-50 rounded-md bg-background px-3 py-2 text-sm font-medium shadow focus:not-sr-only"
           >
-            <Outlet />
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
-    </TooltipProvider>
+            跳到主要内容
+          </a>
+          <AppSidebar onClearAccess={clearAccess} />
+          <SidebarInset
+            className={cn('app-main-surface', isViewportLocked && 'h-svh min-h-0 overflow-hidden')}
+          >
+            <header className="app-topbar sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b border-border/70 px-3 backdrop-blur-xl sm:px-4">
+              <SidebarTrigger />
+              <Breadcrumb className="min-w-0">
+                <BreadcrumbList className="flex-nowrap gap-1.5 sm:gap-2">
+                  <BreadcrumbItem className="min-w-0">
+                    <BreadcrumbLink
+                      render={<Link to="/" />}
+                      className="truncate font-heading text-base font-semibold text-foreground sm:text-lg"
+                    >
+                      编日史
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator className="shrink-0 text-muted-foreground/70" />
+                  <BreadcrumbItem className="min-w-0">
+                    <BreadcrumbPage className="truncate text-sm font-medium sm:text-base">
+                      {pageTitle}
+                    </BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
+              <div
+                id={PAGE_HEADER_ACTIONS_ID}
+                className="ml-auto hidden min-w-0 shrink-0 items-center gap-2 sm:flex"
+              />
+              {document.fullscreenEnabled && (
+                <Button
+                  className="shrink-0"
+                  data-fullscreen-toggle
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={fullscreen ? '退出全屏' : '进入全屏'}
+                  title={fullscreen ? '退出全屏' : '进入全屏'}
+                  onClick={() => void toggleFullscreen()}
+                >
+                  {fullscreen ? <Minimize2 /> : <Maximize2 />}
+                </Button>
+              )}
+            </header>
+            <div
+              id="page-content"
+              tabIndex={-1}
+              key={location.pathname}
+              className={cn(
+                'mx-auto w-full px-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-7 lg:px-10',
+                isViewportLocked
+                  ? 'h-[calc(100dvh-4rem)] min-h-0 max-w-[96rem] overflow-hidden px-3 py-3 sm:px-5 sm:py-4 lg:px-7 lg:py-5'
+                  : 'min-h-[calc(100svh-4rem)] py-6 pb-16 sm:py-7 sm:pb-20 lg:py-8 lg:pb-20',
+                !isViewportLocked && 'max-w-6xl',
+              )}
+            >
+              <Outlet />
+            </div>
+          </SidebarInset>
+        </SidebarProvider>
+      </TooltipProvider>
+    </PageHeaderProvider>
   )
 }

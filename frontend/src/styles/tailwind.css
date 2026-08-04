@@ -170,10 +170,32 @@
 }
 
 @layer components {
+  .app-main-surface {
+    background: linear-gradient(
+      to bottom,
+      color-mix(in oklch, var(--background) 78%, transparent),
+      color-mix(in oklch, var(--background) 68%, transparent)
+    );
+    box-shadow: inset 1px 0 color-mix(in oklch, var(--border) 72%, transparent);
+  }
+
+  .app-topbar {
+    background: color-mix(in oklch, var(--background) 84%, transparent);
+    box-shadow: 0 0.35rem 1.4rem color-mix(in oklch, var(--foreground) 7%, transparent);
+  }
+
+  [data-background="default"] .app-main-surface {
+    background: linear-gradient(
+      to bottom,
+      color-mix(in oklch, var(--background) 84%, transparent),
+      color-mix(in oklch, var(--background) 74%, transparent)
+    );
+  }
+
   .record-markup {
     color: var(--foreground);
-    font-size: 1rem;
-    line-height: 1.85;
+    font-size: clamp(1rem, 0.18vw + 0.98rem, 1.075rem);
+    line-height: 1.9;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
   }
@@ -283,8 +305,8 @@
   }
 
   .material-reading .record-markup {
-    font-size: clamp(1.025rem, 0.25vw + 0.98rem, 1.125rem);
-    line-height: 1.92;
+    font-size: clamp(1.0625rem, 0.22vw + 1.02rem, 1.15rem);
+    line-height: 1.95;
   }
   .material-reading .record-paragraph {
     margin-block: 0.2rem 1rem;

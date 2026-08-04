@@ -1,4 +1,5 @@
 import { Search, X } from 'lucide-react'
+import { useMemo } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -33,8 +34,12 @@ export const EMPTY_RECORD_CRITERIA: RecordCriteria = {
   query: '',
 }
 
+const recordSearchTextCache = new WeakMap<RecordItem, string>()
+
 export function recordSearchText(record: RecordItem) {
-  return normalizeText(
+  const cached = recordSearchTextCache.get(record)
+  if (cached !== undefined) return cached
+  const value = normalizeText(
     [
       record.id,
       record.fileName,
@@ -45,6 +50,8 @@ export function recordSearchText(record: RecordItem) {
       ...record.attachments.flatMap((item) => [item.name, item.file]),
     ].join(' '),
   )
+  recordSearchTextCache.set(record, value)
+  return value
 }
 
 export function filterRecords(records: RecordItem[], criteria: RecordCriteria) {
@@ -75,35 +82,40 @@ export function RecordFilters({
   value: RecordCriteria
   onChange: (value: RecordCriteria) => void
 }) {
-  const dateRecords = records.filter((record) => !record.recordType)
-  const dates = dateRecords.map((record) => record.date.split('-'))
-  const years = unique(
-    dates
-      .filter(
-        ([, month, day]) =>
-          (!value.month || month === value.month) && (!value.day || day === value.day),
-      )
-      .map(([year]) => year)
-      .filter((item): item is string => Boolean(item)),
-  ).sort()
-  const months = unique(
-    dates
-      .filter(
-        ([year, , day]) =>
-          (!value.year || year === value.year) && (!value.day || day === value.day),
-      )
-      .map(([, month]) => month)
-      .filter((item): item is string => Boolean(item)),
-  ).sort()
-  const days = unique(
-    dates
-      .filter(
-        ([year, month]) =>
-          (!value.year || year === value.year) && (!value.month || month === value.month),
-      )
-      .map(([, , day]) => day)
-      .filter((item): item is string => Boolean(item)),
-  ).sort()
+  const { years, months, days } = useMemo(() => {
+    const dates = records
+      .filter((record) => !record.recordType)
+      .map((record) => record.date.split('-'))
+    return {
+      years: unique(
+        dates
+          .filter(
+            ([, month, day]) =>
+              (!value.month || month === value.month) && (!value.day || day === value.day),
+          )
+          .map(([year]) => year)
+          .filter((item): item is string => Boolean(item)),
+      ).sort(),
+      months: unique(
+        dates
+          .filter(
+            ([year, , day]) =>
+              (!value.year || year === value.year) && (!value.day || day === value.day),
+          )
+          .map(([, month]) => month)
+          .filter((item): item is string => Boolean(item)),
+      ).sort(),
+      days: unique(
+        dates
+          .filter(
+            ([year, month]) =>
+              (!value.year || year === value.year) && (!value.month || month === value.month),
+          )
+          .map(([, , day]) => day)
+          .filter((item): item is string => Boolean(item)),
+      ).sort(),
+    }
+  }, [records, value.day, value.month, value.year])
   const active = Object.values(value).some(Boolean)
   const update = (patch: Partial<RecordCriteria>) => onChange({ ...value, ...patch })
 
