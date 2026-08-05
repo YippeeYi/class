@@ -17,5 +17,5 @@ Tips:
 Usage:
 
 1. Put files in `images/backgrounds/`
-2. Add an item to `js/backgroundOptions.js`
-3. Set both `image` and `preview` to the relative file path
+2. Add the relative path and credit to `src/components/layout/background-root.tsx`
+3. Keep the matching startup filename in `public/theme-bootstrap.js` so the selected image appears before React mounts

@@ -4,7 +4,6 @@ import { AppShell } from '@/components/layout/app-shell'
 import { BackgroundRoot } from '@/components/layout/background-root'
 import { Spinner } from '@/components/ui/spinner'
 import { ArchiveProvider } from '@/features/archive/archive-context'
-import { ImageMetadataPreloader } from '@/features/archive/image-metadata-preloader'
 import { AccessGate } from '@/features/auth/access-gate'
 import { routeModuleLoaders } from '@/lib/route-preload'
 
@@ -98,7 +97,6 @@ function ProtectedApp(): ReactElement {
   return (
     <AccessGate>
       <ArchiveProvider>
-        <ImageMetadataPreloader />
         <Routes>
           <Route element={<AppShell />}>
             <Route index element={<HomePage />} />

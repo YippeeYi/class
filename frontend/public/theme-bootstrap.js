@@ -1,7 +1,7 @@
 (() => {
   const backgroundKey = 'classRecord:background'
   const paletteKey = 'classRecord:backgroundPalette:v1'
-  const images = { mountain: 'mountain.jpg', cloud: 'cloud.jpg' }
+  const images = { mountain: 'mountain.webp', cloud: 'cloud.webp' }
   const properties = [
     '--primary',
     '--ring',

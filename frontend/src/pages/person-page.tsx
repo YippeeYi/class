@@ -1,3 +1,4 @@
+import { UserRound } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
@@ -11,6 +12,7 @@ import {
   type RecordCriteria,
   RecordFilters,
 } from '@/components/archive/record-filters'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -40,23 +42,31 @@ function authorIds(record: RecordItem) {
 }
 
 function PersonAvatar({ person }: { person: Person }) {
-  const [failed, setFailed] = useState(false)
   const remote = /^https?:\/\//i.test(person.avatarUrl)
   const signed = useSignedAsset(remote ? '' : person.avatarUrl)
   const src = remote ? person.avatarUrl : signed.src
-  if (!src || failed) return null
+  const label = stripMarkup(person.name || person.id) || person.id
   return (
-    <img
-      src={src}
-      alt={stripMarkup(person.name || person.id)}
-      width={192}
-      height={192}
-      loading="eager"
-      decoding="async"
-      fetchPriority="high"
-      onError={() => setFailed(true)}
-      className="aspect-square w-full max-w-48 rounded-xl border object-cover"
-    />
+    <Avatar
+      className="aspect-square h-auto w-full max-w-48 rounded-xl after:rounded-xl"
+      aria-label={label}
+    >
+      {src && (
+        <AvatarImage
+          src={src}
+          alt={label}
+          width={192}
+          height={192}
+          loading="eager"
+          decoding="async"
+          fetchPriority="high"
+          className="rounded-xl"
+        />
+      )}
+      <AvatarFallback className="rounded-xl text-3xl font-semibold">
+        {label ? [...label][0] : <UserRound className="size-8" />}
+      </AvatarFallback>
+    </Avatar>
   )
 }
 
@@ -95,30 +105,49 @@ export function PersonPage() {
       ? `${stripMarkup(person.name || person.id)} · 编日史`
       : '人物资料 · 编日史'
   }, [person])
-  if (resource.loading) return <PageSkeleton rows={5} />
-  if (resource.error) return <ErrorState title="人物资料加载失败" onRetry={resource.retry} />
+  const displayName = person ? stripMarkup(person.name || person.id) || person.id : '人物资料'
+  const heading = (
+    <PageHeading
+      eyebrow="PERSON ARCHIVE"
+      title={displayName}
+      headerTitle={displayName}
+      showTitleInContent
+      description="人物资料与相关记录"
+      actions={
+        <Link to="/people" className={buttonVariants({ variant: 'outline' })}>
+          返回人物名单
+        </Link>
+      }
+    />
+  )
+  if (resource.loading)
+    return (
+      <div>
+        {heading}
+        <PageSkeleton rows={5} />
+      </div>
+    )
+  if (resource.error)
+    return (
+      <div>
+        {heading}
+        <ErrorState title="人物资料加载失败" onRetry={resource.retry} />
+      </div>
+    )
   if (!person)
     return (
-      <EmptyState
-        title={id ? '没有找到这位人物' : '人物参数缺失'}
-        description="请从人物名单页重新打开。"
-      />
+      <div>
+        {heading}
+        <EmptyState
+          title={id ? '没有找到这位人物' : '人物参数缺失'}
+          description="请从人物名单页重新打开。"
+        />
+      </div>
     )
   const aliasText = stripMarkup(person.alias || person.aliases.join('、')) || '—'
   return (
     <div>
-      <PageHeading
-        eyebrow="PERSON ARCHIVE"
-        title={stripMarkup(person.name || person.id)}
-        headerTitle="人物详情"
-        showTitleInContent
-        description="人物资料与相关记录"
-        actions={
-          <Link to="/people" className={buttonVariants({ variant: 'outline' })}>
-            返回人物名单
-          </Link>
-        }
-      />
+      {heading}
       <Card className="mb-7">
         <CardHeader>
           <div className="flex flex-wrap items-center gap-2">

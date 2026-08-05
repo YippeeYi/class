@@ -5,7 +5,6 @@ const markup = await loadTypescriptModule('src/lib/markup.ts')
 const imageMetadata = await loadTypescriptModule('src/lib/image-metadata.ts')
 const component = await readFrontend('src/components/archive/markup-content.tsx')
 const service = await readFrontend('src/services/image-metadata.ts')
-const preloader = await readFrontend('src/features/archive/image-metadata-preloader.tsx')
 const app = await readFrontend('src/app.tsx')
 const recordsPage = await readFrontend('src/pages/records-page.tsx')
 const mapPage = await readFrontend('src/pages/meal-map-page.tsx')
@@ -77,18 +76,11 @@ assert.doesNotMatch(component, /<img[^>]+data-secure-src/, 'signed paths must no
 assert.match(service, /Range: `bytes=0-\$\{METADATA_RANGE_BYTES - 1\}`/, 'metadata should use a bounded Range request')
 assert.match(service, /image-dimensions:/, 'intrinsic geometry needs an access-scoped persistent cache')
 assert.match(service, /30 \* 24 \* 60 \* 60 \* 1000/, 'dimension metadata should remain fresh for 30 days')
-assert.match(preloader, /loadMaterials\(\)/, 'materials must participate in idle metadata discovery')
-assert.match(preloader, /loadPageMessages\(\)/, 'page messages must participate in metadata discovery')
-assert.match(preloader, /loadPageSupplements/, 'page supplements must participate in metadata discovery')
-assert.match(preloader, /loadCredits\(\)/, 'credits must participate in metadata discovery')
-assert.match(preloader, /loadRecordPages\(false\)/, 'written page geometry must be prefetched')
 assert.doesNotMatch(
-  preloader,
-  /archive\.ensure\(\)/,
-  'metadata warming must not force the entire archive to load on every route',
+  app,
+  /ImageMetadataPreloader/,
+  'protected routes must not start an unrelated cross-page metadata crawl',
 )
-assert.match(preloader, /requestIdleCallback/, 'cross-page metadata discovery must yield to first paint')
-assert.match(app, /<ImageMetadataPreloader \/>/, 'metadata discovery must start at protected-app entry')
 assert.match(
   recordsPage,
   /paths\.size < 16[\s\S]*preloadImageDimensionList\(paths, 3\)/,

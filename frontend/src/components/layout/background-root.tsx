@@ -37,7 +37,7 @@ export const backgrounds: Array<{
     id: 'mountain',
     label: '山',
     category: '风景',
-    image: assetUrl('images/backgrounds/mountain.jpg'),
+    image: assetUrl('images/backgrounds/mountain.webp'),
     credit: {
       label: 'Alessio Soggetti · Unsplash',
       href: 'https://unsplash.com/photos/mountains-covered-with-fogs-gdE-5Oui1Y0',
@@ -47,7 +47,7 @@ export const backgrounds: Array<{
     id: 'cloud',
     label: '云',
     category: '风景',
-    image: assetUrl('images/backgrounds/cloud.jpg'),
+    image: assetUrl('images/backgrounds/cloud.webp'),
     credit: {
       label: 'Agnese Rudzīte · Unsplash',
       href: 'https://unsplash.com/photos/pink-and-orange-clouds-against-a-pale-sky-at-sunset-bziUIonXyI4',
