@@ -78,6 +78,7 @@ const navigation = [
 
 const FULLSCREEN_STORAGE_KEY = 'classRecord:keepFullscreen'
 const viewportLockedPaths = new Set(['/materials', '/quiz', '/map'])
+const wideContentPaths = new Set(['/timeline'])
 const pageTitles = new Map([
   ['/', '导览'],
   ['/records', '记录'],
@@ -208,6 +209,7 @@ export function AppShell() {
   const { clearAccess } = useAuth()
   const location = useLocation()
   const isViewportLocked = viewportLockedPaths.has(location.pathname)
+  const isWideContent = wideContentPaths.has(location.pathname)
   const [fullscreen, setFullscreen] = useState(Boolean(document.fullscreenElement))
   const [registeredTitle, setRegisteredTitle] = useState<{
     token: symbol
@@ -349,7 +351,7 @@ export function AppShell() {
                 isViewportLocked
                   ? 'h-[calc(100dvh-4rem)] min-h-0 max-w-[96rem] overflow-hidden px-3 py-3 sm:px-5 sm:py-4 lg:px-7 lg:py-5'
                   : 'min-h-[calc(100svh-4rem)] py-6 pb-16 sm:py-7 sm:pb-20 lg:py-8 lg:pb-20',
-                !isViewportLocked && 'max-w-6xl',
+                !isViewportLocked && (isWideContent ? 'max-w-[90rem]' : 'max-w-6xl'),
               )}
             >
               <Outlet />

@@ -115,10 +115,7 @@ function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; 
         </div>
       </CardHeader>
       <CardContent className="overflow-x-auto px-0">
-        <div
-          key={`${sort}-${descending}-${mainFirst}`}
-          className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
-        >
+        <div className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
           <Table className="text-[0.9375rem] leading-6">
             <TableHeader>
               <TableRow>

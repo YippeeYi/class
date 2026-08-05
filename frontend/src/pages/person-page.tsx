@@ -18,7 +18,26 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { extractAuthorIds, extractParticipantIds, stripMarkup } from '@/lib/markup'
-import type { Person } from '@/types/domain'
+import type { Person, RecordItem } from '@/types/domain'
+
+const participantCache = new WeakMap<RecordItem, string[]>()
+const authorCache = new WeakMap<RecordItem, string[]>()
+
+function participantIds(record: RecordItem) {
+  const cached = participantCache.get(record)
+  if (cached) return cached
+  const value = extractParticipantIds(record.content)
+  participantCache.set(record, value)
+  return value
+}
+
+function authorIds(record: RecordItem) {
+  const cached = authorCache.get(record)
+  if (cached) return cached
+  const value = extractAuthorIds(record)
+  authorCache.set(record, value)
+  return value
+}
 
 function PersonAvatar({ person }: { person: Person }) {
   const [failed, setFailed] = useState(false)
@@ -51,14 +70,14 @@ export function PersonPage() {
   const participatedRecords = useMemo(
     () =>
       (resource.data?.records || [])
-        .filter((record) => extractParticipantIds(record.content).includes(id))
+        .filter((record) => participantIds(record).includes(id))
         .sort((a, b) => b.id.localeCompare(a.id)),
     [id, resource.data],
   )
   const authoredRecords = useMemo(
     () =>
       (resource.data?.records || [])
-        .filter((record) => extractAuthorIds(record).includes(id))
+        .filter((record) => authorIds(record).includes(id))
         .sort((a, b) => b.id.localeCompare(a.id)),
     [id, resource.data],
   )
@@ -91,6 +110,8 @@ export function PersonPage() {
       <PageHeading
         eyebrow="PERSON ARCHIVE"
         title={stripMarkup(person.name || person.id)}
+        headerTitle="人物详情"
+        showTitleInContent
         description="人物资料与相关记录"
         actions={
           <Link to="/people" className={buttonVariants({ variant: 'outline' })}>
@@ -149,10 +170,7 @@ export function PersonPage() {
         )}
       </div>
       <RecordFilters records={allRelated} value={criteria} onChange={setCriteria} />
-      <div
-        key={`${mode}-${criteria.year}-${criteria.month}-${criteria.day}-${criteria.important}-${criteria.excludeDaily}-${criteria.query}`}
-        className="grid gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
-      >
+      <div className="grid gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
         {related.length ? (
           related.map((record) => <RecordCard record={record} key={record.fileName || record.id} />)
         ) : (

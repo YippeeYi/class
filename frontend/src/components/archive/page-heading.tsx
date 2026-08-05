@@ -6,33 +6,63 @@ import { cn } from '@/lib/utils'
 export function PageHeading(props: {
   eyebrow?: string | null
   title: string
+  headerTitle?: string
+  showTitleInContent?: boolean
   description?: string
   actions?: ReactNode
   className?: string
   compact?: boolean
 }) {
-  const { title, description, actions, className, compact = false } = props
-  usePageHeaderTitle(title)
+  const {
+    eyebrow,
+    title,
+    headerTitle = title,
+    showTitleInContent = false,
+    description,
+    actions,
+    className,
+    compact = false,
+  } = props
+  usePageHeaderTitle(headerTitle)
 
   return (
     <>
-      {description && (
-        <p
-          className={cn(
-            'max-w-3xl text-muted-foreground',
-            compact ? 'mb-3 text-[0.9375rem] leading-6' : 'mb-5 text-base leading-7',
-            className,
+      {(showTitleInContent || description) && (
+        <header className={cn('max-w-3xl', compact ? 'mb-3' : 'mb-5', className)}>
+          {showTitleInContent && eyebrow && (
+            <p className="mb-1.5 text-xs font-semibold tracking-[0.16em] text-primary/70">
+              {eyebrow}
+            </p>
           )}
-        >
-          {description}
-        </p>
+          {showTitleInContent && (
+            <h1
+              className={cn(
+                'font-heading font-semibold tracking-[-0.035em] text-balance',
+                compact ? 'text-2xl sm:text-[1.75rem]' : 'text-3xl sm:text-4xl',
+              )}
+            >
+              {title}
+            </h1>
+          )}
+          {description && (
+            <p
+              className={cn(
+                'text-muted-foreground',
+                compact ? 'text-[0.9375rem] leading-6' : 'text-base leading-7',
+                showTitleInContent && (compact ? 'mt-1' : 'mt-2'),
+              )}
+            >
+              {description}
+            </p>
+          )}
+        </header>
       )}
       {actions && (
         <PageHeaderActions
           mobileClassName={cn(
             'flex flex-wrap items-center gap-2',
             compact ? 'mb-3' : 'mb-5',
-            !description && className,
+            !description && !showTitleInContent && className,
           )}
         >
           {actions}

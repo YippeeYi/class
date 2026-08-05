@@ -8,6 +8,7 @@ import {
   Map as MapIcon,
   MessageSquareQuote,
   Search,
+  ShieldAlert,
   Users,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -15,6 +16,7 @@ import { Link, useNavigate } from 'react-router-dom'
 
 import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { PageHeaderActions } from '@/components/layout/page-header'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -155,23 +157,15 @@ export function HomePage() {
         </div>
       </section>
 
+      <Alert className="mb-6 border-primary/25 bg-card/72 backdrop-blur-sm">
+        <ShieldAlert />
+        <AlertTitle>仅供班级内部查看</AlertTitle>
+        <AlertDescription>请尊重档案中的个人信息与共同记忆，不要外传。</AlertDescription>
+      </Alert>
+
       {today.hasMatches && (
-        <>
-          <PageHeaderActions>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                navigate(
-                  `/records?month=${encodeURIComponent(today.month)}&day=${encodeURIComponent(today.day)}`,
-                )
-              }
-            >
-              历史上的今天
-            </Button>
-          </PageHeaderActions>
+        <PageHeaderActions mobileClassName="mb-6 flex">
           <Button
-            className="mb-6 sm:hidden"
             size="sm"
             variant="outline"
             onClick={() =>
@@ -182,7 +176,7 @@ export function HomePage() {
           >
             历史上的今天
           </Button>
-        </>
+        </PageHeaderActions>
       )}
 
       {resource.loading && <PageSkeleton rows={3} />}

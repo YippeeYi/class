@@ -1,4 +1,4 @@
-import { Eye, FileImage, List, ShieldAlert } from 'lucide-react'
+import { Eye, FileImage, List } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 
@@ -694,11 +694,6 @@ export function RecordsPage() {
           </Tabs>
         }
       />
-      <Alert className="mb-5 bg-card/65">
-        <ShieldAlert />
-        <AlertTitle>仅供班级内部查看</AlertTitle>
-        <AlertDescription>请尊重档案中的个人信息与共同记忆，不要外传。</AlertDescription>
-      </Alert>
       {hidden && (
         <Alert className="mb-5">
           <Eye />

@@ -40,7 +40,7 @@ export function MealMapPage() {
         actions={
           <Badge variant="outline" className="bg-background/65">
             <LockKeyhole data-icon="inline-start" />
-            班级私有资源 · 请勿外传
+            班级私有资源
           </Badge>
         }
       />

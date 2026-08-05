@@ -13,6 +13,10 @@ const materials = await readFrontend('src/pages/materials-page.tsx')
 const credits = await readFrontend('src/pages/credits-page.tsx')
 const backgroundsPage = await readFrontend('src/pages/backgrounds-page.tsx')
 const records = await readFrontend('src/pages/records-page.tsx')
+const person = await readFrontend('src/pages/person-page.tsx')
+const mealMap = await readFrontend('src/pages/meal-map-page.tsx')
+const people = await readFrontend('src/pages/people-page.tsx')
+const quotes = await readFrontend('src/pages/quotes-page.tsx')
 const quiz = await readFrontend('src/pages/quiz-page.tsx')
 const search = await readFrontend('src/pages/search-page.tsx')
 const timeline = await readFrontend('src/pages/timeline-page.tsx')
@@ -54,14 +58,18 @@ assert.match(shell, /<Breadcrumb/, 'brand and current-page title must share the 
 assert.match(shell, /PAGE_HEADER_ACTIONS_ID/, 'page-level actions need a stable top-bar slot')
 assert.match(pageHeader, /createPortal/, 'page actions must be composed into the shared top bar')
 assert.match(pageHeader, /matchMedia\('\(min-width: 640px\)'\)/, 'page actions must choose one responsive mount point')
-assert.match(pageHeading, /usePageHeaderTitle\(title\)/, 'every page heading must register its title with the top bar')
+assert.match(pageHeading, /usePageHeaderTitle\(headerTitle\)/, 'every page heading must register its title with the top bar')
 assert.equal(
   pageHeading.match(/<PageHeaderActions/g)?.length,
   1,
   'page actions must not mount duplicate desktop and mobile control trees',
 )
-assert.doesNotMatch(pageHeading, /<h1/, 'page titles must not be duplicated in the content area')
+assert.match(pageHeading, /showTitleInContent &&[\s\S]*<h1/, 'exception pages must be able to retain a meaningful content title')
+assert.match(person, /headerTitle="人物详情"/, 'person names must not be registered as top-bar titles')
+assert.match(person, /showTitleInContent/, 'the person name must remain visible in the content hierarchy')
+assert.match(person, /WeakMap<RecordItem, string\[\]>/, 'person relationship parsing must be cached per record')
 assert.doesNotMatch(home, /fixed top-3 left-3/, 'today history must not cover the top-left navigation')
+assert.equal(home.match(/历史上的今天/g)?.length, 1, 'today history must mount only one responsive control')
 assert.match(shell, /viewportLockedPaths/, 'workspace routes must share one viewport-lock contract')
 for (const route of ['/materials', '/quiz', '/map']) {
   assert.match(shell, new RegExp(`'${route}'`), `${route} must lock the outer viewport`)
@@ -99,13 +107,43 @@ assert.match(imageViewer, /sm:max-w-none/, 'the image viewer must override the d
 assert.match(search, /setQuery\(\(current\)/, 'search input must restore from URL changes')
 assert.match(timeline, /params\.get\('year'\)/, 'timeline selection must restore from URL changes')
 assert.match(timeline, /AuthorDistributionChart/, 'the author distribution chart is missing')
-assert.match(timeline, /animationDuration=\{550\}/, 'the author pie animation is missing')
+assert.match(timeline, /animationDuration=\{320\}/, 'the author pie highlight animation must remain brief')
 assert.match(timeline, /整体记录人/, 'the global author distribution was lost during the React migration')
 assert.match(timeline, /全档案月度/, 'the chronological all-month trend is missing')
 assert.match(timeline, /yearAuthorPie/, 'the selected-year author distribution is missing')
 assert.match(timeline, /MiniAuthorPie/, 'daily author composition markers are missing')
-assert.match(timeline, /dailyScale\.ticks/, 'timeline charts must preserve the baseline fixed-step scale')
+assert.match(timeline, /fixedTimelineChartScale/, 'timeline charts must preserve the baseline fixed-step scale')
 assert.match(timeline, /openQuoteSource/, 'timeline quote chips must resolve the original record directly')
+assert.match(timeline, /recordDateCache/, 'timeline date parsing must be cached per immutable record')
+assert.match(timeline, /recordCharacterCache/, 'timeline character totals must be cached per immutable record')
+assert.match(timeline, /aria-label="年度统计与年份选择"/, 'the baseline year pie and year controls must share one period layout')
+assert.match(timeline, /aria-label="月度统计与月份选择"/, 'the baseline month pie and month controls must share one period layout')
+assert.match(timeline, /grid-cols-4 gap-2 sm:grid-cols-7/, 'the daily calendar must restore the baseline seven-column desktop rhythm')
+assert.doesNotMatch(timeline, /style=\{\{ minWidth:/, 'timeline charts must not force a horizontal scrollbar')
+assert.doesNotMatch(timeline, /overflow-x-auto/, 'timeline controls and charts must fit or reflow instead of scrolling sideways')
+assert.doesNotMatch(timeline, /key=\{`\$\{metric\}-\$\{year\}-\$\{month\}`\}/, 'timeline selection must not remount every chart')
+const authorChartSource = timeline.slice(
+  timeline.indexOf('function AuthorDistributionChart'),
+  timeline.indexOf('function TimelineBarChart'),
+)
+assert.doesNotMatch(authorChartSource, /ChartTooltip/, 'author pies must use the baseline stable legend instead of a first-hover floating box')
+assert.match(timeline, /isAnimationActive=\{false\}/, 'bar tooltips and bars must avoid first-measure position animation')
+assert.match(shell, /wideContentPaths = new Set\(\['\/timeline'\]\)/, 'the statistics workspace needs the wide desktop content lane')
+assert.match(home, /不要外传/, 'the privacy reminder must remain visible on the guide page')
+assert.doesNotMatch(records, /不要外传|请勿外传/, 'the privacy reminder must not repeat on the records page')
+assert.doesNotMatch(mealMap, /不要外传|请勿外传/, 'the privacy reminder must not repeat on the map page')
+for (const [name, source] of [
+  ['people', people],
+  ['quotes', quotes],
+  ['person', person],
+  ['search', search],
+]) {
+  assert.doesNotMatch(
+    source,
+    /key=\{`\$\{(?:sort|mode|debouncedQuery)/,
+    `${name} result controls must not remount the complete result tree`,
+  )
+}
 assert.match(quoteNavigation, /resolveQuoteSources/, 'quote source resolution must be shared by all entry points')
 assert.match(quiz, /preloadQuizImage/, 'secret quiz image preloading is missing')
 assert.match(quiz, /text-foreground\/90/, 'quiz source text needs sufficient contrast')
