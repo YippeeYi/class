@@ -220,7 +220,10 @@ export function SearchPage() {
         <p className="text-sm text-muted-foreground">找到 {total} 个结果</p>
         {grouped.map((group) => (
           <section key={group.type} aria-labelledby={`search-${group.type}`}>
-            <h2 id={`search-${group.type}`} className="mb-3 font-heading text-xl font-semibold">
+            <h2
+              id={`search-${group.type}`}
+              className="mb-3 font-heading text-section-title font-semibold"
+            >
               {labels[group.type]}{' '}
               <span className="text-sm font-normal text-muted-foreground">
                 {group.items.length}

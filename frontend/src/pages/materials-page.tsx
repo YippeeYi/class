@@ -81,7 +81,7 @@ export function MaterialsPage() {
           </aside>
           <article className="flex min-h-0 min-w-0 flex-col overflow-hidden">
             <header className="shrink-0 border-b border-border/70 px-5 py-3 sm:px-7">
-              <h2 className="font-heading text-xl font-semibold tracking-[-0.02em] sm:text-2xl">
+              <h2 className="font-heading text-section-title font-semibold tracking-[-0.02em]">
                 {active?.title || '请选择资料'}
               </h2>
             </header>

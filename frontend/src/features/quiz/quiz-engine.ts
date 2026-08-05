@@ -21,6 +21,7 @@ type JudgeTemplate =
       kind: 'token'
       content: 'person' | 'quote'
       originalBody: string
+      originalMarkup: string
       markers: TokenMarker[]
       replacementPeople: ReplacementPerson[]
       replacementPool: string[]
@@ -34,11 +35,13 @@ export type PlayQuestion = {
   content: 'author' | 'date' | 'person' | 'quote' | 'secret'
   prompt: string
   body: string
+  markupBody?: string
   answer: string
   choices: string[]
   explanation?: string
   image?: string
   blankAnswer?: string
+  blankReference?: { kind: 'person' | 'quote'; id: string }
   corrections?: QuizCorrection[]
   sideLabel?: string
   sideText?: string
@@ -185,6 +188,7 @@ function baseQuestion(
     content,
     type,
     body: stripMarkup(record.content).trim(),
+    markupBody: record.content.trim(),
   }
 }
 
@@ -223,7 +227,25 @@ function replaceRandomOccurrence(
     text: `${source.slice(0, index)}${replacement}${source.slice(index + target.length)}`,
     correction: { index, wrongText: replacement, correctText: target },
     change: { index, oldLength: target.length, newLength: replacement.length },
+    occurrence: indexes.indexOf(index),
   }
+}
+
+function replaceOccurrence(
+  source: string,
+  target: string,
+  replacement: string,
+  occurrence: number,
+) {
+  let seen = 0
+  return source.replaceAll(target, (value) => {
+    if (seen !== occurrence) {
+      seen += 1
+      return value
+    }
+    seen += 1
+    return replacement
+  })
 }
 
 function shiftCorrections(
@@ -243,12 +265,14 @@ function randomizeTokenJudge(
     return {
       ...question,
       body: template.originalBody,
+      markupBody: template.originalMarkup,
       answer: '正确',
       corrections: [],
       explanation: '',
     }
   }
   let body = template.originalBody
+  let markupBody = template.originalMarkup
   const corrections: QuizCorrection[] = []
 
   if (template.content === 'person') {
@@ -282,6 +306,7 @@ function randomizeTokenJudge(
         if (!replaced) continue
         shiftCorrections(corrections, replaced.change)
         body = replaced.text
+        markupBody = replaceOccurrence(markupBody, label, replacement, replaced.occurrence)
         corrections.push(replaced.correction)
       }
     }
@@ -296,8 +321,9 @@ function randomizeTokenJudge(
       : undefined
     const replaced =
       marker && replacement ? replaceRandomOccurrence(body, marker.label, replacement) : null
-    if (replaced) {
+    if (replaced && marker && replacement) {
       body = replaced.text
+      markupBody = replaceOccurrence(markupBody, marker.label, replacement, replaced.occurrence)
       corrections.push(replaced.correction)
     }
   }
@@ -306,6 +332,7 @@ function randomizeTokenJudge(
     return {
       ...question,
       body: template.originalBody,
+      markupBody: template.originalMarkup,
       answer: '正确',
       corrections: [],
       explanation: '',
@@ -314,6 +341,7 @@ function randomizeTokenJudge(
   return {
     ...question,
     body,
+    markupBody,
     answer: '错误',
     corrections,
     explanation: '标出的内容与原记录不符。',
@@ -388,6 +416,7 @@ export function buildQuestions(records: RecordItem[], people: Person[], quotes: 
           answer: marker.label,
           choices: options,
           blankAnswer: marker.label,
+          blankReference: { kind: content, id: marker.id },
         })
       }
       questions.push({
@@ -396,6 +425,7 @@ export function buildQuestions(records: RecordItem[], people: Person[], quotes: 
         answer: marker.label,
         choices: [],
         blankAnswer: marker.label,
+        blankReference: { kind: content, id: marker.id },
       })
 
       const markers = (
@@ -416,6 +446,7 @@ export function buildQuestions(records: RecordItem[], people: Person[], quotes: 
             kind: 'token',
             content,
             originalBody: body,
+            originalMarkup: record.content.trim(),
             markers,
             replacementPeople,
             replacementPool:

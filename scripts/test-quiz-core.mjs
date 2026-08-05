@@ -5,6 +5,7 @@ import { frontend, readFrontend } from './test-react-helpers.mjs'
 
 const quiz = await readFrontend('src/pages/quiz-page.tsx')
 const engine = await readFrontend('src/features/quiz/quiz-engine.ts')
+const markupContent = await readFrontend('src/components/archive/markup-content.tsx')
 const styles = await readFrontend('src/styles/tailwind.css')
 assert.match(engine, /type: 'choice'/, 'choice questions are missing')
 assert.match(engine, /type: 'fill'/, 'fill questions are missing')
@@ -18,6 +19,8 @@ assert.match(engine, /dateChoicePool/, 'date questions must preserve the baselin
 assert.match(engine, /姓名拼音首字母/, 'author fill questions must ask for pinyin initials')
 assert.match(engine, /judgeTemplate/, 'judge questions must be randomized from the source record')
 assert.match(engine, /corrections/, 'judge questions must retain inline correction metadata')
+assert.match(engine, /markupBody: record\.content\.trim\(\)/, 'quiz sources must retain shared markup')
+assert.match(engine, /originalMarkup/, 'randomized judge questions must preserve safe layout markup')
 assert.match(engine, /new Map\(questions\.map/, 'duplicate baseline sources must be collapsed')
 assert.match(quiz, /normalizeText\(stripMarkup\(value\)\)/, 'answer normalization is missing')
 assert.match(quiz, /buffer !== 'lamian'/, 'admin-only hidden quiz sequence was not preserved')
@@ -31,13 +34,28 @@ assert.match(quiz, /aspectRatio:/, 'secret image loading must use a stable frame
 assert.match(quiz, /pendingQuestionTop/, 'question changes must preserve the prompt viewport position')
 assert.match(quiz, /Intl\.Segmenter/, 'hidden answers must be split by grapheme clusters')
 assert.match(quiz, /inputChars\.every/, 'hidden questions must require one fully correct attempt')
-assert.match(quiz, /BlankQuestionBody/, 'person and quote answers must reveal in place after submission')
+assert.match(quiz, /QuizMarkupContent/, 'question bodies must use the shared safe markup renderer')
 assert.match(
   quiz,
-  /aria-hidden=\{!revealed\}>\{answer\}/,
-  'the hidden answer glyphs must remain mounted so revealing an answer cannot change blank width',
+  /blankAnswer=\{question\.blankAnswer\}/,
+  'person and quote answers must reveal in place after submission',
 )
-assert.match(quiz, /CorrectedQuestionBody/, 'judge corrections must render in the source text')
+assert.match(
+  quiz,
+  /blankReference=\{question\.blankReference\}/,
+  'all aliases for the selected person or quote reference must share the blank',
+)
+assert.doesNotMatch(
+  quiz,
+  /aria-hidden=\{!revealed\}>\{answer\}/,
+  'unrevealed fill answers must not remain in hidden DOM text',
+)
+assert.match(
+  markupContent,
+  /revealed \? answer : <span className="sr-only">此处挖空<\/span>/,
+  'the answer text must not mount before the question is revealed',
+)
+assert.match(markupContent, /parseQuizMarkup/, 'quiz prompts must use the shared AST safe mode')
 assert.match(quiz, /全选可用/, 'the baseline reset-to-all filter action must be available')
 assert.match(quiz, /data-question-type/, 'the question card must expose its current type for theming')
 assert.match(styles, /data-question-type="fill"/, 'fill questions need a distinct low-saturation tone')
@@ -69,7 +87,9 @@ const vite = await createServer({
   logLevel: 'silent',
 })
 try {
-  const { pickQuestion } = await vite.ssrLoadModule('/src/features/quiz/quiz-engine.ts')
+  const { buildQuestions, pickQuestion } = await vite.ssrLoadModule(
+    '/src/features/quiz/quiz-engine.ts',
+  )
   const { fixedTimelineChartScale } = await vite.ssrLoadModule('/src/lib/timeline.ts')
   const runtimeQuestions = [
     { id: 'a-person-choice', sourceId: 'a', content: 'person', type: 'choice' },
@@ -102,6 +122,35 @@ try {
     max: 150,
     ticks: [0, 25, 50, 75, 100, 125, 150],
   })
+  const centeredQuestions = buildQuestions(
+    [
+      {
+        id: 'centered-record',
+        fileName: 'centered-record.json',
+        date: '2025-01-01',
+        time: '',
+        author: '甲',
+        content: '[[center:请判断 [[person:p1|乙]] 的表现]]',
+        attachments: [],
+      },
+    ],
+    [
+      { id: 'p1', name: '乙' },
+      { id: 'p2', name: '丙' },
+      { id: 'p3', name: '丁' },
+      { id: 'p4', name: '戊' },
+    ],
+    [],
+  )
+  const centeredFill = centeredQuestions.find(
+    (question) => question.content === 'person' && question.type === 'fill',
+  )
+  assert.match(
+    centeredFill?.markupBody || '',
+    /\[\[center:/,
+    'center alignment markup must survive question generation',
+  )
+  assert.deepEqual(centeredFill?.blankReference, { kind: 'person', id: 'p1' })
 } finally {
   await vite.close()
 }

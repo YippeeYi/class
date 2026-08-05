@@ -273,10 +273,7 @@ function AuthorDistributionChart({
           </div>
         </div>
       </div>
-      <ul
-        className="grid max-h-44 min-w-0 list-none gap-1 overflow-y-auto pr-1"
-        aria-label="记录人占比图例"
-      >
+      <ul className="grid min-w-0 list-none gap-1" aria-label="记录人占比图例">
         {data.map((item) => {
           const percentage = total ? Math.round((item.value / total) * 100) : 0
           return (

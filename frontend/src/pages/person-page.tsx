@@ -179,7 +179,7 @@ export function PersonPage() {
         </CardContent>
       </Card>
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="font-heading text-2xl font-semibold">
+        <h2 className="font-heading text-section-title font-semibold">
           相关记录{' '}
           <span className="text-sm font-normal text-muted-foreground">{related.length}</span>
         </h2>

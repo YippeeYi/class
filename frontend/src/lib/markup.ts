@@ -27,6 +27,7 @@ export type MarkupReferences = {
 }
 
 const treeCache = new Map<string, MarkupNode[]>()
+const quizTreeCache = new Map<string, MarkupNode[]>()
 const referenceCache = new Map<string, MarkupReferences>()
 
 function escapedAt(source: string, index: number) {
@@ -202,6 +203,71 @@ export function parseMarkup(value: unknown) {
   const tree = parseNodes(source)
   if (treeCache.size > 2000) treeCache.clear()
   treeCache.set(source, tree)
+  return tree
+}
+
+const quizSafeStyles = new Set<Extract<MarkupNode, { type: 'style' }>['style']>([
+  'del',
+  'under',
+  'red',
+  'sup',
+  'sub',
+  'center',
+  'right',
+])
+
+/**
+ * Reduce the shared record AST to the non-interactive subset that is safe in a quiz prompt.
+ * Sensitive identifiers, annotation notes and illustration paths never enter the returned tree,
+ * so they cannot leak through links, attributes, portals, copied hidden nodes or accessibility text.
+ */
+export type QuizMarkupRedaction = {
+  kind: 'person' | 'quote'
+  id: string
+  replacement: string
+}
+
+function quizSafeNodes(nodes: MarkupNode[], redaction?: QuizMarkupRedaction): MarkupNode[] {
+  return nodes.flatMap((node): MarkupNode[] => {
+    if (node.type === 'text') return [node]
+    if (node.type === 'style') {
+      if (!quizSafeStyles.has(node.style)) return [{ type: 'text', value: '〔隐藏内容已省略〕' }]
+      return [{ ...node, children: quizSafeNodes(node.children, redaction) }]
+    }
+    if (node.type === 'reference') {
+      if (redaction && node.kind === redaction.kind && node.id === redaction.id)
+        return [{ type: 'text', value: redaction.replacement }]
+      return quizSafeNodes(node.children, redaction)
+    }
+    if (node.type === 'annotation' || node.type === 'illustration')
+      return quizSafeNodes(node.children, redaction)
+    if (node.type === 'stack')
+      return [
+        {
+          ...node,
+          top: quizSafeNodes(node.top, redaction),
+          bottom: quizSafeNodes(node.bottom, redaction),
+        },
+      ]
+    return [
+      {
+        ...node,
+        rows: node.rows.map((row) => row.map((cell) => quizSafeNodes(cell, redaction))),
+      },
+    ]
+  })
+}
+
+export function parseQuizMarkup(value: unknown, redaction?: QuizMarkupRedaction) {
+  const source = String(value ?? '')
+  const cacheKey = redaction
+    ? `${redaction.kind}\u0000${redaction.id}\u0000${redaction.replacement}\u0000${source}`
+    : source
+  const cached = quizTreeCache.get(cacheKey)
+  if (cached) return cached
+  const tree = quizSafeNodes(parseMarkup(source), redaction)
+  if (quizTreeCache.size > 1000) quizTreeCache.clear()
+  quizTreeCache.set(cacheKey, tree)
   return tree
 }
 

@@ -159,11 +159,11 @@ function backgroundLayerStyle(id: BackgroundId): CSSProperties {
   const background = backgrounds.find((item) => item.id === id)
   return background?.image
     ? {
-        backgroundImage: `linear-gradient(to bottom, rgb(24 20 16 / .16), rgb(24 20 16 / .34)), url(${background.image})`,
+        backgroundImage: `radial-gradient(circle at 50% 20%, transparent 0, transparent 32%, color-mix(in oklch, var(--background) 24%, transparent) 100%), linear-gradient(to bottom, rgb(24 20 16 / .16), rgb(24 20 16 / .34)), url(${background.image})`,
       }
     : {
         backgroundImage:
-          'repeating-linear-gradient(0deg, transparent 0 31px, color-mix(in oklch, var(--primary) 4%, transparent) 32px), radial-gradient(circle at 85% 10%, color-mix(in oklch, var(--primary) 17%, transparent), transparent 34%), radial-gradient(circle at 8% 88%, color-mix(in oklch, var(--secondary) 58%, transparent), transparent 38%), linear-gradient(145deg, var(--background), color-mix(in oklch, var(--secondary) 54%, var(--background)))',
+          'radial-gradient(circle at 50% 20%, transparent 0, transparent 32%, color-mix(in oklch, var(--background) 24%, transparent) 100%), repeating-linear-gradient(0deg, transparent 0 31px, color-mix(in oklch, var(--primary) 4%, transparent) 32px), radial-gradient(circle at 85% 10%, color-mix(in oklch, var(--primary) 17%, transparent), transparent 34%), radial-gradient(circle at 8% 88%, color-mix(in oklch, var(--secondary) 58%, transparent), transparent 38%), linear-gradient(145deg, var(--background), color-mix(in oklch, var(--secondary) 54%, var(--background)))',
       }
 }
 
@@ -251,19 +251,15 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       {previous && (
         <div
           aria-hidden="true"
-          className="pointer-events-none fixed inset-0 z-0 bg-cover bg-center"
+          className="background-layer pointer-events-none fixed inset-0 z-0 bg-cover bg-center"
           style={backgroundLayerStyle(previous)}
         />
       )}
       <div
         key={visible}
         aria-hidden="true"
-        className="pointer-events-none fixed inset-0 z-0 bg-cover bg-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-500"
+        className="background-layer pointer-events-none fixed inset-0 z-0 bg-cover bg-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-500"
         style={backgroundLayerStyle(visible)}
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-0 z-[1] bg-[radial-gradient(circle_at_50%_20%,transparent_0,transparent_32%,color-mix(in_oklch,var(--background)_24%,transparent)_100%)]"
       />
       <div className="relative z-10 min-h-svh">{children}</div>
     </div>

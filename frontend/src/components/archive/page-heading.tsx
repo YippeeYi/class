@@ -38,7 +38,7 @@ export function PageHeading(props: {
             <h1
               className={cn(
                 'font-heading font-semibold tracking-[-0.035em] text-balance',
-                compact ? 'text-2xl sm:text-[1.75rem]' : 'text-3xl sm:text-4xl',
+                compact ? 'text-section-title' : 'text-page-title',
               )}
             >
               {title}
@@ -48,7 +48,7 @@ export function PageHeading(props: {
             <p
               className={cn(
                 'text-muted-foreground',
-                compact ? 'text-[0.9375rem] leading-6' : 'text-base leading-7',
+                compact ? 'text-control leading-6' : 'text-reading leading-7',
                 showTitleInContent && (compact ? 'mt-1' : 'mt-2'),
               )}
             >

@@ -1,4 +1,12 @@
-import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type CSSProperties,
+  Fragment,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Link } from 'react-router-dom'
 
 import { ImageViewer } from '@/components/archive/image-viewer'
@@ -9,7 +17,7 @@ import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import type { ImageDimensions } from '@/lib/image-metadata'
-import { type MarkupNode, parseMarkup, recordAnchor } from '@/lib/markup'
+import { type MarkupNode, parseMarkup, parseQuizMarkup, recordAnchor } from '@/lib/markup'
 import { prepareRecordJump } from '@/lib/record-navigation'
 import {
   getImageDimensions,
@@ -282,4 +290,160 @@ export function MarkupContent({
     })
 
   return <div className={`record-markup ${className}`}>{renderNodes(tree, 'root')}</div>
+}
+
+type QuizCorrection = { wrongText: string; correctText: string }
+
+function QuizAnswerBlank({ answer, revealed }: { answer: string; revealed: boolean }) {
+  const width = Math.max(2, Array.from(answer).length)
+  return (
+    <span
+      className={`quiz-answer-blank${revealed ? ' is-revealed' : ''}`}
+      style={{ '--quiz-blank-width': `${width}em` } as CSSProperties}
+    >
+      {revealed ? answer : <span className="sr-only">此处挖空</span>}
+    </span>
+  )
+}
+
+function decorateQuizText({
+  value,
+  keyPrefix,
+  blankAnswer,
+  corrections,
+  revealed,
+}: {
+  value: string
+  keyPrefix: string
+  blankAnswer: string
+  corrections: QuizCorrection[]
+  revealed: boolean
+}) {
+  if (blankAnswer && value.includes(blankAnswer)) {
+    const parts = value.split(blankAnswer)
+    return parts.flatMap((part, index) => {
+      const textKey = `${keyPrefix}-text-${index}`
+      const blankKey = `${keyPrefix}-blank-${index}`
+      const output: ReactNode[] = [<Fragment key={textKey}>{part}</Fragment>]
+      if (index < parts.length - 1)
+        output.push(<QuizAnswerBlank key={blankKey} answer={blankAnswer} revealed={revealed} />)
+      return output
+    })
+  }
+  if (!revealed || !corrections.length) return value
+  const output: ReactNode[] = []
+  let cursor = 0
+  let segment = 0
+  while (cursor < value.length) {
+    const candidates = corrections
+      .filter((item) => item.wrongText)
+      .map((item) => ({ item, index: value.indexOf(item.wrongText, cursor) }))
+      .filter((item) => item.index >= 0)
+      .sort((left, right) => left.index - right.index)
+    const next = candidates[0]
+    if (!next) break
+    if (next.index > cursor)
+      output.push(
+        <Fragment key={`${keyPrefix}-before-${segment}`}>
+          {value.slice(cursor, next.index)}
+        </Fragment>,
+      )
+    output.push(
+      <span className="quiz-judge-correction" key={`${keyPrefix}-correction-${segment}`}>
+        <span className="quiz-judge-wrong">{next.item.wrongText}</span>
+        <span className="quiz-judge-answer">{next.item.correctText}</span>
+      </span>,
+    )
+    cursor = next.index + next.item.wrongText.length
+    segment += 1
+  }
+  if (!output.length) return value
+  if (cursor < value.length)
+    output.push(<Fragment key={`${keyPrefix}-after`}>{value.slice(cursor)}</Fragment>)
+  return output
+}
+
+export function QuizMarkupContent({
+  content,
+  blankAnswer = '',
+  blankReference,
+  corrections = [],
+  revealed = false,
+}: {
+  content: string
+  blankAnswer?: string
+  blankReference?: { kind: 'person' | 'quote'; id: string }
+  corrections?: QuizCorrection[]
+  revealed?: boolean
+}) {
+  const tree = useMemo(
+    () =>
+      parseQuizMarkup(
+        content,
+        blankReference && blankAnswer ? { ...blankReference, replacement: blankAnswer } : undefined,
+      ),
+    [blankAnswer, blankReference, content],
+  )
+  const renderNodes = (nodes: MarkupNode[], path: string): ReactNode =>
+    nodes.map((node, position) => {
+      const key = `${path}-${node.type}-${position}`
+      if (node.type === 'text')
+        return (
+          <Fragment key={key}>
+            {decorateQuizText({
+              value: node.value,
+              keyPrefix: key,
+              blankAnswer,
+              corrections,
+              revealed,
+            })}
+          </Fragment>
+        )
+      if (node.type === 'style') {
+        const children = renderNodes(node.children, key)
+        if (node.style === 'del')
+          return (
+            <del key={key} className="record-delete">
+              {children}
+            </del>
+          )
+        if (node.style === 'sup') return <sup key={key}>{children}</sup>
+        if (node.style === 'sub') return <sub key={key}>{children}</sub>
+        return (
+          <span key={key} className={`record-${node.style === 'under' ? 'underline' : node.style}`}>
+            {children}
+          </span>
+        )
+      }
+      if (node.type === 'reference' || node.type === 'annotation' || node.type === 'illustration')
+        return <Fragment key={key}>{renderNodes(node.children, key)}</Fragment>
+      if (node.type === 'stack')
+        return (
+          <span key={key} className="record-stack">
+            <span>{renderNodes(node.top, `${key}-top`)}</span>
+            <span>{renderNodes(node.bottom, `${key}-bottom`)}</span>
+          </span>
+        )
+      return (
+        <div key={key} className="record-table-scroll quiz-markup-table">
+          <Table>
+            <TableBody>
+              {node.rows.map((row, rowPosition) => {
+                const rowKey = `${key}-row-${rowPosition}`
+                return (
+                  <TableRow key={rowKey}>
+                    {row.map((cell, cellPosition) => {
+                      const cellKey = `${rowKey}-cell-${cellPosition}`
+                      return <TableCell key={cellKey}>{renderNodes(cell, cellKey)}</TableCell>
+                    })}
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )
+    })
+
+  return <div className="record-markup quiz-safe-markup">{renderNodes(tree, 'quiz-root')}</div>
 }

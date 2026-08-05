@@ -50,6 +50,13 @@ assert.match(home, /BASE_URL.*logo-guide\.png/, 'logo must use the Vite base URL
 assert.match(backgrounds, /BASE_URL/, 'background assets must use the Vite base URL')
 assert.match(backgrounds, /extractPalette/, 'image backgrounds must update the theme palette')
 assert.match(backgrounds, /PALETTE_KEY/, 'derived background palettes must be cached')
+assert.equal(
+  (backgrounds.match(/fixed inset-0/g) || []).length,
+  2,
+  'the steady background and temporary crossfade layer must be the only full-screen fixed layers',
+)
+assert.match(styles, /\.background-layer[\s\S]*contain: strict/, 'background paint must stay in a stable compositing layer')
+assert.doesNotMatch(shell, /backdrop-blur-xl/, 'the sticky app bar must not re-blur the full page during fast scrolling')
 assert.match(shell, /requestFullscreen/, 'the fullscreen control is missing')
 assert.match(shell, /classRecord:keepFullscreen/, 'fullscreen preference must survive document navigation')
 assert.match(shell, /href="#page-content"/, 'the skip-to-content link is missing')
@@ -143,6 +150,7 @@ const authorChartSource = timeline.slice(
   timeline.indexOf('function TimelineBarChart'),
 )
 assert.doesNotMatch(authorChartSource, /ChartTooltip/, 'author pies must use the baseline stable legend instead of a first-hover floating box')
+assert.doesNotMatch(authorChartSource, /max-h-|overflow-y-auto/, 'normal author legends must expand instead of creating an internal scrollbar')
 assert.match(timeline, /isAnimationActive=\{false\}/, 'bar tooltips and bars must avoid first-measure position animation')
 assert.match(shell, /wideContentPaths = new Set\(\['\/timeline'\]\)/, 'the statistics workspace needs the wide desktop content lane')
 assert.match(home, /不要外传/, 'the privacy reminder must remain visible on the guide page')

@@ -10,6 +10,7 @@ import {
 } from 'react'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { QuizMarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -77,67 +78,19 @@ function splitAnswerCharacters(value: string) {
   return Array.from(normalized)
 }
 
-function BlankQuestionBody({ question, revealed }: { question: PlayQuestion; revealed: boolean }) {
-  const answer = question.blankAnswer || ''
-  const index = answer ? question.body.indexOf(answer) : -1
-  if (index < 0) return <>{question.body}</>
-  return (
-    <>
-      {question.body.slice(0, index)}
-      <span
-        className={cn('quiz-answer-blank', revealed && 'is-revealed')}
-        style={{ minWidth: `${Math.max(2, Array.from(answer).length)}em` }}
-      >
-        <span aria-hidden={!revealed}>{answer}</span>
-        {!revealed && <span className="sr-only">此处挖空</span>}
-      </span>
-      {question.body.slice(index + answer.length)}
-    </>
-  )
-}
-
-function CorrectedQuestionBody({
-  question,
-  revealed,
-}: {
-  question: PlayQuestion
-  revealed: boolean
-}) {
-  const corrections = [...(question.corrections || [])].sort((a, b) => a.index - b.index)
-  if (!revealed || !corrections.length) return <>{question.body}</>
-  const output = []
-  let cursor = 0
-  for (const correction of corrections) {
-    const index =
-      question.body.slice(correction.index, correction.index + correction.wrongText.length) ===
-      correction.wrongText
-        ? correction.index
-        : question.body.indexOf(correction.wrongText, cursor)
-    if (index < cursor) continue
-    output.push(<span key={`text-${cursor}`}>{question.body.slice(cursor, index)}</span>)
-    output.push(
-      <span className="quiz-judge-correction" key={`correction-${index}`}>
-        <span className="quiz-judge-wrong">{correction.wrongText}</span>
-        <span className="quiz-judge-answer">{correction.correctText}</span>
-      </span>,
-    )
-    cursor = index + correction.wrongText.length
-  }
-  output.push(<span key={`text-${cursor}`}>{question.body.slice(cursor)}</span>)
-  return <>{output}</>
-}
-
 function QuestionSource({ question, revealed }: { question: PlayQuestion; revealed: boolean }) {
   if (!question.body && !question.sideText) return null
   return (
     <div className="mt-5 grid gap-3">
       {question.body && (
         <blockquote className="quiz-question-source text-foreground/90">
-          {question.blankAnswer ? (
-            <BlankQuestionBody question={question} revealed={revealed} />
-          ) : (
-            <CorrectedQuestionBody question={question} revealed={revealed} />
-          )}
+          <QuizMarkupContent
+            content={question.markupBody || question.body}
+            blankAnswer={question.blankAnswer}
+            blankReference={question.blankReference}
+            corrections={question.corrections}
+            revealed={revealed}
+          />
         </blockquote>
       )}
       {question.sideText && (
@@ -622,7 +575,7 @@ export function QuizPage() {
                     key={current.id}
                     className="min-h-full px-4 py-4 pr-7 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-6 sm:py-5 sm:pr-9"
                   >
-                    <h2 className="quiz-question-prompt font-heading text-xl font-semibold leading-relaxed text-foreground sm:text-2xl">
+                    <h2 className="quiz-question-prompt font-heading text-section-title font-semibold text-foreground">
                       {current.prompt}
                     </h2>
                     <QuestionSource question={current} revealed={Boolean(result)} />

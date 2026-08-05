@@ -304,7 +304,7 @@ export function AppShell() {
           <SidebarInset
             className={cn('app-main-surface', isViewportLocked && 'h-svh min-h-0 overflow-hidden')}
           >
-            <header className="app-topbar sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b border-border/70 px-3 backdrop-blur-xl sm:px-4">
+            <header className="app-topbar sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b border-border/70 px-3 sm:px-4">
               <SidebarTrigger />
               <Breadcrumb className="min-w-0">
                 <BreadcrumbList className="flex-nowrap gap-1.5 sm:gap-2">
