@@ -32,6 +32,24 @@ assert.match(card, /onRecordReference/, 'record cards must forward internal reco
 assert.match(card, /signAssetUrl\(attachment\.file\)/, 'attachments must be signed on demand')
 assert.match(filters, /WeakMap<RecordItem, string>/, 'record search text must be parsed once per record object')
 assert.match(filters, /const \{ years, months, days \} = useMemo/, 'date selector options must be memoized')
+assert.match(
+  filters,
+  /<Card className="mb-6 gap-0[^"]*py-0[^"]*">[\s\S]*<CardContent className="flex flex-col gap-3 p-4">/,
+  'record filters must not stack the card and content top padding above the search field',
+)
+assert.match(
+  page,
+  /supplementalRecords\(\[page\], records, \[pageMessage\], \[\]\)\.map[\s\S]*<RecordCard/,
+  'written-page proverbs must reuse the shared record card',
+)
+assert.match(card, /record\.recordType === 'message' \? '箴言'/, 'proverbs need a lightweight type badge')
+assert.doesNotMatch(page, /<Card className="bg-muted\/45">/, 'proverbs must not keep a separate heavy card treatment')
+assert.match(
+  page,
+  /className="h-auto w-full overflow-hidden rounded-lg border border-border\/70 bg-transparent p-0/,
+  'written images must not retain a padded gray trigger frame',
+)
+assert.doesNotMatch(page, /bg-muted\/40 p-2|bg-muted\/55/, 'written images must not keep nested gray backgrounds')
 assert.doesNotMatch(
   page,
   /key=\{`\$\{criteria\.year\}/,

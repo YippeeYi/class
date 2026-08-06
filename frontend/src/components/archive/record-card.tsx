@@ -49,14 +49,20 @@ export const RecordCard = memo(function RecordCard({
   record: RecordItem
   onRecordReference?: (recordId: string, source: HTMLElement) => void
 }) {
+  const typeLabel =
+    record.recordType === 'message' ? '箴言' : record.recordType === 'supplement' ? '补充' : ''
+
   return (
     <Collapsible>
       <Card id={recordAnchor(record)} className="scroll-mt-24 gap-0 py-0">
         <CardHeader className="border-b border-border/60 pt-3 !pb-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[0.8125rem] leading-5 text-muted-foreground">
-            <Badge variant={record.importance === 'important' ? 'default' : 'outline'}>
-              #{record.id}
-            </Badge>
+            {typeLabel && <Badge variant="secondary">{typeLabel}</Badge>}
+            {record.recordType !== 'message' && (
+              <Badge variant={record.importance === 'important' ? 'default' : 'outline'}>
+                #{record.id}
+              </Badge>
+            )}
             <span className="inline-flex items-center gap-1.5">
               <CalendarDays className="size-3.5" />
               {record.date || '日期未记录'}

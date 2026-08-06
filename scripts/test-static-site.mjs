@@ -177,6 +177,11 @@ for (const [name, source] of [
   )
 }
 assert.match(quoteNavigation, /resolveQuoteSources/, 'quote source resolution must be shared by all entry points')
+assert.match(quotes, /stripMarkup\(a\.quote\)/, 'quote content sorting must ignore record markup like the baseline')
+assert.match(quotes, /grid items-start gap-4/, 'quote cards must size to their own content instead of stretching')
+assert.match(quotes, /<Link[\s\S]*focus-visible:ring-2[\s\S]*<Card className="h-fit gap-0 py-0/, 'quote cards must preserve whole-card keyboard navigation without default card padding')
+assert.match(quotes, /<CardContent className="p-4 sm:p-5">/, 'quote cards need one explicit, balanced content inset')
+assert.doesNotMatch(quotes, /<Card id=|<CardContent className="pt-4">/, 'quote cards must not restore the oversized legacy composition')
 assert.match(quiz, /preloadQuizImage/, 'secret quiz image preloading is missing')
 assert.match(quiz, /text-foreground\/90/, 'quiz source text needs sufficient contrast')
 assert.match(quiz, /<ScrollArea key=\{current\.id\}/, 'quiz questions must scroll inside the card')

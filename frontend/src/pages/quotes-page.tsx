@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useArchive } from '@/features/archive/archive-context'
+import { stripMarkup } from '@/lib/markup'
 import { quoteRecordTarget } from '@/lib/quote-navigation'
 import { prepareRecordJump } from '@/lib/record-navigation'
 
@@ -30,11 +31,11 @@ export function QuotesPage() {
   }, [])
   const quotes = useMemo(
     () =>
-      [...(resource.data?.quotes || [])].sort(
-        (a, b) =>
-          (sort === 'quote' ? a.quote.localeCompare(b.quote, 'zh-CN') : a.id.localeCompare(b.id)) *
-          (descending ? -1 : 1),
-      ),
+      [...(resource.data?.quotes || [])].sort((a, b) => {
+        const left = sort === 'quote' ? stripMarkup(a.quote) : a.id
+        const right = sort === 'quote' ? stripMarkup(b.quote) : b.id
+        return left.localeCompare(right, 'zh-CN') * (descending ? -1 : 1)
+      }),
     [descending, resource.data, sort],
   )
   return (
@@ -75,47 +76,54 @@ export function QuotesPage() {
         <EmptyState title="暂无名言" description="记录中还没有可展示的名言标记。" />
       )}
       {resource.data && (
-        <div className="grid gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:grid-cols-2">
+        <div className="grid items-start gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:grid-cols-2">
           {quotes.map((quote) => {
             const { anchor, source, sources } = quoteRecordTarget(
               quote,
               resource.data?.records || [],
             )
+            const target = anchor ? `/records?view=list#${anchor}` : `/quotes#quote-${quote.id}`
             return (
-              <Card id={`quote-${quote.id}`} key={quote.id} className="scroll-mt-24">
-                <CardContent className="pt-4">
-                  <div className="mb-4 flex items-center justify-between">
-                    <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
-                      <QuoteIcon className="size-4" />
-                    </span>
-                    <Badge variant="outline">{quote.id}</Badge>
-                  </div>
-                  <MarkupContent content={quote.quote} className="text-base" />
-                  <div className="mt-5 flex items-center justify-between border-t border-border/60 pt-4 text-xs text-muted-foreground">
-                    <span>{quote.sourceDate || '日期未记录'}</span>
-                    <Link
-                      className={buttonVariants({ variant: 'link', size: 'xs' })}
-                      to={anchor ? `/records?view=list#${anchor}` : `/quotes#quote-${quote.id}`}
-                      aria-disabled={!anchor}
-                      onClick={(event) => {
-                        if (!source || !anchor) {
-                          event.preventDefault()
-                          setSourceError(
-                            sources.length === 0
-                              ? '没有找到这条名言对应的记录。'
-                              : '这条名言匹配到多条记录，请检查记录标记。',
-                          )
-                          return
-                        }
-                        setSourceError('')
-                        prepareRecordJump(anchor)
-                      }}
-                    >
-                      查看来源
-                    </Link>
-                  </div>
-                </CardContent>
-              </Card>
+              <Link
+                id={`quote-${quote.id}`}
+                key={quote.id}
+                className="group block h-fit scroll-mt-24 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                to={target}
+                aria-disabled={!anchor}
+                onClick={(event) => {
+                  if (!source || !anchor) {
+                    event.preventDefault()
+                    setSourceError(
+                      sources.length === 0
+                        ? '没有找到这条名言对应的记录。'
+                        : '这条名言匹配到多条记录，请检查记录标记。',
+                    )
+                    return
+                  }
+                  setSourceError('')
+                  prepareRecordJump(anchor)
+                }}
+              >
+                <Card className="h-fit gap-0 py-0 transition-[background-color,box-shadow] group-hover:bg-card/95 group-hover:ring-primary/30 group-active:bg-accent/30">
+                  <CardContent className="p-4 sm:p-5">
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
+                        <QuoteIcon className="size-4" />
+                      </span>
+                      <Badge variant="outline">{quote.id}</Badge>
+                    </div>
+                    <blockquote className="border-l-2 border-primary/30 pl-4">
+                      <MarkupContent content={quote.quote} className="text-reading" />
+                    </blockquote>
+                    <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-3 text-sm text-muted-foreground">
+                      <span>{quote.sourceDate || '日期未记录'}</span>
+                      <span className={buttonVariants({ variant: 'link', size: 'xs' })}>
+                        查看来源
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
             )
           })}
         </div>

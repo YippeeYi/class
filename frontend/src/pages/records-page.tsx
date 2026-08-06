@@ -4,7 +4,6 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { ImageViewer } from '@/components/archive/image-viewer'
-import { MarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { RecordCard } from '@/components/archive/record-card'
 import {
@@ -236,7 +235,7 @@ function WrittenRecordPages({
                 <Button
                   type="button"
                   variant="ghost"
-                  className="h-auto w-full overflow-hidden border bg-muted/40 p-2"
+                  className="h-auto w-full overflow-hidden rounded-lg border border-border/70 bg-transparent p-0 shadow-none hover:bg-transparent"
                 >
                   <SignedPageImage key={page.imagePath} path={page.imagePath} page={page.page} />
                 </Button>
@@ -246,21 +245,10 @@ function WrittenRecordPages({
           <div className="grid content-start gap-4">
             {pageMessage &&
               (!activeFilter ||
-                matched.some(
-                  (item) => item.recordType === 'message' && item.page === page.page,
-                )) && (
-                <Card className="bg-muted/45">
-                  <CardContent className="pt-4">
-                    <p className="mb-2 text-xs font-medium text-muted-foreground">
-                      箴言{pageMessage.author ? ` · ${pageMessage.author}` : ''}
-                    </p>
-                    <MarkupContent
-                      content={pageMessage.content}
-                      onRecordReference={onRecordReference}
-                    />
-                  </CardContent>
-                </Card>
-              )}
+                matched.some((item) => item.recordType === 'message' && item.page === page.page)) &&
+              supplementalRecords([page], records, [pageMessage], []).map((record) => (
+                <RecordCard key={record.id} record={record} onRecordReference={onRecordReference} />
+              ))}
             {pageSupplements
               .filter(
                 (item) =>
@@ -300,7 +288,7 @@ function SignedPageImage({ path, page }: { path: string; page: string }) {
   const ratio = dimensions.width / dimensions.height
   return (
     <div
-      className="relative mx-auto grid max-w-full place-items-center overflow-hidden rounded-md bg-muted/55"
+      className="relative mx-auto grid max-w-full place-items-center overflow-hidden rounded-md bg-transparent"
       style={{
         aspectRatio: `${dimensions.width} / ${dimensions.height}`,
         width: `min(100%, calc((100svh - 6rem) * ${ratio}))`,
