@@ -1,6 +1,6 @@
 import { BookOpenText, MessageSquareQuote, Search, Users } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { PageHeading } from '@/components/archive/page-heading'

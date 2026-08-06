@@ -2,6 +2,7 @@ import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 
 
 export const BACKGROUND_KEY = 'classRecord:background'
 const PALETTE_KEY = 'classRecord:backgroundPalette:v1'
+let volatileBackground: BackgroundId | null = null
 const THEME_PROPERTIES = [
   '--primary',
   '--ring',
@@ -56,7 +57,12 @@ export const backgrounds: Array<{
 ]
 
 export function setBackground(id: BackgroundId) {
-  localStorage.setItem(BACKGROUND_KEY, id)
+  volatileBackground = id
+  try {
+    localStorage.setItem(BACKGROUND_KEY, id)
+  } catch {
+    // The selected background remains active for the current page session.
+  }
   window.dispatchEvent(new CustomEvent('classrecord:background', { detail: id }))
 }
 
@@ -150,9 +156,14 @@ async function extractPalette(src: string) {
   return weight ? buildPalette(red / weight, green / weight, blue / weight) : null
 }
 
-function readBackground(): BackgroundId {
-  const value = localStorage.getItem(BACKGROUND_KEY)
-  return backgrounds.some((item) => item.id === value) ? (value as BackgroundId) : 'default'
+export function readBackground(): BackgroundId {
+  if (volatileBackground) return volatileBackground
+  try {
+    const value = localStorage.getItem(BACKGROUND_KEY)
+    return backgrounds.some((item) => item.id === value) ? (value as BackgroundId) : 'default'
+  } catch {
+    return 'default'
+  }
 }
 
 function backgroundLayerStyle(id: BackgroundId): CSSProperties {

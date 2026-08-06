@@ -57,6 +57,10 @@ export function clearDataCache() {
   clearRuntimeCache()
 }
 
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', () => signedUrls.clear())
+}
+
 export function loadRecords({ hidden = false, force = false } = {}) {
   return loadCached<RecordItem[]>({
     key: `records:${hidden}`,

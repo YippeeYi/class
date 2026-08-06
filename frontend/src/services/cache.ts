@@ -135,7 +135,8 @@ export async function loadCached<T>({
   const scoped = scopedKey(key)
   const cached = memory.get(scoped) as CacheEntry<T> | undefined
   if (!force && cached && now - cached.time < freshTtl) return cached.data
-  if (!force && inflight.has(scoped)) return inflight.get(scoped) as Promise<T>
+  const pending = inflight.get(scoped)
+  if (pending) return pending as Promise<T>
 
   let stale: CacheEntry<T> | null = null
   if (!force) {
@@ -173,7 +174,9 @@ export async function loadCached<T>({
       }
       throw error
     })
-    .finally(() => inflight.delete(scoped))
+    .finally(() => {
+      if (inflight.get(scoped) === request) inflight.delete(scoped)
+    })
   inflight.set(scoped, request)
   return request
 }

@@ -1,6 +1,6 @@
 import { FileText } from 'lucide-react'
 import { useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { MarkupContent } from '@/components/archive/markup-content'

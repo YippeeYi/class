@@ -1,6 +1,6 @@
 import { ArrowDownAZ, ArrowUpAZ, Quote as QuoteIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { MarkupContent } from '@/components/archive/markup-content'

@@ -4,15 +4,7 @@ import { signAssetUrl } from '@/services/data'
 
 type AssetState = { path: string; src: string; loading: boolean; error: Error | null }
 
-function sensitive(path: string) {
-  return (
-    path === 'images/private/meal-map.png' ||
-    path.startsWith('hidden/') ||
-    path.startsWith('images/quiz/')
-  )
-}
-
-export function useSignedAsset(path: string, { refresh = true } = {}) {
+export function useSignedAsset(path: string) {
   const [state, setState] = useState<AssetState>({
     path,
     src: '',
@@ -54,16 +46,14 @@ export function useSignedAsset(path: string, { refresh = true } = {}) {
 
   useEffect(() => {
     void load()
-    if (!path || !refresh) return () => undefined
-    const interval = window.setInterval(() => void load(true), (sensitive(path) ? 180 : 600) * 800)
+    if (!path) return () => undefined
     const clear = () => setState({ path: '', src: '', loading: false, error: null })
     window.addEventListener('classrecordcacheclearing', clear)
     return () => {
-      window.clearInterval(interval)
       window.removeEventListener('classrecordcacheclearing', clear)
       revision.current += 1
     }
-  }, [load, path, refresh])
+  }, [load, path])
 
   const current = state.path === path
   return {

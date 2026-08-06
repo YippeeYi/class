@@ -1,5 +1,5 @@
 import { lazy, type ReactElement, Suspense } from 'react'
-import { Route, Routes, useLocation } from 'react-router-dom'
+import { Route, Routes, useLocation } from 'react-router'
 import { AppShell } from '@/components/layout/app-shell'
 import { BackgroundRoot } from '@/components/layout/background-root'
 import { Spinner } from '@/components/ui/spinner'

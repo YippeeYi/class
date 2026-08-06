@@ -4,11 +4,22 @@ import { readFrontend } from './test-react-helpers.mjs'
 const markupComponent = await readFrontend('src/components/archive/markup-content.tsx')
 const mapPage = await readFrontend('src/pages/meal-map-page.tsx')
 const recordsPage = await readFrontend('src/pages/records-page.tsx')
+const data = await readFrontend('src/services/data.ts')
 const signedAssetHook = await readFrontend('src/hooks/use-signed-asset.ts')
 const boundedRetryHook = await readFrontend('src/hooks/use-bounded-image-retry.ts')
 assert.match(markupComponent, /useSignedAsset\(requested \? path : ''/, 'record illustrations must be signed only on demand')
 assert.match(markupComponent, /preview\.loading/, 'illustrations need an explicit loading state')
 assert.match(signedAssetHook, /signAssetUrl\(path, \{ forceRefresh \}\)/, 'the image hook must use the secure signer')
+assert.doesNotMatch(
+  signedAssetHook,
+  /setInterval/,
+  'decoded private images must not be re-signed and reloaded on a background timer',
+)
+assert.match(
+  data,
+  /addEventListener\('pagehide',[\s\S]*signedUrls\.clear\(\)/,
+  'signed URL promises must leave memory when the page exits',
+)
 assert.match(
   signedAssetHook,
   /state\.path === path/,

@@ -1,6 +1,6 @@
 import { CalendarDays, Clock, Paperclip, UserRound } from 'lucide-react'
 import { memo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 
 import { MarkupContent } from '@/components/archive/markup-content'
 import { Badge } from '@/components/ui/badge'

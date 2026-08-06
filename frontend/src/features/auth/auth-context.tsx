@@ -34,18 +34,40 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-function readCandidate(): AccessRecord | null {
+function readCandidate(): { candidate: AccessRecord | null; shouldClear: boolean } {
   try {
     const raw = localStorage.getItem(ACCESS_KEY)
-    const lastVisitAt = Date.parse(localStorage.getItem(LAST_VISIT_KEY) || '')
-    if (!raw || !Number.isFinite(lastVisitAt) || Date.now() - lastVisitAt > IDLE_TTL) return null
+    const lastVisitRaw = localStorage.getItem(LAST_VISIT_KEY)
+    if (!raw && !lastVisitRaw) return { candidate: null, shouldClear: false }
+    const lastVisitAt = Date.parse(lastVisitRaw || '')
+    if (!raw || !Number.isFinite(lastVisitAt) || Date.now() - lastVisitAt > IDLE_TTL)
+      return { candidate: null, shouldClear: true }
     const item = JSON.parse(raw) as AccessRecord
     const authorizedAt = Date.parse(item.authorizedAt || '')
-    if (item.type !== 'invite' || !item.token || !Number.isFinite(authorizedAt)) return null
-    if (Date.now() - authorizedAt > ABSOLUTE_TTL) return null
-    return item
+    if (item.type !== 'invite' || !item.token || !Number.isFinite(authorizedAt))
+      return { candidate: null, shouldClear: true }
+    if (Date.now() - authorizedAt > ABSOLUTE_TTL) return { candidate: null, shouldClear: true }
+    return { candidate: item, shouldClear: false }
   } catch {
-    return null
+    return { candidate: null, shouldClear: true }
+  }
+}
+
+function rememberTarget(target: string) {
+  try {
+    sessionStorage.setItem(REDIRECT_KEY, target)
+  } catch {
+    // Direct navigation to the guide remains available when session storage is unavailable.
+  }
+}
+
+function consumeTarget() {
+  try {
+    const target = sessionStorage.getItem(REDIRECT_KEY) || '/'
+    sessionStorage.removeItem(REDIRECT_KEY)
+    return target
+  } catch {
+    return '/'
   }
 }
 
@@ -87,9 +109,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: validationRevision intentionally requests a full server revalidation after bfcache restoration.
   useEffect(() => {
     let active = true
-    const candidate = readCandidate()
+    const accessState = readCandidate()
+    const candidate = accessState.candidate
     if (!candidate) {
-      void clearAccess()
+      if (accessState.shouldClear) void clearAccess()
+      else {
+        setToken('')
+        setState('anonymous')
+      }
       return
     }
     const validate = async () => {
@@ -142,12 +169,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       verifyInvite,
       clearAccess,
-      rememberTarget: (target) => sessionStorage.setItem(REDIRECT_KEY, target),
-      consumeTarget: () => {
-        const target = sessionStorage.getItem(REDIRECT_KEY) || '/'
-        sessionStorage.removeItem(REDIRECT_KEY)
-        return target
-      },
+      rememberTarget,
+      consumeTarget,
     }),
     [clearAccess, state, token, verifyInvite],
   )

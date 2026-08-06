@@ -1,6 +1,6 @@
 import { Home } from 'lucide-react'
 import { useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 
 import { buttonVariants } from '@/components/ui/button'
 import {

@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 
 import { ImageViewer } from '@/components/archive/image-viewer'
 import { Button } from '@/components/ui/button'
@@ -70,7 +70,7 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
   const [ready, setReady] = useState(false)
   const [decodeFailed, setDecodeFailed] = useState(false)
   const openRequest = useRef(0)
-  const preview = useSignedAsset(requested ? path : '', { refresh: false })
+  const preview = useSignedAsset(requested ? path : '')
   const frame = previewFrame(lockedDimensions || dimensions)
 
   useEffect(() => {

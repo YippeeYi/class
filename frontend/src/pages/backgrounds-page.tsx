@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react'
 
 import { PageHeading } from '@/components/archive/page-heading'
 import {
-  BACKGROUND_KEY,
   type BackgroundId,
   backgrounds,
+  readBackground,
   setBackground,
 } from '@/components/layout/background-root'
 import { AspectRatio } from '@/components/ui/aspect-ratio'
@@ -64,10 +64,7 @@ function BackgroundPreview({ src, active }: { src: string; active: boolean }) {
 }
 
 export function BackgroundsPage() {
-  const [current, setCurrent] = useState<BackgroundId>(() => {
-    const stored = localStorage.getItem(BACKGROUND_KEY) as BackgroundId | null
-    return stored && backgrounds.some((item) => item.id === stored) ? stored : 'default'
-  })
+  const [current, setCurrent] = useState<BackgroundId>(readBackground)
   useEffect(() => {
     document.title = '背景 · 编日史'
   }, [])

@@ -1,6 +1,6 @@
 import { Eye, FileImage, List } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { ImageViewer } from '@/components/archive/image-viewer'
@@ -349,8 +349,8 @@ function PageImagePreloader({
   previousPath: string
   nextPath: string
 }) {
-  const previous = useSignedAsset(previousPath, { refresh: false })
-  const next = useSignedAsset(nextPath, { refresh: false })
+  const previous = useSignedAsset(previousPath)
+  const next = useSignedAsset(nextPath)
   useEffect(() => {
     for (const src of [previous.src, next.src].filter(Boolean)) {
       const image = new Image()

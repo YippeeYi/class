@@ -10,10 +10,18 @@ export function clearAllSiteState({ preserveRedirectTarget = '' } = {}) {
     window.dispatchEvent(new Event('classrecordcacheclearing'))
     clearDataCache()
     clearSupabaseClients()
-    localStorage.clear()
-    sessionStorage.clear()
-    if (preserveRedirectTarget) {
-      sessionStorage.setItem('classRecordRedirectTarget', preserveRedirectTarget)
+    try {
+      localStorage.clear()
+    } catch {
+      // In-memory resources are still cleared when persistent storage is unavailable.
+    }
+    try {
+      sessionStorage.clear()
+      if (preserveRedirectTarget) {
+        sessionStorage.setItem('classRecordRedirectTarget', preserveRedirectTarget)
+      }
+    } catch {
+      // The caller can still continue at the guide when session storage is unavailable.
     }
     await Promise.allSettled([
       deletePersistentCaches(),

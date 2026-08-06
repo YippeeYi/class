@@ -1,6 +1,6 @@
 import { BookOpenText, CalendarDays, MessageSquareQuote, PenLine, Users } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from 'recharts'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'

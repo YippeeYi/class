@@ -21,7 +21,7 @@
 | 授权纪元三级数据缓存 | 只有进程内 Promise Map | B | 恢复 session + IndexedDB + stale 回退；hidden 禁持久化 |
 | bfcache 安全 | 无 pageshow 复验/重签 | B | AuthProvider 和资源服务补 pageshow/pagehide |
 | Supabase 请求头/RLS | token 分 client | A | 保留 |
-| 签名 URL 600/180 秒与提前刷新 | 单一默认 180 秒且永久 promise 缓存 | C | 按敏感路径分寿命，缓存 expires/refreshAt，force refresh |
+| 签名 URL 600/180 秒与提前失效 | 单一默认 180 秒且永久 promise 缓存 | C | 按敏感路径分寿命，缓存 expires/refreshAt；达到 80% 后由下一次实际请求重签，force refresh 可绕过 |
 | 图片变体、Cache Storage、并发队列 | 无 | B | 建立 image resource service；至少恢复去重、刷新、对象 URL 回收和 written transform |
 | 统一递归标记 AST | `lib/markup.ts` | D | 类型化 AST 优于 innerHTML；继续补齐行为契约 |
 | 未知/非法标记显示原文 | 部分分支返回第二段而非 raw | C | 未知有分隔符标记被吞掉；改为 raw 文本 |
@@ -47,7 +47,7 @@
 | 判断题多点替换校正 | 简化题干 | B | 移植纯 TypeScript quiz engine 行为 |
 | admin lamian | 键序列和私有题图存在 | C | 需核对只在 admin 后查询、方框逐字符反馈、URL 刷新 |
 | 时间线总览/月分布 | 基础卡片和月份柱 | C | 缺年度层、每日、作者饼图、人物/名言热度、chips 和固定刻度 |
-| 私有地图 | 签名图 + Dialog | C | 缺签名定时刷新、加载错误重试、真正 zoom/pan |
+| 私有地图 | 签名图 + Dialog | C | 缺签名过期后的按需重签、加载错误重试、真正 zoom/pan |
 | 背景选择 | 三选项、localStorage | D/C | 选择存在；动态 palette、缓存、预览重试、署名安全链接和全屏偏好丢失 |
 | 致谢 | shadcn Card + 标记 | A | 保留 |
 | Loading/Empty/Error | shadcn Skeleton/Empty + wrapper | A/D | 基本规范；个别图片状态需 Spinner + retry |
@@ -85,9 +85,9 @@
 
 上面的对照表记录的是修改前差异，便于保留审计证据。本轮完成后，结论更新如下：
 
-- P0 已完成：授权纪元缓存、session/IndexedDB/stale 回退、bfcache 复验、全站缓存清理、签名 URL 分级寿命和提前刷新、书面页消息/补录、搜索全量结果、非法标记原文降级均已恢复。
+- P0 已完成：授权纪元缓存、session/IndexedDB/stale 回退、bfcache 复验、全站缓存清理、签名 URL 分级寿命和 80% 提前失效、书面页消息/补录、搜索全量结果、非法标记原文降级均已恢复。
 - P1 已完成：记录筛选与人物详情复用、书面双栏/跳页/相邻预载/隐藏书面、精确记录定位与返回对话框、人物三组独立排序和头像、Quiz 三级均匀抽样与隐藏逐字反馈、时间线年度/月度/每日/作者/人物/名言统计均已恢复。
-- P2 已完成核心用户能力：共享签名资源 hook、图片失败重试、定时刷新、滚轮缩放、指针中心缩放、拖动边界、复位和地图复用；未复制或修改 shadcn 内部组件。
+- P2 已完成核心用户能力：共享签名资源 hook、图片失败重试、按实际请求重签、滚轮缩放、指针中心缩放、拖动边界、复位和地图复用；未复制或修改 shadcn 内部组件。已解码图片不再被后台定时替换 URL。
 - P3 已完成：清除权限采用官方 AlertDialog 组合，Sidebar 保持官方结构，首页次级入口采用 shadcn Item，恢复页头全屏控制和背景主色提取/缓存，业务代码中不再存在原生 button/select/input 模拟组件或 legacy 路由分支。
 - 实现方式不同但理念一致的项目继续保留：React Router SPA、类型化 AST、Context 数据共享、Recharts + shadcn Chart、签名 URL 直接加载，而不恢复旧版 DOM/innerHTML 和全套对象 URL 管线。
 

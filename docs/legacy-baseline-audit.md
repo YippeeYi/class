@@ -3,7 +3,7 @@
 基准提交：`b0923d471abbf85f0bf88fbb635cefbbbb041e37`  
 现行提交：`7caec44`（审计开始时）  
 审计日期：2026-08-03  
-现行架构：React 19、TypeScript、Vite 8、Tailwind CSS 4、shadcn/ui（Base UI）、React Router 7、Supabase JS 2。
+现行架构：React 19、TypeScript、Vite 8、Tailwind CSS 4、shadcn/ui（Base UI）、React Router 8、Supabase JS 2。
 
 > 本文是本轮整改的统一验收入口。旧版跨模块细节继续以
 > [`baseline-b0923d4-functional-spec.md`](./baseline-b0923d4-functional-spec.md) 为展开说明，
@@ -54,7 +54,7 @@
 | 答题 | 选择/填空/判断、题型/内容筛选、全选可用、来源→内容→题型等权、作答、下一题、`lamian` 管理题 | 题库加载、无可生成组合、答题中、正确、错误、隐藏题解锁/加载/字符进度/图片错误 |
 | 时间线 | 条数/字数、全局/年度/月度/每日、作者饼图、日历、排行、人物/名言/记录下钻 | 合法空月、无日期、图例 hover/focus、高亮、来源错误 |
 | 资料 | sort_order 目录、`id` 直达、历史恢复、正文标记、插图预热 | 加载、空、非法 id 回退、左/右独立滚动 |
-| 蹭饭图 | 元数据、固定私有路径、立即签名、缩略图、大图、缩放、拖动、复位、重试 | 稳定比例 loading/ready/error、一次自动重签、手动重试、签名定时刷新 |
+| 蹭饭图 | 元数据、固定私有路径、立即签名、缩略图、大图、缩放、拖动、复位、重试 | 稳定比例 loading/ready/error、一次自动重签、手动重试、到期后按需重签 |
 | 背景 | 纸本/山/云、真实预览、摄影署名、选择、跨页持久化、首屏 bootstrap、动态取色 | eager/lazy、加载、错误、重试、selected、pressed、focus、reduced motion |
 | 致谢 | 动态标题、章节、感谢、附件、标记渲染 | loading、empty、error、content |
 | 404 | 未知路由公开显示、按认证态返回 | 不挂载档案数据、不消费邀请码 |
@@ -66,7 +66,7 @@
 | 访问权限 | `verify_invite_code`、`refresh_invite_access` | `AuthProvider`、每 token Supabase client | localStorage 保存 token 元组；服务端窗口复验 | 90 天滑动、365 天绝对；bfcache 复验；清权时全缓存擦除 |
 | records/people/pages/messages/supplements/materials/credits | Supabase 表 | `services/data.ts`、`ArchiveProvider`、`useAsyncData` | memory→session→IndexedDB；授权纪元隔离；fresh/stale 窗口 | 并发合并；部分成功可用；hidden 不持久化 |
 | quotes/stats/search/quiz | 上述数据派生 | 纯函数、memo、类型化领域模型 | 跟随源数据生命周期 | 不重复请求；规则只在一处定义 |
-| 私有图片 | `classrecord-private` Storage | `signAssetUrl`、`useSignedAsset`、业务 viewer | 签名 URL 仅内存；普通 600 秒、敏感 180 秒、80% 提前刷新 | RLS SELECT；不得持久化 URL；卸载/清权后失效 |
+| 私有图片 | `classrecord-private` Storage | `signAssetUrl`、`useSignedAsset`、业务 viewer | 签名 URL 仅内存；普通 600 秒、敏感 180 秒；达到 80% 后下一次实际请求重签，不后台定时换图 | RLS SELECT；不得持久化 URL；卸载/清权后失效 |
 | 图片固有尺寸 | 表元数据或 Range 64 KiB | `services/image-metadata.ts` | 30 天 fresh、90 天 stale、授权隔离 | loading/ready/error 共用同一几何占位 |
 | 背景 | 本地图片与 `classRecord:background` | `BackgroundRoot` + 启动脚本 | ID 和 palette 本地缓存 | 切页不闪白；深浅图片上正文对比稳定 |
 | 筛选/深链 | query/hash | React state 与 URL 双向同步 | 浏览器 history | 同页链接和前进/后退必须恢复；不得形成 effect 循环 |

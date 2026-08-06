@@ -12,7 +12,7 @@ import {
   Users,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router'
 
 import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { PageHeaderActions } from '@/components/layout/page-header'

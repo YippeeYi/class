@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { readdir } from 'node:fs/promises'
 import { existsFrontend, readFrontend } from './test-react-helpers.mjs'
 
+const vercel = await readFrontend('../vercel.json')
+
 const packageJson = JSON.parse(await readFrontend('package.json'))
 const components = JSON.parse(await readFrontend('components.json'))
 const index = await readFrontend('index.html')
@@ -36,6 +38,12 @@ const redirects = await readFrontend('public/_redirects')
 const ui = (await readdir(new URL('../frontend/src/components/ui/', import.meta.url))).filter((file) => file.endsWith('.tsx'))
 
 assert.match(packageJson.dependencies.react, /^\^19\./)
+assert.match(packageJson.dependencies['react-router'], /^\^8\./)
+assert.equal(
+  packageJson.dependencies['react-router-dom'],
+  undefined,
+  'declarative browser APIs must use the maintained react-router package directly',
+)
 assert.match(packageJson.devDependencies.tailwindcss, /^\^4\./)
 assert.match(packageJson.devDependencies.typescript, /^\^7\./)
 assert.ok(packageJson.dependencies['@base-ui/react'])
@@ -176,6 +184,11 @@ for (const route of ['records', 'people', 'person', 'quotes', 'timeline', 'searc
   assert.match(app, new RegExp(`path="${route}"`), `${route} route is missing`)
 }
 assert.match(redirects, /\/\* \/index\.html 200/, 'SPA fallback is missing')
+assert.match(
+  vercel,
+  /\/assets\/\(\.\*\)[\s\S]*max-age=31536000, immutable/,
+  'content-hashed Vite assets must keep a long immutable deployment cache',
+)
 assert.equal(await existsFrontend('public/style.css'), false, 'legacy CSS runtime should be absent')
 assert.equal(await existsFrontend('public/record.html'), false, 'legacy HTML runtime should be absent')
 console.log(`React static application checks passed: ${ui.length} CLI-generated shadcn Base UI components.`)

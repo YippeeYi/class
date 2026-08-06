@@ -26,7 +26,7 @@ export function ImageViewer({
   initialUrl?: string
 }) {
   const [open, setOpen] = useState(false)
-  const asset = useSignedAsset(open ? path : '', { refresh: open })
+  const asset = useSignedAsset(open ? path : '')
   const imageFailure = useBoundedImageRetry(open ? path : '', asset.retry)
   const [scale, setScale] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
