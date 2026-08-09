@@ -1,0 +1,32 @@
+* text=auto
+
+*.css text eol=lf
+*.html text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.mjs text eol=lf
+*.sql text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.txt text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+frontend/public/_redirects text eol=lf
+
+*.gif binary
+*.ico binary
+*.jpeg binary
+*.jpg binary
+*.m4a binary
+*.mp3 binary
+*.mp4 binary
+*.ogg binary
+*.pdf binary
+*.png binary
+*.ttf binary
+*.wav binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.zip binary

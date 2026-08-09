@@ -152,10 +152,9 @@ Tailwind 主题新增统一语义尺度：
 
 ## 17. 实际执行的验证命令
 
-```powershell
-frontend\..\node_modules\.bin\tsc.cmd -b --pretty false
-frontend\..\node_modules\.bin\biome.cmd check src vite.config.ts --write
-frontend\..\node_modules\.bin\biome.cmd check src vite.config.ts
+```bash
+npm run typecheck
+npm run lint
 node scripts/test-security-boundaries.mjs
 node scripts/test-secure-images.mjs
 node scripts/test-image-loader.mjs
@@ -167,7 +166,7 @@ node scripts/test-record-view.mjs
 node scripts/test-quiz-core.mjs
 node scripts/test-search.mjs
 node scripts/test-static-site.mjs
-node ..\node_modules\vite\bin\vite.js build
+npm run build
 git diff --check
 git diff --name-only -- frontend/src/components/ui
 ```

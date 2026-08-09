@@ -1,5 +1,11 @@
 private-assets/
 private-exports/
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Desktop.ini
+Thumbs.db
 .env
 .env.*
 !.env.example

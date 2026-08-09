@@ -13,7 +13,7 @@ setup SQL 来创建元数据表与其 RLS policy。
 
 ## 本地环境变量
 
-仅在本机终端设置（不要提交到 Git）：
+将变量写入仓库根目录的 `.env`，或仅在当前终端会话中设置（不要提交到 Git）：
 
 ```text
 SUPABASE_URL=https://your-project.supabase.co
@@ -27,9 +27,9 @@ CLASS_RECORD_BUCKET=classrecord-private
 
 1. 将原图置于 `private-assets/meal-map/map.png`（也兼容 `map.PNG`；两者不能同时存在）。
 2. 确认私密目录被 Git 忽略：`git check-ignore -v private-assets/meal-map/map.png`。
-3. 加载上述本地环境变量后执行：
+3. 保存 `.env` 或加载上述本地环境变量后执行：
 
-   ```powershell
+   ```bash
    npm run admin -- upload
    ```
 
@@ -38,7 +38,7 @@ CLASS_RECORD_BUCKET=classrecord-private
 
 4. 完整内容迁移也会处理该图：
 
-   ```powershell
+   ```bash
    npm run admin -- upload
    ```
 
@@ -57,7 +57,7 @@ Storage signed URL 架构不可主动收回的时间上限。
 
 ## 确认未公开
 
-```powershell
+```bash
 git ls-files --error-unmatch private-assets/meal-map/map.png
 git ls-files --error-unmatch map.PNG
 rg -n -i "map\.png|map\.PNG" --glob '!node_modules/**' --glob '!docs/meal-map-operation.md' .

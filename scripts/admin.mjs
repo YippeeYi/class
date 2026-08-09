@@ -20,16 +20,13 @@
  * JSON is database-only; binary files are uploaded only when a database row
  * explicitly references them.
  *
- * PowerShell:
- *   $env:SUPABASE_URL="https://xxxx.supabase.co"
- *   $env:SUPABASE_SERVICE_ROLE_KEY="your service_role key"
- *   $env:CLASS_RECORD_BUCKET="classrecord-private"
- *   node scripts/admin.mjs upload --dry-run
- *   node scripts/admin.mjs upload
- *   node scripts/admin.mjs upload --prune --confirm-prune
- *   node scripts/admin.mjs invites generate --count 30 --expires-days 14
- *   node scripts/admin.mjs invites list
- *   node scripts/admin.mjs invites check --code CR-ABCD-EFGH-2345
+ * Cross-platform commands (configuration is loaded from the ignored .env file):
+ *   npm run admin -- upload --dry-run
+ *   npm run admin -- upload
+ *   npm run admin -- upload --prune --confirm-prune
+ *   npm run admin -- invites generate --count 30 --expires-days 14
+ *   npm run admin -- invites list
+ *   npm run admin -- invites check --code CR-ABCD-EFGH-2345
  *
  * Invite-code values are displayed only at generation time. List/check output
  * never includes invite-code hashes or access-session tokens.

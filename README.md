@@ -64,10 +64,23 @@ private-assets/        # 本地私密源文件（Git 忽略）
 
 ## 本地运行
 
+项目要求 Node.js 22.12.0 或更高版本，仓库根目录的 `.nvmrc` 固定使用 Node 22。首次在 macOS 上开发时，先确认终端可以找到 Node.js 和 npm：
+
 ```bash
-npm install
+node --version
+npm --version
+```
+
+如果项目从 Windows 直接复制而来，不要复用原来的 `node_modules`。在仓库根目录使用当前 Mac 的 Node.js 重新安装锁定依赖：
+
+```bash
+rm -rf node_modules frontend/node_modules
+npm ci
+npm run doctor
 npm run dev
 ```
+
+使用 nvm 时可先运行 `nvm install && nvm use`。如果 `node` 或 `npm` 显示 `command not found`，需要先为 macOS 安装 Node.js 22；仅复制项目目录不会同时迁移 Windows 上安装的 Node.js。
 
 访问：
 
@@ -78,6 +91,7 @@ http://127.0.0.1:5173/
 常用检查命令：
 
 ```bash
+npm run doctor
 npm run typecheck
 npm run lint
 npm test
