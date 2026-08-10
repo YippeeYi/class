@@ -2,6 +2,7 @@ import {
   type CSSProperties,
   Fragment,
   type ReactNode,
+  type PointerEvent as ReactPointerEvent,
   useEffect,
   useMemo,
   useRef,
@@ -49,7 +50,7 @@ function Annotation({ note, children }: { note: string; children: ReactNode }) {
             type="button"
             variant="link"
             size="xs"
-            className="record-annotation inline h-auto min-h-0 whitespace-normal rounded-none border-0 px-0 py-0 align-baseline text-[1em] leading-[inherit] font-[inherit] text-inherit no-underline select-text hover:text-inherit hover:no-underline focus-visible:border-transparent focus-visible:ring-0"
+            className="record-annotation inline h-auto min-h-0 whitespace-normal rounded-[0.15em] border-0 px-0 py-0 align-baseline text-[1em] leading-[inherit] font-[inherit] text-foreground/90 underline decoration-primary/55 decoration-dotted decoration-[1.5px] underline-offset-[0.18em] select-text hover:text-foreground hover:decoration-primary focus-visible:border-transparent focus-visible:ring-0"
           >
             {children}
           </Button>
@@ -69,6 +70,7 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
   const [open, setOpen] = useState(false)
   const [ready, setReady] = useState(false)
   const [decodeFailed, setDecodeFailed] = useState(false)
+  const [pointerAlignOffset, setPointerAlignOffset] = useState(0)
   const openRequest = useRef(0)
   const preview = useSignedAsset(requested ? path : '')
   const frame = previewFrame(lockedDimensions || dimensions)
@@ -99,6 +101,11 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
   const requestPreview = () => {
     setRequested(true)
     void preloadImageDimensions(path)
+  }
+  const rememberPointerPosition = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.pointerType === 'touch') return
+    const bounds = event.currentTarget.getBoundingClientRect()
+    setPointerAlignOffset(event.clientX - (bounds.left + bounds.width / 2))
   }
   const changeOpen = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -136,7 +143,11 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
                   variant="link"
                   size="xs"
                   className="markup-link illustration-link inline h-auto min-h-0 whitespace-normal rounded-none border-0 px-0 py-0 align-baseline text-[1em] leading-[inherit] font-[inherit] select-text focus-visible:border-transparent focus-visible:ring-0"
-                  onPointerEnter={requestPreview}
+                  onPointerEnter={(event) => {
+                    requestPreview()
+                    rememberPointerPosition(event)
+                  }}
+                  onPointerMove={rememberPointerPosition}
                   onFocus={requestPreview}
                   onTouchStart={requestPreview}
                 >
@@ -147,7 +158,12 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
           </span>
         }
       />
-      <HoverCardContent side="top" align="start" className="w-auto max-w-[calc(100vw-1rem)] p-2">
+      <HoverCardContent
+        side="top"
+        align="center"
+        alignOffset={pointerAlignOffset}
+        className="w-auto max-w-[calc(100vw-1rem)] p-2"
+      >
         <div
           className="grid place-items-center overflow-hidden rounded-md bg-muted/55"
           style={{ width: frame.width, height: frame.height }}
@@ -180,6 +196,194 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
       </HoverCardContent>
     </HoverCard>
   )
+}
+
+function markupNodesText(nodes: MarkupNode[]): string {
+  return nodes
+    .map((node) => {
+      if (node.type === 'text') return node.value
+      if (
+        node.type === 'style' ||
+        node.type === 'reference' ||
+        node.type === 'annotation' ||
+        node.type === 'illustration'
+      )
+        return markupNodesText(node.children)
+      if (node.type === 'stack')
+        return `${markupNodesText(node.top)} ${markupNodesText(node.bottom)}`
+      return node.rows.flat().map(markupNodesText).join(' ')
+    })
+    .join('')
+}
+
+function visibleTextUnits(nodes: MarkupNode[]) {
+  return Array.from(markupNodesText(nodes).trim()).reduce((sum, character) => {
+    if (/\s/u.test(character)) return sum + 0.35
+    if ((character.codePointAt(0) || 0) <= 0x7f) return sum + 0.58
+    return sum + 1
+  }, 0)
+}
+
+function visibleHanCount(nodes: MarkupNode[]) {
+  return (markupNodesText(nodes).match(/[\u4e00-\u9fff]/gu) || []).length
+}
+
+type TableGeometry = {
+  columnCount: number
+  columns: Array<{ id: string; width: string }>
+  preferredWidth: string
+  minimumWidth: string
+}
+
+const tableGeometryCache = new WeakMap<MarkupNode[][][], TableGeometry>()
+
+function tableGeometry(rows: MarkupNode[][][]): TableGeometry {
+  const cached = tableGeometryCache.get(rows)
+  if (cached) return cached
+  const columnCount = Math.max(1, ...rows.map((row) => row.length))
+  const stats = Array.from({ length: columnCount }, () => ({
+    max: 0,
+    shortMax: 0,
+    mediumMax: 0,
+    longMax: 0,
+    longTotal: 0,
+    longCount: 0,
+    total: 0,
+    count: 0,
+  }))
+  const cellMetrics: Array<{ column: number; units: number }> = []
+
+  rows.forEach((row) => {
+    for (let column = 0; column < columnCount; column += 1) {
+      const cell = row[column] || []
+      const units = visibleTextUnits(cell)
+      const han = visibleHanCount(cell)
+      const stat = stats[column]
+      if (!stat) continue
+      cellMetrics.push({ column, units })
+      stat.max = Math.max(stat.max, units)
+      stat.total += units
+      stat.count += 1
+      if (han > 0 && han <= 10) stat.shortMax = Math.max(stat.shortMax, units, han)
+      if (han > 0 && han < 15) stat.mediumMax = Math.max(stat.mediumMax, units, han)
+      if (units >= 15) {
+        stat.longMax = Math.max(stat.longMax, units)
+        stat.longTotal += units
+        stat.longCount += 1
+      }
+    }
+  })
+
+  const widthBudget = Math.max(34, Math.min(78, 84 - columnCount * 2.2))
+  const maxColumnWidth = Math.max(
+    13,
+    Math.min(44, widthBudget / Math.max(1, Math.sqrt(columnCount))),
+  )
+  const columns = stats.map((stat) => {
+    const average = stat.count ? stat.total / stat.count : 0
+    const longAverage = stat.longCount ? stat.longTotal / stat.longCount : 0
+    const shortFloor = stat.shortMax ? stat.shortMax + 3.2 : 0
+    const mediumFloor = stat.mediumMax ? Math.ceil(stat.mediumMax / 2) + 2.6 : 0
+    const longFloor = stat.longMax
+      ? Math.min(Math.max(11, Math.sqrt(stat.longMax) * 3.7), maxColumnWidth * 0.72)
+      : 0
+    const floor = Math.min(Math.max(4.4, shortFloor, mediumFloor, longFloor), maxColumnWidth)
+    const longTarget = stat.longMax
+      ? Math.min(
+          Math.max(longAverage * 0.62, stat.longMax * 0.52, Math.sqrt(stat.longMax) * 5.7),
+          maxColumnWidth,
+        )
+      : 0
+    const contentTarget =
+      stat.max <= 5 ? stat.max + 2.2 : stat.max < 15 ? stat.max + 2.2 : longTarget
+    return {
+      floor,
+      ideal: Math.min(
+        Math.max(floor, contentTarget, Math.min(average + 3.2, maxColumnWidth * 0.76)),
+        maxColumnWidth,
+      ),
+      max: stat.max,
+      longMax: stat.longMax,
+      weight: Math.max(1, stat.longMax || stat.max || average || 1),
+    }
+  })
+
+  const idealTotal = columns.reduce((sum, column) => sum + column.ideal, 0)
+  const floorTotal = columns.reduce((sum, column) => sum + column.floor, 0)
+  let extraToRemove = Math.max(
+    0,
+    idealTotal - Math.max(floorTotal, Math.min(idealTotal, widthBudget)),
+  )
+  let widths = columns.map((column) => column.ideal)
+
+  while (extraToRemove > 0.01) {
+    const candidates = columns
+      .map((column, index) => ({ column, index, room: (widths[index] || 0) - column.floor }))
+      .filter((item) => item.room > 0.01)
+      .sort((left, right) => left.column.weight - right.column.weight)
+    if (!candidates.length) break
+    const inverseWeightTotal = candidates.reduce((sum, item) => sum + 1 / item.column.weight, 0)
+    let removed = 0
+    candidates.forEach((item) => {
+      const take = Math.min(
+        item.room,
+        extraToRemove * (1 / item.column.weight / inverseWeightTotal),
+      )
+      widths[item.index] = (widths[item.index] || 0) - take
+      removed += take
+    })
+    if (removed <= 0.01) break
+    extraToRemove -= removed
+  }
+
+  let shouldExpand =
+    floorTotal > widthBudget ||
+    cellMetrics.some((metric) => metric.units > (widths[metric.column] || 0) + 0.35)
+  if (shouldExpand) {
+    let extraSpace = Math.max(0, widthBudget - widths.reduce((sum, width) => sum + width, 0))
+    while (extraSpace > 0.01) {
+      const candidates = columns
+        .map((column, index) => ({
+          column,
+          index,
+          room: Math.max(0, maxColumnWidth - (widths[index] || 0)),
+          need: Math.max(0, column.max - (widths[index] || 0)),
+        }))
+        .filter((item) => item.room > 0.01 && (item.need > 0.01 || item.column.longMax > 0))
+        .sort((left, right) => right.column.weight - left.column.weight)
+      if (!candidates.length) break
+      const weightTotal = candidates.reduce(
+        (sum, item) => sum + item.column.weight * (item.need > 0 ? 1.4 : 1),
+        0,
+      )
+      let added = 0
+      candidates.forEach((item) => {
+        const weighted = item.column.weight * (item.need > 0 ? 1.4 : 1)
+        const room = item.column.longMax > 0 ? item.room : Math.min(item.room, item.need)
+        const amount = Math.min(room, extraSpace * (weighted / weightTotal))
+        widths[item.index] = (widths[item.index] || 0) + amount
+        added += amount
+      })
+      if (added <= 0.01) break
+      extraSpace -= added
+    }
+  }
+
+  widths = widths.map((width) => Number(width.toFixed(2)))
+  const totalWidth = Number(widths.reduce((sum, width) => sum + width, 0).toFixed(2))
+  shouldExpand =
+    shouldExpand || cellMetrics.some((metric) => metric.units > (widths[metric.column] || 0) + 0.35)
+  const geometry = {
+    columnCount,
+    columns: widths.map((width, column) => ({
+      id: `column-${column}`,
+      width: `${(width / totalWidth) * 100}%`,
+    })),
+    preferredWidth: `${totalWidth}em`,
+    minimumWidth: shouldExpand ? `${totalWidth}em` : '0em',
+  }
+  tableGeometryCache.set(rows, geometry)
+  return geometry
 }
 
 export function MarkupContent({
@@ -264,14 +468,35 @@ export function MarkupContent({
         )
       if (node.type === 'stack')
         return (
-          <span key={key} className="record-stack">
-            <span>{renderNodes(node.top, `${key}-top`)}</span>
-            <span>{renderNodes(node.bottom, `${key}-bottom`)}</span>
+          <span key={key} className={`record-stack record-stack--${node.kind}`}>
+            <span className="record-stack-text record-stack-top">
+              {renderNodes(node.top, `${key}-top`)}
+            </span>
+            <span className="record-stack-line" aria-hidden="true" />
+            <span className="record-stack-text record-stack-bottom">
+              {renderNodes(node.bottom, `${key}-bottom`)}
+            </span>
           </span>
         )
+      const geometry = tableGeometry(node.rows)
       return (
-        <div key={key} className="record-table-scroll">
-          <Table>
+        <div
+          key={key}
+          className="record-table-scroll"
+          data-columns={geometry.columnCount}
+          style={
+            {
+              '--record-table-preferred-width': geometry.preferredWidth,
+              '--record-table-min-width': geometry.minimumWidth,
+            } as CSSProperties
+          }
+        >
+          <Table className="text-[1em] leading-[1.55]">
+            <colgroup>
+              {geometry.columns.map((column) => (
+                <col key={`${key}-${column.id}`} style={{ width: column.width }} />
+              ))}
+            </colgroup>
             <TableBody>
               {node.rows.map((row, rowPosition) => {
                 const rowKey = `${key}-row-${rowPosition}`
@@ -279,7 +504,14 @@ export function MarkupContent({
                   <TableRow key={rowKey}>
                     {row.map((cell, cellPosition) => {
                       const cellKey = `${rowKey}-cell-${cellPosition}`
-                      return <TableCell key={cellKey}>{renderNodes(cell, cellKey)}</TableCell>
+                      return (
+                        <TableCell
+                          key={cellKey}
+                          className="align-top whitespace-normal break-words [overflow-wrap:anywhere]"
+                        >
+                          {renderNodes(cell, cellKey)}
+                        </TableCell>
+                      )
                     })}
                   </TableRow>
                 )
@@ -296,13 +528,12 @@ export function MarkupContent({
 type QuizCorrection = { wrongText: string; correctText: string }
 
 function QuizAnswerBlank({ answer, revealed }: { answer: string; revealed: boolean }) {
-  const width = Math.max(2, Array.from(answer).length)
   return (
-    <span
-      className={`quiz-answer-blank${revealed ? ' is-revealed' : ''}`}
-      style={{ '--quiz-blank-width': `${width}em` } as CSSProperties}
-    >
-      {revealed ? answer : <span className="sr-only">此处挖空</span>}
+    <span className={`quiz-answer-blank${revealed ? ' is-revealed' : ''}`}>
+      <span className="quiz-answer-blank-text" aria-hidden={!revealed}>
+        {answer}
+      </span>
+      {!revealed && <span className="sr-only">此处挖空</span>}
     </span>
   )
 }
@@ -420,14 +651,35 @@ export function QuizMarkupContent({
         return <Fragment key={key}>{renderNodes(node.children, key)}</Fragment>
       if (node.type === 'stack')
         return (
-          <span key={key} className="record-stack">
-            <span>{renderNodes(node.top, `${key}-top`)}</span>
-            <span>{renderNodes(node.bottom, `${key}-bottom`)}</span>
+          <span key={key} className={`record-stack record-stack--${node.kind}`}>
+            <span className="record-stack-text record-stack-top">
+              {renderNodes(node.top, `${key}-top`)}
+            </span>
+            <span className="record-stack-line" aria-hidden="true" />
+            <span className="record-stack-text record-stack-bottom">
+              {renderNodes(node.bottom, `${key}-bottom`)}
+            </span>
           </span>
         )
+      const geometry = tableGeometry(node.rows)
       return (
-        <div key={key} className="record-table-scroll quiz-markup-table">
-          <Table>
+        <div
+          key={key}
+          className="record-table-scroll quiz-markup-table"
+          data-columns={geometry.columnCount}
+          style={
+            {
+              '--record-table-preferred-width': geometry.preferredWidth,
+              '--record-table-min-width': geometry.minimumWidth,
+            } as CSSProperties
+          }
+        >
+          <Table className="text-[1em] leading-[1.55]">
+            <colgroup>
+              {geometry.columns.map((column) => (
+                <col key={`${key}-${column.id}`} style={{ width: column.width }} />
+              ))}
+            </colgroup>
             <TableBody>
               {node.rows.map((row, rowPosition) => {
                 const rowKey = `${key}-row-${rowPosition}`
@@ -435,7 +687,14 @@ export function QuizMarkupContent({
                   <TableRow key={rowKey}>
                     {row.map((cell, cellPosition) => {
                       const cellKey = `${rowKey}-cell-${cellPosition}`
-                      return <TableCell key={cellKey}>{renderNodes(cell, cellKey)}</TableCell>
+                      return (
+                        <TableCell
+                          key={cellKey}
+                          className="align-top whitespace-normal break-words [overflow-wrap:anywhere]"
+                        >
+                          {renderNodes(cell, cellKey)}
+                        </TableCell>
+                      )
                     })}
                   </TableRow>
                 )

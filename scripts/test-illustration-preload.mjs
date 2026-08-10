@@ -59,7 +59,11 @@ assert.deepEqual(imageMetadata.parseImageDimensions(svg, 'image/svg+xml'), {
 assert.match(component, /IllustrationReference/, 'illustrations need an isolated interactive component')
 assert.match(component, /ImageViewer/, 'illustrations must be opened with the shared image viewer')
 assert.match(component, /requested \? path : ''/, 'illustration previews must load only after interaction')
-assert.match(component, /onPointerEnter={requestPreview}/, 'pointer hover must start image loading early')
+assert.match(
+  component,
+  /onPointerEnter=\{\(event\) => \{[\s\S]*requestPreview\(\)[\s\S]*rememberPointerPosition\(event\)/,
+  'pointer hover must start image loading and capture its exact horizontal anchor',
+)
 assert.match(component, /onFocus={requestPreview}/, 'keyboard focus must start image loading early')
 assert.match(component, /useImageDimensions\(path\)/, 'decoded illustration geometry must be reused')
 assert.match(component, /lockedDimensions/, 'an open tooltip must keep one immutable frame size')

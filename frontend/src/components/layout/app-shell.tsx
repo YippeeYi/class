@@ -14,8 +14,8 @@ import {
   Sparkles,
   Users,
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { Link, NavLink, Outlet, useLocation } from 'react-router'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Link, NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
 
 import { PAGE_HEADER_ACTIONS_ID, PageHeaderProvider } from '@/components/layout/page-header'
 import {
@@ -79,25 +79,27 @@ const navigation = [
 const FULLSCREEN_STORAGE_KEY = 'classRecord:keepFullscreen'
 const viewportLockedPaths = new Set(['/materials', '/quiz', '/map'])
 const wideContentPaths = new Set(['/timeline'])
-const pageTitles = new Map([
-  ['/', '导览'],
-  ['/records', '记录'],
-  ['/people', '人物名单'],
-  ['/person', '人物详情'],
-  ['/quotes', '名言'],
-  ['/timeline', '统计'],
-  ['/search', '全站搜索'],
-  ['/quiz', '档案答题'],
-  ['/materials', '资料'],
-  ['/map', '地图'],
-  ['/backgrounds', '背景'],
-  ['/credits', '制作组与致谢'],
-])
 
-function ScrollToTop() {
-  useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
-  }, [])
+function navigationPath(pathname: string) {
+  return pathname === '/person' ? '/people' : pathname
+}
+
+function RouteScrollManager() {
+  const location = useLocation()
+  const navigationType = useNavigationType()
+  const previous = useRef<{ pathname: string; search: string } | null>(null)
+
+  useLayoutEffect(() => {
+    const last = previous.current
+    const isInitialRender = last === null
+    const changedPage = last?.pathname !== location.pathname
+    const changedPerson = location.pathname === '/person' && last?.search !== location.search
+    if (isInitialRender || (navigationType !== 'POP' && (changedPage || changedPerson))) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    }
+    previous.current = { pathname: location.pathname, search: location.search }
+  }, [location.pathname, location.search, navigationType])
+
   return null
 }
 
@@ -111,6 +113,7 @@ function CloseMobileSidebar() {
 
 function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
   const location = useLocation()
+  const activePath = navigationPath(location.pathname)
 
   return (
     <Sidebar collapsible="icon">
@@ -145,8 +148,8 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
               {navigation.map(({ to, label, icon: Icon }) => {
                 const isActive =
                   to === '/'
-                    ? location.pathname === '/'
-                    : location.pathname === to || location.pathname.startsWith(`${to}/`)
+                    ? activePath === '/'
+                    : activePath === to || activePath.startsWith(`${to}/`)
 
                 return (
                   <SidebarMenuItem key={to}>
@@ -220,7 +223,8 @@ export function AppShell() {
     setRegisteredTitle({ token, title })
     return () => setRegisteredTitle((current) => (current?.token === token ? null : current))
   }, [])
-  const pageTitle = registeredTitle?.title || pageTitles.get(location.pathname) || '档案'
+  const sectionTitle = navigation.find((item) => item.to === navigationPath(location.pathname))
+  const pageTitle = sectionTitle?.label || registeredTitle?.title || '档案'
 
   useEffect(() => {
     const root = document.documentElement
@@ -293,7 +297,7 @@ export function AppShell() {
     <PageHeaderProvider registerTitle={registerTitle}>
       <TooltipProvider>
         <SidebarProvider>
-          <ScrollToTop key={location.pathname} />
+          <RouteScrollManager />
           <a
             href="#page-content"
             className="sr-only fixed left-3 top-3 z-50 rounded-md bg-background px-3 py-2 text-sm font-medium shadow focus:not-sr-only"

@@ -34,23 +34,13 @@ export const EMPTY_RECORD_CRITERIA: RecordCriteria = {
   query: '',
 }
 
-const recordSearchTextCache = new WeakMap<RecordItem, string>()
+const recordBodySearchTextCache = new WeakMap<RecordItem, string>()
 
-export function recordSearchText(record: RecordItem) {
-  const cached = recordSearchTextCache.get(record)
+export function recordBodySearchText(record: RecordItem) {
+  const cached = recordBodySearchTextCache.get(record)
   if (cached !== undefined) return cached
-  const value = normalizeText(
-    [
-      record.id,
-      record.fileName,
-      record.date,
-      record.time,
-      record.author,
-      stripMarkup(record.content),
-      ...record.attachments.flatMap((item) => [item.name, item.file]),
-    ].join(' '),
-  )
-  recordSearchTextCache.set(record, value)
+  const value = normalizeText(stripMarkup(record.content))
+  recordBodySearchTextCache.set(record, value)
   return value
 }
 
@@ -69,7 +59,7 @@ export function filterRecords(records: RecordItem[], criteria: RecordCriteria) {
     if (criteria.year && year !== criteria.year) return false
     if (criteria.month && month !== criteria.month) return false
     if (criteria.day && day !== criteria.day) return false
-    return !needle || recordSearchText(record).includes(needle)
+    return !needle || recordBodySearchText(record).includes(needle)
   })
 }
 
@@ -128,7 +118,7 @@ export function RecordFilters({
             className="pl-9"
             value={value.query}
             onChange={(event) => update({ query: event.target.value })}
-            placeholder="搜索正文、日期、记录人或附件"
+            placeholder="仅搜索记录正文"
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">

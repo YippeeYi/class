@@ -45,15 +45,20 @@ assert.match(
   /blankReference=\{question\.blankReference\}/,
   'all aliases for the selected person or quote reference must share the blank',
 )
-assert.doesNotMatch(
-  quiz,
-  /aria-hidden=\{!revealed\}>\{answer\}/,
-  'unrevealed fill answers must not remain in hidden DOM text',
-)
 assert.match(
   markupContent,
-  /revealed \? answer : <span className="sr-only">此处挖空<\/span>/,
-  'the answer text must not mount before the question is revealed',
+  /className="quiz-answer-blank-text" aria-hidden=\{!revealed\}>[\s\S]*\{answer\}/,
+  'the same rendered answer glyphs must reserve the blank before and after reveal',
+)
+assert.doesNotMatch(
+  markupContent,
+  /Array\.from\(answer\)|quiz-blank-width/,
+  'blank width must not be estimated from code-point count',
+)
+assert.match(
+  styles,
+  /\.quiz-answer-blank-text[\s\S]*color: transparent[\s\S]*\.quiz-answer-blank\.is-revealed \.quiz-answer-blank-text[\s\S]*color: currentColor/,
+  'revealing an answer must only change paint, never layout geometry',
 )
 assert.match(markupContent, /parseQuizMarkup/, 'quiz prompts must use the shared AST safe mode')
 assert.match(quiz, /全选可用/, 'the baseline reset-to-all filter action must be available')

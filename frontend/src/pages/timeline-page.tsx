@@ -1,5 +1,6 @@
 import { BookOpenText, CalendarDays, MessageSquareQuote, PenLine, Users } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from 'recharts'
 
@@ -128,6 +129,169 @@ type AuthorPieDatum = {
   color: string
 }
 
+function authorPieMiddleAngles(data: AuthorPieDatum[]) {
+  const total = data.reduce((sum, item) => sum + item.value, 0)
+  let cursor = 0
+  return new Map(
+    data.map((item) => {
+      const span = total ? (item.value / total) * 360 : 0
+      const middle = cursor - span / 2
+      cursor -= span
+      return [item.id, middle]
+    }),
+  )
+}
+
+function choosePieTooltipPosition(chart: DOMRect, tooltip: DOMRect, middleAngle: number) {
+  const radians = (middleAngle * Math.PI) / 180
+  const horizontal = Math.cos(radians)
+  const vertical = Math.sin(radians)
+  const gap = 10
+  const edge = 8
+  const centerX = chart.left + chart.width / 2
+  const centerY = chart.top + chart.height / 2
+  const placements = {
+    right: { left: chart.right + gap, top: centerY - tooltip.height / 2 },
+    left: { left: chart.left - tooltip.width - gap, top: centerY - tooltip.height / 2 },
+    top: { left: centerX - tooltip.width / 2, top: chart.top - tooltip.height - gap },
+    bottom: { left: centerX - tooltip.width / 2, top: chart.bottom + gap },
+  }
+  const preferred =
+    Math.abs(horizontal) >= Math.abs(vertical)
+      ? horizontal >= 0
+        ? 'right'
+        : 'left'
+      : vertical >= 0
+        ? 'bottom'
+        : 'top'
+  const order = [preferred, 'right', 'left', 'top', 'bottom'] as const
+  const candidates = [...new Set(order)].map((side, rank) => {
+    const candidate = placements[side]
+    const right = candidate.left + tooltip.width
+    const bottom = candidate.top + tooltip.height
+    const overflow =
+      Math.max(0, edge - candidate.left) +
+      Math.max(0, right - (window.innerWidth - edge)) +
+      Math.max(0, edge - candidate.top) +
+      Math.max(0, bottom - (window.innerHeight - edge))
+    const overlapWidth = Math.max(
+      0,
+      Math.min(right, chart.right) - Math.max(candidate.left, chart.left),
+    )
+    const overlapHeight = Math.max(
+      0,
+      Math.min(bottom, chart.bottom) - Math.max(candidate.top, chart.top),
+    )
+    return { ...candidate, score: overflow * 100_000 + overlapWidth * overlapHeight + rank }
+  })
+  const selected = candidates.sort((left, right) => left.score - right.score)[0] || placements.right
+  return {
+    left: Math.min(
+      Math.max(edge, selected.left),
+      Math.max(edge, window.innerWidth - tooltip.width - edge),
+    ),
+    top: Math.min(
+      Math.max(edge, selected.top),
+      Math.max(edge, window.innerHeight - tooltip.height - edge),
+    ),
+  }
+}
+
+function AuthorPieTooltip({
+  chartRef,
+  datum,
+  total,
+  unit,
+  middleAngle,
+}: {
+  chartRef: RefObject<HTMLDivElement | null>
+  datum: AuthorPieDatum
+  total: number
+  unit: string
+  middleAngle: number
+}) {
+  const tooltipRef = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
+
+  useLayoutEffect(() => {
+    const update = () => {
+      if (!chartRef.current || !tooltipRef.current) return
+      setPosition(
+        choosePieTooltipPosition(
+          chartRef.current.getBoundingClientRect(),
+          tooltipRef.current.getBoundingClientRect(),
+          middleAngle,
+        ),
+      )
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    const observer = new ResizeObserver(update)
+    if (chartRef.current) observer.observe(chartRef.current)
+    if (tooltipRef.current) observer.observe(tooltipRef.current)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+      observer.disconnect()
+    }
+  }, [chartRef, middleAngle])
+
+  const percentage = total ? Math.round((datum.value / total) * 100) : 0
+  return createPortal(
+    <div
+      ref={tooltipRef}
+      className="pointer-events-none fixed z-50"
+      style={{
+        left: position?.left || 0,
+        top: position?.top || 0,
+        visibility: position ? 'visible' : 'hidden',
+      }}
+    >
+      <ChartTooltipContent
+        active
+        hideLabel
+        payload={[
+          {
+            name: 'value',
+            value: datum.value,
+            dataKey: 'value',
+            color: datum.color,
+            graphicalItemId: 'author-pie',
+            payload: datum,
+          },
+        ]}
+        className={chartTooltipClassName}
+        formatter={() => (
+          <div className="grid w-full gap-1.5">
+            <div className="flex min-w-0 items-center gap-2 font-medium">
+              <i
+                aria-hidden="true"
+                className="size-2.5 shrink-0 rounded-[2px]"
+                style={{ backgroundColor: datum.color }}
+              />
+              <span className="truncate">{datum.name}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">
+                {unit === '条' ? '记录条数' : '记录字数'}
+              </span>
+              <span className="font-mono font-medium tabular-nums">
+                {datum.value.toLocaleString()} {unit}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">占比</span>
+              <span className="font-mono font-medium tabular-nums">{percentage}%</span>
+            </div>
+          </div>
+        )}
+      />
+    </div>,
+    document.body,
+  )
+}
+
 function buildAuthorPie(records: RecordItem[], metric: Metric, knownPeople: Map<string, string>) {
   const sorted = [
     ...countBy(records, (record) => [record.author || 'unknown'], metric).entries(),
@@ -226,67 +390,30 @@ function AuthorDistributionChart({
   unit: string
 }) {
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [hoveredSectorId, setHoveredSectorId] = useState<string | null>(null)
+  const chartRef = useRef<HTMLDivElement>(null)
   const total = data.reduce((sum, item) => sum + item.value, 0)
+  const middleAngles = useMemo(() => authorPieMiddleAngles(data), [data])
+  const hoveredDatum = data.find((item) => item.id === hoveredSectorId) || null
 
   return (
-    <div className="grid min-w-0 gap-4 xl:grid-cols-[18rem_minmax(0,1fr)] xl:items-center">
-      <div className="relative mx-auto h-36 w-72 max-w-full">
-        <ChartContainer config={config} className="relative z-10 aspect-auto h-36 w-72 max-w-full">
-          <PieChart onMouseLeave={() => setActiveId(null)}>
-            <ChartTooltip
-              cursor={false}
-              isAnimationActive={false}
-              position={{ x: 128, y: 8 }}
-              content={
-                <ChartTooltipContent
-                  hideLabel
-                  className={chartTooltipClassName}
-                  formatter={(value, _name, item) => {
-                    const datum = item.payload as AuthorPieDatum
-                    const amount = Number(value) || 0
-                    const percentage = total ? Math.round((amount / total) * 100) : 0
-                    return (
-                      <div className="grid w-full gap-1.5">
-                        <div className="flex min-w-0 items-center gap-2 font-medium">
-                          <i
-                            aria-hidden="true"
-                            className="size-2.5 shrink-0 rounded-[2px]"
-                            style={{ backgroundColor: datum.color }}
-                          />
-                          <span className="truncate">{datum.name}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-muted-foreground">
-                            {unit === '条' ? '记录条数' : '记录字数'}
-                          </span>
-                          <span className="font-mono font-medium tabular-nums">
-                            {amount.toLocaleString()} {unit}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-muted-foreground">占比</span>
-                          <span className="font-mono font-medium tabular-nums">{percentage}%</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3 border-t pt-1.5">
-                          <span className="text-muted-foreground">合计</span>
-                          <span className="font-mono font-medium tabular-nums">
-                            {total.toLocaleString()} {unit}
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  }}
-                />
-              }
-            />
+    <div className="grid min-w-0 grid-cols-[7rem_minmax(0,1fr)] items-center gap-2.5 sm:grid-cols-[9.25rem_minmax(0,1fr)] sm:gap-[1.125rem]">
+      <div ref={chartRef} className="relative mx-auto size-[6.75rem] sm:size-[8.75rem]">
+        <ChartContainer config={config} className="relative z-10 aspect-square size-full">
+          <PieChart
+            onMouseLeave={() => {
+              setActiveId(null)
+              setHoveredSectorId(null)
+            }}
+          >
             <Pie
               data={data}
               dataKey="value"
               nameKey="name"
-              innerRadius={40}
-              outerRadius={66}
-              cx={72}
-              cy={72}
+              innerRadius="59%"
+              outerRadius="95%"
+              cx="50%"
+              cy="50%"
               paddingAngle={2}
               strokeWidth={2}
               isAnimationActive
@@ -306,21 +433,41 @@ function AuthorDistributionChart({
                     role="img"
                     aria-label={`${item.name}：${item.value.toLocaleString()} ${unit}`}
                     className="cursor-pointer outline-none transition-[opacity,stroke-width] duration-150 focus-visible:opacity-100"
-                    onPointerEnter={() => setActiveId(item.id)}
-                    onPointerLeave={() => setActiveId(null)}
-                    onFocus={() => setActiveId(item.id)}
-                    onBlur={() => setActiveId(null)}
+                    onPointerEnter={() => {
+                      setActiveId(item.id)
+                      setHoveredSectorId(item.id)
+                    }}
+                    onPointerLeave={() => {
+                      setActiveId(null)
+                      setHoveredSectorId(null)
+                    }}
+                    onFocus={() => {
+                      setActiveId(item.id)
+                      setHoveredSectorId(item.id)
+                    }}
+                    onBlur={() => {
+                      setActiveId(null)
+                      setHoveredSectorId(null)
+                    }}
                   />
                 )
               })}
             </Pie>
           </PieChart>
+          {hoveredDatum && (
+            <AuthorPieTooltip
+              chartRef={chartRef}
+              datum={hoveredDatum}
+              total={total}
+              unit={unit}
+              middleAngle={middleAngles.get(hoveredDatum.id) || 0}
+            />
+          )}
         </ChartContainer>
-        <div className="pointer-events-none absolute inset-y-0 left-0 z-0 grid w-36 place-items-center text-center">
-          <div>
-            <strong className="font-heading text-xl">{total.toLocaleString()}</strong>
-            <p className="text-[0.8125rem] text-muted-foreground">合计 {unit}</p>
-          </div>
+        <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center text-center">
+          <strong className="font-heading text-xl leading-none tabular-nums">
+            {total.toLocaleString()}
+          </strong>
         </div>
       </div>
       <ul className="grid min-w-0 list-none gap-1" aria-label="记录人占比图例">

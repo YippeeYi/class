@@ -209,9 +209,14 @@
   }
 
   .record-markup {
+    contain: inline-size;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     color: var(--foreground);
     font-size: var(--text-reading);
     line-height: var(--text-reading--line-height);
+    overflow-x: hidden;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
   }
@@ -276,9 +281,12 @@
     text-align: right;
   }
   .record-annotation {
-    border-bottom: 1px dotted currentColor;
     background: transparent;
     cursor: help;
+    transition:
+      color 150ms ease,
+      background-color 150ms ease,
+      text-decoration-color 150ms ease;
   }
   .record-annotation:hover,
   .record-annotation:focus-visible {
@@ -294,30 +302,82 @@
   }
   .record-stack {
     display: inline-grid;
-    grid-template-rows: auto auto;
+    grid-template-rows: auto 0.38em auto;
+    align-items: center;
+    justify-items: stretch;
+    width: max-content;
+    min-width: 0;
     vertical-align: middle;
-    margin-inline: 0.2rem;
+    margin-inline: 0.18em;
     text-align: center;
-    font-size: 0.78em;
-    line-height: 1.2;
+    line-height: 1;
   }
-  .record-stack > :first-child {
-    border-bottom: 1px solid currentColor;
+  .record-stack--frac {
+    grid-template-rows: auto 0.28em auto;
+    margin-inline: 0.14em;
+  }
+  .record-stack-text {
+    display: block;
+    min-width: 0;
+    padding-inline: 0;
+    font-size: 0.82em;
+    line-height: 1.05;
+    white-space: nowrap;
+  }
+  .record-stack-line {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 2px;
+    align-self: center;
+  }
+  .record-stack-line::before {
+    position: absolute;
+    inset: 0 -0.18em;
+    border-radius: 999px;
+    background: currentColor;
+    content: "";
+  }
+  .record-stack--frac .record-stack-line::before {
+    opacity: 0.86;
+  }
+  .record-stack--arrow .record-stack-line::after {
+    position: absolute;
+    top: 50%;
+    right: -0.2em;
+    width: 0.42em;
+    height: 0.42em;
+    border-top: 2px solid currentColor;
+    border-right: 2px solid currentColor;
+    content: "";
+    transform: translateY(-50%) rotate(45deg);
   }
   .record-table-scroll {
     display: block;
+    width: 100%;
+    min-width: 0;
     max-width: 100%;
-    overflow-x: auto;
-    margin-block: 1rem;
+    overflow-x: hidden;
+    margin-block: 0.7em;
   }
   .record-table-scroll table {
-    width: max-content;
-    min-width: min(100%, 32rem);
+    width: min(100%, var(--record-table-preferred-width, 100%));
+    min-width: var(--record-table-min-width, 0);
+    table-layout: fixed;
     border-collapse: collapse;
+    color: inherit;
+    font: inherit;
+    font-size: 1em;
+    line-height: 1.55;
   }
   .record-table-scroll td {
     border: 1px solid var(--border);
-    padding: 0.55rem 0.75rem;
+    padding: 0.34em 0.62em;
+    vertical-align: top;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    hyphens: auto;
   }
 
   .material-reading .record-markup {
@@ -409,20 +469,36 @@
     font-weight: 700;
   }
   .quiz-answer-blank {
-    display: inline-block;
-    min-width: var(--quiz-blank-width, 2em);
+    display: inline;
     padding-inline: 0.08em;
-    border-bottom: 0.11em solid currentColor;
     color: var(--quiz-type-ink);
+    text-decoration-line: underline;
+    text-decoration-color: currentColor;
+    text-decoration-thickness: 0.11em;
+    text-underline-offset: 0.13em;
+    text-decoration-skip-ink: none;
     line-height: inherit;
     vertical-align: baseline;
+    user-select: none;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
     transition:
       color 220ms ease,
       background-color 220ms ease;
   }
+  .quiz-answer-blank-text {
+    color: transparent;
+    font: inherit;
+    letter-spacing: inherit;
+    white-space: inherit;
+  }
   .quiz-answer-blank.is-revealed {
     border-radius: 0.2rem 0.2rem 0 0;
     background: color-mix(in oklch, var(--quiz-type-accent) 10%, transparent);
+    user-select: text;
+  }
+  .quiz-answer-blank.is-revealed .quiz-answer-blank-text {
+    color: currentColor;
   }
   .quiz-safe-markup {
     color: inherit;
@@ -431,14 +507,13 @@
     line-height: inherit;
   }
   .quiz-markup-table {
-    overflow-x: visible;
+    overflow-x: hidden;
   }
   .quiz-markup-table table {
-    width: 100%;
-    min-width: 0;
     table-layout: fixed;
   }
   .quiz-markup-table td {
+    word-break: break-word;
     overflow-wrap: anywhere;
   }
   .quiz-judge-correction {

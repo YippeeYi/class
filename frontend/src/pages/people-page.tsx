@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { PageHeading } from '@/components/archive/page-heading'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -133,34 +134,54 @@ function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; 
               </TableRow>
             </TableHeader>
             <TableBody>
-              {list.map((person, index) => (
-                <TableRow key={person.id}>
-                  <TableCell className="pl-5 text-muted-foreground">{index + 1}</TableCell>
-                  <TableCell className="font-medium">
-                    <Link
-                      className="text-primary underline-offset-4 hover:underline"
-                      to={`/person?id=${encodeURIComponent(person.id)}`}
-                    >
-                      {stripMarkup(person.name || person.id)}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {stripMarkup(person.alias || person.aliases.join('、')) || '—'}
-                  </TableCell>
-                  <TableCell>{stats.participation.get(person.id) || 0}</TableCell>
-                  {role === 'student' && (
-                    <>
-                      <TableCell>{stats.authored.get(person.id) || 0}</TableCell>
-                      <TableCell>
-                        {(stats.characters.get(person.id) || 0).toLocaleString()}
-                      </TableCell>
-                    </>
-                  )}
-                  {role === 'teacher' && (
-                    <TableCell>{stripMarkup(person.subject) || '—'}</TableCell>
-                  )}
-                </TableRow>
-              ))}
+              {list.map((person, index) => {
+                const isMainTeacher = role === 'teacher' && person.main
+                return (
+                  <TableRow
+                    key={person.id}
+                    className={
+                      isMainTeacher
+                        ? 'bg-primary/[0.045] hover:bg-primary/[0.085] dark:bg-primary/[0.075] dark:hover:bg-primary/[0.12] [&>td:first-child]:border-l-2 [&>td:first-child]:border-l-primary/55'
+                        : undefined
+                    }
+                  >
+                    <TableCell className="pl-5 text-muted-foreground">{index + 1}</TableCell>
+                    <TableCell className="font-medium">
+                      <span className="flex items-center gap-2">
+                        <Link
+                          className="text-primary underline-offset-4 hover:underline"
+                          to={`/person?id=${encodeURIComponent(person.id)}`}
+                        >
+                          {stripMarkup(person.name || person.id)}
+                        </Link>
+                        {isMainTeacher && (
+                          <Badge
+                            variant="outline"
+                            className="border-primary/25 bg-primary/8 text-primary"
+                          >
+                            主要
+                          </Badge>
+                        )}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {stripMarkup(person.alias || person.aliases.join('、')) || '—'}
+                    </TableCell>
+                    <TableCell>{stats.participation.get(person.id) || 0}</TableCell>
+                    {role === 'student' && (
+                      <>
+                        <TableCell>{stats.authored.get(person.id) || 0}</TableCell>
+                        <TableCell>
+                          {(stats.characters.get(person.id) || 0).toLocaleString()}
+                        </TableCell>
+                      </>
+                    )}
+                    {role === 'teacher' && (
+                      <TableCell>{stripMarkup(person.subject) || '—'}</TableCell>
+                    )}
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </div>
