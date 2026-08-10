@@ -149,7 +149,9 @@ assert.match(timeline, /recordDateCache/, 'timeline date parsing must be cached 
 assert.match(timeline, /recordCharacterCache/, 'timeline character totals must be cached per immutable record')
 assert.match(timeline, /aria-label="年度统计与年份选择"/, 'the baseline year pie and year controls must share one period layout')
 assert.match(timeline, /aria-label="月度统计与月份选择"/, 'the baseline month pie and month controls must share one period layout')
-assert.match(timeline, /grid-cols-4 gap-2 sm:grid-cols-7/, 'the daily calendar must restore the baseline seven-column desktop rhythm')
+assert.match(timeline, /grid-cols-4 gap-1\.5 sm:grid-cols-7 lg:grid-cols-10 2xl:grid-cols-14/, 'the daily calendar must provide a denser responsive layout')
+assert.match(timeline, /min-h-14 min-w-0 flex-col gap-0\.5/, 'daily cells must keep a compact readable height')
+assert.match(timeline, /nativeButton=\{!item\.records\.length\}/, 'daily record links must preserve native link semantics')
 assert.doesNotMatch(timeline, /style=\{\{ minWidth:/, 'timeline charts must not force a horizontal scrollbar')
 assert.doesNotMatch(timeline, /overflow-x-auto/, 'timeline controls and charts must fit or reflow instead of scrolling sideways')
 assert.doesNotMatch(timeline, /key=\{`\$\{metric\}-\$\{year\}-\$\{month\}`\}/, 'timeline selection must not remount every chart')
@@ -157,10 +159,20 @@ const authorChartSource = timeline.slice(
   timeline.indexOf('function AuthorDistributionChart'),
   timeline.indexOf('function TimelineBarChart'),
 )
-assert.doesNotMatch(authorChartSource, /ChartTooltip/, 'author pies must use the baseline stable legend instead of a first-hover floating box')
+assert.match(authorChartSource, /ChartTooltip/, 'author pies must expose the same tooltip component as bar charts')
+assert.match(authorChartSource, /记录条数[\s\S]*记录字数[\s\S]*占比[\s\S]*合计/, 'author pie tooltips must expose all category statistics')
+assert.match(authorChartSource, /position=\{\{ x: 128, y: 8 \}\}/, 'author pie tooltips must use the reserved information area instead of covering the chart')
 assert.doesNotMatch(authorChartSource, /max-h-|overflow-y-auto/, 'normal author legends must expand instead of creating an internal scrollbar')
 assert.match(timeline, /isAnimationActive=\{false\}/, 'bar tooltips and bars must avoid first-measure position animation')
 assert.match(shell, /wideContentPaths = new Set\(\['\/timeline'\]\)/, 'the statistics workspace needs the wide desktop content lane')
+for (const [name, source] of [
+  ['shell', shell],
+  ['home', home],
+  ['map', mealMap],
+  ['statistics', timeline],
+]) {
+  assert.doesNotMatch(source, /蹭饭图|觅食地图|档案时间线|时间线/, `${name} still exposes a retired page name`)
+}
 assert.match(home, /不要外传/, 'the privacy reminder must remain visible on the guide page')
 assert.doesNotMatch(records, /不要外传|请勿外传/, 'the privacy reminder must not repeat on the records page')
 assert.doesNotMatch(mealMap, /不要外传|请勿外传/, 'the privacy reminder must not repeat on the map page')

@@ -233,6 +233,7 @@ export function MarkupContent({
             key={key}
             variant="link"
             size="xs"
+            nativeButton={false}
             render={<Link to={target} />}
             className={`markup-link inline h-auto min-h-0 whitespace-normal rounded-none border-0 px-0 py-0 align-baseline text-[1em] leading-[inherit] font-[inherit] select-text focus-visible:border-transparent focus-visible:ring-0 ${node.kind}-link`}
             onClick={(event) => {

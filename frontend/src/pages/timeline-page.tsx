@@ -30,6 +30,8 @@ import type { RecordItem } from '@/types/domain'
 
 type Metric = 'count' | 'characters'
 const chartConfig = { value: { label: '数量', color: 'var(--chart-1)' } } satisfies ChartConfig
+const chartTooltipClassName =
+  'w-40 min-w-40 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-100'
 const pieColors = [
   'var(--chart-1)',
   'var(--chart-2)',
@@ -185,7 +187,7 @@ function MiniAuthorPie({
   const total = entries.reduce((sum, [, value]) => sum + value, 0)
   let offset = 0
   return (
-    <svg viewBox="0 0 40 40" className="size-8 shrink-0" aria-hidden="true">
+    <svg viewBox="0 0 40 40" className="size-6 shrink-0" aria-hidden="true">
       <circle cx="20" cy="20" r="10" fill="var(--muted)" />
       {entries.map(([id, value]) => {
         const length = total ? (value / total) * 100 : 0
@@ -227,16 +229,64 @@ function AuthorDistributionChart({
   const total = data.reduce((sum, item) => sum + item.value, 0)
 
   return (
-    <div className="grid min-w-0 gap-4 sm:grid-cols-[9rem_minmax(0,1fr)] sm:items-center">
-      <div className="relative mx-auto size-36">
-        <ChartContainer config={config} className="aspect-auto size-36">
+    <div className="grid min-w-0 gap-4 xl:grid-cols-[18rem_minmax(0,1fr)] xl:items-center">
+      <div className="relative mx-auto h-36 w-72 max-w-full">
+        <ChartContainer config={config} className="relative z-10 aspect-auto h-36 w-72 max-w-full">
           <PieChart onMouseLeave={() => setActiveId(null)}>
+            <ChartTooltip
+              cursor={false}
+              isAnimationActive={false}
+              position={{ x: 128, y: 8 }}
+              content={
+                <ChartTooltipContent
+                  hideLabel
+                  className={chartTooltipClassName}
+                  formatter={(value, _name, item) => {
+                    const datum = item.payload as AuthorPieDatum
+                    const amount = Number(value) || 0
+                    const percentage = total ? Math.round((amount / total) * 100) : 0
+                    return (
+                      <div className="grid w-full gap-1.5">
+                        <div className="flex min-w-0 items-center gap-2 font-medium">
+                          <i
+                            aria-hidden="true"
+                            className="size-2.5 shrink-0 rounded-[2px]"
+                            style={{ backgroundColor: datum.color }}
+                          />
+                          <span className="truncate">{datum.name}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-muted-foreground">
+                            {unit === '条' ? '记录条数' : '记录字数'}
+                          </span>
+                          <span className="font-mono font-medium tabular-nums">
+                            {amount.toLocaleString()} {unit}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-muted-foreground">占比</span>
+                          <span className="font-mono font-medium tabular-nums">{percentage}%</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 border-t pt-1.5">
+                          <span className="text-muted-foreground">合计</span>
+                          <span className="font-mono font-medium tabular-nums">
+                            {total.toLocaleString()} {unit}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  }}
+                />
+              }
+            />
             <Pie
               data={data}
               dataKey="value"
               nameKey="name"
               innerRadius={40}
               outerRadius={66}
+              cx={72}
+              cy={72}
               paddingAngle={2}
               strokeWidth={2}
               isAnimationActive
@@ -266,7 +316,7 @@ function AuthorDistributionChart({
             </Pie>
           </PieChart>
         </ChartContainer>
-        <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-0 grid w-36 place-items-center text-center">
           <div>
             <strong className="font-heading text-xl">{total.toLocaleString()}</strong>
             <p className="text-[0.8125rem] text-muted-foreground">合计 {unit}</p>
@@ -342,9 +392,7 @@ function TimelineBarChart({
         <ChartTooltip
           cursor={{ fill: 'var(--muted)', fillOpacity: 0.42 }}
           isAnimationActive={false}
-          content={
-            <ChartTooltipContent className="w-40 min-w-40 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-100" />
-          }
+          content={<ChartTooltipContent className={chartTooltipClassName} />}
         />
         <Bar
           dataKey="value"
@@ -394,7 +442,7 @@ export function TimelinePage() {
   const [month, setMonth] = useState(() => params.get('month') || '')
 
   useEffect(() => {
-    document.title = '档案时间线 · 编日史'
+    document.title = '统计 · 编日史'
   }, [])
   useEffect(() => {
     const nextYear = params.get('year') || ''
@@ -579,7 +627,7 @@ export function TimelinePage() {
   return (
     <div>
       <PageHeading
-        title="档案时间线"
+        title="统计"
         description="从全局、年度、月度和每日四个层级查看记录密度、作者与关联人物。"
         actions={
           <Tabs value={metric} onValueChange={(value) => setMetric(value as Metric)}>
@@ -591,7 +639,7 @@ export function TimelinePage() {
         }
       />
       {resource.loading && <PageSkeleton rows={5} />}
-      {resource.error && <ErrorState title="时间线加载失败" onRetry={resource.retry} />}
+      {resource.error && <ErrorState title="统计加载失败" onRetry={resource.retry} />}
       {navigationError && (
         <Alert variant="destructive" className="mb-5" role="alert">
           <AlertTitle>无法打开名言来源</AlertTitle>
@@ -687,6 +735,7 @@ export function TimelinePage() {
                       className="shrink-0"
                       size="sm"
                       variant="outline"
+                      nativeButton={false}
                       render={<Link to={`/records?year=${encodeURIComponent(year)}`} />}
                     >
                       查看本年记录
@@ -748,6 +797,7 @@ export function TimelinePage() {
                       className="shrink-0"
                       size="sm"
                       variant="outline"
+                      nativeButton={false}
                       render={<Link to={`/records?year=${year}&month=${month}`} />}
                     >
                       查看本月记录
@@ -821,40 +871,45 @@ export function TimelinePage() {
                   <CardTitle>每日记录分布</CardTitle>
                 </CardHeader>
                 <CardContent className="min-w-0 p-4">
-                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+                  <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7 lg:grid-cols-10 2xl:grid-cols-14">
                     {daily.map((item) => (
                       <Button
                         key={item.day}
                         size="sm"
                         variant={item.important > 0 ? 'secondary' : 'outline'}
                         disabled={!item.records.length}
-                        className="h-auto min-h-[4.5rem] min-w-0 flex-col gap-1 px-1 py-1.5"
+                        nativeButton={!item.records.length}
+                        className="h-auto min-h-14 min-w-0 flex-col gap-0.5 px-1 py-1"
+                        aria-label={`${year} 年 ${month} 月 ${item.day} 日：${item.value.toLocaleString()} ${unit}${item.important > 0 ? `，重要 ${item.important.toLocaleString()} ${unit}` : ''}`}
                         render={
                           item.records.length ? (
                             <Link to={`/records?year=${year}&month=${month}&day=${item.day}`} />
                           ) : undefined
                         }
                       >
-                        <span className="text-[0.8125rem]">{item.day} 日</span>
-                        {item.records.length ? (
-                          <MiniAuthorPie
-                            entries={item.authors}
-                            colors={dailyAuthorColors}
-                            activeId={activeDailyAuthor}
-                          />
-                        ) : (
-                          <span
-                            className="size-8 rounded-full border border-dashed"
-                            aria-hidden="true"
-                          />
-                        )}
-                        <strong className="tabular-nums">
-                          {item.value.toLocaleString()} {unit}
-                        </strong>
-                        <span className="min-h-4 text-xs opacity-70">
-                          {item.important > 0
-                            ? `重要 ${item.important.toLocaleString()} ${unit}`
-                            : ''}
+                        <span className="text-[0.8125rem] leading-none">{item.day} 日</span>
+                        <span className="flex min-w-0 items-center gap-1">
+                          {item.records.length ? (
+                            <MiniAuthorPie
+                              entries={item.authors}
+                              colors={dailyAuthorColors}
+                              activeId={activeDailyAuthor}
+                            />
+                          ) : (
+                            <span
+                              className="size-6 shrink-0 rounded-full border border-dashed"
+                              aria-hidden="true"
+                            />
+                          )}
+                          <span className="grid min-w-0 text-left leading-tight">
+                            <strong className="truncate text-[0.8125rem] tabular-nums">
+                              {item.value.toLocaleString()}
+                              {unit}
+                            </strong>
+                            <span className="h-4 truncate text-xs opacity-70">
+                              {item.important > 0 ? `重要${item.important.toLocaleString()}` : ''}
+                            </span>
+                          </span>
                         </span>
                       </Button>
                     ))}
@@ -945,6 +1000,7 @@ export function TimelinePage() {
                               key={id}
                               variant="outline"
                               size="sm"
+                              nativeButton={false}
                               render={<Link to={group.href?.(id) || '/'} />}
                             >
                               {content}

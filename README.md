@@ -48,7 +48,7 @@ private-assets/        # 本地私密源文件（Git 忽略）
 | 人物 | `/people`, `/person?id=...` | 人物列表和详情 |
 | 名言 | `/quotes` | 名言列表，点击后定位到对应记录 |
 | 搜索 | `/search` | 记录、人物、名言搜索 |
-| 时间线 | `/timeline` | 档案统计视图 |
+| 统计 | `/timeline` | 档案统计视图 |
 | 答题 | `/quiz` | 本地判题，不上传答题结果 |
 | 资料、地图、背景、致谢 | `/materials`, `/map`, `/backgrounds`, `/credits` | 其他档案功能 |
 

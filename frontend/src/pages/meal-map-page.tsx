@@ -24,7 +24,7 @@ export function MealMapPage() {
   const loading = asset.loading && !src
   const failed = Boolean(imageFailure.failed || (!asset.loading && asset.error && !src))
   useEffect(() => {
-    document.title = '蹭饭图 · 编日史'
+    document.title = '地图 · 编日史'
   }, [])
   useEffect(() => {
     if (resource.data) rememberImageDimensions(MAP_PATH, resource.data)
@@ -33,7 +33,7 @@ export function MealMapPage() {
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <PageHeading
         eyebrow={null}
-        title="蹭饭图"
+        title="地图"
         description="点击图片可缩放、拖动并查看原始细节。图片始终在当前视口内完整显示。"
         className="shrink-0"
         compact
@@ -49,20 +49,20 @@ export function MealMapPage() {
           <ImageViewer
             path={MAP_PATH}
             initialUrl={src}
-            alt="蹭饭图"
+            alt="地图"
             trigger={
               <Button
                 type="button"
                 variant="ghost"
                 className="group relative size-full min-h-0 overflow-hidden rounded-none p-0"
-                aria-label="查看蹭饭图大图"
+                aria-label="查看地图大图"
               >
                 <img
                   key={src}
                   src={src}
                   width={dimensions.width}
                   height={dimensions.height}
-                  alt="蹭饭图"
+                  alt="地图"
                   onLoad={(event) => {
                     imageFailure.markLoaded()
                     rememberImageDimensions(MAP_PATH, {
@@ -85,13 +85,13 @@ export function MealMapPage() {
             {(loading || imageFailure.retrying) && !failed && (
               <div className="flex items-center gap-3 text-sm text-muted-foreground" role="status">
                 <Spinner className="size-6" />
-                正在获取蹭饭图的短时访问地址…
+                正在获取地图的短时访问地址…
               </div>
             )}
             {failed && (
               <div className="grid max-w-sm gap-3 px-6 text-center">
                 <p className="text-sm leading-6 text-muted-foreground">
-                  蹭饭图加载失败。访问地址可能已过期，请检查网络后重试。
+                  地图加载失败。访问地址可能已过期，请检查网络后重试。
                 </p>
                 <Button
                   variant="outline"

@@ -2,7 +2,7 @@ import {
   ArrowRight,
   BookOpenText,
   BrainCircuit,
-  Clock3,
+  ChartNoAxesCombined,
   FileText,
   Image,
   Map as MapIcon,
@@ -41,11 +41,16 @@ const tips = [
 ]
 
 const secondary = [
-  { to: '/timeline', label: '时间线', description: '按年月回看档案密度', icon: Clock3 },
+  {
+    to: '/timeline',
+    label: '统计',
+    description: '按年月查看档案数据',
+    icon: ChartNoAxesCombined,
+  },
   { to: '/search', label: '全站搜索', description: '搜索记录、人物与名言', icon: Search },
   { to: '/quiz', label: '档案答题', description: '从共同记忆里抽一道题', icon: BrainCircuit },
   { to: '/materials', label: '资料', description: '阅读补充资料与专题', icon: FileText },
-  { to: '/map', label: '蹭饭图', description: '班级成员内部地图', icon: MapIcon },
+  { to: '/map', label: '地图', description: '查看班级成员内部地图', icon: MapIcon },
   { to: '/backgrounds', label: '背景', description: '选择全站视觉背景', icon: Image },
 ]
 
