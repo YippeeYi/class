@@ -15,6 +15,17 @@ assert.equal(markup.stripMarkup('[[under:甲]][[del:乙]]'), '甲乙')
 assert.equal(markup.countTextCharacters('甲 A-1'), 3)
 assert.equal(markup.recordAnchor({ fileName: 'folder/2025 01.json' }), 'record-folder-2025-01')
 assert.equal(markup.parseMarkup('[[table:1x2|甲|乙]]')[0].type, 'table')
+const normalizedMinimumTable = markup.parseMarkup('[[table:0x0|保留内容]]')[0]
+assert.equal(normalizedMinimumTable.type, 'table')
+assert.equal(normalizedMinimumTable.rows.length, 1)
+assert.equal(normalizedMinimumTable.rows[0].length, 1)
+const extremeTable = markup.parseMarkup(
+  '[[table:2x6|超长中文内容需要在窄屏内自然换行并保持完整|SUPERCALIFRAGILISTICEXPIALIDOCIOUSWITHOUTBREAKS|1234567890123456789012345678901234567890|https://example.invalid/a/very/long/path?with=query|[[red:混合]][[frac:长分子文本|denominator-without-breaks]]|短|甲|B|3|[[under:嵌套标记]]|普通内容|末列]]',
+)[0]
+assert.equal(extremeTable.type, 'table')
+assert.equal(extremeTable.rows.length, 2)
+assert.equal(extremeTable.rows[0].length, 6)
+assert.equal(extremeTable.rows[0][4][0].type, 'style')
 assert.equal(markup.parseMarkup('[[frac:分子|分母]]')[0].kind, 'frac')
 assert.equal(markup.parseMarkup('[[arrow:上方|下方]]')[0].kind, 'arrow')
 const quizTree = markup.parseQuizMarkup(
@@ -43,6 +54,7 @@ assert.match(markupContent, /<TableBody>/, 'markup tables must use the shadcn Ta
 assert.doesNotMatch(markupContent, /<table>/, 'markup rendering must not maintain a parallel native table')
 assert.match(markupContent, /record-stack--\$\{node\.kind\}/, 'arrow and fraction rendering must not share an indistinguishable class')
 assert.match(markupContent, /record-stack-line/, 'arrow and fraction rendering must include a dedicated measured rule')
+assert.doesNotMatch(markupContent, /record-table-min-width/, 'markup tables must never request a width larger than their content lane')
 assert.deepEqual(markup.parseMarkup('<script>alert(1)</script>'), [{ type: 'text', value: '<script>alert(1)</script>' }])
 const nestedDelete = markup.parseMarkup('[[del:前 [[person:p01|同学乙]] 后]]')
 assert.equal(nestedDelete[0].type, 'style')

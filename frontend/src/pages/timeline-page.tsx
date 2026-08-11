@@ -332,6 +332,17 @@ const dailyAuthorPalette = [
   '#b946a8',
 ]
 
+const compactStatisticFormatter = new Intl.NumberFormat('zh-CN', {
+  notation: 'compact',
+  maximumFractionDigits: 0,
+})
+
+function compactStatistic(value: number) {
+  return Math.abs(value) >= 10_000
+    ? compactStatisticFormatter.format(value)
+    : value.toLocaleString('zh-CN')
+}
+
 function dailyAuthorColor(index: number) {
   if (dailyAuthorPalette[index]) return dailyAuthorPalette[index]
   const generated = index - dailyAuthorPalette.length
@@ -351,7 +362,7 @@ function MiniAuthorPie({
   const total = entries.reduce((sum, [, value]) => sum + value, 0)
   let offset = 0
   return (
-    <svg viewBox="0 0 40 40" className="size-6 shrink-0" aria-hidden="true">
+    <svg viewBox="0 0 40 40" className="size-[1.125rem] shrink-0" aria-hidden="true">
       <circle cx="20" cy="20" r="10" fill="var(--muted)" />
       {entries.map(([id, value]) => {
         const length = total ? (value / total) * 100 : 0
@@ -377,6 +388,79 @@ function MiniAuthorPie({
       })}
       <circle cx="20" cy="20" r="19" fill="none" stroke="var(--border)" strokeWidth="1" />
     </svg>
+  )
+}
+
+type DailyDistributionItem = {
+  day: string
+  records: RecordItem[]
+  value: number
+  important: number
+  authors: [string, number][]
+}
+
+export function DailyDistributionCell({
+  item,
+  year,
+  month,
+  unit,
+  colors,
+  activeAuthor,
+}: {
+  item: DailyDistributionItem
+  year: string
+  month: string
+  unit: string
+  colors: Map<string, string>
+  activeAuthor: string | null
+}) {
+  return (
+    <Button
+      size="sm"
+      variant={item.important > 0 ? 'secondary' : 'outline'}
+      disabled={!item.records.length}
+      nativeButton={!item.records.length}
+      data-records={item.records.length > 0 ? 'present' : 'empty'}
+      data-important={item.important > 0 ? 'true' : 'false'}
+      className="daily-distribution-cell grid aspect-square h-auto min-h-0 min-w-0 grid-rows-[auto_1fr_auto] items-stretch gap-0.5 whitespace-normal p-1 text-left"
+      aria-label={`${year} 年 ${month} 月 ${item.day} 日：${item.value.toLocaleString()} ${unit}${item.important > 0 ? `，重要 ${item.important.toLocaleString()} ${unit}` : ''}`}
+      render={
+        item.records.length ? (
+          <Link to={`/records?year=${year}&month=${month}&day=${item.day}`} />
+        ) : undefined
+      }
+    >
+      <span className="flex h-[1.125rem] w-full min-w-0 items-start justify-between gap-1 leading-none">
+        <span className="daily-distribution-date text-[0.75rem] leading-none font-semibold tabular-nums text-muted-foreground">
+          {Number(item.day)} 日
+        </span>
+        {item.records.length ? (
+          <MiniAuthorPie entries={item.authors} colors={colors} activeId={activeAuthor} />
+        ) : (
+          <span
+            className="size-[1.125rem] shrink-0 rounded-full border border-dashed"
+            aria-hidden="true"
+          />
+        )}
+      </span>
+      <span className="flex w-full min-w-0 items-baseline justify-center gap-0.5 self-center">
+        <strong
+          className="daily-distribution-value min-w-0 whitespace-nowrap text-[1.125rem] leading-none font-bold tracking-tight tabular-nums"
+          title={`${item.value.toLocaleString()} ${unit}`}
+        >
+          {compactStatistic(item.value)}
+        </strong>
+        <span className="shrink-0 text-[0.6875rem] leading-none font-medium text-muted-foreground">
+          {unit}
+        </span>
+      </span>
+      <span
+        className={`daily-distribution-important flex min-h-3 w-full items-center justify-center whitespace-nowrap text-[0.6875rem] leading-none font-medium tabular-nums ${item.important > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/75'}`}
+        title={`重要 ${item.important.toLocaleString()} ${unit}`}
+      >
+        重要 {compactStatistic(item.important)}
+      </span>
+    </Button>
   )
 }
 
@@ -1020,45 +1104,15 @@ export function TimelinePage() {
                 <CardContent className="min-w-0 p-4">
                   <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7 lg:grid-cols-10 2xl:grid-cols-14">
                     {daily.map((item) => (
-                      <Button
+                      <DailyDistributionCell
                         key={item.day}
-                        size="sm"
-                        variant={item.important > 0 ? 'secondary' : 'outline'}
-                        disabled={!item.records.length}
-                        nativeButton={!item.records.length}
-                        className="h-auto min-h-14 min-w-0 flex-col gap-0.5 px-1 py-1"
-                        aria-label={`${year} 年 ${month} 月 ${item.day} 日：${item.value.toLocaleString()} ${unit}${item.important > 0 ? `，重要 ${item.important.toLocaleString()} ${unit}` : ''}`}
-                        render={
-                          item.records.length ? (
-                            <Link to={`/records?year=${year}&month=${month}&day=${item.day}`} />
-                          ) : undefined
-                        }
-                      >
-                        <span className="text-[0.8125rem] leading-none">{item.day} 日</span>
-                        <span className="flex min-w-0 items-center gap-1">
-                          {item.records.length ? (
-                            <MiniAuthorPie
-                              entries={item.authors}
-                              colors={dailyAuthorColors}
-                              activeId={activeDailyAuthor}
-                            />
-                          ) : (
-                            <span
-                              className="size-6 shrink-0 rounded-full border border-dashed"
-                              aria-hidden="true"
-                            />
-                          )}
-                          <span className="grid min-w-0 text-left leading-tight">
-                            <strong className="truncate text-[0.8125rem] tabular-nums">
-                              {item.value.toLocaleString()}
-                              {unit}
-                            </strong>
-                            <span className="h-4 truncate text-xs opacity-70">
-                              {item.important > 0 ? `重要${item.important.toLocaleString()}` : ''}
-                            </span>
-                          </span>
-                        </span>
-                      </Button>
+                        item={item}
+                        year={year}
+                        month={month}
+                        unit={unit}
+                        colors={dailyAuthorColors}
+                        activeAuthor={activeDailyAuthor}
+                      />
                     ))}
                   </div>
                   {dailyAuthorLegend.length > 0 && (

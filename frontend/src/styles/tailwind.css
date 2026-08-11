@@ -216,7 +216,7 @@
     color: var(--foreground);
     font-size: var(--text-reading);
     line-height: var(--text-reading--line-height);
-    overflow-x: hidden;
+    overflow: visible;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
   }
@@ -293,28 +293,48 @@
     background: color-mix(in oklch, var(--primary) 8%, transparent);
   }
   .record-markup.annotation-content {
+    contain: none;
+    display: block;
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
     color: inherit;
     font-size: 0.875rem;
     line-height: 1.6;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    word-break: normal;
+  }
+  .record-annotation-popup {
+    box-sizing: border-box;
+    min-width: 0;
+    overflow: visible;
+    text-wrap: pretty;
   }
   .annotation-content .markup-link {
     color: inherit;
   }
   .record-stack {
     display: inline-grid;
-    grid-template-rows: auto 0.38em auto;
+    grid-template-columns: max-content;
+    grid-template-rows: max-content 0.42em max-content;
     align-items: center;
     justify-items: stretch;
     width: max-content;
     min-width: 0;
     vertical-align: middle;
-    margin-inline: 0.18em;
+    margin-inline: 0.28em;
+    padding-block: 0.03em;
     text-align: center;
     line-height: 1;
   }
   .record-stack--frac {
-    grid-template-rows: auto 0.28em auto;
-    margin-inline: 0.14em;
+    grid-template-rows: max-content 0.32em max-content;
+    margin-inline: 0.22em;
+  }
+  .record-stack--arrow {
+    margin-inline: 0.34em 0.48em;
   }
   .record-stack-text {
     display: block;
@@ -333,7 +353,7 @@
   }
   .record-stack-line::before {
     position: absolute;
-    inset: 0 -0.18em;
+    inset: 0 -0.2em;
     border-radius: 999px;
     background: currentColor;
     content: "";
@@ -344,7 +364,7 @@
   .record-stack--arrow .record-stack-line::after {
     position: absolute;
     top: 50%;
-    right: -0.2em;
+    right: -0.24em;
     width: 0.42em;
     height: 0.42em;
     border-top: 2px solid currentColor;
@@ -353,16 +373,24 @@
     transform: translateY(-50%) rotate(45deg);
   }
   .record-table-scroll {
+    container-type: inline-size;
     display: block;
     width: 100%;
     min-width: 0;
     max-width: 100%;
-    overflow-x: hidden;
+    overflow: visible;
     margin-block: 0.7em;
+  }
+  .record-table-scroll [data-slot="table-container"] {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: visible;
   }
   .record-table-scroll table {
     width: min(100%, var(--record-table-preferred-width, 100%));
-    min-width: var(--record-table-min-width, 0);
+    min-width: 0;
+    max-width: 100%;
     table-layout: fixed;
     border-collapse: collapse;
     color: inherit;
@@ -370,14 +398,33 @@
     font-size: 1em;
     line-height: 1.55;
   }
+  .record-table-scroll col {
+    width: var(--record-table-column-width);
+  }
   .record-table-scroll td {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
     border: 1px solid var(--border);
-    padding: 0.34em 0.62em;
     vertical-align: top;
     white-space: normal;
-    word-break: break-word;
+    word-break: normal;
     overflow-wrap: anywhere;
     hyphens: auto;
+    line-break: strict;
+  }
+  .record-table-scroll .record-stack {
+    grid-template-columns: minmax(0, max-content);
+    max-width: calc(100% - 1em);
+  }
+  .record-table-scroll .record-stack-text {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  @container (max-width: 20rem) {
+    .record-table-scroll:is([data-columns="10"], [data-columns="11"], [data-columns="12"]) col {
+      width: auto;
+    }
   }
 
   .material-reading .record-markup {
@@ -507,13 +554,13 @@
     line-height: inherit;
   }
   .quiz-markup-table {
-    overflow-x: hidden;
+    overflow: visible;
   }
   .quiz-markup-table table {
     table-layout: fixed;
   }
   .quiz-markup-table td {
-    word-break: break-word;
+    word-break: normal;
     overflow-wrap: anywhere;
   }
   .quiz-judge-correction {
@@ -644,4 +691,10 @@
 }
 .guide-logo-secret {
   animation: guide-logo-secret 0.95s ease;
+}
+
+/* Business-level override for the shadcn Table scroll wrapper. Record markup tables
+   always reflow inside their reading lane, so this wrapper must never become a scroller. */
+.record-table-scroll > [data-slot="table-container"] {
+  overflow: visible;
 }

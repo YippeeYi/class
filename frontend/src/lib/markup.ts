@@ -119,8 +119,8 @@ function parseSquare(body: string, raw: string, depth: number): MarkupNode {
     const parts = splitAll(payload)
     const dimensions = /^(\d{1,2})x(\d{1,2})$/.exec(parts.shift() || '')
     if (!dimensions) return textNode(raw)
-    const rowCount = Math.min(30, Number(dimensions[1]))
-    const columnCount = Math.min(12, Number(dimensions[2]))
+    const rowCount = Math.max(1, Math.min(30, Number(dimensions[1])))
+    const columnCount = Math.max(1, Math.min(12, Number(dimensions[2])))
     const rows = Array.from({ length: rowCount }, (_, row) =>
       Array.from({ length: columnCount }, (_, column) =>
         parseNodes(parts[row * columnCount + column] || '', depth + 1),

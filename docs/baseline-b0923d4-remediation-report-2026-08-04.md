@@ -183,3 +183,13 @@
 本节的最终数值以本次完成后的构建与测试结果为准；真实普通用户授权链路仍遵循第 10.4 节的边界，不伪造 token 或消费未获授权的邀请码。
 
 最终验证结果：`npm run check` 一次完成 TypeScript、Biome、11 组回归契约和默认 Vite 生产构建；设置 `GITHUB_ACTIONS=true`、`GITHUB_REPOSITORY=owner/class` 的子路径构建同样通过，字体 URL 被正确改写为 `/class/fonts/...`，同步主题脚本无构建警告。生产目录从整改前的 14,797,993 字节降到 6,081,035 字节，减少 8,716,958 字节（约 58.9%）；主入口 JS 从 295.68 kB 降到 291.03 kB。全新浏览器标签在 1280×720 与 390×844 下均满足 `scrollWidth === clientWidth`、`scrollHeight === clientHeight`，邀请码输入和主按钮均为 44px，Google Sans Flex 加载成功，控制台 warning/error 为 0；公开未知路由继续直接进入 404。
+
+## 12. 2026-08-11 标记几何与每日分布专项回归
+
+本轮再次直接对照 `b0923d4` 的 `recordRenderer.js`、`timeline.js` 和对应 CSS，并以本次明确需求覆盖旧版长表扩展行为：记录正文表格必须始终在内容区域内换行，不能横向滚动或裁切。当前实现移除了表格 `min-width` 和所有业务层横向隐藏，保留 shadcn Table 组合，通过可见内容权重、列数最低份额、少列 intrinsic 宽度、高列数密度分档和 20rem 窄容器等分回退完成宽度分配。真实浏览器已覆盖 2、6、12 列，超长中文、连续英文、数字、URL、嵌套分式以及 1280/768/390/320px 视口，表格、shadcn 容器和全部单元格均无横向溢出。
+
+插图预览不再在 `pointermove` 中调用 React state setter；打开前只用 ref 保存最新 `clientX`，固有尺寸可用后一次性计算“指针坐标－触发元素中心”的 `alignOffset`，随后锁定到关闭。浏览器回归同时验证了首次中心误差不超过 2px、打开后移动鼠标位置不变，以及靠近右侧视口边界时浮层完整收回。注释 Tooltip 改为 `w-max + max-width` 内容宽度，注释内部嵌套标记以非交互模式安全渲染，避免 Tooltip 中继续嵌套 HoverCard/Dialog；短注释、长注释和连续英文均通过尺寸、换行和碰撞测试。
+
+分式与方程式箭头继续使用真实渲染后的 CSS intrinsic 宽度，不使用字符数乘像素算法；横线伪元素在最大 label track 两侧各延伸 `0.2em`，箭头头部和行内正文另有 margin。每日记录分布拆为独立业务组件，固定为“日期/记录人小饼图 → 主指标 → 重要指标”三层方格，大数值使用整数紧凑记法，完整值保留在 `title` 和 `aria-label`。0、个位数、两位数和百万级数值在窄/中/宽三种网格共 12 个单元格中无重叠、溢出或高度跳动。
+
+新增 `npm run test:layout`，使用 Playwright 驱动本机 Chromium 系浏览器执行上述真实 DOM 几何断言；常规 `npm test` 继续保留无需浏览器二进制的快速契约。本轮 `frontend/src/components/ui` 仍为零改动。

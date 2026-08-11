@@ -56,8 +56,11 @@ function Annotation({ note, children }: { note: string; children: ReactNode }) {
           </Button>
         }
       />
-      <TooltipContent className="max-w-sm text-sm leading-6">
-        <MarkupContent content={note} className="annotation-content" />
+      <TooltipContent
+        sideOffset={6}
+        className="record-annotation-popup block w-max max-w-[min(22rem,calc(100vw-1rem))] px-3 py-2 text-left text-sm leading-6"
+      >
+        <MarkupContent content={note} className="annotation-content" interactive={false} />
       </TooltipContent>
     </Tooltip>
   )
@@ -70,7 +73,10 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
   const [open, setOpen] = useState(false)
   const [ready, setReady] = useState(false)
   const [decodeFailed, setDecodeFailed] = useState(false)
-  const [pointerAlignOffset, setPointerAlignOffset] = useState(0)
+  const [lockedAlignOffset, setLockedAlignOffset] = useState(0)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const pointerClientX = useRef<number | null>(null)
+  const openRef = useRef(false)
   const openRequest = useRef(0)
   const preview = useSignedAsset(requested ? path : '')
   const frame = previewFrame(lockedDimensions || dimensions)
@@ -102,30 +108,39 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
     setRequested(true)
     void preloadImageDimensions(path)
   }
-  const rememberPointerPosition = (event: ReactPointerEvent<HTMLElement>) => {
-    if (event.pointerType === 'touch') return
-    const bounds = event.currentTarget.getBoundingClientRect()
-    setPointerAlignOffset(event.clientX - (bounds.left + bounds.width / 2))
+  const rememberPointerPosition = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === 'touch' || openRef.current) return
+    pointerClientX.current = event.clientX
+  }
+  const showAtLockedPointer = (nextDimensions: ImageDimensions) => {
+    const bounds = triggerRef.current?.getBoundingClientRect()
+    const pointerX = pointerClientX.current
+    setLockedAlignOffset(
+      bounds && pointerX !== null ? pointerX - (bounds.left + bounds.width / 2) : 0,
+    )
+    setLockedDimensions(nextDimensions)
+    openRef.current = true
+    setOpen(true)
   }
   const changeOpen = (nextOpen: boolean) => {
     if (!nextOpen) {
       openRequest.current += 1
+      openRef.current = false
       setOpen(false)
       setLockedDimensions(null)
+      setLockedAlignOffset(0)
       return
     }
     requestPreview()
     const request = ++openRequest.current
     const known = getImageDimensions(path)
     if (known) {
-      setLockedDimensions(known)
-      setOpen(true)
+      showAtLockedPointer(known)
       return
     }
     void preloadImageDimensions(path).then((loaded) => {
       if (request !== openRequest.current) return
-      setLockedDimensions(loaded || { width: 240, height: 180 })
-      setOpen(true)
+      showAtLockedPointer(loaded || { width: 240, height: 180 })
     })
   }
   return (
@@ -139,6 +154,7 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
               initialUrl={preview.src}
               trigger={
                 <Button
+                  ref={triggerRef}
                   type="button"
                   variant="link"
                   size="xs"
@@ -148,7 +164,10 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
                     rememberPointerPosition(event)
                   }}
                   onPointerMove={rememberPointerPosition}
-                  onFocus={requestPreview}
+                  onFocus={(event) => {
+                    if (event.currentTarget.matches(':focus-visible')) pointerClientX.current = null
+                    requestPreview()
+                  }}
                   onTouchStart={requestPreview}
                 >
                   {children}
@@ -161,8 +180,8 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
       <HoverCardContent
         side="top"
         align="center"
-        alignOffset={pointerAlignOffset}
-        className="w-auto max-w-[calc(100vw-1rem)] p-2"
+        alignOffset={lockedAlignOffset}
+        className="record-illustration-popup w-auto max-w-[calc(100vw-1rem)] p-2"
       >
         <div
           className="grid place-items-center overflow-hidden rounded-md bg-muted/55"
@@ -232,10 +251,19 @@ type TableGeometry = {
   columnCount: number
   columns: Array<{ id: string; width: string }>
   preferredWidth: string
-  minimumWidth: string
 }
 
 const tableGeometryCache = new WeakMap<MarkupNode[][][], TableGeometry>()
+
+function tableCellClassName(columnCount: number) {
+  const density =
+    columnCount >= 10
+      ? 'px-[0.06em] py-[0.34em] text-[0.88em] leading-[1.45]'
+      : columnCount >= 7
+        ? 'px-[0.3em] py-[0.34em]'
+        : 'px-[0.62em] py-[0.34em]'
+  return `${density} align-top whitespace-normal break-words [overflow-wrap:anywhere]`
+}
 
 function tableGeometry(rows: MarkupNode[][][]): TableGeometry {
   const cached = tableGeometryCache.get(rows)
@@ -336,7 +364,7 @@ function tableGeometry(rows: MarkupNode[][][]): TableGeometry {
     extraToRemove -= removed
   }
 
-  let shouldExpand =
+  const shouldExpand =
     floorTotal > widthBudget ||
     cellMetrics.some((metric) => metric.units > (widths[metric.column] || 0) + 0.35)
   if (shouldExpand) {
@@ -371,16 +399,19 @@ function tableGeometry(rows: MarkupNode[][][]): TableGeometry {
 
   widths = widths.map((width) => Number(width.toFixed(2)))
   const totalWidth = Number(widths.reduce((sum, width) => sum + width, 0).toFixed(2))
-  shouldExpand =
-    shouldExpand || cellMetrics.some((metric) => metric.units > (widths[metric.column] || 0) + 0.35)
+  const reservedFraction =
+    columnCount >= 10 ? 0.86 : columnCount >= 8 ? 0.8 : columnCount >= 5 ? 0.72 : 0.32
+  const minimumShare = Math.min(0.18, reservedFraction / columnCount)
+  const flexibleShare = Math.max(0, 1 - minimumShare * columnCount)
   const geometry = {
     columnCount,
     columns: widths.map((width, column) => ({
       id: `column-${column}`,
-      width: `${(width / totalWidth) * 100}%`,
+      width: shouldExpand
+        ? `${(minimumShare + flexibleShare * (width / totalWidth)) * 100}%`
+        : `${width}em`,
     })),
     preferredWidth: `${totalWidth}em`,
-    minimumWidth: shouldExpand ? `${totalWidth}em` : '0em',
   }
   tableGeometryCache.set(rows, geometry)
   return geometry
@@ -390,10 +421,12 @@ export function MarkupContent({
   content,
   className = '',
   onRecordReference,
+  interactive = true,
 }: {
   content: string
   className?: string
   onRecordReference?: (recordId: string, source: HTMLElement) => void
+  interactive?: boolean
 }) {
   const tree = useMemo(() => parseMarkup(content), [content])
 
@@ -421,6 +454,7 @@ export function MarkupContent({
         )
       }
       if (node.type === 'reference') {
+        if (!interactive) return <Fragment key={key}>{renderNodes(node.children, key)}</Fragment>
         const recordTarget = node.kind === 'record' ? recordAnchor({ fileName: node.id }) : ''
         const target =
           node.kind === 'person' || node.kind === 'author'
@@ -455,17 +489,25 @@ export function MarkupContent({
         )
       }
       if (node.type === 'annotation')
-        return (
-          <Annotation key={key} note={node.note}>
-            {renderNodes(node.children, key)}
-          </Annotation>
-        )
+        if (!interactive) {
+          return <Fragment key={key}>{renderNodes(node.children, key)}</Fragment>
+        } else {
+          return (
+            <Annotation key={key} note={node.note}>
+              {renderNodes(node.children, key)}
+            </Annotation>
+          )
+        }
       if (node.type === 'illustration')
-        return (
-          <IllustrationReference key={key} path={node.path}>
-            {renderNodes(node.children, key)}
-          </IllustrationReference>
-        )
+        if (!interactive) {
+          return <Fragment key={key}>{renderNodes(node.children, key)}</Fragment>
+        } else {
+          return (
+            <IllustrationReference key={key} path={node.path}>
+              {renderNodes(node.children, key)}
+            </IllustrationReference>
+          )
+        }
       if (node.type === 'stack')
         return (
           <span key={key} className={`record-stack record-stack--${node.kind}`}>
@@ -484,17 +526,18 @@ export function MarkupContent({
           key={key}
           className="record-table-scroll"
           data-columns={geometry.columnCount}
-          style={
-            {
-              '--record-table-preferred-width': geometry.preferredWidth,
-              '--record-table-min-width': geometry.minimumWidth,
-            } as CSSProperties
-          }
+          style={{ '--record-table-preferred-width': geometry.preferredWidth } as CSSProperties}
         >
-          <Table className="text-[1em] leading-[1.55]">
+          <Table
+            aria-label="记录表格"
+            className="!w-[min(100%,var(--record-table-preferred-width))] !min-w-0 !max-w-full table-fixed text-[1em] leading-[1.55]"
+          >
             <colgroup>
               {geometry.columns.map((column) => (
-                <col key={`${key}-${column.id}`} style={{ width: column.width }} />
+                <col
+                  key={`${key}-${column.id}`}
+                  style={{ '--record-table-column-width': column.width } as CSSProperties}
+                />
               ))}
             </colgroup>
             <TableBody>
@@ -507,7 +550,7 @@ export function MarkupContent({
                       return (
                         <TableCell
                           key={cellKey}
-                          className="align-top whitespace-normal break-words [overflow-wrap:anywhere]"
+                          className={tableCellClassName(geometry.columnCount)}
                         >
                           {renderNodes(cell, cellKey)}
                         </TableCell>
@@ -667,17 +710,18 @@ export function QuizMarkupContent({
           key={key}
           className="record-table-scroll quiz-markup-table"
           data-columns={geometry.columnCount}
-          style={
-            {
-              '--record-table-preferred-width': geometry.preferredWidth,
-              '--record-table-min-width': geometry.minimumWidth,
-            } as CSSProperties
-          }
+          style={{ '--record-table-preferred-width': geometry.preferredWidth } as CSSProperties}
         >
-          <Table className="text-[1em] leading-[1.55]">
+          <Table
+            aria-label="题目表格"
+            className="!w-[min(100%,var(--record-table-preferred-width))] !min-w-0 !max-w-full table-fixed text-[1em] leading-[1.55]"
+          >
             <colgroup>
               {geometry.columns.map((column) => (
-                <col key={`${key}-${column.id}`} style={{ width: column.width }} />
+                <col
+                  key={`${key}-${column.id}`}
+                  style={{ '--record-table-column-width': column.width } as CSSProperties}
+                />
               ))}
             </colgroup>
             <TableBody>
@@ -690,7 +734,7 @@ export function QuizMarkupContent({
                       return (
                         <TableCell
                           key={cellKey}
-                          className="align-top whitespace-normal break-words [overflow-wrap:anywhere]"
+                          className={tableCellClassName(geometry.columnCount)}
                         >
                           {renderNodes(cell, cellKey)}
                         </TableCell>

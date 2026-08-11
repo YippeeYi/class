@@ -157,7 +157,13 @@ assert.match(timeline, /recordCharacterCache/, 'timeline character totals must b
 assert.match(timeline, /aria-label="年度统计与年份选择"/, 'the baseline year pie and year controls must share one period layout')
 assert.match(timeline, /aria-label="月度统计与月份选择"/, 'the baseline month pie and month controls must share one period layout')
 assert.match(timeline, /grid-cols-4 gap-1\.5 sm:grid-cols-7 lg:grid-cols-10 2xl:grid-cols-14/, 'the daily calendar must provide a denser responsive layout')
-assert.match(timeline, /min-h-14 min-w-0 flex-col gap-0\.5/, 'daily cells must keep a compact readable height')
+assert.match(
+  timeline,
+  /aspect-square[\s\S]*grid-rows-\[auto_1fr_auto\]/,
+  'daily cells must keep a stable three-level square layout',
+)
+assert.match(timeline, /compactStatistic\(item\.value\)/, 'large daily values must use a compact non-overflowing display')
+assert.match(timeline, /重要 \{compactStatistic\(item\.important\)\}/, 'daily cells must retain their important-record metric')
 assert.match(timeline, /nativeButton=\{!item\.records\.length\}/, 'daily record links must preserve native link semantics')
 assert.doesNotMatch(timeline, /style=\{\{ minWidth:/, 'timeline charts must not force a horizontal scrollbar')
 assert.doesNotMatch(timeline, /overflow-x-auto/, 'timeline controls and charts must fit or reflow instead of scrolling sideways')
@@ -218,21 +224,29 @@ assert.match(quiz, /text-foreground\/90/, 'quiz source text needs sufficient con
 assert.match(quiz, /<ScrollArea key=\{current\.id\}/, 'quiz questions must scroll inside the card')
 assert.match(markupContent, /record-stack--\$\{node\.kind\}/, 'fractions and equation arrows must keep distinct structures')
 assert.match(markupContent, /className="record-stack-line"/, 'stack rules must be rendered independently from their labels')
-assert.match(markupContent, /align="center"[\s\S]*alignOffset=\{pointerAlignOffset\}/, 'illustration previews must center on the pointer')
-assert.match(markupContent, /event\.clientX - \(bounds\.left \+ bounds\.width \/ 2\)/, 'illustration pointer alignment must use the trigger center delta')
+assert.match(markupContent, /align="center"[\s\S]*alignOffset=\{lockedAlignOffset\}/, 'illustration previews must center on one locked pointer anchor')
+assert.match(markupContent, /pointerX - \(bounds\.left \+ bounds\.width \/ 2\)/, 'illustration pointer alignment must use the trigger center delta')
 assert.match(markupContent, /decoration-dotted/, 'annotation text must remain visibly discoverable')
+assert.match(markupContent, /record-annotation-popup/, 'annotation content needs an isolated collision-aware popup surface')
+assert.match(markupContent, /interactive=\{false\}/, 'nested annotation markup must not create nested tooltip or dialog triggers')
 assert.match(markupContent, /quiz-answer-blank-text[\s\S]*\{answer\}/, 'quiz blanks must keep the real answer glyphs in normal layout')
 assert.doesNotMatch(markupContent, /Array\.from\(answer\)|quiz-blank-width/, 'quiz blank width must not be estimated from character count')
 assert.match(styles, /\.record-table-scroll table[\s\S]*font-size: 1em/, 'markup tables must inherit a readable body-sized font')
-assert.match(styles, /\.record-table-scroll td[\s\S]*word-break: break-word;[\s\S]*overflow-wrap: anywhere;/, 'markup tables must wrap naturally and only break unavoidably long tokens')
+assert.match(styles, /\.record-table-scroll td[\s\S]*word-break: normal;[\s\S]*overflow-wrap: anywhere;/, 'markup tables must wrap naturally and only break unavoidably long tokens')
 assert.match(markupContent, /text-\[1em\] leading-\[1\.55\]/, 'shadcn table utility defaults must be overridden at the business call site')
 assert.match(markupContent, /whitespace-normal break-words/, 'shadcn table cells must opt into natural multiline content')
 assert.match(markupContent, /function tableGeometry[\s\S]*visibleTextUnits/, 'markup table widths must account for their actual visible cell content')
 assert.match(markupContent, /<colgroup>[\s\S]*geometry\.columns/, 'markup tables must apply balanced content-aware column widths')
 assert.match(styles, /\.record-markup \{[\s\S]*contain: inline-size/, 'long table content must not enlarge an ancestor grid track')
 assert.match(styles, /\.record-table-scroll table[\s\S]*table-layout: fixed/, 'markup tables must remain within their available width')
+const recordTableStyles = styles.slice(
+  styles.indexOf('.record-table-scroll {'),
+  styles.indexOf('.material-reading .record-markup'),
+)
+assert.doesNotMatch(recordTableStyles, /overflow(?:-x)?: hidden|overflow-x: auto/, 'markup tables must fit by layout rather than clipping or horizontal scrolling')
+assert.match(recordTableStyles, /\[data-slot="table-container"\][\s\S]*overflow: visible/, 'the shadcn table wrapper must not reintroduce a horizontal scroller')
 assert.doesNotMatch(styles, /min-width: min\(100%, 32rem\)/, 'markup tables must not be forced wider than their content')
-assert.match(styles, /\.record-stack-line::before[\s\S]*inset: 0 -0\.18em/, 'stack rules must derive their length from the widest rendered label')
+assert.match(styles, /\.record-stack-line::before[\s\S]*inset: 0 -0\.2em/, 'stack rules must derive their length from the widest rendered label')
 assert.match(styles, /\.record-stack--arrow \.record-stack-line::after/, 'equation arrows must preserve the right arrowhead')
 assert.match(styles, /\.quiz-answer-blank-text[\s\S]*color: transparent/, 'hidden quiz answers must retain their exact rendered geometry')
 assert.match(people, /isMainTeacher[\s\S]*<Badge[\s\S]*主要/, 'main teachers need an explicit, theme-aware row marker')

@@ -64,11 +64,36 @@ assert.match(
   /onPointerEnter=\{\(event\) => \{[\s\S]*requestPreview\(\)[\s\S]*rememberPointerPosition\(event\)/,
   'pointer hover must start image loading and capture its exact horizontal anchor',
 )
-assert.match(component, /onFocus={requestPreview}/, 'keyboard focus must start image loading early')
+assert.match(
+  component,
+  /pointerClientX\.current = event\.clientX/,
+  'pointer anchoring must preserve the exact viewport clientX without rendering on pointer movement',
+)
+assert.match(
+  component,
+  /openRef\.current\) return[\s\S]*pointerClientX\.current = event\.clientX/,
+  'pointer movement must stop changing the anchor as soon as the preview opens',
+)
+const pointerCaptureSource = component.slice(
+  component.indexOf('const rememberPointerPosition'),
+  component.indexOf('const showAtLockedPointer'),
+)
+assert.doesNotMatch(pointerCaptureSource, /set[A-Z]/, 'pointer movement must not issue React state updates')
+assert.match(component, /onFocus=\{\(event\) => \{[\s\S]*requestPreview\(\)/, 'keyboard focus must start image loading early')
 assert.match(component, /useImageDimensions\(path\)/, 'decoded illustration geometry must be reused')
 assert.match(component, /lockedDimensions/, 'an open tooltip must keep one immutable frame size')
+assert.match(
+  component,
+  /setLockedAlignOffset\([\s\S]*pointerX - \(bounds\.left \+ bounds\.width \/ 2\)/,
+  'the first popup center must be offset from the trigger center to the captured pointer clientX',
+)
 assert.match(component, /preloadImageDimensions\(path\)/, 'metadata must be ready before opening')
 assert.match(component, /<HoverCard open={open}/, 'metadata-gated hover cards must be controlled')
+assert.match(
+  component,
+  /alignOffset={lockedAlignOffset}/,
+  'the pointer-derived horizontal offset must remain immutable for one open cycle',
+)
 assert.doesNotMatch(
   component,
   /transition-\[width,height\]/,
