@@ -362,7 +362,11 @@ function MiniAuthorPie({
   const total = entries.reduce((sum, [, value]) => sum + value, 0)
   let offset = 0
   return (
-    <svg viewBox="0 0 40 40" className="size-[1.125rem] shrink-0" aria-hidden="true">
+    <svg
+      viewBox="0 0 40 40"
+      className="daily-distribution-pie size-[clamp(1.5rem,42cqi,2.125rem)] shrink-0"
+      aria-hidden="true"
+    >
       <circle cx="20" cy="20" r="10" fill="var(--muted)" />
       {entries.map(([id, value]) => {
         const length = total ? (value / total) * 100 : 0
@@ -422,7 +426,7 @@ export function DailyDistributionCell({
       nativeButton={!item.records.length}
       data-records={item.records.length > 0 ? 'present' : 'empty'}
       data-important={item.important > 0 ? 'true' : 'false'}
-      className="daily-distribution-cell grid aspect-square h-auto min-h-0 min-w-0 grid-rows-[auto_1fr_auto] items-stretch gap-0.5 whitespace-normal p-1 text-left"
+      className="daily-distribution-cell grid aspect-square h-auto min-h-0 min-w-0 grid-rows-[auto_1fr] items-stretch gap-0.5 whitespace-normal p-1 text-left"
       aria-label={`${year} 年 ${month} 月 ${item.day} 日：${item.value.toLocaleString()} ${unit}${item.important > 0 ? `，重要 ${item.important.toLocaleString()} ${unit}` : ''}`}
       render={
         item.records.length ? (
@@ -430,35 +434,37 @@ export function DailyDistributionCell({
         ) : undefined
       }
     >
-      <span className="flex h-[1.125rem] w-full min-w-0 items-start justify-between gap-1 leading-none">
-        <span className="daily-distribution-date text-[0.75rem] leading-none font-semibold tabular-nums text-muted-foreground">
+      <span className="flex w-full min-w-0 items-center justify-between gap-1 leading-none">
+        <span className="daily-distribution-date leading-none font-semibold tabular-nums text-muted-foreground">
           {Number(item.day)} 日
         </span>
+        <span className="daily-distribution-unit shrink-0 leading-none font-medium text-muted-foreground/80">
+          {unit}
+        </span>
+      </span>
+      <span className="grid min-h-0 w-full min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-0.5 self-stretch">
         {item.records.length ? (
           <MiniAuthorPie entries={item.authors} colors={colors} activeId={activeAuthor} />
         ) : (
           <span
-            className="size-[1.125rem] shrink-0 rounded-full border border-dashed"
+            className="daily-distribution-pie size-[clamp(1.5rem,42cqi,2.125rem)] shrink-0 rounded-full border border-dashed"
             aria-hidden="true"
           />
         )}
-      </span>
-      <span className="flex w-full min-w-0 items-baseline justify-center gap-0.5 self-center">
-        <strong
-          className="daily-distribution-value min-w-0 whitespace-nowrap text-[1.125rem] leading-none font-bold tracking-tight tabular-nums"
-          title={`${item.value.toLocaleString()} ${unit}`}
-        >
-          {compactStatistic(item.value)}
-        </strong>
-        <span className="shrink-0 text-[0.6875rem] leading-none font-medium text-muted-foreground">
-          {unit}
+        <span className="daily-distribution-stat grid min-w-0 content-center justify-items-start gap-1">
+          <strong
+            className="daily-distribution-value max-w-full whitespace-nowrap leading-none font-bold tracking-tight tabular-nums"
+            title={`${item.value.toLocaleString()} ${unit}`}
+          >
+            {compactStatistic(item.value)}
+          </strong>
+          <span
+            className={`daily-distribution-important max-w-full whitespace-normal leading-[1.05] font-medium tabular-nums [overflow-wrap:anywhere] ${item.important > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/75'}`}
+            title={`重要 ${item.important.toLocaleString()} ${unit}`}
+          >
+            重要 {compactStatistic(item.important)}
+          </span>
         </span>
-      </span>
-      <span
-        className={`daily-distribution-important flex min-h-3 w-full items-center justify-center whitespace-nowrap text-[0.6875rem] leading-none font-medium tabular-nums ${item.important > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/75'}`}
-        title={`重要 ${item.important.toLocaleString()} ${unit}`}
-      >
-        重要 {compactStatistic(item.important)}
       </span>
     </Button>
   )

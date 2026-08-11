@@ -16,7 +16,7 @@ const harness = String.raw`<!doctype html>
     <script type="module">
       import React from 'react'
       import { createRoot } from 'react-dom/client'
-      import { MemoryRouter } from 'react-router'
+      import { MemoryRouter, useLocation, useNavigate } from 'react-router'
       import { MarkupContent } from '/src/components/archive/markup-content.tsx'
       import { TooltipProvider } from '/src/components/ui/tooltip.tsx'
       import { DailyDistributionCell } from '/src/pages/timeline-page.tsx'
@@ -64,20 +64,33 @@ const harness = String.raw`<!doctype html>
         })))
       }
 
+      function LocationProbe() {
+        const location = useLocation()
+        const navigate = useNavigate()
+        React.useEffect(() => {
+          window.__memoryLocation = location.pathname + location.search + location.hash
+          window.__memoryNavigate = navigate
+        }, [location, navigate])
+        return null
+      }
+
       function App() {
         return e(MemoryRouter, null,
-          e(TooltipProvider, { delay: 0 },
-            e('div', { style: { width: '100%', maxWidth: '1120px', margin: '0 auto', padding: '12px' } },
-              e(Case, { id: 'small', width: '52rem', content: '[[table:2x2|短|较长内容|甲|乙]]' }),
-              e(Case, { id: 'six', width: '52rem', content: extremeSixColumns }),
-              e(Case, { id: 'many', width: '52rem', content: manyColumns }),
-              e(Case, { id: 'stack', width: '52rem', content: stackContent }),
-              e(Case, { id: 'annotation', width: '52rem', content: annotationContent }),
-              e(Case, { id: 'illustration', width: '52rem', content: illustrationContent }),
-              e(Case, { id: 'illustration-edge', width: '52rem', content: illustrationEdgeContent, align: 'right' }),
-              e(DailyGrid, { id: 'narrow', width: '18rem', columns: 4 }),
-              e(DailyGrid, { id: 'medium', width: '38rem', columns: 7 }),
-              e(DailyGrid, { id: 'wide', width: '52rem', columns: 10 }),
+          e(React.Fragment, null,
+            e(LocationProbe),
+            e(TooltipProvider, { delay: 0 },
+              e('div', { style: { width: '100%', maxWidth: '1120px', margin: '0 auto', padding: '12px' } },
+                e(Case, { id: 'small', width: '52rem', content: '[[table:2x2|短|较长内容|甲|乙]]' }),
+                e(Case, { id: 'six', width: '52rem', content: extremeSixColumns }),
+                e(Case, { id: 'many', width: '52rem', content: manyColumns }),
+                e(Case, { id: 'stack', width: '52rem', content: stackContent }),
+                e(Case, { id: 'annotation', width: '52rem', content: annotationContent }),
+                e(Case, { id: 'illustration', width: '52rem', content: illustrationContent }),
+                e(Case, { id: 'illustration-edge', width: '52rem', content: illustrationEdgeContent, align: 'right' }),
+                e(DailyGrid, { id: 'narrow', width: '18rem', columns: 4 }),
+                e(DailyGrid, { id: 'medium', width: '38rem', columns: 7 }),
+                e(DailyGrid, { id: 'wide', width: '52rem', columns: 10 }),
+              ),
             ),
           ),
         )
@@ -201,8 +214,11 @@ try {
   const dailyCells = await page.evaluate(() =>
     [...document.querySelectorAll('.daily-distribution-cell')].map((cell) => {
       const bounds = cell.getBoundingClientRect()
-      const topChildren = [...(cell.firstElementChild?.children || [])].map((child) => child.getBoundingClientRect())
-      const childrenInside = [...cell.children].every((child) => {
+      const date = cell.querySelector('.daily-distribution-date')?.getBoundingClientRect()
+      const unit = cell.querySelector('.daily-distribution-unit')?.getBoundingClientRect()
+      const pie = cell.querySelector('.daily-distribution-pie')?.getBoundingClientRect()
+      const main = cell.children[1]?.getBoundingClientRect()
+      const childrenInside = [...cell.querySelectorAll('*')].every((child) => {
         const childBounds = child.getBoundingClientRect()
         return (
           childBounds.left >= bounds.left - 1 &&
@@ -216,15 +232,16 @@ try {
         overflowY: cell.scrollHeight - cell.clientHeight,
         squareDelta: Math.abs(bounds.width - bounds.height),
         childrenInside,
+        grid: cell.closest('[data-daily-grid]')?.getAttribute('data-daily-grid'),
+        pieWidth: pie?.width || 0,
+        pieHeight: pie?.height || 0,
+        mainHeight: main?.height || 0,
         bounds: { width: bounds.width, height: bounds.height, top: bounds.top, bottom: bounds.bottom },
         children: [...cell.children].map((child) => {
           const childBounds = child.getBoundingClientRect()
           return { top: childBounds.top, bottom: childBounds.bottom, height: childBounds.height, text: child.textContent }
         }),
-        topOverlap:
-          topChildren.length > 1
-            ? Math.max(0, topChildren[0].right - topChildren[1].left)
-            : 0,
+        topOverlap: date && unit ? Math.max(0, date.right - unit.left) : 0,
       }
     }),
   )
@@ -236,7 +253,10 @@ try {
     )
     assert.ok(cell.squareDelta <= 1, `daily cell ${index + 1} must retain a stable square frame`)
     assert.equal(cell.childrenInside, true, `daily cell ${index + 1} content must remain inside its frame`)
-    assert.ok(cell.topOverlap <= 0.5, `daily cell ${index + 1} date and author marker must not overlap`)
+    assert.ok(cell.topOverlap <= 0.5, `daily cell ${index + 1} date and metric unit must not overlap`)
+    assert.ok(cell.pieWidth >= 24 && Math.abs(cell.pieWidth - cell.pieHeight) <= 0.5, `daily cell ${index + 1} pie must remain prominent and circular: ${JSON.stringify(cell)}`)
+    assert.ok(cell.pieWidth / cell.bounds.width >= 0.34, `daily cell ${index + 1} pie must use a meaningful share of the card`)
+    assert.ok(cell.mainHeight / cell.bounds.height >= 0.58, `daily cell ${index + 1} main visualization row must not leave excessive blank space`)
   })
   const largeDailyValue = page.locator('.daily-distribution-value[title="9,876,543 字"]').first()
   await largeDailyValue.waitFor({ state: 'visible' })
@@ -251,20 +271,27 @@ try {
       const bottom = stack.querySelector('.record-stack-bottom')
       const line = stack.querySelector('.record-stack-line')
       const before = line ? getComputedStyle(line, '::before') : null
+      const topBounds = top?.getBoundingClientRect()
+      const bottomBounds = bottom?.getBoundingClientRect()
+      const lineBounds = line?.getBoundingClientRect()
       return {
         line: line?.getBoundingClientRect().width || 0,
         label: Math.max(top?.getBoundingClientRect().width || 0, bottom?.getBoundingClientRect().width || 0),
         extension: Math.abs(Number.parseFloat(before?.left || '0')) + Math.abs(Number.parseFloat(before?.right || '0')),
         marginLeft: Number.parseFloat(getComputedStyle(stack).marginLeft),
         marginRight: Number.parseFloat(getComputedStyle(stack).marginRight),
+        fontSize: Number.parseFloat(getComputedStyle(stack).fontSize),
+        topGap: topBounds && lineBounds ? lineBounds.top - topBounds.bottom : 0,
+        bottomGap: bottomBounds && lineBounds ? bottomBounds.top - lineBounds.bottom : 0,
       }
     }),
   )
   assert.ok(stacks.length === 2)
   stacks.forEach((stack) => {
     assert.ok(stack.line >= stack.label - 1, 'stack rule must derive from the widest rendered label')
-    assert.ok(stack.extension > 0, 'stack rule must extend slightly beyond the widest label')
-    assert.ok(stack.marginLeft > 0 && stack.marginRight > 0, 'stack rules must not touch adjacent text')
+    assert.ok(stack.extension >= stack.fontSize * 0.6, 'stack rule must visibly extend beyond the widest label')
+    assert.ok(stack.marginLeft >= stack.fontSize * 0.4 && stack.marginRight >= stack.fontSize * 0.4, 'stack rules must keep a clear gap from adjacent text')
+    assert.ok(stack.topGap >= 1.5 && stack.bottomGap >= 1.5, 'stack labels must not touch or overlap their rule')
   })
 
   const shortTrigger = page.getByRole('button', { name: '短注触发' })
@@ -272,6 +299,12 @@ try {
   const annotationPopup = page.locator('.record-annotation-popup[data-open]')
   await annotationPopup.waitFor({ state: 'visible' })
   const shortWidth = await annotationPopup.evaluate((element) => element.getBoundingClientRect().width)
+  await page.mouse.move(4, 4)
+  await shortTrigger.focus()
+  await page.keyboard.press('Enter')
+  await annotationPopup.waitFor({ state: 'visible' })
+  await page.keyboard.press('Escape')
+  await annotationPopup.waitFor({ state: 'hidden' })
   const longTrigger = page.getByRole('button', { name: '长注触发' })
   await longTrigger.hover()
   await annotationPopup.waitFor({ state: 'visible' })
@@ -286,6 +319,19 @@ try {
   assert.ok(longGeometry.width <= 352.5, 'long annotations must respect the business max width')
   assert.ok(longGeometry.left >= 0 && longGeometry.right <= 1280, 'annotation collision handling must keep the popup visible')
   assert.ok(longGeometry.overflow <= 1, 'long and unbreakable annotation content must wrap safely')
+  const annotationHtml = await annotationPopup.innerHTML()
+  assert.match(annotationHtml, /person-link/, `nested person markup must render as a link: ${annotationHtml}`)
+  const nestedPerson = annotationPopup.locator('a.person-link', { hasText: '人物标记' })
+  assert.equal(await nestedPerson.getAttribute('href'), '/person?id=p01', 'nested person markup must keep the canonical person target')
+  await nestedPerson.click()
+  await page.waitForFunction(() => window.__memoryLocation === '/person?id=p01')
+  await page.evaluate(() => window.__memoryNavigate('/'))
+  await page.waitForFunction(() => window.__memoryLocation === '/')
+  await longTrigger.focus()
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(() => document.activeElement?.matches('a.person-link'))
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(() => window.__memoryLocation === '/person?id=p01')
 
   await page.setViewportSize({ width: 320, height: 1000 })
   await longTrigger.hover()
@@ -327,6 +373,20 @@ try {
   const edgePopup = await illustrationPopup.boundingBox()
   assert.ok(edgePopup)
   assert.ok(edgePopup.x >= 4 && edgePopup.x + edgePopup.width <= 1276, 'viewport collision handling must keep edge-anchored illustration popups fully visible')
+
+  const touchPage = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true })
+  const touchErrors = []
+  touchPage.on('pageerror', (error) => touchErrors.push(error.message))
+  await touchPage.goto(origin, { waitUntil: 'networkidle' })
+  await touchPage.waitForFunction(() => window.__markupLayoutReady === true)
+  await touchPage.getByRole('button', { name: '长注触发' }).tap()
+  const touchAnnotation = touchPage.locator('.record-annotation-popup[data-open]')
+  await touchAnnotation.waitFor({ state: 'visible' })
+  const touchPerson = touchAnnotation.locator('a.person-link', { hasText: '人物标记' })
+  await touchPerson.tap()
+  await touchPage.waitForFunction(() => window.__memoryLocation === '/person?id=p01')
+  assert.deepEqual(touchErrors, [], `touch browser page errors: ${touchErrors.join('; ')}`)
+  await touchPage.close()
 
   assert.deepEqual(pageErrors, [], `browser page errors: ${pageErrors.join('; ')}`)
 } finally {

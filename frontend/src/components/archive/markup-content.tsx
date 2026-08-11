@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { Spinner } from '@/components/ui/spinner'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import type { ImageDimensions } from '@/lib/image-metadata'
 import { type MarkupNode, parseMarkup, parseQuizMarkup, recordAnchor } from '@/lib/markup'
@@ -42,27 +41,48 @@ function previewFrame(dimensions: ImageDimensions | null) {
 }
 
 function Annotation({ note, children }: { note: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const pointerType = useRef('')
+  const popupRef = useRef<HTMLDivElement | null>(null)
+
+  const focusFirstReference = () => {
+    requestAnimationFrame(() => {
+      popupRef.current?.querySelector<HTMLElement>('.markup-link')?.focus()
+    })
+  }
+
   return (
-    <Tooltip>
-      <TooltipTrigger
+    <HoverCard open={open} onOpenChange={setOpen}>
+      <HoverCardTrigger
         render={
           <Button
             type="button"
             variant="link"
             size="xs"
             className="record-annotation inline h-auto min-h-0 whitespace-normal rounded-[0.15em] border-0 px-0 py-0 align-baseline text-[1em] leading-[inherit] font-[inherit] text-foreground/90 underline decoration-primary/55 decoration-dotted decoration-[1.5px] underline-offset-[0.18em] select-text hover:text-foreground hover:decoration-primary focus-visible:border-transparent focus-visible:ring-0"
+            onPointerDown={(event) => {
+              pointerType.current = event.pointerType
+            }}
+            onClick={(event) => {
+              if (event.detail === 0) {
+                setOpen(true)
+                focusFirstReference()
+              } else if (pointerType.current === 'touch') setOpen(true)
+            }}
           >
             {children}
           </Button>
         }
       />
-      <TooltipContent
+      <HoverCardContent
+        ref={popupRef}
+        side="top"
         sideOffset={6}
         className="record-annotation-popup block w-max max-w-[min(22rem,calc(100vw-1rem))] px-3 py-2 text-left text-sm leading-6"
       >
-        <MarkupContent content={note} className="annotation-content" interactive={false} />
-      </TooltipContent>
-    </Tooltip>
+        <MarkupContent content={note} className="annotation-content" interactionMode="references" />
+      </HoverCardContent>
+    </HoverCard>
   )
 }
 
@@ -421,12 +441,12 @@ export function MarkupContent({
   content,
   className = '',
   onRecordReference,
-  interactive = true,
+  interactionMode = 'full',
 }: {
   content: string
   className?: string
   onRecordReference?: (recordId: string, source: HTMLElement) => void
-  interactive?: boolean
+  interactionMode?: 'full' | 'references' | 'plain'
 }) {
   const tree = useMemo(() => parseMarkup(content), [content])
 
@@ -454,7 +474,8 @@ export function MarkupContent({
         )
       }
       if (node.type === 'reference') {
-        if (!interactive) return <Fragment key={key}>{renderNodes(node.children, key)}</Fragment>
+        if (interactionMode === 'plain')
+          return <Fragment key={key}>{renderNodes(node.children, key)}</Fragment>
         const recordTarget = node.kind === 'record' ? recordAnchor({ fileName: node.id }) : ''
         const target =
           node.kind === 'person' || node.kind === 'author'
@@ -489,7 +510,7 @@ export function MarkupContent({
         )
       }
       if (node.type === 'annotation')
-        if (!interactive) {
+        if (interactionMode !== 'full') {
           return <Fragment key={key}>{renderNodes(node.children, key)}</Fragment>
         } else {
           return (
@@ -499,7 +520,7 @@ export function MarkupContent({
           )
         }
       if (node.type === 'illustration')
-        if (!interactive) {
+        if (interactionMode !== 'full') {
           return <Fragment key={key}>{renderNodes(node.children, key)}</Fragment>
         } else {
           return (

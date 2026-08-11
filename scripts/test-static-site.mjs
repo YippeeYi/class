@@ -159,9 +159,10 @@ assert.match(timeline, /aria-label="月度统计与月份选择"/, 'the baseline
 assert.match(timeline, /grid-cols-4 gap-1\.5 sm:grid-cols-7 lg:grid-cols-10 2xl:grid-cols-14/, 'the daily calendar must provide a denser responsive layout')
 assert.match(
   timeline,
-  /aspect-square[\s\S]*grid-rows-\[auto_1fr_auto\]/,
-  'daily cells must keep a stable three-level square layout',
+  /aspect-square[\s\S]*grid-rows-\[auto_1fr\]/,
+  'daily cells must keep a stable compact square layout',
 )
+assert.match(timeline, /daily-distribution-pie/, 'daily author pies need a dedicated responsive geometry')
 assert.match(timeline, /compactStatistic\(item\.value\)/, 'large daily values must use a compact non-overflowing display')
 assert.match(timeline, /重要 \{compactStatistic\(item\.important\)\}/, 'daily cells must retain their important-record metric')
 assert.match(timeline, /nativeButton=\{!item\.records\.length\}/, 'daily record links must preserve native link semantics')
@@ -228,7 +229,8 @@ assert.match(markupContent, /align="center"[\s\S]*alignOffset=\{lockedAlignOffse
 assert.match(markupContent, /pointerX - \(bounds\.left \+ bounds\.width \/ 2\)/, 'illustration pointer alignment must use the trigger center delta')
 assert.match(markupContent, /decoration-dotted/, 'annotation text must remain visibly discoverable')
 assert.match(markupContent, /record-annotation-popup/, 'annotation content needs an isolated collision-aware popup surface')
-assert.match(markupContent, /interactive=\{false\}/, 'nested annotation markup must not create nested tooltip or dialog triggers')
+assert.match(markupContent, /interactionMode="references"/, 'annotation content must retain clickable person and record references')
+assert.match(markupContent, /interactionMode !== 'full'/, 'nested annotation markup must not recursively create popup triggers')
 assert.match(markupContent, /quiz-answer-blank-text[\s\S]*\{answer\}/, 'quiz blanks must keep the real answer glyphs in normal layout')
 assert.doesNotMatch(markupContent, /Array\.from\(answer\)|quiz-blank-width/, 'quiz blank width must not be estimated from character count')
 assert.match(styles, /\.record-table-scroll table[\s\S]*font-size: 1em/, 'markup tables must inherit a readable body-sized font')
@@ -246,7 +248,7 @@ const recordTableStyles = styles.slice(
 assert.doesNotMatch(recordTableStyles, /overflow(?:-x)?: hidden|overflow-x: auto/, 'markup tables must fit by layout rather than clipping or horizontal scrolling')
 assert.match(recordTableStyles, /\[data-slot="table-container"\][\s\S]*overflow: visible/, 'the shadcn table wrapper must not reintroduce a horizontal scroller')
 assert.doesNotMatch(styles, /min-width: min\(100%, 32rem\)/, 'markup tables must not be forced wider than their content')
-assert.match(styles, /\.record-stack-line::before[\s\S]*inset: 0 -0\.2em/, 'stack rules must derive their length from the widest rendered label')
+assert.match(styles, /\.record-stack-line::before[\s\S]*inset: 0 -0\.34em/, 'stack rules must visibly extend past the widest rendered label')
 assert.match(styles, /\.record-stack--arrow \.record-stack-line::after/, 'equation arrows must preserve the right arrowhead')
 assert.match(styles, /\.quiz-answer-blank-text[\s\S]*color: transparent/, 'hidden quiz answers must retain their exact rendered geometry')
 assert.match(people, /isMainTeacher[\s\S]*<Badge[\s\S]*主要/, 'main teachers need an explicit, theme-aware row marker')
