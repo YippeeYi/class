@@ -17,6 +17,17 @@ export type MarkupNode =
   | { type: 'stack'; kind: 'frac' | 'arrow'; top: MarkupNode[]; bottom: MarkupNode[] }
   | { type: 'table'; rows: MarkupNode[][][] }
 
+export type QuizMarkupNode =
+  | { type: 'text'; value: string }
+  | {
+      type: 'style'
+      style: Extract<MarkupNode, { type: 'style' }>['style']
+      children: QuizMarkupNode[]
+    }
+  | { type: 'blank'; answer: string }
+  | { type: 'stack'; kind: 'frac' | 'arrow'; top: QuizMarkupNode[]; bottom: QuizMarkupNode[] }
+  | { type: 'table'; rows: QuizMarkupNode[][][] }
+
 export type MarkupReferences = {
   participantIds: string[]
   extraAuthorIds: string[]
@@ -27,7 +38,7 @@ export type MarkupReferences = {
 }
 
 const treeCache = new Map<string, MarkupNode[]>()
-const quizTreeCache = new Map<string, MarkupNode[]>()
+const quizTreeCache = new Map<string, QuizMarkupNode[]>()
 const referenceCache = new Map<string, MarkupReferences>()
 
 function escapedAt(source: string, index: number) {
@@ -224,19 +235,30 @@ const quizSafeStyles = new Set<Extract<MarkupNode, { type: 'style' }>['style']>(
 export type QuizMarkupRedaction = {
   kind: 'person' | 'quote'
   id: string
-  replacement: string
+  label: string
 }
 
-function quizSafeNodes(nodes: MarkupNode[], redaction?: QuizMarkupRedaction): MarkupNode[] {
-  return nodes.flatMap((node): MarkupNode[] => {
+type NormalizedQuizMarkupRedaction = QuizMarkupRedaction & { normalizedLabel: string }
+
+function quizSafeNodes(
+  nodes: MarkupNode[],
+  redaction?: NormalizedQuizMarkupRedaction,
+): QuizMarkupNode[] {
+  return nodes.flatMap((node): QuizMarkupNode[] => {
     if (node.type === 'text') return [node]
     if (node.type === 'style') {
       if (!quizSafeStyles.has(node.style)) return [{ type: 'text', value: '〔隐藏内容已省略〕' }]
       return [{ ...node, children: quizSafeNodes(node.children, redaction) }]
     }
     if (node.type === 'reference') {
-      if (redaction && node.kind === redaction.kind && node.id === redaction.id)
-        return [{ type: 'text', value: redaction.replacement }]
+      const visibleLabel = nodesToText(node.children).trim().normalize('NFC')
+      if (
+        redaction &&
+        node.kind === redaction.kind &&
+        node.id === redaction.id &&
+        visibleLabel === redaction.normalizedLabel
+      )
+        return [{ type: 'blank', answer: redaction.label }]
       return quizSafeNodes(node.children, redaction)
     }
     if (node.type === 'annotation' || node.type === 'illustration')
@@ -261,11 +283,14 @@ function quizSafeNodes(nodes: MarkupNode[], redaction?: QuizMarkupRedaction): Ma
 export function parseQuizMarkup(value: unknown, redaction?: QuizMarkupRedaction) {
   const source = String(value ?? '')
   const cacheKey = redaction
-    ? `${redaction.kind}\u0000${redaction.id}\u0000${redaction.replacement}\u0000${source}`
+    ? `${redaction.kind}\u0000${redaction.id}\u0000${redaction.label}\u0000${source}`
     : source
   const cached = quizTreeCache.get(cacheKey)
   if (cached) return cached
-  const tree = quizSafeNodes(parseMarkup(source), redaction)
+  const normalizedRedaction = redaction
+    ? { ...redaction, normalizedLabel: redaction.label.trim().normalize('NFC') }
+    : undefined
+  const tree = quizSafeNodes(parseMarkup(source), normalizedRedaction)
   if (quizTreeCache.size > 1000) quizTreeCache.clear()
   quizTreeCache.set(cacheKey, tree)
   return tree

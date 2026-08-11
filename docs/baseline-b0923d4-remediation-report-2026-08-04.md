@@ -239,3 +239,13 @@
 “随背景”继续调用同一 `setThemePreset('auto')`、palette cache、首屏 bootstrap 和 `appearance:v1` 持久化链路，但展示改为 32px 高、带 `aria-pressed` 的 shadcn Button；七套人工方案仍使用 RadioGroup 预览卡。自动模式因此不再占用一张完整主题卡，也没有引入第二套状态。背景选择页残留的 white/black 玻璃边框同时收敛为 border/background 语义 token，深浅主题无需维护两套局部边框分支。
 
 视觉排版复审保持现有 shadcn 控件高度、卡片 `px-4/py-3 + p-4` 主节奏和页面级 `text-page-title/text-section-title/text-reading/text-data/text-meta` 层级；配色类型与日期数字从 11px 提升到 12px，11px 仅保留给导览的装饰性眉题。其余任意尺寸均对应标记语法 em/intrinsic 几何、全屏视口、图表显式画布或统计数字，不进行破坏语义的机械统一。专项浏览器新增七套人工主题的 OKLCH 相对亮度计算：页面与卡片正文均至少 7:1，主按钮和答题状态前景至少 4.5:1；七套设计预览互异，紧凑随景按钮、4 浅/3 深分组数量、深海→纸白模式切换、松夜完整刷新恢复与随景返回均通过。正式路由在无授权浏览器中按设计进入 `/auth`，首屏主题属性、bootstrap 清理、页面宽度和控制台均正常；真实 Supabase 数据态仍遵守第 10.4 节的普通邀请码验收边界。
+
+## 18. 2026-08-12 实体与精确称呼感知的填空修复
+
+本轮再次逐函数对照旧版 `quizApp.js` 的 `extractTokenRefs`、`buildBaseQuestion`、`renderRecordWithBlank`、`blankHtml` 与当前 `quiz-engine.ts`、`markup.ts`、`QuizMarkupContent`。旧版题目以引用标记生成答案，但显示阶段只对剥离标记后的字符串执行一次 `replace`，无法安全表达“同实体同称呼全部同步、其他同文不受影响”。当前迁移实现则存在双重扩大匹配：安全 AST 先把同 ID 的不同别名都改成答案文本，React 渲染器再对每个文本节点执行 `split(blankAnswer)`，因此会误挖同实体别名、异实体同名和普通正文同名。
+
+最终题目模型只传递 `{kind,id,label}` 一份目标语义，不再重复保存 `blankAnswer`。标记安全化时逐引用节点比较引用类型、实体 ID 和 NFC 后的精确可见称呼；仅三者同时相同的每个节点被转换为显式 `blank` 节点，其他引用只安全展平其可见内容。渲染器不再全局切分文本，也不按字符数猜占位宽度；实际答案字形从首帧即参与行内排版，未揭示时只将前景涂制为透明，揭示后只切换语义色和轻量表面，不改变宽高、基线、行高或换行。表格宽度统计同样把 `blank.answer` 纳入可见尺寸计算，避免表格题揭示后列宽变化。
+
+自动回归现已覆盖：同人同称呼一次/多次、同人不同别名、异人同展示文、普通正文同字符串、名言同样的实体边界、句首/句中/句尾、相邻、跨行、标点、嵌套样式与表格。Playwright 对三个同目标空位在揭示前后的相对 X/Y、宽、高及题体总高逐项比较，容差 0.5 CSS px；1280/768/390/320px 布局回归与旧版其他标记、背景、人物、统计、导览合同同组通过。
+
+全站控制台审计还暴露出导览页“浏览记录/搜索档案”两个 shadcn Button 使用 Link 作为渲染节点时仍保留 `nativeButton=true`，Base UI 因语义不一致持续报警。业务层已与时间线和正文链接的现有模式一致，显式设置 `nativeButton={false}`，并新增静态契约和浏览器 warning/error 监听；只读 `frontend/src/components/ui` 目录仍为零修改。

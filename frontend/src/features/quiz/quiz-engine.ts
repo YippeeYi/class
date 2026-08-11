@@ -40,8 +40,7 @@ export type PlayQuestion = {
   choices: string[]
   explanation?: string
   image?: string
-  blankAnswer?: string
-  blankReference?: { kind: 'person' | 'quote'; id: string }
+  blankReference?: { kind: 'person' | 'quote'; id: string; label: string }
   corrections?: QuizCorrection[]
   sideLabel?: string
   sideText?: string
@@ -415,8 +414,7 @@ export function buildQuestions(records: RecordItem[], people: Person[], quotes: 
               : '请根据记录内容选择被挖空的术语。',
           answer: marker.label,
           choices: options,
-          blankAnswer: marker.label,
-          blankReference: { kind: content, id: marker.id },
+          blankReference: { kind: content, id: marker.id, label: marker.label },
         })
       }
       questions.push({
@@ -424,8 +422,7 @@ export function buildQuestions(records: RecordItem[], people: Person[], quotes: 
         prompt: content === 'person' ? '请填写记录中被挖空的人名。' : '请填写记录中被挖空的术语。',
         answer: marker.label,
         choices: [],
-        blankAnswer: marker.label,
-        blankReference: { kind: content, id: marker.id },
+        blankReference: { kind: content, id: marker.id, label: marker.label },
       })
 
       const markers = (

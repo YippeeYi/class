@@ -17,7 +17,7 @@ const harness = String.raw`<!doctype html>
       import React from 'react'
       import { createRoot } from 'react-dom/client'
       import { MemoryRouter, useLocation, useNavigate } from 'react-router'
-      import { MarkupContent } from '/src/components/archive/markup-content.tsx'
+      import { MarkupContent, QuizMarkupContent } from '/src/components/archive/markup-content.tsx'
       import { TooltipProvider } from '/src/components/ui/tooltip.tsx'
       import { DailyDistributionCell } from '/src/pages/timeline-page.tsx'
       import { BackgroundsPage } from '/src/pages/backgrounds-page.tsx'
@@ -132,6 +132,24 @@ const harness = String.raw`<!doctype html>
         )
       }
 
+      function QuizIdentityBlankFixture() {
+        const [revealed, setRevealed] = React.useState(false)
+        const content = '[[person:p1|乙]]，普通文字乙；句中[[under:[[person:p1|乙]]]]与[[person:p1|小乙]]、[[person:p2|乙]]。\n句尾[[person:p1|乙]]'
+        return e('section', {
+          'data-quiz-identity-blank-fixture': '',
+          style: { display: 'grid', gap: '8px', width: '36rem', maxWidth: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' },
+        },
+          e(Button, { type: 'button', size: 'sm', style: { width: 'max-content' }, onClick: () => setRevealed((value) => !value) }, revealed ? '隐藏答案' : '显示答案'),
+          e('div', { 'data-quiz-blank-body': '', style: { fontSize: '16px', lineHeight: '1.75' } },
+            e(QuizMarkupContent, {
+              content,
+              blankReference: { kind: 'person', id: 'p1', label: '乙' },
+              revealed,
+            }),
+          ),
+        )
+      }
+
       function LocationProbe() {
         const location = useLocation()
         const navigate = useNavigate()
@@ -166,6 +184,7 @@ const harness = String.raw`<!doctype html>
                   e(QuizThemeFixture, { type: 'fill' }),
                   e(QuizThemeFixture, { type: 'judge' }),
                 ),
+                e(QuizIdentityBlankFixture),
                 e('section', { 'data-case': 'app-surface', className: 'app-main-surface bg-background', style: { width: '68rem', maxWidth: '100%', minHeight: '220px', margin: '24px auto', padding: '20px' } },
                   e('header', { className: 'app-topbar rounded-xl border p-4' }, '全局背景表面'),
                   e('aside', { className: 'app-sidebar mt-4 w-48' },
@@ -231,7 +250,17 @@ const browser = await chromium.launch({ headless: true, executablePath: systemEd
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } })
   const pageErrors = []
+  const consoleProblems = []
+  let expectedHarnessNetworkFailures = 0
   page.on('pageerror', (error) => pageErrors.push(error.message))
+  page.on('console', (message) => {
+    if (/^Failed to load resource: the server responded with a status of 400/u.test(message.text())) {
+      expectedHarnessNetworkFailures += 1
+      return
+    }
+    if (message.type() === 'error' || message.type() === 'warning')
+      consoleProblems.push(`${message.type()}: ${message.text()}`)
+  })
   await page.goto(origin, { waitUntil: 'networkidle' })
   await page.waitForFunction(() => window.__markupLayoutReady === true)
   assert.deepEqual(pageErrors, [], `browser page errors during initial render: ${pageErrors.join('; ')}`)
@@ -299,6 +328,67 @@ try {
     Math.max(...tableBalance.sixWidths.slice(0, 5)) > tableBalance.sixWidths[5] * 1.15,
     'content-heavy columns must receive more width than a short trailing column',
   )
+
+  const identityBlankFixture = page.locator('[data-quiz-identity-blank-fixture]')
+  const identityBlanks = identityBlankFixture.locator('.quiz-answer-blank')
+  assert.equal(
+    await identityBlanks.count(),
+    3,
+    'every repeated reference with the same entity and exact label must be blanked',
+  )
+  assert.equal(
+    await identityBlankFixture.locator('.markup-link').count(),
+    0,
+    'quiz-safe markup must flatten all remaining entity references',
+  )
+  const hiddenBlankGeometry = await identityBlankFixture.evaluate((fixture) => {
+    const body = fixture.querySelector('[data-quiz-blank-body]')
+    const bounds = body.getBoundingClientRect()
+    return {
+      body: { width: bounds.width, height: bounds.height },
+      blanks: [...fixture.querySelectorAll('.quiz-answer-blank')].map((blank) => {
+        const blankBounds = blank.getBoundingClientRect()
+        return {
+          left: blankBounds.left - bounds.left,
+          top: blankBounds.top - bounds.top,
+          width: blankBounds.width,
+          height: blankBounds.height,
+        }
+      }),
+    }
+  })
+  await identityBlankFixture.getByRole('button', { name: '显示答案' }).click()
+  const revealedBlankGeometry = await identityBlankFixture.evaluate((fixture) => {
+    const body = fixture.querySelector('[data-quiz-blank-body]')
+    const bounds = body.getBoundingClientRect()
+    return {
+      body: { width: bounds.width, height: bounds.height },
+      blanks: [...fixture.querySelectorAll('.quiz-answer-blank')].map((blank) => {
+        const blankBounds = blank.getBoundingClientRect()
+        return {
+          left: blankBounds.left - bounds.left,
+          top: blankBounds.top - bounds.top,
+          width: blankBounds.width,
+          height: blankBounds.height,
+        }
+      }),
+    }
+  })
+  assert.ok(
+    Math.abs(hiddenBlankGeometry.body.height - revealedBlankGeometry.body.height) <= 0.5,
+    `revealing all matching blanks must not change the question height: ${JSON.stringify({ hiddenBlankGeometry, revealedBlankGeometry })}`,
+  )
+  hiddenBlankGeometry.blanks.forEach((blank, index) => {
+    const revealed = revealedBlankGeometry.blanks[index]
+    assert.ok(
+      revealed &&
+        Math.abs(blank.left - revealed.left) <= 0.5 &&
+        Math.abs(blank.top - revealed.top) <= 0.5 &&
+        Math.abs(blank.width - revealed.width) <= 0.5 &&
+        Math.abs(blank.height - revealed.height) <= 0.5,
+      `blank ${index + 1} must preserve its exact inline geometry while revealing: ${JSON.stringify({ blank, revealed })}`,
+    )
+  })
 
   const dailyCells = await page.evaluate(() =>
     [...document.querySelectorAll('.daily-distribution-cell')].map((cell) => {
@@ -782,6 +872,13 @@ try {
   const edgePopup = await illustrationPopup.boundingBox()
   assert.ok(edgePopup)
   assert.ok(edgePopup.x >= 4 && edgePopup.x + edgePopup.width <= 1276, 'viewport collision handling must keep edge-anchored illustration popups fully visible')
+
+  assert.deepEqual(pageErrors, [], `browser page errors during interaction regression: ${pageErrors.join('; ')}`)
+  assert.deepEqual(consoleProblems, [], `browser console warnings/errors: ${consoleProblems.join('; ')}`)
+  assert.ok(
+    expectedHarnessNetworkFailures <= 2,
+    `the credential-free illustration harness made unexpected failing requests: ${expectedHarnessNetworkFailures}`,
+  )
 
   const touchPage = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true })
   const touchErrors = []

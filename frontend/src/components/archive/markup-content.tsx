@@ -17,7 +17,13 @@ import { Spinner } from '@/components/ui/spinner'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import type { ImageDimensions } from '@/lib/image-metadata'
-import { type MarkupNode, parseMarkup, parseQuizMarkup, recordAnchor } from '@/lib/markup'
+import {
+  type MarkupNode,
+  parseMarkup,
+  parseQuizMarkup,
+  type QuizMarkupNode,
+  recordAnchor,
+} from '@/lib/markup'
 import { prepareRecordJump } from '@/lib/record-navigation'
 import {
   getImageDimensions,
@@ -273,10 +279,13 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
   )
 }
 
-function markupNodesText(nodes: MarkupNode[]): string {
+type GeometryMarkupNode = MarkupNode | QuizMarkupNode
+
+function markupNodesText(nodes: readonly GeometryMarkupNode[]): string {
   return nodes
     .map((node) => {
       if (node.type === 'text') return node.value
+      if (node.type === 'blank') return node.answer
       if (
         node.type === 'style' ||
         node.type === 'reference' ||
@@ -291,7 +300,7 @@ function markupNodesText(nodes: MarkupNode[]): string {
     .join('')
 }
 
-function visibleTextUnits(nodes: MarkupNode[]) {
+function visibleTextUnits(nodes: readonly GeometryMarkupNode[]) {
   return Array.from(markupNodesText(nodes).trim()).reduce((sum, character) => {
     if (/\s/u.test(character)) return sum + 0.35
     if ((character.codePointAt(0) || 0) <= 0x7f) return sum + 0.58
@@ -299,7 +308,7 @@ function visibleTextUnits(nodes: MarkupNode[]) {
   }, 0)
 }
 
-function visibleHanCount(nodes: MarkupNode[]) {
+function visibleHanCount(nodes: readonly GeometryMarkupNode[]) {
   return (markupNodesText(nodes).match(/[\u4e00-\u9fff]/gu) || []).length
 }
 
@@ -309,7 +318,7 @@ type TableGeometry = {
   preferredWidth: string
 }
 
-const tableGeometryCache = new WeakMap<MarkupNode[][][], TableGeometry>()
+const tableGeometryCache = new WeakMap<object, TableGeometry>()
 
 function tableCellClassName(columnCount: number) {
   const density =
@@ -321,7 +330,7 @@ function tableCellClassName(columnCount: number) {
   return `${density} align-top whitespace-normal break-words [overflow-wrap:anywhere]`
 }
 
-function tableGeometry(rows: MarkupNode[][][]): TableGeometry {
+function tableGeometry(rows: MarkupNode[][][] | QuizMarkupNode[][][]): TableGeometry {
   const cached = tableGeometryCache.get(rows)
   if (cached) return cached
   const columnCount = Math.max(1, ...rows.map((row) => row.length))
@@ -641,27 +650,14 @@ function QuizAnswerBlank({ answer, revealed }: { answer: string; revealed: boole
 function decorateQuizText({
   value,
   keyPrefix,
-  blankAnswer,
   corrections,
   revealed,
 }: {
   value: string
   keyPrefix: string
-  blankAnswer: string
   corrections: QuizCorrection[]
   revealed: boolean
 }) {
-  if (blankAnswer && value.includes(blankAnswer)) {
-    const parts = value.split(blankAnswer)
-    return parts.flatMap((part, index) => {
-      const textKey = `${keyPrefix}-text-${index}`
-      const blankKey = `${keyPrefix}-blank-${index}`
-      const output: ReactNode[] = [<Fragment key={textKey}>{part}</Fragment>]
-      if (index < parts.length - 1)
-        output.push(<QuizAnswerBlank key={blankKey} answer={blankAnswer} revealed={revealed} />)
-      return output
-    })
-  }
   if (!revealed || !corrections.length) return value
   const output: ReactNode[] = []
   let cursor = 0
@@ -697,35 +693,27 @@ function decorateQuizText({
 
 export function QuizMarkupContent({
   content,
-  blankAnswer = '',
   blankReference,
   corrections = [],
   revealed = false,
 }: {
   content: string
-  blankAnswer?: string
-  blankReference?: { kind: 'person' | 'quote'; id: string }
+  blankReference?: { kind: 'person' | 'quote'; id: string; label: string }
   corrections?: QuizCorrection[]
   revealed?: boolean
 }) {
-  const tree = useMemo(
-    () =>
-      parseQuizMarkup(
-        content,
-        blankReference && blankAnswer ? { ...blankReference, replacement: blankAnswer } : undefined,
-      ),
-    [blankAnswer, blankReference, content],
-  )
-  const renderNodes = (nodes: MarkupNode[], path: string): ReactNode =>
+  const tree = useMemo(() => parseQuizMarkup(content, blankReference), [blankReference, content])
+  const renderNodes = (nodes: QuizMarkupNode[], path: string): ReactNode =>
     nodes.map((node, position) => {
       const key = `${path}-${node.type}-${position}`
+      if (node.type === 'blank')
+        return <QuizAnswerBlank key={key} answer={node.answer} revealed={revealed} />
       if (node.type === 'text')
         return (
           <Fragment key={key}>
             {decorateQuizText({
               value: node.value,
               keyPrefix: key,
-              blankAnswer,
               corrections,
               revealed,
             })}
@@ -747,8 +735,6 @@ export function QuizMarkupContent({
           </span>
         )
       }
-      if (node.type === 'reference' || node.type === 'annotation' || node.type === 'illustration')
-        return <Fragment key={key}>{renderNodes(node.children, key)}</Fragment>
       if (node.type === 'stack')
         return (
           <span key={key} className={`record-stack record-stack--${node.kind}`}>

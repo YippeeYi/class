@@ -22,6 +22,7 @@ assert.match(engine, /corrections/, 'judge questions must retain inline correcti
 assert.match(engine, /markupBody: record\.content\.trim\(\)/, 'quiz sources must retain shared markup')
 assert.match(engine, /originalMarkup/, 'randomized judge questions must preserve safe layout markup')
 assert.match(engine, /new Map\(questions\.map/, 'duplicate baseline sources must be collapsed')
+assert.doesNotMatch(engine, /blankAnswer/, 'question state must not duplicate the selected display label')
 assert.match(quiz, /normalizeText\(stripMarkup\(value\)\)/, 'answer normalization is missing')
 assert.match(quiz, /buffer !== 'lamian'/, 'admin-only hidden quiz sequence was not preserved')
 assert.match(quiz, /!adminResource\.data/, 'hidden quiz data must be admin-gated')
@@ -32,18 +33,18 @@ assert.match(quiz, /preloadImageDimensionList\(imagePaths\)/, 'all secret image 
 assert.match(quiz, /getImageDimensions\(path\)/, 'secret images must reserve their intrinsic ratio')
 assert.match(quiz, /aspectRatio:/, 'secret image loading must use a stable frame')
 assert.match(quiz, /pendingQuestionTop/, 'question changes must preserve the prompt viewport position')
+assert.match(
+  quiz,
+  /setCurrent\(pickQuestion\(candidates\)\)[\s\S]*setInput\(''\)[\s\S]*setResult\(null\)[\s\S]*setSecretProgress\(\[\]\)/,
+  'moving to the next question must clear revealed answers, input, and secret progress together',
+)
 assert.match(quiz, /Intl\.Segmenter/, 'hidden answers must be split by grapheme clusters')
 assert.match(quiz, /inputChars\.every/, 'hidden questions must require one fully correct attempt')
 assert.match(quiz, /QuizMarkupContent/, 'question bodies must use the shared safe markup renderer')
 assert.match(
   quiz,
-  /blankAnswer=\{question\.blankAnswer\}/,
-  'person and quote answers must reveal in place after submission',
-)
-assert.match(
-  quiz,
   /blankReference=\{question\.blankReference\}/,
-  'all aliases for the selected person or quote reference must share the blank',
+  'the selected person or quote entity and exact display label must reach the safe renderer',
 )
 assert.match(
   markupContent,
@@ -155,7 +156,61 @@ try {
     /\[\[center:/,
     'center alignment markup must survive question generation',
   )
-  assert.deepEqual(centeredFill?.blankReference, { kind: 'person', id: 'p1' })
+  assert.deepEqual(centeredFill?.blankReference, {
+    kind: 'person',
+    id: 'p1',
+    label: '乙',
+  })
+  const originalRandom = Math.random
+  Math.random = () => 0
+  let identityQuestions
+  try {
+    identityQuestions = buildQuestions(
+      [
+        {
+          id: 'identity-record',
+          fileName: 'identity-record.json',
+          date: '2025-01-02',
+          time: '',
+          author: '甲',
+          content:
+            '[[person:p1|乙]]和普通文字乙；[[person:p1|乙]][[person:p1|小乙]][[person:p2|乙]]。[[quote:q1|名言，甲。]]与普通文字名言，甲。；[[quote:q1|名言，甲。]][[quote:q2|名言，甲。]]',
+          attachments: [],
+        },
+      ],
+      [
+        { id: 'p1', name: '乙', aliases: ['小乙'] },
+        { id: 'p2', name: '乙' },
+        { id: 'p3', name: '丙' },
+        { id: 'p4', name: '丁' },
+      ],
+      [
+        { id: 'q1', quote: '名言，甲。', content: '名言，甲。', recordFile: 'identity-record' },
+        { id: 'q2', quote: '名言，甲。', content: '名言，甲。', recordFile: 'identity-record' },
+        { id: 'q3', quote: '另一名言', content: '另一名言', recordFile: 'other' },
+        { id: 'q4', quote: '第三名言', content: '第三名言', recordFile: 'other' },
+        { id: 'q5', quote: '第四名言', content: '第四名言', recordFile: 'other' },
+      ],
+    )
+  } finally {
+    Math.random = originalRandom
+  }
+  const identityPersonFill = identityQuestions.find(
+    (question) => question.content === 'person' && question.type === 'fill',
+  )
+  const identityQuoteFill = identityQuestions.find(
+    (question) => question.content === 'quote' && question.type === 'fill',
+  )
+  assert.deepEqual(identityPersonFill?.blankReference, {
+    kind: 'person',
+    id: 'p1',
+    label: '乙',
+  })
+  assert.deepEqual(identityQuoteFill?.blankReference, {
+    kind: 'quote',
+    id: 'q1',
+    label: '名言，甲。',
+  })
 } finally {
   await vite.close()
 }

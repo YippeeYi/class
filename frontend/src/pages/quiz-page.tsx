@@ -86,7 +86,6 @@ function QuestionSource({ question, revealed }: { question: PlayQuestion; reveal
         <blockquote className="quiz-question-source text-foreground/90">
           <QuizMarkupContent
             content={question.markupBody || question.body}
-            blankAnswer={question.blankAnswer}
             blankReference={question.blankReference}
             corrections={question.corrections}
             revealed={revealed}

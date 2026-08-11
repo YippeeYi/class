@@ -42,14 +42,59 @@ assert.match(serializedQuizTree, /来源标签/)
 assert.match(serializedQuizTree, /隐藏内容已省略/)
 assert.doesNotMatch(serializedQuizTree, /p-secret|标准答案|answer\.png|黑幕答案|answer-record/)
 const redactedIdentityTree = markup.parseQuizMarkup(
-  '[[person:p1|乙]]和[[person:p1|小乙]]一起出现',
-  { kind: 'person', id: 'p1', replacement: '乙' },
+  '[[person:p1|乙]]和普通文字乙以及[[person:p1|乙]][[person:p1|小乙]][[person:p2|乙]]',
+  { kind: 'person', id: 'p1', label: '乙' },
 )
-assert.equal(markup.stripMarkup('[[person:p1|乙]]和[[person:p1|小乙]]一起出现'), '乙和小乙一起出现')
-assert.doesNotMatch(JSON.stringify(redactedIdentityTree), /小乙|p1/)
-assert.equal(JSON.stringify(redactedIdentityTree).match(/乙/g)?.length, 2)
+const quizVisibleText = (nodes) =>
+  nodes
+    .map((node) => {
+      if (node.type === 'text') return node.value
+      if (node.type === 'blank') return '＿'
+      if (node.type === 'style') return quizVisibleText(node.children)
+      if (node.type === 'stack') return `${quizVisibleText(node.top)}${quizVisibleText(node.bottom)}`
+      return node.rows.flat().map(quizVisibleText).join('')
+    })
+    .join('')
+const blankAnswers = (nodes) =>
+  nodes.flatMap((node) => {
+    if (node.type === 'blank') return [node.answer]
+    if (node.type === 'style') return blankAnswers(node.children)
+    if (node.type === 'stack') return [...blankAnswers(node.top), ...blankAnswers(node.bottom)]
+    if (node.type === 'table') return node.rows.flat().flatMap(blankAnswers)
+    return []
+  })
+assert.deepEqual(blankAnswers(redactedIdentityTree), ['乙', '乙'])
+assert.equal(quizVisibleText(redactedIdentityTree), '＿和普通文字乙以及＿小乙乙')
+assert.doesNotMatch(JSON.stringify(redactedIdentityTree), /p1|p2/)
+const redactedQuoteTree = markup.parseQuizMarkup(
+  '[[quote:q1|[[red:名言，甲。]]]]与普通文字名言，甲。；[[quote:q1|名言，甲。]][[quote:q2|名言，甲。]]',
+  { kind: 'quote', id: 'q1', label: '名言，甲。' },
+)
+assert.deepEqual(blankAnswers(redactedQuoteTree), ['名言，甲。', '名言，甲。'])
+assert.equal(quizVisibleText(redactedQuoteTree), '＿与普通文字名言，甲。；＿名言，甲。')
+assert.doesNotMatch(JSON.stringify(redactedQuoteTree), /q1|q2/)
+const positionalIdentityTree = markup.parseQuizMarkup(
+  '[[person:p1|乙]]，句中[[under:[[person:p1|乙]]]]。\n句尾[[person:p1|乙]]',
+  { kind: 'person', id: 'p1', label: '乙' },
+)
+assert.deepEqual(blankAnswers(positionalIdentityTree), ['乙', '乙', '乙'])
+assert.equal(quizVisibleText(positionalIdentityTree), '＿，句中＿。\n句尾＿')
+const tabularIdentityTree = markup.parseQuizMarkup(
+  '[[table:2x2|[[person:p1|乙]]|普通文字乙|[[person:p1|小乙]]|[[person:p2|乙]]]]',
+  { kind: 'person', id: 'p1', label: '乙' },
+)
+assert.deepEqual(blankAnswers(tabularIdentityTree), ['乙'])
+assert.equal(quizVisibleText(tabularIdentityTree), '＿普通文字乙小乙乙')
+const adjacentIdentityTree = markup.parseQuizMarkup(
+  '相邻：[[person:p1|乙]][[person:p1|乙]]。',
+  { kind: 'person', id: 'p1', label: '乙' },
+)
+assert.deepEqual(blankAnswers(adjacentIdentityTree), ['乙', '乙'])
+assert.equal(quizVisibleText(adjacentIdentityTree), '相邻：＿＿。')
 assert.match(markupContent, /<Table\b/, 'markup tables must use the shadcn Table component')
 assert.match(markupContent, /export function QuizMarkupContent/, 'quiz must reuse the shared AST renderer')
+assert.doesNotMatch(markupContent, /\.split\(/, 'quiz blanks must never use global display-text replacement')
+assert.match(markupContent, /node\.type === 'blank'/, 'quiz blanks must render from entity-aware safe AST nodes')
 assert.match(markupContent, /<TableBody>/, 'markup tables must use the shadcn Table composition')
 assert.doesNotMatch(markupContent, /<table>/, 'markup rendering must not maintain a parallel native table')
 assert.match(markupContent, /record-stack--\$\{node\.kind\}/, 'arrow and fraction rendering must not share an indistinguishable class')

@@ -98,6 +98,16 @@ assert.ok(
 assert.match(person, /WeakMap<RecordItem, string\[\]>/, 'person relationship parsing must be cached per record')
 assert.doesNotMatch(home, /fixed top-3 left-3/, 'today history must not cover the top-left navigation')
 assert.equal(home.match(/历史上的今天/g)?.length, 1, 'today history must mount only one responsive control')
+assert.match(
+  home,
+  /<Button nativeButton=\{false\} render=\{<Link to="\/records" \/>\}>/,
+  'guide record navigation must declare link semantics to the shared shadcn Button',
+)
+assert.match(
+  home,
+  /<Button variant="outline" nativeButton=\{false\} render=\{<Link to="\/search" \/>\}>/,
+  'guide search navigation must declare link semantics to the shared shadcn Button',
+)
 assert.match(shell, /viewportLockedPaths/, 'workspace routes must share one viewport-lock contract')
 for (const route of ['/materials', '/quiz', '/map']) {
   assert.match(shell, new RegExp(`'${route}'`), `${route} must lock the outer viewport`)
@@ -245,6 +255,9 @@ assert.doesNotMatch(quotes, /<Card id=|<CardContent className="pt-4">/, 'quote c
 assert.match(quiz, /preloadQuizImage/, 'secret quiz image preloading is missing')
 assert.match(quiz, /text-foreground\/90/, 'quiz source text needs sufficient contrast')
 assert.match(quiz, /<ScrollArea key=\{current\.id\}/, 'quiz questions must scroll inside the card')
+assert.match(markup, /type: 'blank'; answer: string/, 'quiz blanks must be represented as entity-aware safe AST nodes')
+assert.match(markup, /node\.id === redaction\.id[\s\S]*visibleLabel === redaction\.normalizedLabel/, 'quiz redaction must match both entity identity and exact visible label')
+assert.doesNotMatch(markupContent, /\.split\(/, 'quiz prompts must not globally replace matching display text')
 assert.match(quiz, /quiz-result-correct[\s\S]*quiz-result-wrong/, 'quiz feedback must use theme-aware semantic state colors')
 assert.doesNotMatch(quiz, /result === 'correct' && 'text-\[oklch/, 'quiz feedback must not hard-code a light-theme success color')
 assert.match(styles, /\.dark \.quiz-question-card[\s\S]*--quiz-type-ink:[\s\S]*--quiz-success-foreground:[\s\S]*--quiz-error-foreground:/, 'dark quiz surfaces and state text need dedicated semantic contrast tokens')

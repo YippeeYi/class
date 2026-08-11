@@ -157,11 +157,11 @@ export function HomePage() {
               把散落在日常里的事件、人物、话语和资料，整理成一部可以搜索、回看，也可以继续生长的班级档案。
             </p>
             <div className="mt-5 flex flex-wrap gap-2.5">
-              <Button render={<Link to="/records" />}>
+              <Button nativeButton={false} render={<Link to="/records" />}>
                 浏览记录
                 <ArrowRight data-icon="inline-end" />
               </Button>
-              <Button variant="outline" render={<Link to="/search" />}>
+              <Button variant="outline" nativeButton={false} render={<Link to="/search" />}>
                 <Search data-icon="inline-start" />
                 搜索档案
               </Button>
