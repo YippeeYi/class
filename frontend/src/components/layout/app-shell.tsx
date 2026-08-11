@@ -116,7 +116,7 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
   const activePath = navigationPath(location.pathname)
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" className="app-sidebar">
       <CloseMobileSidebar key={location.pathname} />
       <SidebarHeader>
         <SidebarMenu>

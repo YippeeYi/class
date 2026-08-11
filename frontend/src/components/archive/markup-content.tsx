@@ -75,7 +75,6 @@ function Annotation({ note, children }: { note: string; children: ReactNode }) {
     }
     openRef.current = false
     setOpen(false)
-    setLockedAlignOffset(0)
   }
 
   return (
@@ -183,8 +182,6 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
       openRequest.current += 1
       openRef.current = false
       setOpen(false)
-      setLockedDimensions(null)
-      setLockedAlignOffset(0)
       return
     }
     requestPreview()
@@ -220,6 +217,9 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
                     rememberPointerPosition(event)
                   }}
                   onPointerMove={rememberPointerPosition}
+                  onPointerDown={(event) => {
+                    if (event.pointerType === 'touch') pointerClientX.current = null
+                  }}
                   onFocus={(event) => {
                     if (event.currentTarget.matches(':focus-visible')) pointerClientX.current = null
                     requestPreview()

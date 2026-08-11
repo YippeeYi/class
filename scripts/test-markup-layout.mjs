@@ -22,6 +22,7 @@ const harness = String.raw`<!doctype html>
       import { DailyDistributionCell } from '/src/pages/timeline-page.tsx'
       import { BackgroundsPage } from '/src/pages/backgrounds-page.tsx'
       import { HomePage } from '/src/pages/home-page.tsx'
+      import { BackgroundRoot } from '/src/components/layout/background-root.tsx'
       import { ArchiveProvider } from '/src/features/archive/archive-context.tsx'
       import { rememberImageDimensions } from '/src/services/image-metadata.ts'
       import '/src/styles/tailwind.css'
@@ -39,8 +40,10 @@ const harness = String.raw`<!doctype html>
       localStorage.setItem('classRecord:inviteAccess', JSON.stringify(access))
       const cachePrefix = 'classRecord:dataCache:v5:access-layout-test:'
       const cacheEntry = (data) => JSON.stringify({ time: Date.now(), data })
+      const today = new Date()
+      const todayDate = String(today.getFullYear()) + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0')
       sessionStorage.setItem(cachePrefix + 'records:false', cacheEntry([
-        { id: 'r1', fileName: 'r1', date: '2024-08-11', content: '今天的记录 [[quote:q1|一句话]]' },
+        { id: 'r1', fileName: 'r1', date: todayDate, content: '今天的记录 [[quote:q1|一句话]]' },
         { id: 'r2', fileName: 'r2', date: '2025-02-03', content: '第二条记录' },
         { id: 'r3', fileName: 'r3', date: '2026-05-06', content: '第三条记录' },
       ]))
@@ -49,7 +52,7 @@ const harness = String.raw`<!doctype html>
         { id: 'p2', name: '人物二' },
       ]))
       sessionStorage.setItem(cachePrefix + 'quotes', cacheEntry([
-        { id: 'q1', quote: '一句话', content: '一句话', recordFile: 'r1', sourceDate: '2024-08-11' },
+        { id: 'q1', quote: '一句话', content: '一句话', recordFile: 'r1', sourceDate: todayDate },
       ]))
 
       rememberImageDimensions('data/attachments/position-test.png', { width: 320, height: 200 })
@@ -97,10 +100,11 @@ const harness = String.raw`<!doctype html>
 
       function App() {
         return e(MemoryRouter, null,
-          e(React.Fragment, null,
-            e(LocationProbe),
-            e(TooltipProvider, { delay: 0 },
-              e('div', { style: { width: '100%', maxWidth: '1120px', margin: '0 auto', padding: '12px' } },
+          e(BackgroundRoot, null,
+            e(React.Fragment, null,
+              e(LocationProbe),
+              e(TooltipProvider, { delay: 0 },
+                e('div', { style: { width: '100%', maxWidth: '1120px', margin: '0 auto', padding: '12px' } },
                 e(Case, { id: 'small', width: '52rem', content: '[[table:2x2|短|较长内容|甲|乙]]' }),
                 e(Case, { id: 'six', width: '52rem', content: extremeSixColumns }),
                 e(Case, { id: 'many', width: '52rem', content: manyColumns }),
@@ -113,8 +117,16 @@ const harness = String.raw`<!doctype html>
                 e(DailyGrid, { id: 'medium', width: '38rem', columns: 7 }),
                 e(DailyGrid, { id: 'wide', width: '52rem', columns: 10 }),
                 e('section', { 'data-case': 'backgrounds', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(BackgroundsPage)),
+                e('section', { 'data-case': 'app-surface', className: 'app-main-surface bg-background', style: { width: '68rem', maxWidth: '100%', minHeight: '220px', margin: '24px auto', padding: '20px' } },
+                  e('header', { className: 'app-topbar rounded-xl border p-4' }, '全局背景表面'),
+                  e('aside', { className: 'app-sidebar mt-4 w-48' },
+                    e('div', { 'data-slot': 'sidebar-inner', className: 'rounded-xl bg-sidebar p-4' }, '侧栏磨砂层'),
+                  ),
+                  e('div', { 'data-slot': 'card', className: 'mt-4 rounded-xl bg-card p-4' }, '内容卡片'),
+                ),
                 e(ArchiveProvider, null,
                   e('section', { 'data-case': 'guide', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(HomePage)),
+                ),
                 ),
               ),
             ),
@@ -241,7 +253,7 @@ try {
     [...document.querySelectorAll('.daily-distribution-cell')].map((cell) => {
       const bounds = cell.getBoundingClientRect()
       const date = cell.querySelector('.daily-distribution-date')?.getBoundingClientRect()
-      const important = cell.querySelector('.daily-distribution-important')?.getBoundingClientRect()
+      const important = cell.querySelector('.daily-distribution-important-marker')?.getBoundingClientRect()
       const pie = cell.querySelector('.daily-distribution-pie')?.getBoundingClientRect()
       const main = cell.children[1]?.getBoundingClientRect()
       const childrenInside = [...cell.querySelectorAll('*')].every((child) => {
@@ -268,6 +280,9 @@ try {
           return { top: childBounds.top, bottom: childBounds.bottom, height: childBounds.height, text: child.textContent }
         }),
         visibleText: cell.textContent || '',
+        dateLeft: date ? date.left - bounds.left : -1,
+        dateTop: date ? date.top - bounds.top : -1,
+        hasImportantMarker: Boolean(important),
         topOverlap: date && important ? Math.max(0, date.right - important.left) : 0,
       }
     }),
@@ -280,12 +295,18 @@ try {
     )
     assert.ok(cell.squareDelta <= 1, `daily cell ${index + 1} must retain a stable square frame`)
     assert.equal(cell.childrenInside, true, `daily cell ${index + 1} content must remain inside its frame`)
-    assert.ok(cell.topOverlap <= 0.5, `daily cell ${index + 1} date and important metric must not overlap`)
+    assert.ok(cell.topOverlap <= 0.5, `daily cell ${index + 1} date and important marker must not overlap`)
+    assert.ok(cell.dateLeft >= 3 && cell.dateLeft <= 8, `daily cell ${index + 1} date must keep a compact left inset: ${JSON.stringify(cell)}`)
+    assert.ok(cell.dateTop >= 3 && cell.dateTop <= 8, `daily cell ${index + 1} date must keep a compact top inset: ${JSON.stringify(cell)}`)
     assert.ok(!/[日条字]/u.test(cell.visibleText), `daily cell ${index + 1} must omit redundant visible units: ${cell.visibleText}`)
+    assert.ok(!/(?:重要|重)/u.test(cell.visibleText), `daily cell ${index + 1} must use a non-text important marker: ${cell.visibleText}`)
     assert.ok(cell.pieWidth >= 30 && Math.abs(cell.pieWidth - cell.pieHeight) <= 0.5, `daily cell ${index + 1} pie must remain prominent and circular: ${JSON.stringify(cell)}`)
     assert.ok(cell.pieWidth / cell.bounds.width >= 0.44, `daily cell ${index + 1} pie must be the card's primary visual`)
     assert.ok(cell.mainHeight / cell.bounds.height >= 0.64, `daily cell ${index + 1} main visualization row must not leave excessive blank space`)
   })
+  assert.ok(Math.max(...dailyCells.map((cell) => cell.dateLeft)) - Math.min(...dailyCells.map((cell) => cell.dateLeft)) <= 0.5, 'all daily dates must share one left alignment')
+  assert.ok(Math.max(...dailyCells.map((cell) => cell.dateTop)) - Math.min(...dailyCells.map((cell) => cell.dateTop)) <= 0.5, 'all daily dates must share one top alignment')
+  assert.equal(dailyCells.filter((cell) => cell.hasImportantMarker).length, 6, 'only important days may render the visual marker')
   const largeDailyValue = page.locator('.daily-distribution-value[title="9,876,543 字"]').first()
   await largeDailyValue.waitFor({ state: 'visible' })
   assert.notEqual(await largeDailyValue.textContent(), '9,876,543', 'large daily values must use compact visible notation')
@@ -297,7 +318,7 @@ try {
   const backgroundGeometry = await backgroundCards.evaluateAll((cards) =>
     cards.map((card) => {
       const preview = card.querySelector('[data-slot="aspect-ratio"]')
-      const strip = card.firstElementChild
+      const strip = card.querySelector('[data-background-swatch]')
       const glass = card.querySelector('.backdrop-blur-md')
       const bounds = preview?.getBoundingClientRect()
       return {
@@ -307,6 +328,8 @@ try {
         height: bounds?.height || 0,
         computedAspect: preview ? getComputedStyle(preview).aspectRatio : '',
         strip: strip ? getComputedStyle(strip).backgroundImage : '',
+        stripWidthRatio: strip ? strip.getBoundingClientRect().width / card.getBoundingClientRect().width : 1,
+        stripIntegrated: strip ? strip !== card.firstElementChild : false,
         backdrop: glass ? getComputedStyle(glass).backdropFilter : '',
       }
     }),
@@ -314,6 +337,7 @@ try {
   backgroundGeometry.forEach((card) => {
     assert.ok(Math.abs(card.ratio - 4 / 3) <= 0.02, `background ${card.id} must keep a stable 4:3 preview: ${JSON.stringify(card)}`)
     assert.notEqual(card.strip, 'none', `background ${card.id} needs a representative theme strip`)
+    assert.ok(card.stripIntegrated && card.stripWidthRatio < 0.3, `background ${card.id} swatch must remain a secondary part of its metadata`)
     assert.notEqual(card.backdrop, 'none', `background ${card.id} metadata needs a readable glass surface`)
   })
   assert.equal(new Set(backgroundGeometry.map((card) => card.strip)).size, 3, 'background theme strips must reflect distinct source palettes')
@@ -322,6 +346,27 @@ try {
   await page.waitForFunction(() => document.querySelector('[data-background-id="mountain"]')?.getAttribute('data-selected') === 'true')
   await page.locator('[data-background-id="cloud"]').click()
   await page.waitForFunction(() => localStorage.getItem('classRecord:background') === 'cloud')
+  await page.waitForFunction(() => document.querySelector('[data-background-visible="cloud"]'))
+  const surfaceGeometry = await page.locator('[data-case="app-surface"]').evaluate((surface) => {
+    const layers = document.querySelectorAll('[data-background-visible="cloud"] > .background-layer')
+    const layer = layers[layers.length - 1]
+    const topbar = surface.querySelector('.app-topbar')
+    const sidebar = surface.querySelector('[data-slot="sidebar-inner"]')
+    const card = surface.querySelector('[data-slot="card"]')
+    return {
+      layerImage: layer ? getComputedStyle(layer).backgroundImage : '',
+      surfaceImage: getComputedStyle(surface).backgroundImage,
+      surfaceColor: getComputedStyle(surface).backgroundColor,
+      topbarBackdrop: topbar ? getComputedStyle(topbar).backdropFilter : '',
+      sidebarBackdrop: sidebar ? getComputedStyle(sidebar).backdropFilter : '',
+      cardColor: card ? getComputedStyle(card).backgroundColor : '',
+    }
+  })
+  assert.match(surfaceGeometry.layerImage, /cloud\.webp/, 'the selected background must remain mounted behind the formal application surface')
+  assert.notEqual(surfaceGeometry.surfaceImage, 'none', 'the application surface needs a translucent readability gradient')
+  assert.match(surfaceGeometry.surfaceColor, /(?:\/ 0\)|, 0\))$/, `the application surface must not keep an opaque shadcn background: ${JSON.stringify(surfaceGeometry)}`)
+  assert.notEqual(surfaceGeometry.topbarBackdrop, 'none', 'the top bar must keep a bounded glass treatment')
+  assert.notEqual(surfaceGeometry.sidebarBackdrop, 'none', 'the sidebar must keep a bounded glass treatment')
 
   const guide = page.locator('[data-case="guide"]')
   await guide.scrollIntoViewIfNeeded()
@@ -388,7 +433,40 @@ try {
   assert.ok(movedAnnotationPopup)
   assert.ok(Math.abs(movedAnnotationPopup.x - firstAnnotationPopup.x) <= 1, 'an open annotation popup must not follow later pointer movement')
   const shortWidth = await annotationPopup.evaluate((element) => element.getBoundingClientRect().width)
+  const annotationExitOrigin = await annotationPopup.evaluate((element) => {
+    const bounds = element.parentElement?.getBoundingClientRect()
+    return { left: bounds?.left || 0, top: bounds?.top || 0 }
+  })
+  await annotationPopup.evaluate((element) => {
+    const samples = []
+    window.__annotationExitSamples = samples
+    const started = performance.now()
+    const capture = () => {
+      if (element.isConnected) {
+        const bounds = element.parentElement?.getBoundingClientRect()
+        samples.push({
+          closed: element.hasAttribute('data-closed'),
+          left: bounds?.left || 0,
+          top: bounds?.top || 0,
+        })
+      }
+      if (element.isConnected && performance.now() - started < 2000) requestAnimationFrame(capture)
+    }
+    requestAnimationFrame(capture)
+  })
   await page.mouse.move(4, 4)
+  await annotationPopup.waitFor({ state: 'hidden' })
+  const annotationExitSamples = await page.evaluate(() => window.__annotationExitSamples || [])
+  const closedAnnotationSamples = annotationExitSamples.filter((sample) => sample.closed)
+  assert.ok(closedAnnotationSamples.length > 0, 'annotation popup must retain a real exit-animation phase')
+  assert.ok(
+    closedAnnotationSamples.every(
+      (sample) =>
+        Math.abs(sample.left - annotationExitOrigin.left) <= 1 &&
+        Math.abs(sample.top - annotationExitOrigin.top) <= 1,
+    ),
+    `annotation exit position jumped: ${JSON.stringify(closedAnnotationSamples)}`,
+  )
   await shortTrigger.focus()
   await page.keyboard.press('Enter')
   await annotationPopup.waitFor({ state: 'visible' })
@@ -462,6 +540,40 @@ try {
   const movedPopup = await illustrationPopup.boundingBox()
   assert.ok(movedPopup)
   assert.ok(Math.abs(movedPopup.x - firstPopup.x) <= 1, 'an open illustration popup must not follow later pointer movement')
+  const illustrationExitOrigin = await illustrationPopup.evaluate((element) => {
+    const bounds = element.parentElement?.getBoundingClientRect()
+    return { left: bounds?.left || 0, top: bounds?.top || 0 }
+  })
+  await illustrationPopup.evaluate((element) => {
+    const samples = []
+    window.__illustrationExitSamples = samples
+    const started = performance.now()
+    const capture = () => {
+      if (element.isConnected) {
+        const bounds = element.parentElement?.getBoundingClientRect()
+        samples.push({
+          closed: element.hasAttribute('data-closed'),
+          left: bounds?.left || 0,
+          top: bounds?.top || 0,
+        })
+      }
+      if (element.isConnected && performance.now() - started < 2000) requestAnimationFrame(capture)
+    }
+    requestAnimationFrame(capture)
+  })
+  await page.mouse.move(4, 4)
+  await illustrationPopup.waitFor({ state: 'hidden' })
+  const illustrationExitSamples = await page.evaluate(() => window.__illustrationExitSamples || [])
+  const closedIllustrationSamples = illustrationExitSamples.filter((sample) => sample.closed)
+  assert.ok(closedIllustrationSamples.length > 0, 'illustration popup must retain a real exit-animation phase')
+  assert.ok(
+    closedIllustrationSamples.every(
+      (sample) =>
+        Math.abs(sample.left - illustrationExitOrigin.left) <= 1 &&
+        Math.abs(sample.top - illustrationExitOrigin.top) <= 1,
+    ),
+    `illustration exit position jumped: ${JSON.stringify(closedIllustrationSamples)}`,
+  )
 
   const edgeIllustration = page.getByRole('button', { name: '边界插图测试' })
   const edgeTriggerBox = await edgeIllustration.boundingBox()

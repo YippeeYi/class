@@ -92,7 +92,6 @@ export function BackgroundsPage() {
             className="group/card relative cursor-pointer gap-0 overflow-hidden border-white/30 bg-card/48 py-0 shadow-sm ring-1 ring-border/75 backdrop-blur-lg transition-[background-color,box-shadow,ring-color] duration-200 hover:bg-card/62 hover:ring-primary/35 data-[selected=true]:bg-card/68 data-[selected=true]:shadow-md data-[selected=true]:ring-2 data-[selected=true]:ring-primary dark:border-black/20"
             onClick={() => choose(item.id)}
           >
-            <div className="h-1.5 w-full" style={{ background: item.swatch }} aria-hidden="true" />
             <AspectRatio
               ratio={4 / 3}
               className="aspect-[4/3] overflow-hidden bg-muted"
@@ -120,6 +119,12 @@ export function BackgroundsPage() {
                     <p className="line-clamp-2 text-sm leading-5 text-muted-foreground">
                       {item.description}
                     </p>
+                    <span
+                      data-background-swatch
+                      className="mt-2.5 block h-1 w-14 rounded-full ring-1 ring-white/35"
+                      style={{ background: item.swatch }}
+                      aria-hidden="true"
+                    />
                   </div>
                 </div>
               </div>

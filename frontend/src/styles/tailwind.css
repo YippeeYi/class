@@ -180,32 +180,10 @@
 }
 
 @layer components {
-  .app-main-surface {
-    background: linear-gradient(
-      to bottom,
-      color-mix(in oklch, var(--background) 78%, transparent),
-      color-mix(in oklch, var(--background) 68%, transparent)
-    );
-    box-shadow: inset 1px 0 color-mix(in oklch, var(--border) 72%, transparent);
-  }
-
-  .app-topbar {
-    background: color-mix(in oklch, var(--background) 96%, transparent);
-    box-shadow: 0 0.35rem 1.4rem color-mix(in oklch, var(--foreground) 7%, transparent);
-  }
-
   .background-layer {
     contain: strict;
     transform: translateZ(0);
     backface-visibility: hidden;
-  }
-
-  [data-background="default"] .app-main-surface {
-    background: linear-gradient(
-      to bottom,
-      color-mix(in oklch, var(--background) 84%, transparent),
-      color-mix(in oklch, var(--background) 74%, transparent)
-    );
   }
 
   .record-markup {
@@ -440,10 +418,6 @@
   .daily-distribution-value {
     font-size: clamp(0.75rem, 20cqi, 1.0625rem);
   }
-  .daily-distribution-important {
-    font-size: clamp(0.5rem, 12cqi, 0.625rem);
-  }
-
   .material-reading .record-markup {
     font-size: clamp(1.0625rem, 0.22vw + 1.02rem, 1.15rem);
     line-height: 1.95;
@@ -714,4 +688,44 @@
    always reflow inside their reading lane, so this wrapper must never become a scroller. */
 .record-table-scroll > [data-slot="table-container"] {
   overflow: visible;
+}
+
+/* The shadcn shell ships with opaque background utilities. These business-level
+   surfaces intentionally sit above BackgroundRoot, so they need a controlled
+   translucent composition instead of covering the selected background. */
+.app-main-surface {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--background) 68%, transparent),
+    color-mix(in oklch, var(--background) 56%, transparent)
+  );
+  box-shadow: inset 1px 0 color-mix(in oklch, var(--border) 72%, transparent);
+}
+
+.app-topbar {
+  background: color-mix(in oklch, var(--background) 86%, transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(1.08);
+  backdrop-filter: blur(10px) saturate(1.08);
+  box-shadow: 0 0.35rem 1.4rem color-mix(in oklch, var(--foreground) 7%, transparent);
+}
+
+.app-sidebar [data-slot="sidebar-inner"],
+[data-sidebar="sidebar"][data-mobile="true"] {
+  background: color-mix(in oklch, var(--sidebar) 90%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(1.06);
+  backdrop-filter: blur(12px) saturate(1.06);
+}
+
+[data-background]:not([data-background="default"])
+  .app-main-surface
+  [data-slot="card"]:not([class*="bg-card/"]) {
+  background-color: color-mix(in oklch, var(--card) 88%, transparent);
+}
+
+[data-background="default"] .app-main-surface {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--background) 84%, transparent),
+    color-mix(in oklch, var(--background) 74%, transparent)
+  );
 }

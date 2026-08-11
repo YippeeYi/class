@@ -271,6 +271,7 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
     <div
       className="relative isolate min-h-svh overflow-x-clip bg-background"
       data-background={current}
+      data-background-visible={visible}
     >
       {previous && (
         <div

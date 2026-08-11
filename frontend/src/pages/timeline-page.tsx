@@ -421,12 +421,12 @@ export function DailyDistributionCell({
   return (
     <Button
       size="sm"
-      variant={item.important > 0 ? 'secondary' : 'outline'}
+      variant="outline"
       disabled={!item.records.length}
       nativeButton={!item.records.length}
       data-records={item.records.length > 0 ? 'present' : 'empty'}
       data-important={item.important > 0 ? 'true' : 'false'}
-      className="daily-distribution-cell grid aspect-square h-auto min-h-0 min-w-0 grid-rows-[auto_1fr] items-stretch gap-0.5 whitespace-normal p-1 text-left"
+      className="daily-distribution-cell relative grid aspect-square h-auto min-h-0 min-w-0 justify-normal grid-rows-[auto_1fr] items-stretch gap-0.5 whitespace-normal border-border/75 bg-background/74 p-1 text-left shadow-none transition-[background-color,border-color,box-shadow] hover:bg-accent/72 data-[important=true]:border-amber-500/45 data-[important=true]:shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--color-amber-500)_18%,transparent)] focus-visible:z-10 focus-visible:ring-2"
       aria-label={`${year} 年 ${month} 月 ${item.day} 日：${item.value.toLocaleString()} ${unit}${item.important > 0 ? `，重要 ${item.important.toLocaleString()} ${unit}` : ''}`}
       render={
         item.records.length ? (
@@ -434,16 +434,16 @@ export function DailyDistributionCell({
         ) : undefined
       }
     >
-      <span className="flex w-full min-w-0 items-center justify-between gap-1 leading-none">
+      <span className="flex min-h-2.5 w-full min-w-0 items-start justify-between gap-1 leading-none">
         <span className="daily-distribution-date leading-none font-semibold tabular-nums text-muted-foreground">
           {Number(item.day)}
         </span>
-        <span
-          className={`daily-distribution-important shrink-0 whitespace-nowrap leading-none font-semibold tabular-nums ${item.important > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/60'}`}
-          title={`重要 ${item.important.toLocaleString()} ${unit}`}
-        >
-          重 {compactStatistic(item.important)}
-        </span>
+        {item.important > 0 && (
+          <span
+            className="daily-distribution-important-marker mt-px size-1.5 shrink-0 rounded-full bg-amber-500 shadow-[0_0_0_2px_color-mix(in_oklch,var(--background)_78%,transparent)]"
+            aria-hidden="true"
+          />
+        )}
       </span>
       <span className="flex min-h-0 w-full min-w-0 flex-col items-center justify-center gap-0.5 self-stretch">
         {item.records.length ? (
