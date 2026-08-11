@@ -20,6 +20,9 @@ const harness = String.raw`<!doctype html>
       import { MarkupContent } from '/src/components/archive/markup-content.tsx'
       import { TooltipProvider } from '/src/components/ui/tooltip.tsx'
       import { DailyDistributionCell } from '/src/pages/timeline-page.tsx'
+      import { BackgroundsPage } from '/src/pages/backgrounds-page.tsx'
+      import { HomePage } from '/src/pages/home-page.tsx'
+      import { ArchiveProvider } from '/src/features/archive/archive-context.tsx'
       import { rememberImageDimensions } from '/src/services/image-metadata.ts'
       import '/src/styles/tailwind.css'
 
@@ -28,8 +31,26 @@ const harness = String.raw`<!doctype html>
       const manyColumns = '[[table:3x12|一|two|333333333333333333333333|四列较长中文文本用于测试换行|five-with-an-extremely-long-token|6|七|https://example.invalid/really/long/url|[[red:九]]|10|十一|12|第二行中文超长内容在很多列时仍然需要完整显示|b|c|d|e|f|g|h|i|j|k|l|甲|乙|丙|丁|戊|己|庚|辛|壬|癸|子|丑]]'
       const stackContent = '正文甲 [[frac:中英文Mixed numerator 123|较长的中文分母文本]] 正文乙 [[arrow:reaction condition 温度 120°C|催化剂与补充条件]] 正文丙'
       const annotationContent = '[[anno:短注|短注触发]]　[[anno:这是一段会自动限制最大宽度并自然换行的长注释，包含 [[person:p01|人物标记]]、[[frac:分子文字|denominator]] 和连续英文 SUPERCALIFRAGILISTICEXPIALIDOCIOUSWITHOUTBREAKS。|长注触发]]'
+      const annotationEdgeContent = '[[anno:靠近视口边缘时仍需保持完整可见的注释内容。|边缘注释]]'
       const illustrationContent = '插图位置测试：[[illu:position-test.png|从这里查看插图]]。'
       const illustrationEdgeContent = '[[illu:position-edge.png|边界插图测试]]'
+
+      const access = { type: 'invite', token: 'layout-test-token', authorizedAt: 'layout-test' }
+      localStorage.setItem('classRecord:inviteAccess', JSON.stringify(access))
+      const cachePrefix = 'classRecord:dataCache:v5:access-layout-test:'
+      const cacheEntry = (data) => JSON.stringify({ time: Date.now(), data })
+      sessionStorage.setItem(cachePrefix + 'records:false', cacheEntry([
+        { id: 'r1', fileName: 'r1', date: '2024-08-11', content: '今天的记录 [[quote:q1|一句话]]' },
+        { id: 'r2', fileName: 'r2', date: '2025-02-03', content: '第二条记录' },
+        { id: 'r3', fileName: 'r3', date: '2026-05-06', content: '第三条记录' },
+      ]))
+      sessionStorage.setItem(cachePrefix + 'people', cacheEntry([
+        { id: 'p1', name: '人物一' },
+        { id: 'p2', name: '人物二' },
+      ]))
+      sessionStorage.setItem(cachePrefix + 'quotes', cacheEntry([
+        { id: 'q1', quote: '一句话', content: '一句话', recordFile: 'r1', sourceDate: '2024-08-11' },
+      ]))
 
       rememberImageDimensions('data/attachments/position-test.png', { width: 320, height: 200 })
       rememberImageDimensions('data/attachments/position-edge.png', { width: 360, height: 240 })
@@ -85,11 +106,16 @@ const harness = String.raw`<!doctype html>
                 e(Case, { id: 'many', width: '52rem', content: manyColumns }),
                 e(Case, { id: 'stack', width: '52rem', content: stackContent }),
                 e(Case, { id: 'annotation', width: '52rem', content: annotationContent }),
+                e(Case, { id: 'annotation-edge', width: '52rem', content: annotationEdgeContent, align: 'right' }),
                 e(Case, { id: 'illustration', width: '52rem', content: illustrationContent }),
                 e(Case, { id: 'illustration-edge', width: '52rem', content: illustrationEdgeContent, align: 'right' }),
                 e(DailyGrid, { id: 'narrow', width: '18rem', columns: 4 }),
                 e(DailyGrid, { id: 'medium', width: '38rem', columns: 7 }),
                 e(DailyGrid, { id: 'wide', width: '52rem', columns: 10 }),
+                e('section', { 'data-case': 'backgrounds', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(BackgroundsPage)),
+                e(ArchiveProvider, null,
+                  e('section', { 'data-case': 'guide', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(HomePage)),
+                ),
               ),
             ),
           ),
@@ -215,7 +241,7 @@ try {
     [...document.querySelectorAll('.daily-distribution-cell')].map((cell) => {
       const bounds = cell.getBoundingClientRect()
       const date = cell.querySelector('.daily-distribution-date')?.getBoundingClientRect()
-      const unit = cell.querySelector('.daily-distribution-unit')?.getBoundingClientRect()
+      const important = cell.querySelector('.daily-distribution-important')?.getBoundingClientRect()
       const pie = cell.querySelector('.daily-distribution-pie')?.getBoundingClientRect()
       const main = cell.children[1]?.getBoundingClientRect()
       const childrenInside = [...cell.querySelectorAll('*')].every((child) => {
@@ -241,7 +267,8 @@ try {
           const childBounds = child.getBoundingClientRect()
           return { top: childBounds.top, bottom: childBounds.bottom, height: childBounds.height, text: child.textContent }
         }),
-        topOverlap: date && unit ? Math.max(0, date.right - unit.left) : 0,
+        visibleText: cell.textContent || '',
+        topOverlap: date && important ? Math.max(0, date.right - important.left) : 0,
       }
     }),
   )
@@ -253,14 +280,64 @@ try {
     )
     assert.ok(cell.squareDelta <= 1, `daily cell ${index + 1} must retain a stable square frame`)
     assert.equal(cell.childrenInside, true, `daily cell ${index + 1} content must remain inside its frame`)
-    assert.ok(cell.topOverlap <= 0.5, `daily cell ${index + 1} date and metric unit must not overlap`)
-    assert.ok(cell.pieWidth >= 24 && Math.abs(cell.pieWidth - cell.pieHeight) <= 0.5, `daily cell ${index + 1} pie must remain prominent and circular: ${JSON.stringify(cell)}`)
-    assert.ok(cell.pieWidth / cell.bounds.width >= 0.34, `daily cell ${index + 1} pie must use a meaningful share of the card`)
-    assert.ok(cell.mainHeight / cell.bounds.height >= 0.58, `daily cell ${index + 1} main visualization row must not leave excessive blank space`)
+    assert.ok(cell.topOverlap <= 0.5, `daily cell ${index + 1} date and important metric must not overlap`)
+    assert.ok(!/[日条字]/u.test(cell.visibleText), `daily cell ${index + 1} must omit redundant visible units: ${cell.visibleText}`)
+    assert.ok(cell.pieWidth >= 30 && Math.abs(cell.pieWidth - cell.pieHeight) <= 0.5, `daily cell ${index + 1} pie must remain prominent and circular: ${JSON.stringify(cell)}`)
+    assert.ok(cell.pieWidth / cell.bounds.width >= 0.44, `daily cell ${index + 1} pie must be the card's primary visual`)
+    assert.ok(cell.mainHeight / cell.bounds.height >= 0.64, `daily cell ${index + 1} main visualization row must not leave excessive blank space`)
   })
   const largeDailyValue = page.locator('.daily-distribution-value[title="9,876,543 字"]').first()
   await largeDailyValue.waitFor({ state: 'visible' })
   assert.notEqual(await largeDailyValue.textContent(), '9,876,543', 'large daily values must use compact visible notation')
+
+  const backgroundCards = page.locator('[data-background-id]')
+  assert.equal(await backgroundCards.count(), 3, 'all baseline background choices must remain available')
+  await backgroundCards.last().scrollIntoViewIfNeeded()
+  await page.waitForFunction(() => [...document.querySelectorAll('[data-background-id] img')].every((image) => image.naturalWidth > 0))
+  const backgroundGeometry = await backgroundCards.evaluateAll((cards) =>
+    cards.map((card) => {
+      const preview = card.querySelector('[data-slot="aspect-ratio"]')
+      const strip = card.firstElementChild
+      const glass = card.querySelector('.backdrop-blur-md')
+      const bounds = preview?.getBoundingClientRect()
+      return {
+        id: card.getAttribute('data-background-id'),
+        ratio: bounds ? bounds.width / bounds.height : 0,
+        width: bounds?.width || 0,
+        height: bounds?.height || 0,
+        computedAspect: preview ? getComputedStyle(preview).aspectRatio : '',
+        strip: strip ? getComputedStyle(strip).backgroundImage : '',
+        backdrop: glass ? getComputedStyle(glass).backdropFilter : '',
+      }
+    }),
+  )
+  backgroundGeometry.forEach((card) => {
+    assert.ok(Math.abs(card.ratio - 4 / 3) <= 0.02, `background ${card.id} must keep a stable 4:3 preview: ${JSON.stringify(card)}`)
+    assert.notEqual(card.strip, 'none', `background ${card.id} needs a representative theme strip`)
+    assert.notEqual(card.backdrop, 'none', `background ${card.id} metadata needs a readable glass surface`)
+  })
+  assert.equal(new Set(backgroundGeometry.map((card) => card.strip)).size, 3, 'background theme strips must reflect distinct source palettes')
+  await page.locator('[data-background-id="default"] [data-slot="radio-group-item"]').focus()
+  await page.keyboard.press('ArrowRight')
+  await page.waitForFunction(() => document.querySelector('[data-background-id="mountain"]')?.getAttribute('data-selected') === 'true')
+  await page.locator('[data-background-id="cloud"]').click()
+  await page.waitForFunction(() => localStorage.getItem('classRecord:background') === 'cloud')
+
+  const guide = page.locator('[data-case="guide"]')
+  await guide.scrollIntoViewIfNeeded()
+  await guide.getByRole('link', { name: /记录/ }).first().waitFor({ state: 'visible' })
+  assert.equal(await guide.getByRole('link', { name: /记录/ }).count() > 0, true, 'guide must expose the primary records entry')
+  assert.equal(await guide.getByRole('link', { name: /致谢/ }).count(), 1, 'guide must restore the baseline credits entry')
+  assert.equal(await guide.getByRole('button', { name: /历史上的今天/ }).count(), 1, 'guide must retain the date-matched history entry')
+  const guideGeometry = await guide.evaluate((section) => ({
+    overflow: section.scrollWidth - section.clientWidth,
+    heroColumns: getComputedStyle(section.querySelector('.guide-hero [data-slot="card-content"]')).gridTemplateColumns,
+    primaryLinks: new Set([...section.querySelectorAll('a[href="/records"], a[href="/people"], a[href="/quotes"]')].map((link) => link.getAttribute('href'))).size,
+    toolLinks: new Set([...section.querySelectorAll('a[href="/timeline"], a[href="/search"], a[href="/quiz"], a[href="/materials"], a[href="/map"], a[href="/backgrounds"], a[href="/credits"]')].map((link) => link.getAttribute('href'))).size,
+  }))
+  assert.ok(guideGeometry.overflow <= 1, 'guide layout must not overflow its content lane')
+  assert.equal(guideGeometry.primaryLinks, 3, 'guide must retain all three primary archive entries')
+  assert.equal(guideGeometry.toolLinks, 7, 'guide must retain all baseline secondary entries')
   if (process.env.CLASS_RECORD_LAYOUT_SCREENSHOT) {
     await page.screenshot({ path: process.env.CLASS_RECORD_LAYOUT_SCREENSHOT, fullPage: true })
   }
@@ -295,9 +372,21 @@ try {
   })
 
   const shortTrigger = page.getByRole('button', { name: '短注触发' })
-  await shortTrigger.hover()
+  await shortTrigger.scrollIntoViewIfNeeded()
+  const shortTriggerBox = await shortTrigger.boundingBox()
+  assert.ok(shortTriggerBox)
+  const annotationPointerX = shortTriggerBox.x + Math.min(8, shortTriggerBox.width / 3)
+  await page.mouse.move(annotationPointerX, shortTriggerBox.y + shortTriggerBox.height / 2)
   const annotationPopup = page.locator('.record-annotation-popup[data-open]')
   await annotationPopup.waitFor({ state: 'visible' })
+  const firstAnnotationPopup = await annotationPopup.boundingBox()
+  assert.ok(firstAnnotationPopup)
+  assert.ok(Math.abs(firstAnnotationPopup.x + firstAnnotationPopup.width / 2 - annotationPointerX) <= 2, 'annotation popup must initially center on pointer clientX')
+  await page.mouse.move(shortTriggerBox.x + shortTriggerBox.width - 2, shortTriggerBox.y + shortTriggerBox.height / 2)
+  await page.waitForTimeout(80)
+  const movedAnnotationPopup = await annotationPopup.boundingBox()
+  assert.ok(movedAnnotationPopup)
+  assert.ok(Math.abs(movedAnnotationPopup.x - firstAnnotationPopup.x) <= 1, 'an open annotation popup must not follow later pointer movement')
   const shortWidth = await annotationPopup.evaluate((element) => element.getBoundingClientRect().width)
   await page.mouse.move(4, 4)
   await shortTrigger.focus()
@@ -347,6 +436,16 @@ try {
   assert.ok(mobileAnnotation.overflow <= 1, 'mobile annotation content must wrap without clipping')
 
   await page.setViewportSize({ width: 1280, height: 1000 })
+
+  const edgeAnnotation = page.getByRole('button', { name: '边缘注释' })
+  await edgeAnnotation.scrollIntoViewIfNeeded()
+  const edgeAnnotationBox = await edgeAnnotation.boundingBox()
+  assert.ok(edgeAnnotationBox)
+  await page.mouse.move(edgeAnnotationBox.x + edgeAnnotationBox.width - 1, edgeAnnotationBox.y + edgeAnnotationBox.height / 2)
+  await annotationPopup.waitFor({ state: 'visible' })
+  const edgeAnnotationPopup = await annotationPopup.boundingBox()
+  assert.ok(edgeAnnotationPopup)
+  assert.ok(edgeAnnotationPopup.x >= 4 && edgeAnnotationPopup.x + edgeAnnotationPopup.width <= 1276, 'annotation collision handling must keep edge-anchored popups fully visible')
 
   const illustration = page.getByRole('button', { name: '从这里查看插图' })
   const triggerBox = await illustration.boundingBox()

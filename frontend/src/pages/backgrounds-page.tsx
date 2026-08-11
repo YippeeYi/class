@@ -1,4 +1,4 @@
-import { Image as ImageIcon } from 'lucide-react'
+import { Check, Image as ImageIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { PageHeading } from '@/components/archive/page-heading'
@@ -11,7 +11,7 @@ import {
 import { AspectRatio } from '@/components/ui/aspect-ratio'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -21,7 +21,7 @@ function BackgroundPreview({ src, active }: { src: string; active: boolean }) {
   const [ready, setReady] = useState(false)
   if (failed)
     return (
-      <div className="grid size-full place-items-center text-center text-sm text-muted-foreground">
+      <div className="absolute inset-0 grid place-items-center bg-background/58 text-center text-sm text-muted-foreground backdrop-blur-sm">
         <div>
           <ImageIcon className="mx-auto mb-2 size-5" />
           <p className="mb-2">预览加载失败</p>
@@ -57,7 +57,7 @@ function BackgroundPreview({ src, active }: { src: string; active: boolean }) {
         decoding="async"
         onLoad={() => setReady(true)}
         onError={() => setFailed(true)}
-        className={`size-full object-cover transition-[opacity,transform] duration-300 group-hover/card:scale-[1.015] ${ready ? 'opacity-100' : 'opacity-0'}`}
+        className={`absolute inset-0 size-full object-cover transition-[opacity,transform] duration-300 group-hover/card:scale-[1.012] ${ready ? 'opacity-100' : 'opacity-0'}`}
       />
     </>
   )
@@ -87,53 +87,57 @@ export function BackgroundsPage() {
         {backgrounds.map((item) => (
           <Card
             key={item.id}
+            data-background-id={item.id}
             data-selected={current === item.id ? 'true' : 'false'}
-            className="group/card gap-0 overflow-hidden bg-card/82 py-0 shadow-sm ring-1 ring-border/80 backdrop-blur-md transition-[background-color,box-shadow,ring-color] duration-200 hover:bg-card/90 hover:ring-primary/35 data-[selected=true]:bg-card/94 data-[selected=true]:shadow-md data-[selected=true]:ring-2 data-[selected=true]:ring-primary"
+            className="group/card relative cursor-pointer gap-0 overflow-hidden border-white/30 bg-card/48 py-0 shadow-sm ring-1 ring-border/75 backdrop-blur-lg transition-[background-color,box-shadow,ring-color] duration-200 hover:bg-card/62 hover:ring-primary/35 data-[selected=true]:bg-card/68 data-[selected=true]:shadow-md data-[selected=true]:ring-2 data-[selected=true]:ring-primary dark:border-black/20"
+            onClick={() => choose(item.id)}
           >
-            {/* biome-ignore lint/a11y/noLabelWithoutControl: RadioGroupItem renders its hidden native radio input inside this label. */}
-            <label className="block cursor-pointer select-none">
-              <AspectRatio
-                ratio={16 / 9}
-                className="overflow-hidden border-b bg-[linear-gradient(145deg,var(--background),var(--secondary))]"
-              >
-                {item.image ? (
-                  <BackgroundPreview src={item.image} active={current === item.id} />
-                ) : (
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_12%,color-mix(in_oklch,var(--primary)_16%,transparent),transparent_36%),linear-gradient(145deg,var(--background),color-mix(in_oklch,var(--secondary)_54%,var(--background)))]" />
-                )}
-                <div className="absolute inset-x-4 bottom-3 grid gap-1.5 rounded-lg border border-white/35 bg-background/72 px-3 py-2 shadow-sm backdrop-blur-md">
-                  <span className="h-2 w-16 rounded-full bg-foreground/70" />
-                  <span className="h-1.5 w-3/4 rounded-full bg-foreground/25" />
-                </div>
-                <RadioGroupItem
-                  value={item.id}
-                  nativeButton={false}
-                  aria-label={`使用${item.label}背景`}
-                  className="absolute right-3 top-3 z-10 size-5 border-background/80 bg-background/90 shadow-sm after:-inset-2"
-                />
-              </AspectRatio>
-              <CardHeader className="py-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <CardTitle className="text-lg">{item.label}</CardTitle>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {current === item.id ? '当前正在使用' : '点击预览区域即可切换'}
+            <div className="h-1.5 w-full" style={{ background: item.swatch }} aria-hidden="true" />
+            <AspectRatio
+              ratio={4 / 3}
+              className="aspect-[4/3] overflow-hidden bg-muted"
+              style={{ background: item.swatch }}
+            >
+              {item.image ? (
+                <BackgroundPreview src={item.image} active={current === item.id} />
+              ) : (
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_12%,color-mix(in_oklch,var(--primary)_20%,transparent),transparent_34%),repeating-linear-gradient(0deg,transparent_0_31px,color-mix(in_oklch,var(--primary)_7%,transparent)_32px),linear-gradient(145deg,var(--background),color-mix(in_oklch,var(--secondary)_62%,var(--background)))]" />
+              )}
+              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,transparent_42%,rgb(18_16_14/.18)_100%)]" />
+              <div className="absolute inset-x-3 bottom-3 rounded-xl border border-white/35 bg-background/68 p-3 shadow-md backdrop-blur-md dark:border-black/25 sm:inset-x-4 sm:bottom-4 sm:p-4">
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="mb-1.5 flex items-center gap-2">
+                      <CardTitle className="truncate text-lg">{item.label}</CardTitle>
+                      <Badge
+                        variant={current === item.id ? 'default' : 'outline'}
+                        className={current === item.id ? 'shrink-0' : 'shrink-0 bg-background/62'}
+                      >
+                        {current === item.id && <Check data-icon="inline-start" />}
+                        {current === item.id ? '使用中' : item.category}
+                      </Badge>
+                    </div>
+                    <p className="line-clamp-2 text-sm leading-5 text-muted-foreground">
+                      {item.description}
                     </p>
                   </div>
-                  <Badge variant={current === item.id ? 'default' : 'outline'}>
-                    {current === item.id ? '已选择' : item.category}
-                  </Badge>
                 </div>
-              </CardHeader>
-            </label>
-            <CardContent className="border-t border-border/60 py-3">
-              <p className="text-sm leading-6 text-muted-foreground">
+              </div>
+              <RadioGroupItem
+                value={item.id}
+                aria-label={`使用${item.label}背景`}
+                className="absolute right-3 top-3 z-20 size-5 border-background/80 bg-background/90 shadow-sm after:-inset-2 sm:right-4 sm:top-4"
+                onClick={(event) => event.stopPropagation()}
+              />
+            </AspectRatio>
+            <CardContent className="border-t border-white/20 bg-background/38 px-4 py-3 backdrop-blur-md dark:border-black/20">
+              <p className="truncate text-xs leading-5 text-muted-foreground sm:text-sm">
                 {item.credit.href ? (
                   <a
                     href={item.credit.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="underline underline-offset-4 hover:text-foreground"
+                    className="underline decoration-foreground/30 underline-offset-4 hover:text-foreground"
                     onClick={(event) => event.stopPropagation()}
                   >
                     {item.credit.label}

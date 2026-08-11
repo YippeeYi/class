@@ -364,7 +364,7 @@ function MiniAuthorPie({
   return (
     <svg
       viewBox="0 0 40 40"
-      className="daily-distribution-pie size-[clamp(1.5rem,42cqi,2.125rem)] shrink-0"
+      className="daily-distribution-pie size-[clamp(1.875rem,54cqi,2.5rem)] shrink-0"
       aria-hidden="true"
     >
       <circle cx="20" cy="20" r="10" fill="var(--muted)" />
@@ -436,35 +436,30 @@ export function DailyDistributionCell({
     >
       <span className="flex w-full min-w-0 items-center justify-between gap-1 leading-none">
         <span className="daily-distribution-date leading-none font-semibold tabular-nums text-muted-foreground">
-          {Number(item.day)} 日
+          {Number(item.day)}
         </span>
-        <span className="daily-distribution-unit shrink-0 leading-none font-medium text-muted-foreground/80">
-          {unit}
+        <span
+          className={`daily-distribution-important shrink-0 whitespace-nowrap leading-none font-semibold tabular-nums ${item.important > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/60'}`}
+          title={`重要 ${item.important.toLocaleString()} ${unit}`}
+        >
+          重 {compactStatistic(item.important)}
         </span>
       </span>
-      <span className="grid min-h-0 w-full min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-0.5 self-stretch">
+      <span className="flex min-h-0 w-full min-w-0 flex-col items-center justify-center gap-0.5 self-stretch">
         {item.records.length ? (
           <MiniAuthorPie entries={item.authors} colors={colors} activeId={activeAuthor} />
         ) : (
           <span
-            className="daily-distribution-pie size-[clamp(1.5rem,42cqi,2.125rem)] shrink-0 rounded-full border border-dashed"
+            className="daily-distribution-pie size-[clamp(1.875rem,54cqi,2.5rem)] shrink-0 rounded-full border border-dashed"
             aria-hidden="true"
           />
         )}
-        <span className="daily-distribution-stat grid min-w-0 content-center justify-items-start gap-1">
-          <strong
-            className="daily-distribution-value max-w-full whitespace-nowrap leading-none font-bold tracking-tight tabular-nums"
-            title={`${item.value.toLocaleString()} ${unit}`}
-          >
-            {compactStatistic(item.value)}
-          </strong>
-          <span
-            className={`daily-distribution-important max-w-full whitespace-normal leading-[1.05] font-medium tabular-nums [overflow-wrap:anywhere] ${item.important > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/75'}`}
-            title={`重要 ${item.important.toLocaleString()} ${unit}`}
-          >
-            重要 {compactStatistic(item.important)}
-          </span>
-        </span>
+        <strong
+          className="daily-distribution-value max-w-full whitespace-nowrap text-center leading-none font-bold tracking-tight tabular-nums"
+          title={`${item.value.toLocaleString()} ${unit}`}
+        >
+          {compactStatistic(item.value)}
+        </strong>
       </span>
     </Button>
   )

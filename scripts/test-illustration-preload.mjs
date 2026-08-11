@@ -74,9 +74,10 @@ assert.match(
   /openRef\.current\) return[\s\S]*pointerClientX\.current = event\.clientX/,
   'pointer movement must stop changing the anchor as soon as the preview opens',
 )
-const pointerCaptureSource = component.slice(
-  component.indexOf('const rememberPointerPosition'),
-  component.indexOf('const showAtLockedPointer'),
+const illustrationSource = component.slice(component.indexOf('function IllustrationReference'))
+const pointerCaptureSource = illustrationSource.slice(
+  illustrationSource.indexOf('const rememberPointerPosition'),
+  illustrationSource.indexOf('const showAtLockedPointer'),
 )
 assert.doesNotMatch(pointerCaptureSource, /set[A-Z]/, 'pointer movement must not issue React state updates')
 assert.match(component, /onFocus=\{\(event\) => \{[\s\S]*requestPreview\(\)/, 'keyboard focus must start image loading early')

@@ -437,14 +437,11 @@
   .daily-distribution-date {
     font-size: clamp(0.6875rem, 17cqi, 0.75rem);
   }
-  .daily-distribution-unit {
-    font-size: clamp(0.5625rem, 13cqi, 0.6875rem);
-  }
   .daily-distribution-value {
-    font-size: clamp(0.75rem, 21cqi, 1.125rem);
+    font-size: clamp(0.75rem, 20cqi, 1.0625rem);
   }
   .daily-distribution-important {
-    font-size: clamp(0.5625rem, 14cqi, 0.6875rem);
+    font-size: clamp(0.5rem, 12cqi, 0.625rem);
   }
 
   .material-reading .record-markup {

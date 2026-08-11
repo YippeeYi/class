@@ -2,6 +2,7 @@ import {
   ArrowRight,
   BookOpenText,
   BrainCircuit,
+  CalendarDays,
   ChartNoAxesCombined,
   FileText,
   Image,
@@ -9,13 +10,13 @@ import {
   MessageSquareQuote,
   Search,
   ShieldAlert,
+  Sparkles,
   Users,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
-import { ErrorState, PageSkeleton } from '@/components/archive/async-state'
-import { PageHeaderActions } from '@/components/layout/page-header'
+import { ErrorState } from '@/components/archive/async-state'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -28,6 +29,7 @@ import {
   ItemMedia,
   ItemTitle,
 } from '@/components/ui/item'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useArchive } from '@/features/archive/archive-context'
 
 const tips = [
@@ -52,6 +54,7 @@ const secondary = [
   { to: '/materials', label: '资料', description: '阅读补充资料与专题', icon: FileText },
   { to: '/map', label: '地图', description: '查看班级成员内部地图', icon: MapIcon },
   { to: '/backgrounds', label: '背景', description: '选择全站视觉背景', icon: Image },
+  { to: '/credits', label: '致谢', description: '查看档案的制作与贡献者', icon: Sparkles },
 ]
 
 export function HomePage() {
@@ -114,155 +117,214 @@ export function HomePage() {
     setLogoAnimation('')
     window.requestAnimationFrame(() => setLogoAnimation(animation))
   }
+  const archiveData = resource.data
 
   return (
-    <div>
-      <section className="relative mb-12 overflow-hidden rounded-[2rem] border border-border/70 bg-card/75 px-6 py-10 shadow-sm sm:px-10 sm:py-14">
-        <div className="absolute inset-y-0 right-0 w-2/5 bg-[radial-gradient(circle_at_center,oklch(0.75_0.08_70/.22),transparent_66%)]" />
-        <div className="relative max-w-3xl">
-          <Badge variant="outline" className="mb-5 bg-background/55">
-            CLASS ARCHIVE · 共同记忆
-          </Badge>
-          <Button
-            type="button"
-            variant="ghost"
-            aria-label="编日史 Logo"
-            className="h-auto w-auto max-w-full justify-start p-0 hover:bg-transparent"
-            onClick={tapLogo}
-          >
-            {logoFailed ? (
-              <span className="mb-5 block font-heading text-5xl font-semibold tracking-tight">
-                编日史
-              </span>
-            ) : (
-              <img
-                src={`${import.meta.env.BASE_URL}logo-guide.png`}
-                alt="编日史"
-                width="1035"
-                height="462"
-                draggable={false}
-                decoding="async"
-                fetchPriority="high"
-                onError={() => setLogoFailed(true)}
-                className={`guide-logo mb-5 h-auto w-72 max-w-full object-contain object-left brightness-0 sm:w-96 dark:invert ${logoAnimation ? `guide-logo-${logoAnimation}` : ''}`}
-              />
-            )}
-          </Button>
-          <p className="max-w-xl text-base leading-8 text-muted-foreground">
-            把散落在日常里的事件、人物、话语和资料，整理成一部可以搜索、回看，也可以继续生长的班级档案。
-          </p>
-          <p className="guide-tip mt-4 text-sm text-muted-foreground" aria-live="polite">
-            <span
-              key={tipIndex}
-              className="inline-block motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+    <div className="grid gap-6 sm:gap-7">
+      <Card className="guide-hero relative gap-0 overflow-hidden border-border/70 bg-card/72 py-0 shadow-sm backdrop-blur-sm">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_12%,color-mix(in_oklch,var(--primary)_18%,transparent),transparent_34%),linear-gradient(135deg,transparent_48%,color-mix(in_oklch,var(--secondary)_32%,transparent))]" />
+        <CardContent className="relative grid p-0 lg:grid-cols-[minmax(0,1.45fr)_minmax(17rem,.72fr)]">
+          <div className="px-6 py-8 sm:px-9 sm:py-10 lg:px-11 lg:py-12">
+            <Badge variant="outline" className="mb-4 bg-background/55">
+              CLASS ARCHIVE · 共同记忆
+            </Badge>
+            <Button
+              type="button"
+              variant="ghost"
+              aria-label="编日史 Logo"
+              className="mb-4 block h-auto w-auto max-w-full justify-start p-0 hover:bg-transparent focus-visible:ring-offset-4"
+              onClick={tapLogo}
             >
-              {tips[tipIndex]}
-            </span>
-          </p>
-        </div>
-      </section>
+              {logoFailed ? (
+                <span className="block font-heading text-5xl font-semibold tracking-tight">
+                  编日史
+                </span>
+              ) : (
+                <img
+                  src={`${import.meta.env.BASE_URL}logo-guide.png`}
+                  alt="编日史"
+                  width="1035"
+                  height="462"
+                  draggable={false}
+                  decoding="async"
+                  fetchPriority="high"
+                  onError={() => setLogoFailed(true)}
+                  className={`guide-logo h-auto w-64 max-w-full object-contain object-left brightness-0 sm:w-80 dark:invert ${logoAnimation ? `guide-logo-${logoAnimation}` : ''}`}
+                />
+              )}
+            </Button>
+            <p className="max-w-2xl text-[0.9375rem] leading-7 text-muted-foreground sm:text-base sm:leading-8">
+              把散落在日常里的事件、人物、话语和资料，整理成一部可以搜索、回看，也可以继续生长的班级档案。
+            </p>
+            <div className="mt-6 flex flex-wrap gap-2.5">
+              <Button render={<Link to="/records" />}>
+                浏览记录
+                <ArrowRight data-icon="inline-end" />
+              </Button>
+              <Button variant="outline" render={<Link to="/search" />}>
+                <Search data-icon="inline-start" />
+                搜索档案
+              </Button>
+            </div>
+          </div>
 
-      <Alert className="mb-6 border-primary/25 bg-card/72 backdrop-blur-sm">
-        <ShieldAlert />
-        <AlertTitle>仅供班级内部查看</AlertTitle>
-        <AlertDescription>请尊重档案中的个人信息与共同记忆，不要外传。</AlertDescription>
-      </Alert>
+          <aside className="grid content-center gap-4 border-t border-border/65 bg-background/28 p-5 sm:p-6 lg:border-t-0 lg:border-l lg:p-7">
+            {today.hasMatches && (
+              <Button
+                variant="outline"
+                className="h-auto justify-between gap-4 bg-background/52 px-4 py-3 text-left"
+                onClick={() =>
+                  navigate(
+                    `/records?month=${encodeURIComponent(today.month)}&day=${encodeURIComponent(today.day)}`,
+                  )
+                }
+              >
+                <span className="flex items-center gap-3">
+                  <span className="grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
+                    <CalendarDays className="size-4" />
+                  </span>
+                  <span className="grid gap-0.5">
+                    <span className="text-xs font-normal text-muted-foreground">
+                      {today.month}.{today.day}
+                    </span>
+                    <span>历史上的今天</span>
+                  </span>
+                </span>
+                <ArrowRight className="size-4 text-muted-foreground" />
+              </Button>
+            )}
+            <Alert className="border-primary/20 bg-background/48">
+              <ShieldAlert />
+              <AlertTitle>仅供班级内部查看</AlertTitle>
+              <AlertDescription>请尊重档案中的个人信息与共同记忆，不要外传。</AlertDescription>
+            </Alert>
+            <div className="rounded-xl border border-border/65 bg-background/38 px-4 py-3">
+              <p className="mb-1 text-[0.6875rem] font-semibold tracking-[0.14em] text-primary/70">
+                小提示
+              </p>
+              <p
+                className="guide-tip min-h-6 text-sm leading-6 text-muted-foreground"
+                aria-live="polite"
+              >
+                <span
+                  key={tipIndex}
+                  className="inline-block motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+                >
+                  {(tips[tipIndex] || '').replace(/^小提示：/, '')}
+                </span>
+              </p>
+            </div>
+          </aside>
+        </CardContent>
+      </Card>
 
-      {today.hasMatches && (
-        <PageHeaderActions mobileClassName="mb-6 flex">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              navigate(
-                `/records?month=${encodeURIComponent(today.month)}&day=${encodeURIComponent(today.day)}`,
-              )
-            }
-          >
-            历史上的今天
-          </Button>
-        </PageHeaderActions>
-      )}
-
-      {resource.loading && <PageSkeleton rows={3} />}
-      {resource.error && <ErrorState title="档案概览加载失败" onRetry={resource.retry} />}
-      {resource.data && (
-        <>
-          <section className="mb-10 grid gap-4 md:grid-cols-3">
-            {[
-              {
-                to: '/records',
-                label: '记录',
-                value: resource.data.records.length,
-                description: '按日期整理的共同经历',
-                icon: BookOpenText,
-              },
-              {
-                to: '/people',
-                label: '人物',
-                value: resource.data.people.length,
-                description: '档案里的同学、老师与朋友',
-                icon: Users,
-              },
-              {
-                to: '/quotes',
-                label: '名言',
-                value: resource.data.quotes.length,
-                description: '从原始记录中派生的原话',
-                icon: MessageSquareQuote,
-              },
-            ].map(({ to, label, value, description, icon: Icon }) => (
-              <Link to={to} key={to} className="group">
-                <Card className="h-full transition duration-200 group-hover:-translate-y-1 group-hover:ring-primary/25">
-                  <CardHeader>
-                    <div className="mb-5 flex items-center justify-between">
+      <Card className="gap-0 overflow-hidden bg-card/76 py-0 backdrop-blur-sm">
+        <CardHeader className="border-b border-border/65 px-5 py-4 sm:px-6">
+          <CardTitle className="font-heading text-xl">核心档案</CardTitle>
+          <CardDescription>从最常用的三个入口开始浏览。</CardDescription>
+        </CardHeader>
+        <CardContent className="p-3 sm:p-4">
+          {(resource.loading || (!archiveData && !resource.error)) && (
+            <div
+              className="grid gap-3 md:grid-cols-3"
+              role="status"
+              aria-label="正在加载档案概览"
+              aria-busy="true"
+            >
+              {['records', 'people', 'quotes'].map((key) => (
+                <Skeleton key={key} className="h-40 rounded-xl" />
+              ))}
+            </div>
+          )}
+          {resource.error && (
+            <div className="mb-3">
+              <ErrorState title="档案概览加载失败" onRetry={resource.retry} />
+            </div>
+          )}
+          {archiveData && (
+            <div className="grid gap-3 md:grid-cols-3">
+              {[
+                {
+                  to: '/records',
+                  label: '记录',
+                  value: archiveData.records.length,
+                  description: '按日期整理的共同经历',
+                  icon: BookOpenText,
+                },
+                {
+                  to: '/people',
+                  label: '人物',
+                  value: archiveData.people.length,
+                  description: '档案里的同学、老师与朋友',
+                  icon: Users,
+                },
+                {
+                  to: '/quotes',
+                  label: '名言',
+                  value: archiveData.quotes.length,
+                  description: '从原始记录中派生的原话',
+                  icon: MessageSquareQuote,
+                },
+              ].map(({ to, label, value, description, icon: Icon }) => (
+                <Link
+                  to={to}
+                  key={to}
+                  className="group rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  <article className="grid h-full min-h-40 content-between rounded-xl border border-border/70 bg-background/38 p-4 transition-[background-color,border-color,box-shadow] duration-150 group-hover:border-primary/35 group-hover:bg-background/62 group-hover:shadow-sm group-focus-visible:border-ring sm:p-5">
+                    <div className="flex items-center justify-between gap-3">
                       <span className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">
                         <Icon className="size-5" />
                       </span>
-                      <ArrowRight className="size-4 text-muted-foreground transition group-hover:translate-x-1 group-hover:text-primary" />
+                      <ArrowRight className="size-4 text-muted-foreground transition-transform duration-150 group-hover:translate-x-1 group-hover:text-primary" />
                     </div>
-                    <CardTitle className="font-heading text-lg">{label}</CardTitle>
-                    <CardDescription>{description}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <strong className="font-heading text-4xl font-semibold tracking-tight">
-                      {value}
-                    </strong>
-                    <span className="ml-2 text-xs text-muted-foreground">项</span>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </section>
-
-          <section>
-            <div className="mb-4 flex items-end justify-between">
-              <div>
-                <p className="text-xs font-bold tracking-[0.18em] text-primary/65">EXPLORE</p>
-                <h2 className="mt-1 font-heading text-2xl font-semibold tracking-tight">
-                  继续探索
-                </h2>
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {secondary.map(({ to, label, description, icon: Icon }) => (
-                <Item key={to} variant="outline" render={<Link to={to} />}>
-                  <ItemMedia variant="icon">
-                    <Icon />
-                  </ItemMedia>
-                  <ItemContent>
-                    <ItemTitle>{label}</ItemTitle>
-                    <ItemDescription>{description}</ItemDescription>
-                  </ItemContent>
-                  <ItemActions>
-                    <ArrowRight className="size-4 text-muted-foreground" />
-                  </ItemActions>
-                </Item>
+                    <div className="mt-5">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <h2 className="font-heading text-lg font-semibold">{label}</h2>
+                        <strong className="font-heading text-2xl font-semibold tracking-tight tabular-nums">
+                          {value.toLocaleString()}
+                        </strong>
+                      </div>
+                      <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
+                    </div>
+                  </article>
+                </Link>
               ))}
             </div>
-          </section>
-        </>
-      )}
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="gap-0 overflow-hidden bg-card/72 py-0 backdrop-blur-sm">
+        <CardHeader className="border-b border-border/65 px-5 py-4 sm:px-6">
+          <CardTitle className="font-heading text-xl">继续探索</CardTitle>
+          <CardDescription>统计、工具与档案补充入口集中在这里。</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-2.5 p-3 sm:grid-cols-2 sm:p-4 xl:grid-cols-3">
+          {secondary.map(({ to, label, description, icon: Icon }) => (
+            <Item
+              key={to}
+              variant="outline"
+              className="min-h-20 bg-background/32 px-4 py-3 hover:border-primary/30 hover:bg-background/58"
+              render={<Link to={to} />}
+            >
+              <ItemMedia
+                variant="icon"
+                className="grid size-9 place-items-center rounded-lg bg-primary/9 text-primary"
+              >
+                <Icon />
+              </ItemMedia>
+              <ItemContent>
+                <ItemTitle>{label}</ItemTitle>
+                <ItemDescription>{description}</ItemDescription>
+              </ItemContent>
+              <ItemActions>
+                <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover/item:translate-x-0.5" />
+              </ItemActions>
+            </Item>
+          ))}
+        </CardContent>
+      </Card>
     </div>
   )
 }

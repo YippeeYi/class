@@ -25,6 +25,8 @@ export const backgrounds: Array<{
   id: BackgroundId
   label: string
   category: string
+  description: string
+  swatch: string
   image?: string
   credit: { label: string; href?: string }
 }> = [
@@ -32,12 +34,16 @@ export const backgrounds: Array<{
     id: 'default',
     label: '纸本',
     category: '基础',
+    description: '温暖纸色与细线纹理，适合长时间阅读。',
+    swatch: 'linear-gradient(90deg, #8b6f5c, #d1b58a)',
     credit: { label: '编日史内置渐变' },
   },
   {
     id: 'mountain',
     label: '山',
     category: '风景',
+    description: '取自远山与薄雾的低饱和青蓝色调。',
+    swatch: 'linear-gradient(90deg, #477f98, #b9d3da)',
     image: assetUrl('images/backgrounds/mountain.webp'),
     credit: {
       label: 'Alessio Soggetti · Unsplash',
@@ -48,6 +54,8 @@ export const backgrounds: Array<{
     id: 'cloud',
     label: '云',
     category: '风景',
+    description: '取自晚霞云层的珊瑚橙与灰紫色调。',
+    swatch: 'linear-gradient(90deg, #e18b6d, #887281)',
     image: assetUrl('images/backgrounds/cloud.webp'),
     credit: {
       label: 'Agnese Rudzīte · Unsplash',
@@ -240,7 +248,12 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       }
     }
     const cached = readPalette(visibleBackground.id)
-    if (cached) applyPalette(cached)
+    if (cached) {
+      applyPalette(cached)
+      return () => {
+        active = false
+      }
+    }
     void extractPalette(visibleBackground.image)
       .then((palette) => {
         if (!active || !palette) return

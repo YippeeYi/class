@@ -42,8 +42,12 @@ function previewFrame(dimensions: ImageDimensions | null) {
 
 function Annotation({ note, children }: { note: string; children: ReactNode }) {
   const [open, setOpen] = useState(false)
+  const [lockedAlignOffset, setLockedAlignOffset] = useState(0)
   const pointerType = useRef('')
   const popupRef = useRef<HTMLDivElement | null>(null)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const pointerClientX = useRef<number | null>(null)
+  const openRef = useRef(false)
 
   const focusFirstReference = () => {
     requestAnimationFrame(() => {
@@ -51,23 +55,53 @@ function Annotation({ note, children }: { note: string; children: ReactNode }) {
     })
   }
 
+  const rememberPointerPosition = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === 'touch' || openRef.current) return
+    pointerClientX.current = event.clientX
+  }
+
+  const changeOpen = (nextOpen: boolean) => {
+    if (nextOpen) {
+      if (!openRef.current) {
+        const bounds = triggerRef.current?.getBoundingClientRect()
+        const pointerX = pointerClientX.current
+        setLockedAlignOffset(
+          bounds && pointerX !== null ? pointerX - (bounds.left + bounds.width / 2) : 0,
+        )
+      }
+      openRef.current = true
+      setOpen(true)
+      return
+    }
+    openRef.current = false
+    setOpen(false)
+    setLockedAlignOffset(0)
+  }
+
   return (
-    <HoverCard open={open} onOpenChange={setOpen}>
+    <HoverCard open={open} onOpenChange={changeOpen}>
       <HoverCardTrigger
         render={
           <Button
+            ref={triggerRef}
             type="button"
             variant="link"
             size="xs"
             className="record-annotation inline h-auto min-h-0 whitespace-normal rounded-[0.15em] border-0 px-0 py-0 align-baseline text-[1em] leading-[inherit] font-[inherit] text-foreground/90 underline decoration-primary/55 decoration-dotted decoration-[1.5px] underline-offset-[0.18em] select-text hover:text-foreground hover:decoration-primary focus-visible:border-transparent focus-visible:ring-0"
             onPointerDown={(event) => {
               pointerType.current = event.pointerType
+              if (event.pointerType === 'touch') pointerClientX.current = null
+            }}
+            onPointerEnter={rememberPointerPosition}
+            onPointerMove={rememberPointerPosition}
+            onFocus={(event) => {
+              if (event.currentTarget.matches(':focus-visible')) pointerClientX.current = null
             }}
             onClick={(event) => {
               if (event.detail === 0) {
-                setOpen(true)
+                changeOpen(true)
                 focusFirstReference()
-              } else if (pointerType.current === 'touch') setOpen(true)
+              } else if (pointerType.current === 'touch') changeOpen(true)
             }}
           >
             {children}
@@ -77,6 +111,8 @@ function Annotation({ note, children }: { note: string; children: ReactNode }) {
       <HoverCardContent
         ref={popupRef}
         side="top"
+        align="center"
+        alignOffset={lockedAlignOffset}
         sideOffset={6}
         className="record-annotation-popup block w-max max-w-[min(22rem,calc(100vw-1rem))] px-3 py-2 text-left text-sm leading-6"
       >
