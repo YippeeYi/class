@@ -4,7 +4,6 @@ import { Link } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { PageHeading } from '@/components/archive/page-heading'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -76,7 +75,7 @@ function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; 
   if (!list.length) return null
 
   return (
-    <Card>
+    <Card data-people-role={role}>
       <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle>
           {roleLabels[role]}{' '}
@@ -117,7 +116,7 @@ function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; 
       </CardHeader>
       <CardContent className="overflow-x-auto px-0">
         <div className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
-          <Table className="text-[0.9375rem] leading-6">
+          <Table className="text-data leading-6">
             <TableHeader>
               <TableRow>
                 <TableHead className="pl-5">序号</TableHead>
@@ -147,25 +146,15 @@ function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; 
                   >
                     <TableCell className="pl-5 text-muted-foreground">{index + 1}</TableCell>
                     <TableCell className="font-medium">
-                      <span className="flex items-center gap-2">
-                        <Link
-                          className="text-primary underline-offset-4 hover:underline"
-                          to={`/person?id=${encodeURIComponent(person.id)}`}
-                        >
-                          {stripMarkup(person.name || person.id)}
-                        </Link>
-                        {isMainTeacher && (
-                          <Badge
-                            variant="outline"
-                            className="border-primary/25 bg-primary/8 text-primary"
-                          >
-                            主要
-                          </Badge>
-                        )}
-                      </span>
+                      <Link
+                        className="text-primary underline-offset-4 hover:underline"
+                        to={`/person?id=${encodeURIComponent(person.id)}`}
+                      >
+                        {stripMarkup(person.name || person.id)}
+                      </Link>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {stripMarkup(person.alias || person.aliases.join('、')) || '—'}
+                      {stripMarkup(person.alias || person.aliases?.join('、') || '') || '—'}
                     </TableCell>
                     <TableCell>{stats.participation.get(person.id) || 0}</TableCell>
                     {role === 'student' && (
@@ -217,7 +206,7 @@ export function PeoplePage() {
         <EmptyState title="人物名单为空" description="人物资料尚未上传，稍后再来查看。" />
       )}
       {resource.data && resource.data.people.length > 0 && (
-        <div className="grid gap-6">
+        <div className="grid gap-5">
           {(['student', 'teacher', 'other'] as const).map((role) => (
             <PeopleSection key={role} role={role} people={groups[role]} stats={stats} />
           ))}

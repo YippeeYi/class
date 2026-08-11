@@ -1,8 +1,9 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react'
 
 export const BACKGROUND_KEY = 'classRecord:background'
+export const APPEARANCE_KEY = 'classRecord:appearance:v1'
 const PALETTE_KEY = 'classRecord:backgroundPalette:v1'
-let volatileBackground: BackgroundId | null = null
+let volatileAppearance: AppearancePreference | null = null
 const THEME_PROPERTIES = [
   '--primary',
   '--ring',
@@ -20,6 +21,56 @@ const THEME_PROPERTIES = [
 const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`
 
 export type BackgroundId = 'default' | 'mountain' | 'cloud'
+export type ThemePresetId = 'auto' | 'paper' | 'mist' | 'apricot' | 'ink' | 'sage'
+
+export type AppearancePreference = {
+  background: BackgroundId
+  theme: ThemePresetId
+}
+
+export const themePresets: Array<{
+  id: ThemePresetId
+  label: string
+  category: string
+  description: string
+}> = [
+  {
+    id: 'auto',
+    label: '随景',
+    category: '自动',
+    description: '从当前背景提取强调色，保持图片与界面自然呼应。',
+  },
+  {
+    id: 'paper',
+    label: '纸白',
+    category: '明亮',
+    description: '中性纸色、清晰深字与低对比暖灰边界。',
+  },
+  {
+    id: 'mist',
+    label: '雾蓝',
+    category: '冷色',
+    description: '克制的雾蓝强调与安静的冷灰阅读表面。',
+  },
+  {
+    id: 'apricot',
+    label: '暖杏',
+    category: '暖色',
+    description: '柔和杏橙强调与温暖、通透的浅色表面。',
+  },
+  {
+    id: 'ink',
+    label: '夜墨',
+    category: '深色',
+    description: '低亮墨蓝表面与柔亮文字，适合暗处浏览。',
+  },
+  {
+    id: 'sage',
+    label: '柔苔',
+    category: '柔和',
+    description: '低饱和灰绿强调，长时间查看也保持平静。',
+  },
+]
 
 export const backgrounds: Array<{
   id: BackgroundId
@@ -64,14 +115,61 @@ export const backgrounds: Array<{
   },
 ]
 
-export function setBackground(id: BackgroundId) {
-  volatileBackground = id
+function isBackgroundId(value: unknown): value is BackgroundId {
+  return backgrounds.some((item) => item.id === value)
+}
+
+function isThemePresetId(value: unknown): value is ThemePresetId {
+  return themePresets.some((item) => item.id === value)
+}
+
+export function readAppearance(): AppearancePreference {
+  if (volatileAppearance) return volatileAppearance
   try {
-    localStorage.setItem(BACKGROUND_KEY, id)
+    const stored = JSON.parse(
+      localStorage.getItem(APPEARANCE_KEY) || 'null',
+    ) as Partial<AppearancePreference> | null
+    const legacyBackground = localStorage.getItem(BACKGROUND_KEY)
+    return {
+      background: isBackgroundId(stored?.background)
+        ? stored.background
+        : isBackgroundId(legacyBackground)
+          ? legacyBackground
+          : 'default',
+      theme: isThemePresetId(stored?.theme) ? stored.theme : 'auto',
+    }
   } catch {
-    // The selected background remains active for the current page session.
+    return { background: 'default', theme: 'auto' }
   }
-  window.dispatchEvent(new CustomEvent('classrecord:background', { detail: id }))
+}
+
+function updateAppearance(next: Partial<AppearancePreference>) {
+  const previous = readAppearance()
+  const appearance: AppearancePreference = {
+    background: isBackgroundId(next.background) ? next.background : previous.background,
+    theme: isThemePresetId(next.theme) ? next.theme : previous.theme,
+  }
+  volatileAppearance = appearance
+  try {
+    localStorage.setItem(APPEARANCE_KEY, JSON.stringify(appearance))
+    // Keep the former key in sync so existing installs and older deployments can roll back safely.
+    localStorage.setItem(BACKGROUND_KEY, appearance.background)
+  } catch {
+    // The selected appearance remains active for the current page session.
+  }
+  window.dispatchEvent(new CustomEvent('classrecord:appearance', { detail: appearance }))
+  if (previous.background !== appearance.background)
+    window.dispatchEvent(
+      new CustomEvent('classrecord:background', { detail: appearance.background }),
+    )
+}
+
+export function setBackground(id: BackgroundId) {
+  updateAppearance({ background: id })
+}
+
+export function setThemePreset(id: ThemePresetId) {
+  updateAppearance({ theme: id })
 }
 
 type Palette = Record<(typeof THEME_PROPERTIES)[number], string>
@@ -165,13 +263,16 @@ async function extractPalette(src: string) {
 }
 
 export function readBackground(): BackgroundId {
-  if (volatileBackground) return volatileBackground
-  try {
-    const value = localStorage.getItem(BACKGROUND_KEY)
-    return backgrounds.some((item) => item.id === value) ? (value as BackgroundId) : 'default'
-  } catch {
-    return 'default'
-  }
+  return readAppearance().background
+}
+
+function applyThemePreset(id: ThemePresetId) {
+  const root = document.documentElement
+  root.dataset.themePreset = id
+  root.classList.toggle('dark', id === 'ink')
+  const themeColor = getComputedStyle(root).getPropertyValue('--background').trim()
+  if (themeColor)
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor)
 }
 
 function backgroundLayerStyle(id: BackgroundId): CSSProperties {
@@ -187,7 +288,8 @@ function backgroundLayerStyle(id: BackgroundId): CSSProperties {
 }
 
 export function BackgroundRoot({ children }: { children: ReactNode }) {
-  const [current, setCurrent] = useState(readBackground)
+  const [appearance, setAppearance] = useState(readAppearance)
+  const current = appearance.background
   const [visible, setVisible] = useState(readBackground)
   const [previous, setPrevious] = useState<BackgroundId | null>(null)
   const transitionTimer = useRef<number | null>(null)
@@ -197,9 +299,9 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
   }, [])
   useEffect(() => {
     const update = (event: Event) =>
-      setCurrent((event as CustomEvent<BackgroundId>).detail || readBackground())
-    window.addEventListener('classrecord:background', update)
-    return () => window.removeEventListener('classrecord:background', update)
+      setAppearance((event as CustomEvent<AppearancePreference>).detail || readAppearance())
+    window.addEventListener('classrecord:appearance', update)
+    return () => window.removeEventListener('classrecord:appearance', update)
   }, [])
   const selected = backgrounds.find((item) => item.id === current)
   const visibleBackground = backgrounds.find((item) => item.id === visible)
@@ -240,7 +342,17 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => {
+    applyThemePreset(appearance.theme)
+  }, [appearance.theme])
+
+  useEffect(() => {
     let active = true
+    if (appearance.theme !== 'auto') {
+      applyPalette(null)
+      return () => {
+        active = false
+      }
+    }
     if (!visibleBackground?.image) {
       applyPalette(null)
       return () => {
@@ -266,12 +378,13 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
     return () => {
       active = false
     }
-  }, [visibleBackground])
+  }, [appearance.theme, visibleBackground])
   return (
     <div
       className="relative isolate min-h-svh overflow-x-clip bg-background"
       data-background={current}
       data-background-visible={visible}
+      data-theme-preset={appearance.theme}
     >
       {previous && (
         <div

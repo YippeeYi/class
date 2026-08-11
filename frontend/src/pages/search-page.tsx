@@ -216,7 +216,7 @@ export function SearchPage() {
   else if (!total) body = <EmptyState title="没有找到匹配条目" />
   else
     body = (
-      <div className="grid gap-7">
+      <div className="grid gap-5">
         <p className="text-sm text-muted-foreground">找到 {total} 个结果</p>
         {grouped.map((group) => (
           <section key={group.type} aria-labelledby={`search-${group.type}`}>

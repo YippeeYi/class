@@ -22,6 +22,7 @@ const harness = String.raw`<!doctype html>
       import { DailyDistributionCell } from '/src/pages/timeline-page.tsx'
       import { BackgroundsPage } from '/src/pages/backgrounds-page.tsx'
       import { HomePage } from '/src/pages/home-page.tsx'
+      import { PeoplePage } from '/src/pages/people-page.tsx'
       import { BackgroundRoot } from '/src/components/layout/background-root.tsx'
       import { ArchiveProvider } from '/src/features/archive/archive-context.tsx'
       import { rememberImageDimensions } from '/src/services/image-metadata.ts'
@@ -48,8 +49,10 @@ const harness = String.raw`<!doctype html>
         { id: 'r3', fileName: 'r3', date: '2026-05-06', content: '第三条记录' },
       ]))
       sessionStorage.setItem(cachePrefix + 'people', cacheEntry([
-        { id: 'p1', name: '人物一' },
-        { id: 'p2', name: '人物二' },
+        { id: 'p1', name: '人物一', role: 'student' },
+        { id: 'p2', name: '人物二', role: 'student' },
+        { id: 'a-teacher', name: '普通老师', role: 'teacher', subject: '数学', main: false },
+        { id: 'z-teacher', name: '重点老师', role: 'teacher', subject: '语文', main: true },
       ]))
       sessionStorage.setItem(cachePrefix + 'quotes', cacheEntry([
         { id: 'q1', quote: '一句话', content: '一句话', recordFile: 'r1', sourceDate: todayDate },
@@ -126,6 +129,7 @@ const harness = String.raw`<!doctype html>
                 ),
                 e(ArchiveProvider, null,
                   e('section', { 'data-case': 'guide', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(HomePage)),
+                  e('section', { 'data-case': 'people', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(PeoplePage)),
                 ),
                 ),
               ),
@@ -184,6 +188,7 @@ try {
   page.on('pageerror', (error) => pageErrors.push(error.message))
   await page.goto(origin, { waitUntil: 'networkidle' })
   await page.waitForFunction(() => window.__markupLayoutReady === true)
+  assert.deepEqual(pageErrors, [], `browser page errors during initial render: ${pageErrors.join('; ')}`)
 
   for (const width of [1280, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 })
@@ -255,7 +260,8 @@ try {
       const date = cell.querySelector('.daily-distribution-date')?.getBoundingClientRect()
       const important = cell.querySelector('.daily-distribution-important-marker')?.getBoundingClientRect()
       const pie = cell.querySelector('.daily-distribution-pie')?.getBoundingClientRect()
-      const main = cell.children[1]?.getBoundingClientRect()
+      const mainElement = cell.children[1]
+      const main = mainElement?.getBoundingClientRect()
       const childrenInside = [...cell.querySelectorAll('*')].every((child) => {
         const childBounds = child.getBoundingClientRect()
         return (
@@ -268,12 +274,23 @@ try {
       return {
         overflowX: cell.scrollWidth - cell.clientWidth,
         overflowY: cell.scrollHeight - cell.clientHeight,
-        squareDelta: Math.abs(bounds.width - bounds.height),
+        height: bounds.height,
         childrenInside,
         grid: cell.closest('[data-daily-grid]')?.getAttribute('data-daily-grid'),
         pieWidth: pie?.width || 0,
         pieHeight: pie?.height || 0,
         mainHeight: main?.height || 0,
+        mainWidth: main?.width || 0,
+        mainChildren: mainElement ? Array.from(mainElement.children).map((child) => ({
+          width: child.getBoundingClientRect().width,
+          scrollWidth: child.scrollWidth,
+          text: child.textContent,
+        })) : [],
+        computed: {
+          paddingInline: getComputedStyle(cell).paddingInline,
+          columnGap: mainElement ? getComputedStyle(mainElement).columnGap : '',
+          fontSize: getComputedStyle(cell).fontSize,
+        },
         bounds: { width: bounds.width, height: bounds.height, top: bounds.top, bottom: bounds.bottom },
         children: [...cell.children].map((child) => {
           const childBounds = child.getBoundingClientRect()
@@ -293,16 +310,16 @@ try {
       cell.overflowX <= 1 && cell.overflowY <= 1,
       `daily cell ${index + 1} overflowed: ${JSON.stringify(cell)}`,
     )
-    assert.ok(cell.squareDelta <= 1, `daily cell ${index + 1} must retain a stable square frame`)
+    assert.ok(Math.abs(cell.height - 64) <= 1, `daily cell ${index + 1} must retain one compact 64px frame`)
     assert.equal(cell.childrenInside, true, `daily cell ${index + 1} content must remain inside its frame`)
     assert.ok(cell.topOverlap <= 0.5, `daily cell ${index + 1} date and important marker must not overlap`)
     assert.ok(cell.dateLeft >= 3 && cell.dateLeft <= 8, `daily cell ${index + 1} date must keep a compact left inset: ${JSON.stringify(cell)}`)
     assert.ok(cell.dateTop >= 3 && cell.dateTop <= 8, `daily cell ${index + 1} date must keep a compact top inset: ${JSON.stringify(cell)}`)
     assert.ok(!/[日条字]/u.test(cell.visibleText), `daily cell ${index + 1} must omit redundant visible units: ${cell.visibleText}`)
     assert.ok(!/(?:重要|重)/u.test(cell.visibleText), `daily cell ${index + 1} must use a non-text important marker: ${cell.visibleText}`)
-    assert.ok(cell.pieWidth >= 30 && Math.abs(cell.pieWidth - cell.pieHeight) <= 0.5, `daily cell ${index + 1} pie must remain prominent and circular: ${JSON.stringify(cell)}`)
-    assert.ok(cell.pieWidth / cell.bounds.width >= 0.44, `daily cell ${index + 1} pie must be the card's primary visual`)
-    assert.ok(cell.mainHeight / cell.bounds.height >= 0.64, `daily cell ${index + 1} main visualization row must not leave excessive blank space`)
+    assert.ok(cell.pieWidth >= 24 && Math.abs(cell.pieWidth - cell.pieHeight) <= 0.5, `daily cell ${index + 1} pie must remain prominent and circular: ${JSON.stringify(cell)}`)
+    assert.ok(cell.pieWidth / cell.bounds.width >= 0.3, `daily cell ${index + 1} pie must remain visually substantial: ${JSON.stringify(cell)}`)
+    assert.ok(cell.mainHeight / cell.bounds.height >= 0.56, `daily cell ${index + 1} main visualization row must use most available space: ${JSON.stringify(cell)}`)
   })
   assert.ok(Math.max(...dailyCells.map((cell) => cell.dateLeft)) - Math.min(...dailyCells.map((cell) => cell.dateLeft)) <= 0.5, 'all daily dates must share one left alignment')
   assert.ok(Math.max(...dailyCells.map((cell) => cell.dateTop)) - Math.min(...dailyCells.map((cell) => cell.dateTop)) <= 0.5, 'all daily dates must share one top alignment')
@@ -310,6 +327,28 @@ try {
   const largeDailyValue = page.locator('.daily-distribution-value[title="9,876,543 字"]').first()
   await largeDailyValue.waitFor({ state: 'visible' })
   assert.notEqual(await largeDailyValue.textContent(), '9,876,543', 'large daily values must use compact visible notation')
+
+  const themeOptions = page.locator('[data-theme-preset-option]')
+  assert.equal(await themeOptions.count(), 6, 'automatic plus five designed theme presets must remain available')
+  const themePreviewColors = await themeOptions.evaluateAll((options) =>
+    options.map((option) => {
+      const preview = option.querySelector('[data-theme-preview]')
+      const accent = option.querySelector('.appearance-preset-preview-accent')
+      return {
+        id: option.getAttribute('data-theme-preset-option'),
+        background: preview ? getComputedStyle(preview).backgroundColor : '',
+        accent: accent ? getComputedStyle(accent).backgroundColor : '',
+      }
+    }),
+  )
+  assert.equal(new Set(themePreviewColors.map((item) => `${item.background}|${item.accent}`)).size, 6, 'every theme preset needs a distinct visible preview')
+  await page.locator('[data-theme-preset-option="ink"]').click()
+  await page.waitForFunction(() => {
+    const value = JSON.parse(localStorage.getItem('classRecord:appearance:v1') || 'null')
+    return value?.theme === 'ink' && document.documentElement.dataset.themePreset === 'ink' && document.documentElement.classList.contains('dark')
+  })
+  await page.locator('[data-theme-preset-option="auto"]').click()
+  await page.waitForFunction(() => !document.documentElement.classList.contains('dark') && document.documentElement.dataset.themePreset === 'auto')
 
   const backgroundCards = page.locator('[data-background-id]')
   assert.equal(await backgroundCards.count(), 3, 'all baseline background choices must remain available')
@@ -346,6 +385,7 @@ try {
   await page.waitForFunction(() => document.querySelector('[data-background-id="mountain"]')?.getAttribute('data-selected') === 'true')
   await page.locator('[data-background-id="cloud"]').click()
   await page.waitForFunction(() => localStorage.getItem('classRecord:background') === 'cloud')
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('classRecord:appearance:v1') || 'null')?.background === 'cloud')
   await page.waitForFunction(() => document.querySelector('[data-background-visible="cloud"]'))
   const surfaceGeometry = await page.locator('[data-case="app-surface"]').evaluate((surface) => {
     const layers = document.querySelectorAll('[data-background-visible="cloud"] > .background-layer')
@@ -367,6 +407,14 @@ try {
   assert.match(surfaceGeometry.surfaceColor, /(?:\/ 0\)|, 0\))$/, `the application surface must not keep an opaque shadcn background: ${JSON.stringify(surfaceGeometry)}`)
   assert.notEqual(surfaceGeometry.topbarBackdrop, 'none', 'the top bar must keep a bounded glass treatment')
   assert.notEqual(surfaceGeometry.sidebarBackdrop, 'none', 'the sidebar must keep a bounded glass treatment')
+
+  const teacherSection = page.locator('[data-people-role="teacher"]')
+  await teacherSection.scrollIntoViewIfNeeded()
+  assert.equal(await teacherSection.locator('tbody tr').count(), 2, 'the teacher group must retain all people')
+  assert.equal(await teacherSection.locator('tbody tr').first().getByRole('link').textContent(), '普通老师', 'default ID sorting must remain unchanged')
+  assert.equal(await teacherSection.locator('tbody').getByText('主要', { exact: true }).count(), 0, 'main teachers must not expose a visible badge')
+  await teacherSection.getByRole('button', { name: '主要老师优先' }).click()
+  assert.equal(await teacherSection.locator('tbody tr').first().getByRole('link').textContent(), '重点老师', 'main-teacher priority must still move the marked person first')
 
   const guide = page.locator('[data-case="guide"]')
   await guide.scrollIntoViewIfNeeded()

@@ -1,7 +1,17 @@
 (() => {
   const backgroundKey = 'classRecord:background'
+  const appearanceKey = 'classRecord:appearance:v1'
   const paletteKey = 'classRecord:backgroundPalette:v1'
   const images = { mountain: 'mountain.webp', cloud: 'cloud.webp' }
+  const themes = new Set(['auto', 'paper', 'mist', 'apricot', 'ink', 'sage'])
+  const themeColors = {
+    auto: '#f5f0e8',
+    paper: '#f8f5ef',
+    mist: '#eef5f7',
+    apricot: '#faf1e7',
+    ink: '#1d232d',
+    sage: '#f0f5ed',
+  }
   const properties = [
     '--primary',
     '--ring',
@@ -17,14 +27,19 @@
   ]
 
   try {
-    const stored = localStorage.getItem(backgroundKey)
+    const appearance = JSON.parse(localStorage.getItem(appearanceKey) || 'null')
+    const stored = appearance?.background || localStorage.getItem(backgroundKey)
     const id = stored === 'mountain' || stored === 'cloud' ? stored : 'default'
+    const theme = themes.has(appearance?.theme) ? appearance.theme : 'auto'
     const root = document.documentElement
     root.dataset.backgroundBootstrap = id
+    root.dataset.themePreset = theme
+    root.classList.toggle('dark', theme === 'ink')
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColors[theme])
 
     const paletteCache = JSON.parse(localStorage.getItem(paletteKey) || '{}')
     const palette = paletteCache && typeof paletteCache === 'object' ? paletteCache[id] : null
-    if (palette && typeof palette === 'object') {
+    if (theme === 'auto' && palette && typeof palette === 'object') {
       for (const property of properties) {
         if (typeof palette[property] === 'string') root.style.setProperty(property, palette[property])
       }

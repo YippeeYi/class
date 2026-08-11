@@ -120,23 +120,23 @@ export function HomePage() {
   const archiveData = resource.data
 
   return (
-    <div className="grid gap-6 sm:gap-7">
+    <div className="grid gap-5 sm:gap-6">
       <Card className="guide-hero relative gap-0 overflow-hidden border-border/70 bg-card/72 py-0 shadow-sm backdrop-blur-sm">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_12%,color-mix(in_oklch,var(--primary)_18%,transparent),transparent_34%),linear-gradient(135deg,transparent_48%,color-mix(in_oklch,var(--secondary)_32%,transparent))]" />
         <CardContent className="relative grid p-0 lg:grid-cols-[minmax(0,1.45fr)_minmax(17rem,.72fr)]">
-          <div className="px-6 py-8 sm:px-9 sm:py-10 lg:px-11 lg:py-12">
-            <Badge variant="outline" className="mb-4 bg-background/55">
+          <div className="px-5 py-6 sm:px-7 sm:py-7 lg:px-8 lg:py-8">
+            <Badge variant="outline" className="mb-3 bg-background/55">
               CLASS ARCHIVE · 共同记忆
             </Badge>
             <Button
               type="button"
               variant="ghost"
               aria-label="编日史 Logo"
-              className="mb-4 block h-auto w-auto max-w-full justify-start p-0 hover:bg-transparent focus-visible:ring-offset-4"
+              className="mb-3 block h-auto w-auto max-w-full justify-start p-0 hover:bg-transparent focus-visible:ring-offset-4"
               onClick={tapLogo}
             >
               {logoFailed ? (
-                <span className="block font-heading text-5xl font-semibold tracking-tight">
+                <span className="block font-heading text-4xl font-semibold tracking-tight">
                   编日史
                 </span>
               ) : (
@@ -153,10 +153,10 @@ export function HomePage() {
                 />
               )}
             </Button>
-            <p className="max-w-2xl text-[0.9375rem] leading-7 text-muted-foreground sm:text-base sm:leading-8">
+            <p className="max-w-2xl text-data leading-7 text-muted-foreground sm:text-base">
               把散落在日常里的事件、人物、话语和资料，整理成一部可以搜索、回看，也可以继续生长的班级档案。
             </p>
-            <div className="mt-6 flex flex-wrap gap-2.5">
+            <div className="mt-5 flex flex-wrap gap-2.5">
               <Button render={<Link to="/records" />}>
                 浏览记录
                 <ArrowRight data-icon="inline-end" />
@@ -168,7 +168,7 @@ export function HomePage() {
             </div>
           </div>
 
-          <aside className="grid content-center gap-4 border-t border-border/65 bg-background/28 p-5 sm:p-6 lg:border-t-0 lg:border-l lg:p-7">
+          <aside className="grid content-center gap-3 border-t border-border/65 bg-background/28 p-4 sm:p-5 lg:border-t-0 lg:border-l lg:p-6">
             {today.hasMatches && (
               <Button
                 variant="outline"

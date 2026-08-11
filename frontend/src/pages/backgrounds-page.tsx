@@ -1,12 +1,16 @@
-import { Check, Image as ImageIcon } from 'lucide-react'
+import { Check, Image as ImageIcon, Palette } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { PageHeading } from '@/components/archive/page-heading'
 import {
+  type AppearancePreference,
   type BackgroundId,
   backgrounds,
-  readBackground,
+  readAppearance,
   setBackground,
+  setThemePreset,
+  type ThemePresetId,
+  themePresets,
 } from '@/components/layout/background-root'
 import { AspectRatio } from '@/components/ui/aspect-ratio'
 import { Badge } from '@/components/ui/badge'
@@ -64,32 +68,99 @@ function BackgroundPreview({ src, active }: { src: string; active: boolean }) {
 }
 
 export function BackgroundsPage() {
-  const [current, setCurrent] = useState<BackgroundId>(readBackground)
+  const [appearance, setAppearance] = useState<AppearancePreference>(readAppearance)
+  const current = appearance.background
   useEffect(() => {
     document.title = '背景 · 编日史'
   }, [])
+  useEffect(() => {
+    const update = (event: Event) =>
+      setAppearance((event as CustomEvent<AppearancePreference>).detail || readAppearance())
+    window.addEventListener('classrecord:appearance', update)
+    return () => window.removeEventListener('classrecord:appearance', update)
+  }, [])
   const choose = (id: BackgroundId) => {
     setBackground(id)
-    setCurrent(id)
   }
+  const chooseTheme = (id: ThemePresetId) => setThemePreset(id)
   return (
     <div>
       <PageHeading
         title="背景"
         description={`共 ${backgrounds.length} 个背景；当前使用 ${backgrounds.find((item) => item.id === current)?.label || '默认'}。设置保存在当前浏览器中。`}
       />
+      <Card className="appearance-preset-panel mb-5 gap-0 overflow-hidden border-white/30 bg-card/42 py-0 shadow-sm backdrop-blur-md dark:border-black/25">
+        <div className="flex items-start gap-3 border-b border-white/20 px-4 py-3 dark:border-black/20 sm:px-5">
+          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+            <Palette className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <CardTitle className="text-base">配色方案</CardTitle>
+            <p className="mt-0.5 text-sm leading-5 text-muted-foreground">
+              预设会与当前背景共同保存；选择后仍可随时改用其他背景或配色。
+            </p>
+          </div>
+        </div>
+        <CardContent className="p-3 sm:p-4">
+          <RadioGroup
+            aria-label="选择全站配色方案"
+            value={appearance.theme}
+            onValueChange={(value) => chooseTheme(value as ThemePresetId)}
+            className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6"
+          >
+            {themePresets.map((preset) => (
+              <label
+                key={preset.id}
+                htmlFor={`theme-preset-${preset.id}`}
+                data-theme-preset-option={preset.id}
+                data-selected={appearance.theme === preset.id ? 'true' : 'false'}
+                className="group/preset grid min-w-0 cursor-pointer gap-2 rounded-xl border border-border/70 bg-background/34 p-2 shadow-xs backdrop-blur-sm transition-[background-color,border-color,box-shadow] hover:border-primary/35 hover:bg-background/52 has-[[data-slot=radio-group-item]:focus-visible]:ring-2 has-[[data-slot=radio-group-item]:focus-visible]:ring-ring/45 data-[selected=true]:border-primary/65 data-[selected=true]:bg-background/62 data-[selected=true]:shadow-sm"
+              >
+                <span
+                  data-theme-preview={preset.id}
+                  className="appearance-preset-preview relative h-14 overflow-hidden rounded-lg border"
+                  aria-hidden="true"
+                >
+                  <span className="appearance-preset-preview-card absolute inset-x-2 bottom-2 top-3 rounded-md border p-1.5 shadow-sm">
+                    <span className="appearance-preset-preview-heading mb-1 block h-1.5 w-2/3 rounded-full" />
+                    <span className="appearance-preset-preview-copy block h-1 w-4/5 rounded-full" />
+                    <span className="appearance-preset-preview-copy mt-1 block h-1 w-1/2 rounded-full" />
+                  </span>
+                  <span className="appearance-preset-preview-accent absolute right-1.5 top-1.5 size-3 rounded-full border" />
+                </span>
+                <span className="flex min-w-0 items-center gap-2 px-0.5">
+                  <RadioGroupItem
+                    id={`theme-preset-${preset.id}`}
+                    value={preset.id}
+                    className="size-3.5"
+                  />
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                    {preset.label}
+                  </span>
+                  <span className="shrink-0 text-[0.6875rem] text-muted-foreground">
+                    {preset.category}
+                  </span>
+                </span>
+                <span className="line-clamp-2 px-0.5 text-xs leading-4 text-muted-foreground">
+                  {preset.description}
+                </span>
+              </label>
+            ))}
+          </RadioGroup>
+        </CardContent>
+      </Card>
       <RadioGroup
         aria-label="选择全站背景"
         value={current}
         onValueChange={(value) => choose(value as BackgroundId)}
-        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
       >
         {backgrounds.map((item) => (
           <Card
             key={item.id}
             data-background-id={item.id}
             data-selected={current === item.id ? 'true' : 'false'}
-            className="group/card relative cursor-pointer gap-0 overflow-hidden border-white/30 bg-card/48 py-0 shadow-sm ring-1 ring-border/75 backdrop-blur-lg transition-[background-color,box-shadow,ring-color] duration-200 hover:bg-card/62 hover:ring-primary/35 data-[selected=true]:bg-card/68 data-[selected=true]:shadow-md data-[selected=true]:ring-2 data-[selected=true]:ring-primary dark:border-black/20"
+            className="group/card relative cursor-pointer gap-0 overflow-hidden border-white/30 bg-card/38 py-0 shadow-sm ring-1 ring-border/75 backdrop-blur-md transition-[background-color,box-shadow,ring-color] duration-200 hover:bg-card/54 hover:ring-primary/35 data-[selected=true]:bg-card/62 data-[selected=true]:shadow-md data-[selected=true]:ring-2 data-[selected=true]:ring-primary dark:border-black/20"
             onClick={() => choose(item.id)}
           >
             <AspectRatio
@@ -103,30 +174,28 @@ export function BackgroundsPage() {
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_12%,color-mix(in_oklch,var(--primary)_20%,transparent),transparent_34%),repeating-linear-gradient(0deg,transparent_0_31px,color-mix(in_oklch,var(--primary)_7%,transparent)_32px),linear-gradient(145deg,var(--background),color-mix(in_oklch,var(--secondary)_62%,var(--background)))]" />
               )}
               <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,transparent_42%,rgb(18_16_14/.18)_100%)]" />
-              <div className="absolute inset-x-3 bottom-3 rounded-xl border border-white/35 bg-background/68 p-3 shadow-md backdrop-blur-md dark:border-black/25 sm:inset-x-4 sm:bottom-4 sm:p-4">
-                <div className="mb-2 flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="mb-1.5 flex items-center gap-2">
-                      <CardTitle className="truncate text-lg">{item.label}</CardTitle>
-                      <Badge
-                        variant={current === item.id ? 'default' : 'outline'}
-                        className={current === item.id ? 'shrink-0' : 'shrink-0 bg-background/62'}
-                      >
-                        {current === item.id && <Check data-icon="inline-start" />}
-                        {current === item.id ? '使用中' : item.category}
-                      </Badge>
-                    </div>
-                    <p className="line-clamp-2 text-sm leading-5 text-muted-foreground">
-                      {item.description}
-                    </p>
+              <div className="absolute inset-x-3 bottom-3 rounded-xl border border-white/35 bg-background/62 p-3 shadow-md backdrop-blur-md dark:border-black/25 sm:inset-x-4 sm:bottom-4">
+                <div className="mb-1.5 flex min-w-0 items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <CardTitle className="truncate text-base sm:text-lg">{item.label}</CardTitle>
                     <span
                       data-background-swatch
-                      className="mt-2.5 block h-1 w-14 rounded-full ring-1 ring-white/35"
+                      className="block h-2 w-8 shrink-0 rounded-full ring-1 ring-white/45"
                       style={{ background: item.swatch }}
                       aria-hidden="true"
                     />
                   </div>
+                  <Badge
+                    variant={current === item.id ? 'default' : 'outline'}
+                    className={current === item.id ? 'shrink-0' : 'shrink-0 bg-background/52'}
+                  >
+                    {current === item.id && <Check data-icon="inline-start" />}
+                    {current === item.id ? '使用中' : item.category}
+                  </Badge>
                 </div>
+                <p className="line-clamp-2 text-sm leading-5 text-muted-foreground">
+                  {item.description}
+                </p>
               </div>
               <RadioGroupItem
                 value={item.id}
@@ -135,7 +204,7 @@ export function BackgroundsPage() {
                 onClick={(event) => event.stopPropagation()}
               />
             </AspectRatio>
-            <CardContent className="border-t border-white/20 bg-background/38 px-4 py-3 backdrop-blur-md dark:border-black/20">
+            <CardContent className="border-t border-white/20 bg-background/32 px-4 py-2.5 backdrop-blur-sm dark:border-black/20">
               <p className="truncate text-xs leading-5 text-muted-foreground sm:text-sm">
                 {item.credit.href ? (
                   <a

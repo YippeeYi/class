@@ -364,7 +364,7 @@ function MiniAuthorPie({
   return (
     <svg
       viewBox="0 0 40 40"
-      className="daily-distribution-pie size-[clamp(1.875rem,54cqi,2.5rem)] shrink-0"
+      className="daily-distribution-pie size-[clamp(1.5rem,38cqi,1.75rem)] shrink-0"
       aria-hidden="true"
     >
       <circle cx="20" cy="20" r="10" fill="var(--muted)" />
@@ -426,7 +426,7 @@ export function DailyDistributionCell({
       nativeButton={!item.records.length}
       data-records={item.records.length > 0 ? 'present' : 'empty'}
       data-important={item.important > 0 ? 'true' : 'false'}
-      className="daily-distribution-cell relative grid aspect-square h-auto min-h-0 min-w-0 justify-normal grid-rows-[auto_1fr] items-stretch gap-0.5 whitespace-normal border-border/75 bg-background/74 p-1 text-left shadow-none transition-[background-color,border-color,box-shadow] hover:bg-accent/72 data-[important=true]:border-amber-500/45 data-[important=true]:shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--color-amber-500)_18%,transparent)] focus-visible:z-10 focus-visible:ring-2"
+      className="daily-distribution-cell relative grid h-16 min-h-16 min-w-0 justify-normal grid-rows-[auto_1fr] items-stretch gap-0.5 whitespace-normal border-border/75 bg-background/74 p-1 text-left shadow-none transition-[background-color,border-color,box-shadow] hover:bg-accent/72 data-[important=true]:border-amber-500/45 data-[important=true]:shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--color-amber-500)_18%,transparent)] focus-visible:z-10 focus-visible:ring-2"
       aria-label={`${year} 年 ${month} 月 ${item.day} 日：${item.value.toLocaleString()} ${unit}${item.important > 0 ? `，重要 ${item.important.toLocaleString()} ${unit}` : ''}`}
       render={
         item.records.length ? (
@@ -434,8 +434,8 @@ export function DailyDistributionCell({
         ) : undefined
       }
     >
-      <span className="flex min-h-2.5 w-full min-w-0 items-start justify-between gap-1 leading-none">
-        <span className="daily-distribution-date leading-none font-semibold tabular-nums text-muted-foreground">
+      <span className="flex min-h-2.5 w-full min-w-0 items-start justify-between gap-1 text-[0.6875rem] leading-none">
+        <span className="daily-distribution-date font-semibold leading-none tabular-nums text-muted-foreground">
           {Number(item.day)}
         </span>
         {item.important > 0 && (
@@ -450,12 +450,12 @@ export function DailyDistributionCell({
           <MiniAuthorPie entries={item.authors} colors={colors} activeId={activeAuthor} />
         ) : (
           <span
-            className="daily-distribution-pie size-[clamp(1.875rem,54cqi,2.5rem)] shrink-0 rounded-full border border-dashed"
+            className="daily-distribution-pie size-[clamp(1.5rem,38cqi,1.75rem)] shrink-0 rounded-full border border-dashed"
             aria-hidden="true"
           />
         )}
         <strong
-          className="daily-distribution-value max-w-full whitespace-nowrap text-center leading-none font-bold tracking-tight tabular-nums"
+          className="daily-distribution-value min-w-0 max-w-full whitespace-nowrap text-center text-xs leading-none font-bold tracking-tight tabular-nums"
           title={`${item.value.toLocaleString()} ${unit}`}
         >
           {compactStatistic(item.value)}
@@ -564,7 +564,7 @@ function AuthorDistributionChart({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-auto w-full justify-between gap-3 px-2 py-1.5 text-[0.8125rem]"
+                className="h-auto w-full justify-between gap-3 px-2 py-1.5 text-meta"
                 aria-pressed={activeId === item.id}
                 onPointerEnter={() => setActiveId(item.id)}
                 onPointerLeave={() => setActiveId(null)}
@@ -889,7 +889,7 @@ export function TimelinePage() {
                     <Icon className="size-[1.125rem]" />
                   </span>
                   <div className="min-w-0">
-                    <p className="truncate text-[0.8125rem] text-muted-foreground">{label}</p>
+                    <p className="truncate text-meta text-muted-foreground">{label}</p>
                     <strong className="font-heading text-[1.625rem] leading-none tabular-nums">
                       {value.toLocaleString()}
                     </strong>
@@ -959,7 +959,7 @@ export function TimelinePage() {
                   <CardHeader className="flex-col items-start gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <CardTitle>选择年份</CardTitle>
-                      <p className="mt-1 text-[0.8125rem] text-muted-foreground">
+                      <p className="mt-1 text-meta text-muted-foreground">
                         切换后同步显示该年的月份和每日统计。
                       </p>
                     </div>
@@ -987,7 +987,7 @@ export function TimelinePage() {
                         }}
                       >
                         <span>{item} 年</span>
-                        <span className="max-w-full truncate text-[0.8125rem] opacity-70">
+                        <span className="max-w-full truncate text-meta opacity-70">
                           {yearTotals.get(item)?.toLocaleString()} {unit}
                         </span>
                       </Button>
@@ -1021,7 +1021,7 @@ export function TimelinePage() {
                   <CardHeader className="flex-col items-start gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <CardTitle>选择月份</CardTitle>
-                      <p className="mt-1 text-[0.8125rem] text-muted-foreground">
+                      <p className="mt-1 text-meta text-muted-foreground">
                         无记录月份保留位置并明确禁用。
                       </p>
                     </div>
@@ -1047,7 +1047,7 @@ export function TimelinePage() {
                         onClick={() => setMonth(item.key)}
                       >
                         <span>{item.label}</span>
-                        <span className="max-w-full truncate text-[0.8125rem] opacity-70">
+                        <span className="max-w-full truncate text-meta opacity-70">
                           {item.value.toLocaleString()} {unit}
                         </span>
                       </Button>
@@ -1081,7 +1081,7 @@ export function TimelinePage() {
                   ],
                 ].map(([label, value]) => (
                   <article key={String(label)} className="bg-card/88 px-4 py-3">
-                    <p className="text-[0.8125rem] text-muted-foreground">{label}</p>
+                    <p className="text-meta text-muted-foreground">{label}</p>
                     <strong className="font-heading text-[1.375rem] leading-tight tabular-nums">
                       {Number(value).toLocaleString()}
                     </strong>
@@ -1103,7 +1103,7 @@ export function TimelinePage() {
                   <CardTitle>每日记录分布</CardTitle>
                 </CardHeader>
                 <CardContent className="min-w-0 p-4">
-                  <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7 lg:grid-cols-10 2xl:grid-cols-14">
+                  <div className="grid grid-cols-4 gap-1 sm:grid-cols-7 lg:grid-cols-10 2xl:grid-cols-14">
                     {daily.map((item) => (
                       <DailyDistributionCell
                         key={item.day}
@@ -1118,9 +1118,7 @@ export function TimelinePage() {
                   </div>
                   {dailyAuthorLegend.length > 0 && (
                     <div className="mt-4 border-t pt-4">
-                      <p className="mb-2 text-[0.8125rem] font-medium text-muted-foreground">
-                        记录人图例
-                      </p>
+                      <p className="mb-2 text-meta font-medium text-muted-foreground">记录人图例</p>
                       <ul className="flex list-none flex-wrap gap-1.5">
                         {dailyAuthorLegend.map(([id]) => (
                           <li key={id}>
@@ -1128,7 +1126,7 @@ export function TimelinePage() {
                               type="button"
                               size="sm"
                               variant="ghost"
-                              className="h-8 gap-2 px-2 text-[0.8125rem]"
+                              className="h-8 gap-2 px-2 text-meta"
                               aria-pressed={activeDailyAuthor === id}
                               onPointerEnter={() => setActiveDailyAuthor(id)}
                               onPointerLeave={() => setActiveDailyAuthor(null)}

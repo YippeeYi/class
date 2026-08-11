@@ -56,7 +56,7 @@ export const RecordCard = memo(function RecordCard({
     <Collapsible>
       <Card id={recordAnchor(record)} className="scroll-mt-24 gap-0 py-0">
         <CardHeader className="border-b border-border/60 pt-3 !pb-3">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[0.8125rem] leading-5 text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-meta leading-5 text-muted-foreground">
             {typeLabel && <Badge variant="secondary">{typeLabel}</Badge>}
             {record.recordType !== 'message' && (
               <Badge variant={record.importance === 'important' ? 'default' : 'outline'}>

@@ -354,7 +354,7 @@ export function AppShell() {
                 'mx-auto w-full px-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-7 lg:px-10',
                 isViewportLocked
                   ? 'h-[calc(100dvh-4rem)] min-h-0 max-w-[96rem] overflow-hidden px-3 py-3 sm:px-5 sm:py-4 lg:px-7 lg:py-5'
-                  : 'min-h-[calc(100svh-4rem)] py-6 pb-16 sm:py-7 sm:pb-20 lg:py-8 lg:pb-20',
+                  : 'min-h-[calc(100svh-4rem)] py-5 pb-12 sm:py-6 sm:pb-16 lg:py-7',
                 !isViewportLocked && (isWideContent ? 'max-w-[90rem]' : 'max-w-6xl'),
               )}
             >

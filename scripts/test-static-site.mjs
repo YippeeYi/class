@@ -55,6 +55,8 @@ assert.match(index, /src\/main\.tsx/)
 assert.match(index, /theme-bootstrap\.js/, 'the selected background must be restored before React starts')
 assert.match(index, /<script vite-ignore src="%BASE_URL%theme-bootstrap\.js"/, 'the synchronous theme bootstrap must bypass module bundling without a build warning')
 assert.match(themeBootstrap, /backgroundPalette:v1/, 'the first paint must reuse the cached background palette')
+assert.match(themeBootstrap, /classRecord:appearance:v1/, 'the first paint must restore the unified appearance preference')
+assert.match(themeBootstrap, /dataset\.themePreset/, 'the selected theme preset must be applied before React starts')
 assert.match(main, /BrowserRouter basename/, 'router basename must follow the Pages project path')
 assert.match(home, /BASE_URL.*logo-guide\.png/, 'logo must use the Vite base URL')
 assert.match(backgrounds, /BASE_URL/, 'background assets must use the Vite base URL')
@@ -129,7 +131,11 @@ assert.doesNotMatch(backgroundsPage, /hover:-translate-y/, 'background choices m
 assert.match(backgroundsPage, /ratio=\{4 \/ 3\}/, 'background cards must expose a substantial preview area')
 assert.match(backgroundsPage, /backdrop-blur-md/, 'background metadata must remain readable on a restrained glass surface')
 assert.match(backgroundsPage, /data-background-swatch/, 'background palette swatches must be integrated with their metadata')
+assert.match(backgroundsPage, /data-theme-preset-option/, 'designed theme presets must expose compact visual previews')
+assert.match(backgroundsPage, /setThemePreset/, 'theme presets must use the shared appearance controller')
 assert.match(backgrounds, /swatch:/, 'each background must expose a representative palette swatch')
+assert.match(backgrounds, /APPEARANCE_KEY/, 'background and theme choices must persist as one appearance preference')
+assert.match(backgrounds, /paper[\s\S]*mist[\s\S]*apricot[\s\S]*ink[\s\S]*sage/, 'appearance presets must cover neutral, cool, warm, dark, and muted directions')
 assert.match(backgrounds, /if \(cached\) \{[\s\S]*applyPalette\(cached\)[\s\S]*return/, 'cached background palettes must skip repeated image sampling')
 assert.match(backgrounds, /mountain\.webp/, 'the mountain background must use the optimized WebP asset')
 assert.match(backgrounds, /cloud\.webp/, 'the cloud background must use the optimized WebP asset')
@@ -162,12 +168,13 @@ assert.match(timeline, /recordDateCache/, 'timeline date parsing must be cached 
 assert.match(timeline, /recordCharacterCache/, 'timeline character totals must be cached per immutable record')
 assert.match(timeline, /aria-label="年度统计与年份选择"/, 'the baseline year pie and year controls must share one period layout')
 assert.match(timeline, /aria-label="月度统计与月份选择"/, 'the baseline month pie and month controls must share one period layout')
-assert.match(timeline, /grid-cols-4 gap-1\.5 sm:grid-cols-7 lg:grid-cols-10 2xl:grid-cols-14/, 'the daily calendar must provide a denser responsive layout')
+assert.match(timeline, /grid-cols-4 gap-1 sm:grid-cols-7 lg:grid-cols-10 2xl:grid-cols-14/, 'the daily calendar must provide a denser responsive layout')
 assert.match(
   timeline,
-  /aspect-square[\s\S]*grid-rows-\[auto_1fr\]/,
-  'daily cells must keep a stable compact square layout',
+  /h-16 min-h-16[\s\S]*grid-rows-\[auto_1fr\]/,
+  'daily cells must use one stable compact height instead of expanding with wide columns',
 )
+assert.match(timeline, /flex-col items-center justify-center gap-0\.5/, 'daily pie and value must use one dense, stable visual stack')
 assert.match(timeline, /daily-distribution-pie/, 'daily author pies need a dedicated responsive geometry')
 assert.match(timeline, /compactStatistic\(item\.value\)/, 'large daily values must use a compact non-overflowing display')
 assert.match(timeline, /daily-distribution-important-marker/, 'important days need a compact non-text visual marker')
@@ -265,7 +272,9 @@ assert.doesNotMatch(styles, /min-width: min\(100%, 32rem\)/, 'markup tables must
 assert.match(styles, /\.record-stack-line::before[\s\S]*inset: 0 -0\.34em/, 'stack rules must visibly extend past the widest rendered label')
 assert.match(styles, /\.record-stack--arrow \.record-stack-line::after/, 'equation arrows must preserve the right arrowhead')
 assert.match(styles, /\.quiz-answer-blank-text[\s\S]*color: transparent/, 'hidden quiz answers must retain their exact rendered geometry')
-assert.match(people, /isMainTeacher[\s\S]*<Badge[\s\S]*主要/, 'main teachers need an explicit, theme-aware row marker')
+assert.match(people, /mainFirst[\s\S]*Number\(b\.main\) - Number\(a\.main\)/, 'main-teacher priority sorting must remain intact')
+assert.match(people, /isMainTeacher[\s\S]*border-l-primary/, 'main teachers must retain their non-text row emphasis')
+assert.doesNotMatch(people, /<Badge[\s\S]*主要/, 'main-teacher names must not carry a visible badge')
 assert.match(shell, /function RouteScrollManager/, 'route-level scroll behavior must have one owner')
 assert.match(shell, /navigationType !== 'POP'/, 'forward navigation must reset without breaking browser back scroll restoration')
 assert.match(shell, /location\.pathname === '\/person'[\s\S]*last\?\.search !== location\.search/, 'every person-to-person navigation must reset to the top')
