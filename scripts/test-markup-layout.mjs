@@ -24,6 +24,9 @@ const harness = String.raw`<!doctype html>
       import { HomePage } from '/src/pages/home-page.tsx'
       import { PeoplePage } from '/src/pages/people-page.tsx'
       import { BackgroundRoot } from '/src/components/layout/background-root.tsx'
+      import { Badge } from '/src/components/ui/badge.tsx'
+      import { Button } from '/src/components/ui/button.tsx'
+      import { Input } from '/src/components/ui/input.tsx'
       import { ArchiveProvider } from '/src/features/archive/archive-context.tsx'
       import { rememberImageDimensions } from '/src/services/image-metadata.ts'
       import '/src/styles/tailwind.css'
@@ -91,6 +94,44 @@ const harness = String.raw`<!doctype html>
         })))
       }
 
+      function QuizThemeFixture({ type }) {
+        return e('article', {
+          className: 'quiz-question-card',
+          'data-question-type': type,
+          'data-quiz-theme-fixture': type,
+          style: { display: 'grid', gap: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', background: 'var(--card)', color: 'var(--card-foreground)', padding: '16px' },
+        },
+          e('header', { className: 'quiz-question-header', style: { display: 'flex', alignItems: 'center', gap: '8px', padding: '12px' } },
+            e('span', { className: 'quiz-question-type-icon', style: { display: 'grid', width: '32px', height: '32px', placeItems: 'center', borderRadius: '8px' } }, 'Q'),
+            e(Badge, { className: 'quiz-question-type-badge', variant: 'outline' }, type),
+          ),
+          e('h2', { className: 'quiz-question-prompt' }, '题干与主要说明文字'),
+          e('blockquote', { className: 'quiz-question-source' },
+            '题目记录正文 ',
+            e('span', { className: 'quiz-answer-blank is-revealed' }, e('span', { className: 'quiz-answer-blank-text' }, '答案')),
+            e('span', { className: 'quiz-judge-correction' },
+              e('span', { className: 'quiz-judge-wrong' }, '错误'),
+              e('span', { className: 'quiz-judge-answer' }, '正确'),
+            ),
+          ),
+          e('div', { className: 'quiz-question-side' },
+            e('span', { className: 'quiz-question-side-label' }, '记录人'),
+            e('span', { className: 'quiz-question-side-value' }, '人物名称'),
+          ),
+          e(Input, { 'aria-label': type + ' 填空输入', defaultValue: '已填写内容', disabled: true, className: 'disabled:opacity-75' }),
+          e('div', { style: { display: 'grid', gap: '8px', gridTemplateColumns: 'repeat(3,minmax(0,1fr))' } },
+            e(Button, { className: 'quiz-option disabled:opacity-100', variant: 'outline', disabled: true },
+              e('span', { className: 'quiz-option-label' }, 'A'), e('span', null, '禁用选项')),
+            e(Button, { className: 'quiz-option is-correct disabled:opacity-100', variant: 'outline', disabled: true },
+              e('span', { className: 'quiz-option-label' }, 'B'), e('span', null, '正确选项')),
+            e(Button, { className: 'quiz-option is-wrong disabled:opacity-100', variant: 'outline', disabled: true },
+              e('span', { className: 'quiz-option-label' }, 'C'), e('span', null, '错误选项')),
+          ),
+          e('div', { className: 'quiz-result-correct' }, '回答正确与解释内容'),
+          e('div', { className: 'quiz-result-wrong' }, '回答错误与正确答案'),
+        )
+      }
+
       function LocationProbe() {
         const location = useLocation()
         const navigate = useNavigate()
@@ -120,6 +161,11 @@ const harness = String.raw`<!doctype html>
                 e(DailyGrid, { id: 'medium', width: '38rem', columns: 7 }),
                 e(DailyGrid, { id: 'wide', width: '52rem', columns: 10 }),
                 e('section', { 'data-case': 'backgrounds', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(BackgroundsPage)),
+                e('section', { 'data-case': 'quiz-theme', style: { display: 'grid', width: '68rem', maxWidth: '100%', gap: '12px', margin: '24px auto' } },
+                  e(QuizThemeFixture, { type: 'choice' }),
+                  e(QuizThemeFixture, { type: 'fill' }),
+                  e(QuizThemeFixture, { type: 'judge' }),
+                ),
                 e('section', { 'data-case': 'app-surface', className: 'app-main-surface bg-background', style: { width: '68rem', maxWidth: '100%', minHeight: '220px', margin: '24px auto', padding: '20px' } },
                   e('header', { className: 'app-topbar rounded-xl border p-4' }, '全局背景表面'),
                   e('aside', { className: 'app-sidebar mt-4 w-48' },
@@ -335,7 +381,19 @@ try {
   assert.equal(await themeModeGroups.count(), 3, 'automatic, light, and dark choices must have separate visual groups')
   assert.equal(await page.locator('[data-theme-mode="light"]').count(), 4, 'four distinct light themes must remain available')
   assert.equal(await page.locator('[data-theme-mode="dark"]').count(), 3, 'three distinct dark themes must remain available')
-  const themePreviewColors = await themeOptions.evaluateAll((options) =>
+  const autoThemeControl = page.locator('[data-theme-preset-option="auto"]')
+  const autoThemeGeometry = await autoThemeControl.evaluate((element) => ({
+    height: element.getBoundingClientRect().height,
+    width: element.getBoundingClientRect().width,
+    slot: element.getAttribute('data-slot'),
+    pressed: element.getAttribute('aria-pressed'),
+    hasPreview: Boolean(element.querySelector('[data-theme-preview]')),
+  }))
+  assert.equal(autoThemeGeometry.slot, 'button', 'automatic palette must use the shared shadcn Button')
+  assert.ok(autoThemeGeometry.height <= 36, `automatic palette control must stay compact: ${JSON.stringify(autoThemeGeometry)}`)
+  assert.equal(autoThemeGeometry.hasPreview, false, 'automatic palette must not render a full preview card')
+  const designedThemeOptions = page.locator('[data-theme-preset-option]:not([data-theme-preset-option="auto"])')
+  const themePreviewColors = await designedThemeOptions.evaluateAll((options) =>
     options.map((option) => {
       const preview = option.querySelector('[data-theme-preview]')
       const accent = option.querySelector('.appearance-preset-preview-accent')
@@ -346,7 +404,8 @@ try {
       }
     }),
   )
-  assert.equal(new Set(themePreviewColors.map((item) => `${item.background}|${item.accent}`)).size, 8, 'every theme preset needs a distinct visible preview')
+  assert.equal(themePreviewColors.length, 7, 'all designed light/dark themes need compact previews')
+  assert.equal(new Set(themePreviewColors.map((item) => `${item.background}|${item.accent}`)).size, 7, 'every designed theme preset needs a distinct visible preview')
   await page.locator('[data-theme-preset-option="midnight"]').click()
   await page.waitForFunction(() => {
     const value = JSON.parse(localStorage.getItem('classRecord:appearance:v1') || 'null')
@@ -366,6 +425,8 @@ try {
   const themeContrasts = await page.evaluate((ids) => {
     const root = document.documentElement
     const original = root.dataset.themePreset
+    const originallyDark = root.classList.contains('dark')
+    const darkIds = new Set(['ink', 'midnight', 'pine'])
     const parseOklch = (value) => {
       const match = value.match(/oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)/)
       if (!match) return null
@@ -393,21 +454,42 @@ try {
     }
     const output = ids.map((id) => {
       root.dataset.themePreset = id
+      root.classList.toggle('dark', darkIds.has(id))
       const styles = getComputedStyle(root)
+      const quiz = [...document.querySelectorAll('[data-quiz-theme-fixture]')].map((card) => {
+        const cardStyles = getComputedStyle(card)
+        return {
+          type: card.getAttribute('data-question-type'),
+          typeText: ratio(cardStyles.getPropertyValue('--quiz-type-surface'), cardStyles.getPropertyValue('--quiz-type-ink')),
+          success: ratio(cardStyles.getPropertyValue('--quiz-success-surface'), cardStyles.getPropertyValue('--quiz-success-foreground')),
+          successEmphasis: ratio(cardStyles.getPropertyValue('--quiz-success-emphasis'), cardStyles.getPropertyValue('--quiz-success-emphasis-foreground')),
+          error: ratio(cardStyles.getPropertyValue('--quiz-error-surface'), cardStyles.getPropertyValue('--quiz-error-foreground')),
+          errorEmphasis: ratio(cardStyles.getPropertyValue('--quiz-error-emphasis'), cardStyles.getPropertyValue('--quiz-error-emphasis-foreground')),
+        }
+      })
       return {
         id,
         page: ratio(styles.getPropertyValue('--background'), styles.getPropertyValue('--foreground')),
         card: ratio(styles.getPropertyValue('--card'), styles.getPropertyValue('--card-foreground')),
         primary: ratio(styles.getPropertyValue('--primary'), styles.getPropertyValue('--primary-foreground')),
+        muted: ratio(styles.getPropertyValue('--muted'), styles.getPropertyValue('--muted-foreground')),
+        quiz,
       }
     })
     root.dataset.themePreset = original
+    root.classList.toggle('dark', originallyDark)
     return output
-  }, ['paper', 'mist', 'apricot', 'sage', 'ink', 'midnight', 'pine'])
+  }, ['auto', 'paper', 'mist', 'apricot', 'sage', 'ink', 'midnight', 'pine'])
   themeContrasts.forEach((theme) => {
     assert.ok(theme.page >= 7, `${theme.id} page text contrast is too low: ${JSON.stringify(theme)}`)
     assert.ok(theme.card >= 7, `${theme.id} card text contrast is too low: ${JSON.stringify(theme)}`)
     assert.ok(theme.primary >= 4.5, `${theme.id} primary control contrast is too low: ${JSON.stringify(theme)}`)
+    assert.ok(theme.muted >= 4.5, `${theme.id} muted text contrast is too low: ${JSON.stringify(theme)}`)
+    theme.quiz.forEach((sample) => {
+      for (const [state, contrast] of Object.entries(sample).filter(([key]) => key !== 'type')) {
+        assert.ok(contrast >= 4.5, `${theme.id} ${sample.type} quiz ${state} contrast is too low: ${JSON.stringify(sample)}`)
+      }
+    })
   })
   await page.locator('[data-theme-preset-option="pine"]').click()
   await page.waitForFunction(() => JSON.parse(localStorage.getItem('classRecord:appearance:v1') || 'null')?.theme === 'pine')

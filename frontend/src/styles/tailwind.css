@@ -435,6 +435,14 @@
     --quiz-type-accent: oklch(0.54 0.1 245);
     --quiz-type-surface: oklch(0.95 0.025 245);
     --quiz-type-ink: oklch(0.39 0.085 245);
+    --quiz-success-surface: oklch(0.96 0.025 155);
+    --quiz-success-foreground: oklch(0.37 0.1 155);
+    --quiz-success-emphasis: oklch(0.53 0.11 155);
+    --quiz-success-emphasis-foreground: oklch(0.985 0.006 155);
+    --quiz-error-surface: oklch(0.96 0.025 25);
+    --quiz-error-foreground: oklch(0.44 0.16 25);
+    --quiz-error-emphasis: oklch(0.55 0.19 25);
+    --quiz-error-emphasis-foreground: oklch(0.985 0.006 25);
   }
   .quiz-question-card[data-question-type="fill"] {
     --quiz-type-accent: oklch(0.59 0.105 76);
@@ -445,6 +453,29 @@
     --quiz-type-accent: oklch(0.53 0.08 170);
     --quiz-type-surface: oklch(0.95 0.027 170);
     --quiz-type-ink: oklch(0.37 0.065 170);
+  }
+  .dark .quiz-question-card {
+    --quiz-type-accent: oklch(0.73 0.105 245);
+    --quiz-type-surface: oklch(0.285 0.04 245);
+    --quiz-type-ink: oklch(0.88 0.065 238);
+    --quiz-success-surface: oklch(0.28 0.045 155);
+    --quiz-success-foreground: oklch(0.86 0.09 155);
+    --quiz-success-emphasis: oklch(0.68 0.12 155);
+    --quiz-success-emphasis-foreground: oklch(0.16 0.03 155);
+    --quiz-error-surface: oklch(0.285 0.05 25);
+    --quiz-error-foreground: oklch(0.85 0.1 25);
+    --quiz-error-emphasis: oklch(0.68 0.16 25);
+    --quiz-error-emphasis-foreground: oklch(0.16 0.035 25);
+  }
+  .dark .quiz-question-card[data-question-type="fill"] {
+    --quiz-type-accent: oklch(0.76 0.105 78);
+    --quiz-type-surface: oklch(0.295 0.042 72);
+    --quiz-type-ink: oklch(0.9 0.065 78);
+  }
+  .dark .quiz-question-card[data-question-type="judge"] {
+    --quiz-type-accent: oklch(0.74 0.085 165);
+    --quiz-type-surface: oklch(0.285 0.038 165);
+    --quiz-type-ink: oklch(0.88 0.06 160);
   }
   .quiz-question-header {
     border-left: 0.25rem solid var(--quiz-type-accent);
@@ -562,12 +593,12 @@
     gap: 0.45em;
   }
   .quiz-judge-wrong {
-    color: var(--destructive);
+    color: var(--quiz-error-foreground);
     text-decoration: line-through;
     text-decoration-thickness: 0.12em;
   }
   .quiz-judge-answer {
-    color: oklch(0.45 0.105 155);
+    color: var(--quiz-success-foreground);
     font-weight: 700;
     animation: quiz-answer-reveal 260ms ease both;
   }
@@ -588,6 +619,11 @@
   .quiz-option:disabled {
     opacity: 1;
   }
+  .quiz-option:disabled:not(.is-correct, .is-wrong) {
+    border-color: var(--border);
+    background: color-mix(in oklch, var(--muted) 42%, var(--card));
+    color: var(--muted-foreground);
+  }
   .quiz-option-label {
     display: inline-grid;
     width: 2rem;
@@ -601,25 +637,31 @@
     font-weight: 700;
   }
   .quiz-option.is-correct {
-    border-color: oklch(0.65 0.11 155 / 58%);
-    background: oklch(0.96 0.025 155);
-    color: oklch(0.35 0.075 155);
-    box-shadow: inset 0 0 0 1px oklch(0.65 0.11 155 / 20%);
+    border-color: color-mix(in oklch, var(--quiz-success-emphasis) 62%, var(--border));
+    background: var(--quiz-success-surface);
+    color: var(--quiz-success-foreground);
+    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--quiz-success-emphasis) 24%, transparent);
   }
   .quiz-option.is-correct .quiz-option-label {
-    background: oklch(0.55 0.105 155);
-    color: white;
+    background: var(--quiz-success-emphasis);
+    color: var(--quiz-success-emphasis-foreground);
   }
   .quiz-option.is-wrong {
-    border-color: color-mix(in oklch, var(--destructive) 45%, var(--border));
-    background: color-mix(in oklch, var(--destructive) 7%, var(--card));
-    color: var(--destructive);
-    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--destructive) 16%, transparent);
+    border-color: color-mix(in oklch, var(--quiz-error-emphasis) 58%, var(--border));
+    background: var(--quiz-error-surface);
+    color: var(--quiz-error-foreground);
+    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--quiz-error-emphasis) 22%, transparent);
     animation: quiz-wrong-nudge 260ms ease both;
   }
   .quiz-option.is-wrong .quiz-option-label {
-    background: var(--destructive);
-    color: white;
+    background: var(--quiz-error-emphasis);
+    color: var(--quiz-error-emphasis-foreground);
+  }
+  .quiz-result-correct {
+    color: var(--quiz-success-foreground);
+  }
+  .quiz-result-wrong {
+    color: var(--quiz-error-foreground);
   }
 }
 

@@ -230,4 +230,12 @@
 
 配色界面现在明确拆为“随背景、浅色模式、深色模式”三组。随景继续使用图片提色与 background palette 缓存；浅色包含纸白、雾蓝、暖杏、柔苔，深色包含夜墨、深海、松夜。七套人工方案均完整定义 background/foreground、card、popover、primary、secondary、muted、accent、border、input、ring、chart 和 sidebar token，深色方案统一在首屏 bootstrap 与 React 运行期挂载 dark variants。选择仍只写入一个 `classRecord:appearance:v1` 对象，旧背景键同步兼容；深色选择完整刷新后会由同步脚本先恢复 data attribute、dark class、theme-color 和背景预载，再由 React 接管，不产生第二套状态。运行时 `theme-color` 直接读取预设元数据，不再通过 `getComputedStyle` 强制一次同步样式计算。
 
-视觉排版复审保持现有 shadcn 控件高度、卡片 `px-4/py-3 + p-4` 主节奏和页面级 `text-page-title/text-section-title/text-reading/text-data/text-meta` 层级；配色类型与日期数字从 11px 提升到 12px，11px 仅保留给导览的装饰性眉题。其余任意尺寸均对应标记语法 em/intrinsic 几何、全屏视口、图表显式画布或统计数字，不进行破坏语义的机械统一。专项浏览器新增七套人工主题的 OKLCH 相对亮度计算：页面与卡片正文均至少 7:1，主按钮前景至少 4.5:1；八套预览互异，4 浅/3 深分组数量、深海→纸白模式切换、松夜完整刷新恢复与随景返回均通过。正式路由在无授权浏览器中按设计进入 `/auth`，首屏主题属性、bootstrap 清理、页面宽度和控制台均正常；真实 Supabase 数据态仍遵守第 10.4 节的普通邀请码验收边界。
+## 17. 2026-08-12 深色答题语义色与紧凑随景控制复核
+
+再次逐段对照旧版 `quizApp.js` 与 `style.css` 后确认：筛选不得取消到无题组合、作答后锁定输入、原位揭示校正、隐藏题按 grapheme 累积以及图片预载/失败重试等功能语义均已保留；新的差异来自旧版成功、错误和题型强调色原本只服务浅色页面，迁移到可切换深色 token 后仍直接复用浅色 surface/ink，导致题型图标、侧栏值、选项编号、正确项和反馈文字在暗色卡片上存在对比度退化。
+
+业务样式现在为选择、填空、判断分别提供浅色与深色 `accent/surface/ink`，并另外定义成功、错误表面、正文和强调标签的成对语义变量。题干、引用正文、挖空揭示、判断校正、答案方框、正常/禁用/正确/错误选项和 footer 反馈都只消费这些变量或 shadcn 的 foreground/muted/input token，不再在 React 页面中写入浅色专用成功色。浏览器回归对随景、四套浅色、三套深色以及三种题型逐项计算对比度，页面/卡片正文阈值为 7:1，题型和状态文字阈值为 4.5:1。
+
+“随背景”继续调用同一 `setThemePreset('auto')`、palette cache、首屏 bootstrap 和 `appearance:v1` 持久化链路，但展示改为 32px 高、带 `aria-pressed` 的 shadcn Button；七套人工方案仍使用 RadioGroup 预览卡。自动模式因此不再占用一张完整主题卡，也没有引入第二套状态。背景选择页残留的 white/black 玻璃边框同时收敛为 border/background 语义 token，深浅主题无需维护两套局部边框分支。
+
+视觉排版复审保持现有 shadcn 控件高度、卡片 `px-4/py-3 + p-4` 主节奏和页面级 `text-page-title/text-section-title/text-reading/text-data/text-meta` 层级；配色类型与日期数字从 11px 提升到 12px，11px 仅保留给导览的装饰性眉题。其余任意尺寸均对应标记语法 em/intrinsic 几何、全屏视口、图表显式画布或统计数字，不进行破坏语义的机械统一。专项浏览器新增七套人工主题的 OKLCH 相对亮度计算：页面与卡片正文均至少 7:1，主按钮和答题状态前景至少 4.5:1；七套设计预览互异，紧凑随景按钮、4 浅/3 深分组数量、深海→纸白模式切换、松夜完整刷新恢复与随景返回均通过。正式路由在无授权浏览器中按设计进入 `/auth`，首屏主题属性、bootstrap 清理、页面宽度和控制台均正常；真实 Supabase 数据态仍遵守第 10.4 节的普通邀请码验收边界。

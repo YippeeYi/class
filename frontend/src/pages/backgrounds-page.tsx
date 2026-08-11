@@ -120,12 +120,6 @@ export function BackgroundsPage() {
   const chooseTheme = (id: ThemePresetId) => setThemePreset(id)
   const themeGroups = [
     {
-      mode: 'auto' as const,
-      label: '随背景',
-      description: '保留从背景图片提取配色的自适应能力。',
-      icon: Sparkles,
-    },
-    {
       mode: 'light' as const,
       label: '浅色模式',
       description: '适合明亮环境，正文和控件保持清晰深色层级。',
@@ -144,8 +138,8 @@ export function BackgroundsPage() {
         title="背景"
         description={`共 ${backgrounds.length} 个背景；当前使用 ${backgrounds.find((item) => item.id === current)?.label || '默认'}。设置保存在当前浏览器中。`}
       />
-      <Card className="appearance-preset-panel mb-5 gap-0 overflow-hidden border-white/30 bg-card/42 py-0 shadow-sm backdrop-blur-md dark:border-black/25">
-        <div className="flex items-start gap-3 border-b border-white/20 px-4 py-3 dark:border-black/20 sm:px-5">
+      <Card className="appearance-preset-panel mb-5 gap-0 overflow-hidden border-border/70 bg-card/42 py-0 shadow-sm backdrop-blur-md">
+        <div className="flex items-start gap-3 border-b border-border/55 px-4 py-3 sm:px-5">
           <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             <Palette className="size-4" />
           </span>
@@ -157,11 +151,41 @@ export function BackgroundsPage() {
           </div>
         </div>
         <CardContent className="p-3 sm:p-4">
+          <section
+            data-theme-mode-group="auto"
+            className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-3"
+          >
+            <Button
+              type="button"
+              size="sm"
+              variant={appearance.theme === 'auto' ? 'secondary' : 'outline'}
+              aria-pressed={appearance.theme === 'auto'}
+              aria-describedby="theme-preset-auto-description"
+              data-theme-preset-option="auto"
+              data-theme-mode="auto"
+              data-selected={appearance.theme === 'auto' ? 'true' : 'false'}
+              className="h-8 gap-1.5 px-3 shadow-xs"
+              onClick={() => chooseTheme('auto')}
+            >
+              <Sparkles className="size-3.5" />
+              随背景
+              <Check
+                aria-hidden="true"
+                className={`size-3.5 transition-opacity ${appearance.theme === 'auto' ? 'opacity-100' : 'opacity-0'}`}
+              />
+            </Button>
+            <p
+              id="theme-preset-auto-description"
+              className="min-w-48 flex-1 text-xs leading-4 text-muted-foreground"
+            >
+              从当前背景提取强调色；已缓存的配色会直接复用。
+            </p>
+          </section>
           <RadioGroup
             aria-label="选择全站配色方案"
             value={appearance.theme}
             onValueChange={(value) => chooseTheme(value as ThemePresetId)}
-            className="grid gap-4"
+            className="grid gap-4 border-t border-border/60 pt-3"
           >
             {themeGroups.map((group) => {
               const Icon = group.icon
@@ -170,7 +194,7 @@ export function BackgroundsPage() {
                 <section
                   key={group.mode}
                   data-theme-mode-group={group.mode}
-                  className="grid gap-2.5 border-border/60 [&+section]:border-t [&+section]:pt-4"
+                  className="grid gap-2.5 border-border/60 [&+section]:border-t [&+section]:pt-3"
                 >
                   <div className="flex min-w-0 items-center gap-2.5 px-0.5">
                     <span className="grid size-7 shrink-0 place-items-center rounded-md bg-muted/72 text-muted-foreground">
@@ -184,13 +208,7 @@ export function BackgroundsPage() {
                       {items.length}
                     </Badge>
                   </div>
-                  <div
-                    className={
-                      group.mode === 'auto'
-                        ? 'grid max-w-sm grid-cols-1'
-                        : 'grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4'
-                    }
-                  >
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                     {items.map((preset) => (
                       <ThemePresetOption
                         key={preset.id}
@@ -216,7 +234,7 @@ export function BackgroundsPage() {
             key={item.id}
             data-background-id={item.id}
             data-selected={current === item.id ? 'true' : 'false'}
-            className="group/card relative cursor-pointer gap-0 overflow-hidden border-white/30 bg-card/38 py-0 shadow-sm ring-1 ring-border/75 backdrop-blur-md transition-[background-color,box-shadow,ring-color] duration-200 hover:bg-card/54 hover:ring-primary/35 data-[selected=true]:bg-card/62 data-[selected=true]:shadow-md data-[selected=true]:ring-2 data-[selected=true]:ring-primary dark:border-black/20"
+            className="group/card relative cursor-pointer gap-0 overflow-hidden border-border/70 bg-card/38 py-0 shadow-sm ring-1 ring-border/75 backdrop-blur-md transition-[background-color,box-shadow,ring-color] duration-200 hover:bg-card/54 hover:ring-primary/35 data-[selected=true]:bg-card/62 data-[selected=true]:shadow-md data-[selected=true]:ring-2 data-[selected=true]:ring-primary"
             onClick={() => choose(item.id)}
           >
             <AspectRatio
@@ -230,13 +248,13 @@ export function BackgroundsPage() {
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_12%,color-mix(in_oklch,var(--primary)_20%,transparent),transparent_34%),repeating-linear-gradient(0deg,transparent_0_31px,color-mix(in_oklch,var(--primary)_7%,transparent)_32px),linear-gradient(145deg,var(--background),color-mix(in_oklch,var(--secondary)_62%,var(--background)))]" />
               )}
               <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,transparent_42%,rgb(18_16_14/.18)_100%)]" />
-              <div className="absolute inset-x-3 bottom-3 rounded-xl border border-white/35 bg-background/62 p-3 shadow-md backdrop-blur-md dark:border-black/25 sm:inset-x-4 sm:bottom-4">
+              <div className="absolute inset-x-3 bottom-3 rounded-xl border border-border/75 bg-background/62 p-3 shadow-md backdrop-blur-md sm:inset-x-4 sm:bottom-4">
                 <div className="mb-1.5 flex min-w-0 items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
                     <CardTitle className="truncate text-base sm:text-lg">{item.label}</CardTitle>
                     <span
                       data-background-swatch
-                      className="block h-2 w-8 shrink-0 rounded-full ring-1 ring-white/45"
+                      className="block h-2 w-8 shrink-0 rounded-full ring-1 ring-background/65"
                       style={{ background: item.swatch }}
                       aria-hidden="true"
                     />
@@ -260,7 +278,7 @@ export function BackgroundsPage() {
                 onClick={(event) => event.stopPropagation()}
               />
             </AspectRatio>
-            <CardContent className="border-t border-white/20 bg-background/32 px-4 py-2.5 backdrop-blur-sm dark:border-black/20">
+            <CardContent className="border-t border-border/55 bg-background/32 px-4 py-2.5 backdrop-blur-sm">
               <p className="truncate text-xs leading-5 text-muted-foreground sm:text-sm">
                 {item.credit.href ? (
                   <a

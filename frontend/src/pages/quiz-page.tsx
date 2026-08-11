@@ -604,6 +604,7 @@ export function QuizPage() {
                           <div className="flex gap-2">
                             <Input
                               id="quiz-answer"
+                              className="disabled:opacity-75"
                               value={input}
                               onChange={(event) => setInput(event.target.value)}
                               disabled={Boolean(result)}
@@ -628,7 +629,7 @@ export function QuizPage() {
                               size="lg"
                               variant="outline"
                               className={cn(
-                                'quiz-option h-auto min-h-16 justify-start whitespace-normal px-4 py-3 text-left',
+                                'quiz-option h-auto min-h-16 justify-start whitespace-normal px-4 py-3 text-left disabled:opacity-100',
                                 result && isAnswer && 'is-correct',
                                 result && isSelected && !isAnswer && 'is-wrong',
                               )}
@@ -678,8 +679,8 @@ export function QuizPage() {
                   className={cn(
                     'min-w-0 flex-1 text-sm leading-6',
                     !result && 'text-muted-foreground',
-                    result === 'correct' && 'text-[oklch(0.4_0.1_155)]',
-                    result === 'wrong' && 'text-destructive',
+                    result === 'correct' && 'quiz-result-correct',
+                    result === 'wrong' && 'quiz-result-wrong',
                   )}
                   role="status"
                   aria-live="polite"
