@@ -1,4 +1,4 @@
-import { Check, Image as ImageIcon, Palette } from 'lucide-react'
+import { Check, Image as ImageIcon, Moon, Palette, Sparkles, Sun } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { PageHeading } from '@/components/archive/page-heading'
@@ -18,6 +18,41 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
+
+type ThemePreset = (typeof themePresets)[number]
+
+function ThemePresetOption({ preset, selected }: { preset: ThemePreset; selected: boolean }) {
+  return (
+    <label
+      htmlFor={`theme-preset-${preset.id}`}
+      data-theme-preset-option={preset.id}
+      data-theme-mode={preset.mode}
+      data-selected={selected ? 'true' : 'false'}
+      className="group/preset grid min-w-0 cursor-pointer gap-2 rounded-xl border border-border/70 bg-background/34 p-2 shadow-xs backdrop-blur-sm transition-[background-color,border-color,box-shadow] hover:border-primary/35 hover:bg-background/52 has-[[data-slot=radio-group-item]:focus-visible]:ring-2 has-[[data-slot=radio-group-item]:focus-visible]:ring-ring/45 data-[selected=true]:border-primary/65 data-[selected=true]:bg-background/62 data-[selected=true]:shadow-sm"
+    >
+      <span
+        data-theme-preview={preset.id}
+        className="appearance-preset-preview relative h-14 overflow-hidden rounded-lg border"
+        aria-hidden="true"
+      >
+        <span className="appearance-preset-preview-card absolute inset-x-2 bottom-2 top-3 rounded-md border p-1.5 shadow-sm">
+          <span className="appearance-preset-preview-heading mb-1 block h-1.5 w-2/3 rounded-full" />
+          <span className="appearance-preset-preview-copy block h-1 w-4/5 rounded-full" />
+          <span className="appearance-preset-preview-copy mt-1 block h-1 w-1/2 rounded-full" />
+        </span>
+        <span className="appearance-preset-preview-accent absolute right-1.5 top-1.5 size-3 rounded-full border" />
+      </span>
+      <span className="flex min-w-0 items-center gap-2 px-0.5">
+        <RadioGroupItem id={`theme-preset-${preset.id}`} value={preset.id} className="size-3.5" />
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold">{preset.label}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">{preset.category}</span>
+      </span>
+      <span className="line-clamp-2 px-0.5 text-xs leading-4 text-muted-foreground">
+        {preset.description}
+      </span>
+    </label>
+  )
+}
 
 function BackgroundPreview({ src, active }: { src: string; active: boolean }) {
   const [revision, setRevision] = useState(0)
@@ -83,6 +118,26 @@ export function BackgroundsPage() {
     setBackground(id)
   }
   const chooseTheme = (id: ThemePresetId) => setThemePreset(id)
+  const themeGroups = [
+    {
+      mode: 'auto' as const,
+      label: '随背景',
+      description: '保留从背景图片提取配色的自适应能力。',
+      icon: Sparkles,
+    },
+    {
+      mode: 'light' as const,
+      label: '浅色模式',
+      description: '适合明亮环境，正文和控件保持清晰深色层级。',
+      icon: Sun,
+    },
+    {
+      mode: 'dark' as const,
+      label: '深色模式',
+      description: '适合低光环境，卡片、边框和强调色均同步降亮。',
+      icon: Moon,
+    },
+  ]
   return (
     <div>
       <PageHeading
@@ -106,46 +161,47 @@ export function BackgroundsPage() {
             aria-label="选择全站配色方案"
             value={appearance.theme}
             onValueChange={(value) => chooseTheme(value as ThemePresetId)}
-            className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6"
+            className="grid gap-4"
           >
-            {themePresets.map((preset) => (
-              <label
-                key={preset.id}
-                htmlFor={`theme-preset-${preset.id}`}
-                data-theme-preset-option={preset.id}
-                data-selected={appearance.theme === preset.id ? 'true' : 'false'}
-                className="group/preset grid min-w-0 cursor-pointer gap-2 rounded-xl border border-border/70 bg-background/34 p-2 shadow-xs backdrop-blur-sm transition-[background-color,border-color,box-shadow] hover:border-primary/35 hover:bg-background/52 has-[[data-slot=radio-group-item]:focus-visible]:ring-2 has-[[data-slot=radio-group-item]:focus-visible]:ring-ring/45 data-[selected=true]:border-primary/65 data-[selected=true]:bg-background/62 data-[selected=true]:shadow-sm"
-              >
-                <span
-                  data-theme-preview={preset.id}
-                  className="appearance-preset-preview relative h-14 overflow-hidden rounded-lg border"
-                  aria-hidden="true"
+            {themeGroups.map((group) => {
+              const Icon = group.icon
+              const items = themePresets.filter((preset) => preset.mode === group.mode)
+              return (
+                <section
+                  key={group.mode}
+                  data-theme-mode-group={group.mode}
+                  className="grid gap-2.5 border-border/60 [&+section]:border-t [&+section]:pt-4"
                 >
-                  <span className="appearance-preset-preview-card absolute inset-x-2 bottom-2 top-3 rounded-md border p-1.5 shadow-sm">
-                    <span className="appearance-preset-preview-heading mb-1 block h-1.5 w-2/3 rounded-full" />
-                    <span className="appearance-preset-preview-copy block h-1 w-4/5 rounded-full" />
-                    <span className="appearance-preset-preview-copy mt-1 block h-1 w-1/2 rounded-full" />
-                  </span>
-                  <span className="appearance-preset-preview-accent absolute right-1.5 top-1.5 size-3 rounded-full border" />
-                </span>
-                <span className="flex min-w-0 items-center gap-2 px-0.5">
-                  <RadioGroupItem
-                    id={`theme-preset-${preset.id}`}
-                    value={preset.id}
-                    className="size-3.5"
-                  />
-                  <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-                    {preset.label}
-                  </span>
-                  <span className="shrink-0 text-[0.6875rem] text-muted-foreground">
-                    {preset.category}
-                  </span>
-                </span>
-                <span className="line-clamp-2 px-0.5 text-xs leading-4 text-muted-foreground">
-                  {preset.description}
-                </span>
-              </label>
-            ))}
+                  <div className="flex min-w-0 items-center gap-2.5 px-0.5">
+                    <span className="grid size-7 shrink-0 place-items-center rounded-md bg-muted/72 text-muted-foreground">
+                      <Icon className="size-3.5" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm font-semibold">{group.label}</h3>
+                      <p className="text-xs leading-4 text-muted-foreground">{group.description}</p>
+                    </div>
+                    <Badge variant="outline" className="shrink-0 bg-background/38">
+                      {items.length}
+                    </Badge>
+                  </div>
+                  <div
+                    className={
+                      group.mode === 'auto'
+                        ? 'grid max-w-sm grid-cols-1'
+                        : 'grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4'
+                    }
+                  >
+                    {items.map((preset) => (
+                      <ThemePresetOption
+                        key={preset.id}
+                        preset={preset}
+                        selected={appearance.theme === preset.id}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )
+            })}
           </RadioGroup>
         </CardContent>
       </Card>

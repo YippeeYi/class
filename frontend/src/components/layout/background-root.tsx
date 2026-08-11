@@ -21,7 +21,15 @@ const THEME_PROPERTIES = [
 const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`
 
 export type BackgroundId = 'default' | 'mountain' | 'cloud'
-export type ThemePresetId = 'auto' | 'paper' | 'mist' | 'apricot' | 'ink' | 'sage'
+export type ThemePresetId =
+  | 'auto'
+  | 'paper'
+  | 'mist'
+  | 'apricot'
+  | 'sage'
+  | 'ink'
+  | 'midnight'
+  | 'pine'
 
 export type AppearancePreference = {
   background: BackgroundId
@@ -33,42 +41,72 @@ export const themePresets: Array<{
   label: string
   category: string
   description: string
+  mode: 'auto' | 'light' | 'dark'
+  themeColor: string
 }> = [
   {
     id: 'auto',
     label: '随景',
     category: '自动',
     description: '从当前背景提取强调色，保持图片与界面自然呼应。',
+    mode: 'auto',
+    themeColor: '#f5f0e8',
   },
   {
     id: 'paper',
     label: '纸白',
     category: '明亮',
     description: '中性纸色、清晰深字与低对比暖灰边界。',
+    mode: 'light',
+    themeColor: '#f8f5ef',
   },
   {
     id: 'mist',
     label: '雾蓝',
     category: '冷色',
     description: '克制的雾蓝强调与安静的冷灰阅读表面。',
+    mode: 'light',
+    themeColor: '#eef5f7',
   },
   {
     id: 'apricot',
     label: '暖杏',
     category: '暖色',
     description: '柔和杏橙强调与温暖、通透的浅色表面。',
-  },
-  {
-    id: 'ink',
-    label: '夜墨',
-    category: '深色',
-    description: '低亮墨蓝表面与柔亮文字，适合暗处浏览。',
+    mode: 'light',
+    themeColor: '#faf1e7',
   },
   {
     id: 'sage',
     label: '柔苔',
     category: '柔和',
     description: '低饱和灰绿强调，长时间查看也保持平静。',
+    mode: 'light',
+    themeColor: '#f0f5ed',
+  },
+  {
+    id: 'ink',
+    label: '夜墨',
+    category: '中性',
+    description: '低亮墨蓝表面与柔亮文字，适合暗处浏览。',
+    mode: 'dark',
+    themeColor: '#1d232d',
+  },
+  {
+    id: 'midnight',
+    label: '深海',
+    category: '冷色',
+    description: '深靛蓝表面配清亮蓝紫强调，层级清晰但不过亮。',
+    mode: 'dark',
+    themeColor: '#171e31',
+  },
+  {
+    id: 'pine',
+    label: '松夜',
+    category: '柔和',
+    description: '深松绿色表面与低饱和薄荷强调，夜间更平静。',
+    mode: 'dark',
+    themeColor: '#19271f',
   },
 ]
 
@@ -268,11 +306,11 @@ export function readBackground(): BackgroundId {
 
 function applyThemePreset(id: ThemePresetId) {
   const root = document.documentElement
+  const preset = themePresets.find((item) => item.id === id) || themePresets[0]
   root.dataset.themePreset = id
-  root.classList.toggle('dark', id === 'ink')
-  const themeColor = getComputedStyle(root).getPropertyValue('--background').trim()
-  if (themeColor)
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor)
+  root.classList.toggle('dark', preset?.mode === 'dark')
+  if (preset?.themeColor)
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', preset.themeColor)
 }
 
 function backgroundLayerStyle(id: BackgroundId): CSSProperties {

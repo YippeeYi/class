@@ -223,3 +223,11 @@
 字体与 spacing 静态审计覆盖所有业务页面、档案组件和 Shell：将反复出现的 15px 数据正文与 13px 元数据收口为 `text-data`/`text-meta` token，统一记录元信息、人物表格和统计辅助文字；缩减导览 Hero 的 5xl 回退标题、大档 padding、模块 gap 与操作区距离，收紧普通页面纵向边距、人物分组和搜索分组间距。保留的 15 处任意值均对应标记语法的 em/intrinsic 几何、全屏视口计算、图表显式尺寸或极小状态标签，不做会破坏排版语义的机械替换。
 
 回归契约新增六套配色预览差异、`appearance:v1` 同源保存、夜墨 dark 状态、随景恢复、主教师排序且无姓名 Badge、缺失 aliases 边界，以及日期格固定高度/内容占比/全子元素边界。真实 Chromium/Edge 几何测试在 1280、768、390、320px 全部通过，页面 error 为 0；正式 Vite 路由抽查按安全模型落到 `/auth`，邀请码页标题、表单与控制台均正常，未读取凭据或伪造授权。受保护真实数据页的发布前人工验收边界仍与第 10.4 节一致。`frontend/src/components/ui` 继续保持只读、零改动。
+
+## 16. 2026-08-12 浅深主题分组与正方形日格最终复核
+
+最新需求明确覆盖上一节的固定 64px 日格方案：桌面每日记录单元需要恢复接近或严格 1:1。旧版 `timeline.js`/`style.css` 的功能语义继续保留——日格是完整按钮，空日 disabled，有记录日可下钻，日期、主指标、每日作者构成、重要状态和图例联动同时存在；当前实现则在响应式 Grid 内使用 `aspect-square`，不回退旧版绝对定位。日期继续位于左上，重要状态仍只使用琥珀圆点/轻边框，主区纵向排列作者饼图与紧凑值。饼图改为独立方形 wrapper，宽度取日格可用宽度的 58%，并限制为 32–48px；这同时修复了 SVG `height:auto` 沿用默认 2:1 intrinsic ratio 的隐藏问题。4/7/10 列、1280/768/390/320px、0/7/42/9876543 均满足日格 1:1、饼图 1:1、无横纵溢出和日期对齐。
+
+配色界面现在明确拆为“随背景、浅色模式、深色模式”三组。随景继续使用图片提色与 background palette 缓存；浅色包含纸白、雾蓝、暖杏、柔苔，深色包含夜墨、深海、松夜。七套人工方案均完整定义 background/foreground、card、popover、primary、secondary、muted、accent、border、input、ring、chart 和 sidebar token，深色方案统一在首屏 bootstrap 与 React 运行期挂载 dark variants。选择仍只写入一个 `classRecord:appearance:v1` 对象，旧背景键同步兼容；深色选择完整刷新后会由同步脚本先恢复 data attribute、dark class、theme-color 和背景预载，再由 React 接管，不产生第二套状态。运行时 `theme-color` 直接读取预设元数据，不再通过 `getComputedStyle` 强制一次同步样式计算。
+
+视觉排版复审保持现有 shadcn 控件高度、卡片 `px-4/py-3 + p-4` 主节奏和页面级 `text-page-title/text-section-title/text-reading/text-data/text-meta` 层级；配色类型与日期数字从 11px 提升到 12px，11px 仅保留给导览的装饰性眉题。其余任意尺寸均对应标记语法 em/intrinsic 几何、全屏视口、图表显式画布或统计数字，不进行破坏语义的机械统一。专项浏览器新增七套人工主题的 OKLCH 相对亮度计算：页面与卡片正文均至少 7:1，主按钮前景至少 4.5:1；八套预览互异，4 浅/3 深分组数量、深海→纸白模式切换、松夜完整刷新恢复与随景返回均通过。正式路由在无授权浏览器中按设计进入 `/auth`，首屏主题属性、bootstrap 清理、页面宽度和控制台均正常；真实 Supabase 数据态仍遵守第 10.4 节的普通邀请码验收边界。

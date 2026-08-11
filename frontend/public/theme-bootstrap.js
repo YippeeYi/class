@@ -3,7 +3,17 @@
   const appearanceKey = 'classRecord:appearance:v1'
   const paletteKey = 'classRecord:backgroundPalette:v1'
   const images = { mountain: 'mountain.webp', cloud: 'cloud.webp' }
-  const themes = new Set(['auto', 'paper', 'mist', 'apricot', 'ink', 'sage'])
+  const themes = new Set([
+    'auto',
+    'paper',
+    'mist',
+    'apricot',
+    'sage',
+    'ink',
+    'midnight',
+    'pine',
+  ])
+  const darkThemes = new Set(['ink', 'midnight', 'pine'])
   const themeColors = {
     auto: '#f5f0e8',
     paper: '#f8f5ef',
@@ -11,6 +21,8 @@
     apricot: '#faf1e7',
     ink: '#1d232d',
     sage: '#f0f5ed',
+    midnight: '#171e31',
+    pine: '#19271f',
   }
   const properties = [
     '--primary',
@@ -34,7 +46,7 @@
     const root = document.documentElement
     root.dataset.backgroundBootstrap = id
     root.dataset.themePreset = theme
-    root.classList.toggle('dark', theme === 'ink')
+    root.classList.toggle('dark', darkThemes.has(theme))
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColors[theme])
 
     const paletteCache = JSON.parse(localStorage.getItem(paletteKey) || '{}')

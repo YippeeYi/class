@@ -362,36 +362,37 @@ function MiniAuthorPie({
   const total = entries.reduce((sum, [, value]) => sum + value, 0)
   let offset = 0
   return (
-    <svg
-      viewBox="0 0 40 40"
-      className="daily-distribution-pie size-[clamp(1.5rem,38cqi,1.75rem)] shrink-0"
+    <span
+      className="daily-distribution-pie block aspect-square w-[58%] min-w-8 max-w-12 shrink-0"
       aria-hidden="true"
     >
-      <circle cx="20" cy="20" r="10" fill="var(--muted)" />
-      {entries.map(([id, value]) => {
-        const length = total ? (value / total) * 100 : 0
-        const dashOffset = -offset
-        offset += length
-        return (
-          <circle
-            key={id}
-            cx="20"
-            cy="20"
-            r="10"
-            pathLength="100"
-            fill="none"
-            stroke={colors.get(id) || 'var(--muted-foreground)'}
-            strokeWidth="20"
-            strokeDasharray={`${length} ${100 - length}`}
-            strokeDashoffset={dashOffset}
-            transform="rotate(-90 20 20)"
-            opacity={activeId && activeId !== id ? 0.18 : 1}
-            className="transition-opacity duration-150"
-          />
-        )
-      })}
-      <circle cx="20" cy="20" r="19" fill="none" stroke="var(--border)" strokeWidth="1" />
-    </svg>
+      <svg viewBox="0 0 40 40" className="block size-full" aria-hidden="true" focusable="false">
+        <circle cx="20" cy="20" r="10" fill="var(--muted)" />
+        {entries.map(([id, value]) => {
+          const length = total ? (value / total) * 100 : 0
+          const dashOffset = -offset
+          offset += length
+          return (
+            <circle
+              key={id}
+              cx="20"
+              cy="20"
+              r="10"
+              pathLength="100"
+              fill="none"
+              stroke={colors.get(id) || 'var(--muted-foreground)'}
+              strokeWidth="20"
+              strokeDasharray={`${length} ${100 - length}`}
+              strokeDashoffset={dashOffset}
+              transform="rotate(-90 20 20)"
+              opacity={activeId && activeId !== id ? 0.18 : 1}
+              className="transition-opacity duration-150"
+            />
+          )
+        })}
+        <circle cx="20" cy="20" r="19" fill="none" stroke="var(--border)" strokeWidth="1" />
+      </svg>
+    </span>
   )
 }
 
@@ -426,7 +427,7 @@ export function DailyDistributionCell({
       nativeButton={!item.records.length}
       data-records={item.records.length > 0 ? 'present' : 'empty'}
       data-important={item.important > 0 ? 'true' : 'false'}
-      className="daily-distribution-cell relative grid h-16 min-h-16 min-w-0 justify-normal grid-rows-[auto_1fr] items-stretch gap-0.5 whitespace-normal border-border/75 bg-background/74 p-1 text-left shadow-none transition-[background-color,border-color,box-shadow] hover:bg-accent/72 data-[important=true]:border-amber-500/45 data-[important=true]:shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--color-amber-500)_18%,transparent)] focus-visible:z-10 focus-visible:ring-2"
+      className="daily-distribution-cell relative grid aspect-square h-auto min-h-0 min-w-0 justify-normal grid-rows-[auto_1fr] items-stretch gap-0.5 whitespace-normal border-border/75 bg-background/74 p-0.5 text-left shadow-none transition-[background-color,border-color,box-shadow] hover:bg-accent/72 data-[important=true]:border-amber-500/45 data-[important=true]:shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--color-amber-500)_18%,transparent)] focus-visible:z-10 focus-visible:ring-2"
       aria-label={`${year} 年 ${month} 月 ${item.day} 日：${item.value.toLocaleString()} ${unit}${item.important > 0 ? `，重要 ${item.important.toLocaleString()} ${unit}` : ''}`}
       render={
         item.records.length ? (
@@ -434,7 +435,7 @@ export function DailyDistributionCell({
         ) : undefined
       }
     >
-      <span className="flex min-h-2.5 w-full min-w-0 items-start justify-between gap-1 text-[0.6875rem] leading-none">
+      <span className="flex min-h-2.5 w-full min-w-0 items-start justify-between gap-1 text-xs leading-none">
         <span className="daily-distribution-date font-semibold leading-none tabular-nums text-muted-foreground">
           {Number(item.day)}
         </span>
@@ -450,7 +451,7 @@ export function DailyDistributionCell({
           <MiniAuthorPie entries={item.authors} colors={colors} activeId={activeAuthor} />
         ) : (
           <span
-            className="daily-distribution-pie size-[clamp(1.5rem,38cqi,1.75rem)] shrink-0 rounded-full border border-dashed"
+            className="daily-distribution-pie block aspect-square w-[58%] min-w-8 max-w-12 shrink-0 rounded-full border border-dashed"
             aria-hidden="true"
           />
         )}

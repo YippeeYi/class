@@ -10,7 +10,7 @@ import { frontend } from './test-react-helpers.mjs'
 
 const harness = String.raw`<!doctype html>
 <html lang="zh-CN">
-  <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
+  <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><script src="/theme-bootstrap.js"></script></head>
   <body>
     <main id="root"></main>
     <script type="module">
@@ -275,6 +275,7 @@ try {
         overflowX: cell.scrollWidth - cell.clientWidth,
         overflowY: cell.scrollHeight - cell.clientHeight,
         height: bounds.height,
+        squareDelta: Math.abs(bounds.width - bounds.height),
         childrenInside,
         grid: cell.closest('[data-daily-grid]')?.getAttribute('data-daily-grid'),
         pieWidth: pie?.width || 0,
@@ -310,15 +311,15 @@ try {
       cell.overflowX <= 1 && cell.overflowY <= 1,
       `daily cell ${index + 1} overflowed: ${JSON.stringify(cell)}`,
     )
-    assert.ok(Math.abs(cell.height - 64) <= 1, `daily cell ${index + 1} must retain one compact 64px frame`)
+    assert.ok(cell.squareDelta <= 1, `daily cell ${index + 1} must retain a stable square frame: ${JSON.stringify(cell)}`)
     assert.equal(cell.childrenInside, true, `daily cell ${index + 1} content must remain inside its frame`)
     assert.ok(cell.topOverlap <= 0.5, `daily cell ${index + 1} date and important marker must not overlap`)
     assert.ok(cell.dateLeft >= 3 && cell.dateLeft <= 8, `daily cell ${index + 1} date must keep a compact left inset: ${JSON.stringify(cell)}`)
     assert.ok(cell.dateTop >= 3 && cell.dateTop <= 8, `daily cell ${index + 1} date must keep a compact top inset: ${JSON.stringify(cell)}`)
     assert.ok(!/[日条字]/u.test(cell.visibleText), `daily cell ${index + 1} must omit redundant visible units: ${cell.visibleText}`)
     assert.ok(!/(?:重要|重)/u.test(cell.visibleText), `daily cell ${index + 1} must use a non-text important marker: ${cell.visibleText}`)
-    assert.ok(cell.pieWidth >= 24 && Math.abs(cell.pieWidth - cell.pieHeight) <= 0.5, `daily cell ${index + 1} pie must remain prominent and circular: ${JSON.stringify(cell)}`)
-    assert.ok(cell.pieWidth / cell.bounds.width >= 0.3, `daily cell ${index + 1} pie must remain visually substantial: ${JSON.stringify(cell)}`)
+    assert.ok(cell.pieWidth >= 32 && Math.abs(cell.pieWidth - cell.pieHeight) <= 0.5, `daily cell ${index + 1} pie must remain prominent and circular: ${JSON.stringify(cell)}`)
+    assert.ok(cell.pieWidth / cell.bounds.width >= 0.45, `daily cell ${index + 1} pie must be the square's primary visual: ${JSON.stringify(cell)}`)
     assert.ok(cell.mainHeight / cell.bounds.height >= 0.56, `daily cell ${index + 1} main visualization row must use most available space: ${JSON.stringify(cell)}`)
   })
   assert.ok(Math.max(...dailyCells.map((cell) => cell.dateLeft)) - Math.min(...dailyCells.map((cell) => cell.dateLeft)) <= 0.5, 'all daily dates must share one left alignment')
@@ -329,7 +330,11 @@ try {
   assert.notEqual(await largeDailyValue.textContent(), '9,876,543', 'large daily values must use compact visible notation')
 
   const themeOptions = page.locator('[data-theme-preset-option]')
-  assert.equal(await themeOptions.count(), 6, 'automatic plus five designed theme presets must remain available')
+  assert.equal(await themeOptions.count(), 8, 'automatic plus seven designed light/dark theme presets must remain available')
+  const themeModeGroups = page.locator('[data-theme-mode-group]')
+  assert.equal(await themeModeGroups.count(), 3, 'automatic, light, and dark choices must have separate visual groups')
+  assert.equal(await page.locator('[data-theme-mode="light"]').count(), 4, 'four distinct light themes must remain available')
+  assert.equal(await page.locator('[data-theme-mode="dark"]').count(), 3, 'three distinct dark themes must remain available')
   const themePreviewColors = await themeOptions.evaluateAll((options) =>
     options.map((option) => {
       const preview = option.querySelector('[data-theme-preview]')
@@ -341,12 +346,75 @@ try {
       }
     }),
   )
-  assert.equal(new Set(themePreviewColors.map((item) => `${item.background}|${item.accent}`)).size, 6, 'every theme preset needs a distinct visible preview')
-  await page.locator('[data-theme-preset-option="ink"]').click()
+  assert.equal(new Set(themePreviewColors.map((item) => `${item.background}|${item.accent}`)).size, 8, 'every theme preset needs a distinct visible preview')
+  await page.locator('[data-theme-preset-option="midnight"]').click()
   await page.waitForFunction(() => {
     const value = JSON.parse(localStorage.getItem('classRecord:appearance:v1') || 'null')
-    return value?.theme === 'ink' && document.documentElement.dataset.themePreset === 'ink' && document.documentElement.classList.contains('dark')
+    return value?.theme === 'midnight' && document.documentElement.dataset.themePreset === 'midnight' && document.documentElement.classList.contains('dark')
   })
+  const darkThemeTokens = await page.evaluate(() => {
+    const styles = getComputedStyle(document.documentElement)
+    return ['--background', '--foreground', '--card', '--border', '--primary'].map((name) => styles.getPropertyValue(name).trim())
+  })
+  await page.locator('[data-theme-preset-option="paper"]').click()
+  await page.waitForFunction(() => document.documentElement.dataset.themePreset === 'paper' && !document.documentElement.classList.contains('dark'))
+  const lightThemeTokens = await page.evaluate(() => {
+    const styles = getComputedStyle(document.documentElement)
+    return ['--background', '--foreground', '--card', '--border', '--primary'].map((name) => styles.getPropertyValue(name).trim())
+  })
+  assert.notDeepEqual(lightThemeTokens, darkThemeTokens, 'switching light/dark presets must update the complete surface token set')
+  const themeContrasts = await page.evaluate((ids) => {
+    const root = document.documentElement
+    const original = root.dataset.themePreset
+    const parseOklch = (value) => {
+      const match = value.match(/oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)/)
+      if (!match) return null
+      const lightness = Number(match[1])
+      const chroma = Number(match[2])
+      const hue = Number(match[3]) * Math.PI / 180
+      const a = chroma * Math.cos(hue)
+      const b = chroma * Math.sin(hue)
+      const lPrime = lightness + 0.3963377774 * a + 0.2158037573 * b
+      const mPrime = lightness - 0.1055613458 * a - 0.0638541728 * b
+      const sPrime = lightness - 0.0894841775 * a - 1.291485548 * b
+      const l = lPrime ** 3
+      const m = mPrime ** 3
+      const s = sPrime ** 3
+      const red = Math.min(1, Math.max(0, 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s))
+      const green = Math.min(1, Math.max(0, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s))
+      const blue = Math.min(1, Math.max(0, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s))
+      return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+    }
+    const ratio = (first, second) => {
+      const a = parseOklch(first)
+      const b = parseOklch(second)
+      if (a === null || b === null) return 0
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+    }
+    const output = ids.map((id) => {
+      root.dataset.themePreset = id
+      const styles = getComputedStyle(root)
+      return {
+        id,
+        page: ratio(styles.getPropertyValue('--background'), styles.getPropertyValue('--foreground')),
+        card: ratio(styles.getPropertyValue('--card'), styles.getPropertyValue('--card-foreground')),
+        primary: ratio(styles.getPropertyValue('--primary'), styles.getPropertyValue('--primary-foreground')),
+      }
+    })
+    root.dataset.themePreset = original
+    return output
+  }, ['paper', 'mist', 'apricot', 'sage', 'ink', 'midnight', 'pine'])
+  themeContrasts.forEach((theme) => {
+    assert.ok(theme.page >= 7, `${theme.id} page text contrast is too low: ${JSON.stringify(theme)}`)
+    assert.ok(theme.card >= 7, `${theme.id} card text contrast is too low: ${JSON.stringify(theme)}`)
+    assert.ok(theme.primary >= 4.5, `${theme.id} primary control contrast is too low: ${JSON.stringify(theme)}`)
+  })
+  await page.locator('[data-theme-preset-option="pine"]').click()
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('classRecord:appearance:v1') || 'null')?.theme === 'pine')
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForFunction(() => window.__markupLayoutReady === true)
+  await page.waitForFunction(() => document.documentElement.dataset.themePreset === 'pine' && document.documentElement.classList.contains('dark'))
+  assert.equal(await page.locator('[data-theme-preset-option="pine"]').getAttribute('data-selected'), 'true', 'the selected dark preset must survive a full bootstrap and React remount')
   await page.locator('[data-theme-preset-option="auto"]').click()
   await page.waitForFunction(() => !document.documentElement.classList.contains('dark') && document.documentElement.dataset.themePreset === 'auto')
 

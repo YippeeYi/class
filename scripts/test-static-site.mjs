@@ -132,10 +132,13 @@ assert.match(backgroundsPage, /ratio=\{4 \/ 3\}/, 'background cards must expose 
 assert.match(backgroundsPage, /backdrop-blur-md/, 'background metadata must remain readable on a restrained glass surface')
 assert.match(backgroundsPage, /data-background-swatch/, 'background palette swatches must be integrated with their metadata')
 assert.match(backgroundsPage, /data-theme-preset-option/, 'designed theme presets must expose compact visual previews')
+assert.match(backgroundsPage, /data-theme-mode-group/, 'light and dark presets must be visibly grouped')
 assert.match(backgroundsPage, /setThemePreset/, 'theme presets must use the shared appearance controller')
 assert.match(backgrounds, /swatch:/, 'each background must expose a representative palette swatch')
 assert.match(backgrounds, /APPEARANCE_KEY/, 'background and theme choices must persist as one appearance preference')
-assert.match(backgrounds, /paper[\s\S]*mist[\s\S]*apricot[\s\S]*ink[\s\S]*sage/, 'appearance presets must cover neutral, cool, warm, dark, and muted directions')
+assert.match(backgrounds, /paper[\s\S]*mist[\s\S]*apricot[\s\S]*sage[\s\S]*ink[\s\S]*midnight[\s\S]*pine/, 'appearance presets must cover distinct light and dark directions')
+assert.match(backgrounds, /mode: 'light'[\s\S]*mode: 'dark'/, 'each designed theme must declare its display mode')
+assert.match(themeBootstrap, /darkThemes/, 'all dark presets must restore dark component variants before React starts')
 assert.match(backgrounds, /if \(cached\) \{[\s\S]*applyPalette\(cached\)[\s\S]*return/, 'cached background palettes must skip repeated image sampling')
 assert.match(backgrounds, /mountain\.webp/, 'the mountain background must use the optimized WebP asset')
 assert.match(backgrounds, /cloud\.webp/, 'the cloud background must use the optimized WebP asset')
@@ -171,10 +174,11 @@ assert.match(timeline, /aria-label="月度统计与月份选择"/, 'the baseline
 assert.match(timeline, /grid-cols-4 gap-1 sm:grid-cols-7 lg:grid-cols-10 2xl:grid-cols-14/, 'the daily calendar must provide a denser responsive layout')
 assert.match(
   timeline,
-  /h-16 min-h-16[\s\S]*grid-rows-\[auto_1fr\]/,
-  'daily cells must use one stable compact height instead of expanding with wide columns',
+  /aspect-square h-auto min-h-0[\s\S]*grid-rows-\[auto_1fr\]/,
+  'daily cells must restore a stable square frame without a fixed stretched height',
 )
 assert.match(timeline, /flex-col items-center justify-center gap-0\.5/, 'daily pie and value must use one dense, stable visual stack')
+assert.match(timeline, /w-\[58%\][\s\S]*max-w-12/, 'daily pies must occupy a larger responsive share of their square')
 assert.match(timeline, /daily-distribution-pie/, 'daily author pies need a dedicated responsive geometry')
 assert.match(timeline, /compactStatistic\(item\.value\)/, 'large daily values must use a compact non-overflowing display')
 assert.match(timeline, /daily-distribution-important-marker/, 'important days need a compact non-text visual marker')
