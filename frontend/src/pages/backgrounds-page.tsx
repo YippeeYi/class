@@ -236,7 +236,7 @@ export function BackgroundsPage() {
         </TabsList>
 
         <TabsContent value="palette">
-          <Card className="appearance-preset-panel gap-0 overflow-hidden border-border/70 bg-card/88 py-0 shadow-sm">
+          <Card className="appearance-preset-panel gap-0 overflow-hidden border-border/70 bg-card/88 py-0">
             <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                 <Palette className="size-4" />
@@ -302,7 +302,7 @@ export function BackgroundsPage() {
         </TabsContent>
 
         <TabsContent value="background">
-          <Card className="gap-0 overflow-hidden border-border/70 bg-card/88 py-0 shadow-sm">
+          <Card className="gap-0 overflow-hidden border-border/70 bg-card/88 py-0">
             <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                 <ImageIcon className="size-4" />
@@ -399,7 +399,7 @@ export function BackgroundsPage() {
         </TabsContent>
 
         <TabsContent value="box">
-          <Card className="gap-0 overflow-hidden border-border/70 bg-card/88 py-0 shadow-sm">
+          <Card className="gap-0 overflow-hidden border-border/70 bg-card/88 py-0">
             <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                 <Square className="size-4" />

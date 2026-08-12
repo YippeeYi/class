@@ -64,6 +64,13 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --shadow-2xs: var(--elevation-subtle);
+  --shadow-xs: var(--elevation-subtle);
+  --shadow-sm: var(--elevation-subtle);
+  --shadow-md: var(--elevation-raised);
+  --shadow-lg: var(--elevation-overlay);
+  --shadow-xl: var(--elevation-overlay);
+  --shadow-2xl: var(--elevation-overlay);
 }
 
 :root {
@@ -106,11 +113,13 @@
   --glass-border: color-mix(in oklch, var(--border) 74%, white 26%);
   --glass-content-border: color-mix(in oklch, var(--border) 88%, var(--foreground) 12%);
   --glass-edge-light: color-mix(in oklch, white 22%, transparent);
-  --glass-shadow: color-mix(in oklch, var(--foreground) 10%, transparent);
   --glass-ambient: color-mix(in oklch, var(--primary) 14%, transparent);
   --glass-radius-control: 0.75rem;
   --glass-radius-group: 0.95rem;
   --glass-radius-panel: 1.15rem;
+  --elevation-subtle: 0 1px 2px oklch(0.22 0.016 55 / 7%);
+  --elevation-raised: 0 2px 5px -3px oklch(0.22 0.016 55 / 12%);
+  --elevation-overlay: 0 4px 10px -5px oklch(0.18 0.012 55 / 16%);
 }
 
 .dark {
@@ -145,6 +154,9 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --elevation-subtle: 0 1px 2px rgb(0 0 0 / 16%);
+  --elevation-raised: 0 2px 5px -3px rgb(0 0 0 / 24%);
+  --elevation-overlay: 0 4px 10px -5px rgb(0 0 0 / 30%);
 }
 
 @layer base {
@@ -468,6 +480,17 @@
     --quiz-error-foreground: oklch(0.44 0.16 25);
     --quiz-error-emphasis: oklch(0.55 0.19 25);
     --quiz-error-emphasis-foreground: oklch(0.985 0.006 25);
+    --quiz-option-surface: color-mix(in oklch, var(--card) 92%, var(--muted));
+    --quiz-option-hover-surface: color-mix(in oklch, var(--quiz-type-accent) 8%, var(--card));
+    --quiz-option-pressed-surface: color-mix(in oklch, var(--quiz-type-accent) 13%, var(--card));
+    --quiz-option-selected-surface: color-mix(in oklch, var(--quiz-type-accent) 16%, var(--card));
+    --quiz-option-foreground: var(--foreground);
+    --quiz-option-disabled-surface: color-mix(in oklch, var(--muted) 52%, var(--card));
+    --quiz-option-disabled-foreground: color-mix(
+      in oklch,
+      var(--foreground) 76%,
+      var(--muted-foreground)
+    );
   }
   .quiz-question-card[data-question-type="fill"] {
     --quiz-type-accent: oklch(0.59 0.105 76);
@@ -626,63 +649,84 @@
     border-color: color-mix(in oklch, var(--quiz-type-accent) 45%, var(--border));
     color: var(--quiz-type-ink);
   }
-  .quiz-option {
-    transition:
-      transform 160ms ease,
-      border-color 160ms ease,
-      background-color 160ms ease,
-      box-shadow 160ms ease;
-  }
-  .quiz-option:not(:disabled):hover {
-    transform: translateY(-1px);
-  }
-  .quiz-option:disabled {
-    opacity: 1;
-  }
-  .quiz-option:disabled:not(.is-correct, .is-wrong) {
-    border-color: var(--border);
-    background: color-mix(in oklch, var(--muted) 42%, var(--card));
-    color: var(--muted-foreground);
-  }
-  .quiz-option-label {
-    display: inline-grid;
-    width: 2rem;
-    height: 2rem;
-    flex: 0 0 auto;
-    place-items: center;
-    border-radius: var(--radius-md);
-    background: color-mix(in oklch, var(--quiz-type-accent) 12%, var(--muted));
-    color: var(--quiz-type-ink);
-    font-size: 0.8125rem;
-    font-weight: 700;
-  }
-  .quiz-option.is-correct {
-    border-color: color-mix(in oklch, var(--quiz-success-emphasis) 62%, var(--border));
-    background: var(--quiz-success-surface);
-    color: var(--quiz-success-foreground);
-    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--quiz-success-emphasis) 24%, transparent);
-  }
-  .quiz-option.is-correct .quiz-option-label {
-    background: var(--quiz-success-emphasis);
-    color: var(--quiz-success-emphasis-foreground);
-  }
-  .quiz-option.is-wrong {
-    border-color: color-mix(in oklch, var(--quiz-error-emphasis) 58%, var(--border));
-    background: var(--quiz-error-surface);
-    color: var(--quiz-error-foreground);
-    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--quiz-error-emphasis) 22%, transparent);
-    animation: quiz-wrong-nudge 260ms ease both;
-  }
-  .quiz-option.is-wrong .quiz-option-label {
-    background: var(--quiz-error-emphasis);
-    color: var(--quiz-error-emphasis-foreground);
-  }
   .quiz-result-correct {
     color: var(--quiz-success-foreground);
   }
   .quiz-result-wrong {
     color: var(--quiz-error-foreground);
   }
+}
+
+/* Quiz answers still use the shadcn Button structure and focus contract, but
+   their semantic state surfaces must win over the generic dark outline
+   utility so text contrast remains deterministic over every background. */
+.quiz-question-card .quiz-option {
+  border-color: color-mix(in oklch, var(--quiz-type-accent) 26%, var(--border));
+  background: var(--quiz-option-surface);
+  color: var(--quiz-option-foreground);
+  font-weight: 600;
+  transform: none;
+  translate: none;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+.quiz-question-card .quiz-option:not(:disabled):hover {
+  border-color: color-mix(in oklch, var(--quiz-type-accent) 46%, var(--border));
+  background: var(--quiz-option-hover-surface);
+  color: var(--quiz-option-foreground);
+}
+.quiz-question-card .quiz-option:not(:disabled):active {
+  border-color: color-mix(in oklch, var(--quiz-type-accent) 58%, var(--border));
+  background: var(--quiz-option-pressed-surface);
+  color: var(--quiz-option-foreground);
+}
+.quiz-question-card .quiz-option[aria-pressed="true"]:not(.is-correct, .is-wrong) {
+  border-color: color-mix(in oklch, var(--quiz-type-accent) 62%, var(--border));
+  background: var(--quiz-option-selected-surface);
+  color: var(--quiz-option-foreground);
+}
+.quiz-question-card .quiz-option:disabled {
+  opacity: 1;
+}
+.quiz-question-card .quiz-option:disabled:not(.is-correct, .is-wrong) {
+  border-color: color-mix(in oklch, var(--border) 88%, var(--foreground));
+  background: var(--quiz-option-disabled-surface);
+  color: var(--quiz-option-disabled-foreground);
+}
+.quiz-question-card .quiz-option-label {
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--quiz-type-accent) 12%, var(--muted));
+  color: var(--quiz-type-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+.quiz-question-card .quiz-option.is-correct {
+  border-color: color-mix(in oklch, var(--quiz-success-emphasis) 62%, var(--border));
+  background: var(--quiz-success-surface);
+  color: var(--quiz-success-foreground);
+  font-weight: 650;
+}
+.quiz-question-card .quiz-option.is-correct .quiz-option-label {
+  background: var(--quiz-success-emphasis);
+  color: var(--quiz-success-emphasis-foreground);
+}
+.quiz-question-card .quiz-option.is-wrong {
+  border-color: color-mix(in oklch, var(--quiz-error-emphasis) 58%, var(--border));
+  background: var(--quiz-error-surface);
+  color: var(--quiz-error-foreground);
+  font-weight: 650;
+  animation: quiz-wrong-nudge 260ms ease both;
+}
+.quiz-question-card .quiz-option.is-wrong .quiz-option-label {
+  background: var(--quiz-error-emphasis);
+  color: var(--quiz-error-emphasis-foreground);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -743,14 +787,14 @@
     color-mix(in oklch, var(--background) 68%, transparent),
     color-mix(in oklch, var(--background) 56%, transparent)
   );
-  box-shadow: inset 1px 0 color-mix(in oklch, var(--border) 72%, transparent);
+  border-inline-start: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
 }
 
 .app-topbar {
   background: color-mix(in oklch, var(--background) 86%, transparent);
   -webkit-backdrop-filter: blur(10px) saturate(1.08);
   backdrop-filter: blur(10px) saturate(1.08);
-  box-shadow: 0 0.35rem 1.4rem color-mix(in oklch, var(--foreground) 7%, transparent);
+  box-shadow: none;
 }
 
 .app-sidebar [data-slot="sidebar-inner"],
@@ -786,7 +830,7 @@
   border-radius: calc(var(--radius) + 0.25rem);
   background: color-mix(in oklch, var(--background) 62%, transparent);
   color: var(--foreground);
-  box-shadow: 0 1px 2px color-mix(in oklch, var(--foreground) 7%, transparent);
+  box-shadow: var(--elevation-subtle);
   transition:
     border-color 180ms ease,
     background-color 180ms ease,
@@ -795,29 +839,25 @@
 .appearance-choice:hover {
   border-color: color-mix(in oklch, var(--primary) 38%, var(--border));
   background: color-mix(in oklch, var(--background) 76%, transparent);
-  box-shadow: 0 0.45rem 1.3rem color-mix(in oklch, var(--foreground) 9%, transparent);
+  box-shadow: var(--elevation-subtle);
 }
 .appearance-choice[data-selected="true"] {
   border-color: color-mix(in oklch, var(--primary) 72%, var(--border));
   background: color-mix(in oklch, var(--primary) 7%, var(--background));
-  box-shadow:
-    inset 0 0 0 1px color-mix(in oklch, var(--primary) 36%, transparent),
-    0 0.55rem 1.5rem color-mix(in oklch, var(--primary) 12%, transparent);
+  box-shadow: var(--elevation-subtle);
 }
 .appearance-choice:active {
-  box-shadow:
-    inset 0 1px color-mix(in oklch, white 26%, transparent),
-    0 0.2rem 0.7rem color-mix(in oklch, var(--foreground) 8%, transparent);
+  background: color-mix(in oklch, var(--primary) 10%, var(--background));
+  box-shadow: var(--elevation-subtle);
 }
 .appearance-choice [data-slot="radio-group-item"] {
   flex: none;
 }
-.appearance-choice:has([data-slot="radio-group-item"]:focus-visible) {
+.appearance-choice:has([data-slot="radio-group-item"]:focus) {
   border-color: var(--ring);
-  outline: none;
-  box-shadow:
-    inset 0 0 0 2px color-mix(in oklch, var(--ring) 52%, transparent),
-    0 0.55rem 1.5rem color-mix(in oklch, var(--ring) 14%, transparent);
+  outline: 2px solid color-mix(in oklch, var(--ring) 58%, transparent);
+  outline-offset: 2px;
+  box-shadow: var(--elevation-subtle);
 }
 .appearance-choice:has([data-slot="radio-group-item"][data-disabled]) {
   cursor: not-allowed;
@@ -848,7 +888,7 @@
     ),
     var(--glass-surface);
   background-clip: padding-box;
-  box-shadow: 0 0.55rem 1.5rem color-mix(in oklch, var(--glass-shadow) 64%, transparent);
+  box-shadow: var(--elevation-raised);
   -webkit-backdrop-filter: blur(16px) saturate(1.12);
   backdrop-filter: blur(16px) saturate(1.12);
 }
@@ -915,7 +955,7 @@ html[data-box-style="glass"]
     ),
     var(--glass-surface);
   background-clip: padding-box;
-  box-shadow: 0 0.65rem 1.9rem color-mix(in oklch, var(--glass-shadow) 64%, transparent);
+  box-shadow: var(--elevation-raised);
   -webkit-backdrop-filter: blur(18px) saturate(1.16);
   backdrop-filter: blur(18px) saturate(1.16);
   transition:
@@ -952,6 +992,7 @@ html[data-box-style="glass"] body .liquid-control-group > [data-slot="button"] {
   background: transparent;
   box-shadow: none;
   transform: none;
+  translate: none;
   transition:
     color 150ms ease,
     background-color 150ms ease,
@@ -974,7 +1015,7 @@ html[data-box-style="glass"]
   .liquid-control-group
   > [data-slot="button"][aria-pressed="true"] {
   background: color-mix(in oklch, var(--primary) 16%, var(--glass-surface-strong));
-  box-shadow: 0 1px 3px color-mix(in oklch, var(--glass-shadow) 56%, transparent);
+  box-shadow: none;
 }
 
 html[data-box-style="glass"]
@@ -1012,12 +1053,20 @@ html[data-box-style="glass"]
   [data-slot="tabs-list"]:not([data-variant="line"])
   > [data-slot="tabs-trigger"][data-active] {
   background: color-mix(in oklch, var(--primary) 13%, var(--glass-surface-strong));
-  box-shadow: 0 1px 3px color-mix(in oklch, var(--glass-shadow) 52%, transparent);
+  box-shadow: none;
 }
 
 html[data-box-style="glass"] body [data-liquid-glass-interactive]:is(:hover, :focus-visible) {
   border-color: color-mix(in oklch, var(--primary) 30%, var(--glass-border));
-  box-shadow: 0 0.75rem 2rem color-mix(in oklch, var(--glass-shadow) 72%, transparent);
+  box-shadow: var(--elevation-raised);
+}
+
+/* Structural navigation already has a real divider. Keeping it shadowless
+   prevents a parent viewport clip from truncating a decorative edge. */
+html[data-box-style="glass"]
+  body
+  :is(#root .app-topbar, #root .app-sidebar [data-slot="sidebar-inner"]) {
+  box-shadow: none;
 }
 
 /* Dense reading surfaces use actual borders and a quiet standard material.
@@ -1036,7 +1085,7 @@ html[data-box-style="glass"]
   outline: none;
   background: var(--glass-content-surface);
   background-clip: padding-box;
-  box-shadow: 0 0.4rem 1.25rem color-mix(in oklch, var(--glass-shadow) 48%, transparent);
+  box-shadow: none;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
@@ -1068,7 +1117,7 @@ html[data-box-style="glass"][data-background]:not([data-background="default"]) {
 }
 
 /* Dark appearance is independently tuned: lower edge luminance, more
-   transmitted background and a soft separation shadow, with no inner glow. */
+   transmitted background and no inner glow or elevated-looking halo. */
 html.dark[data-box-style="glass"] {
   --glass-surface: color-mix(in oklch, var(--card) 48%, transparent);
   --glass-clear-surface: color-mix(in oklch, black 18%, transparent);
@@ -1077,7 +1126,6 @@ html.dark[data-box-style="glass"] {
   --glass-border: color-mix(in oklch, var(--border) 86%, var(--foreground) 14%);
   --glass-content-border: color-mix(in oklch, var(--border) 88%, var(--foreground) 12%);
   --glass-edge-light: color-mix(in oklch, white 8%, transparent);
-  --glass-shadow: color-mix(in oklch, black 34%, transparent);
   --glass-ambient: color-mix(in oklch, var(--primary) 10%, transparent);
 }
 
@@ -1106,7 +1154,7 @@ html[data-box-style="glass"]
     [data-slot="select-content"]
   ) {
   background-color: var(--glass-surface-strong);
-  box-shadow: 0 1rem 2.8rem color-mix(in oklch, var(--glass-shadow) 82%, transparent);
+  box-shadow: var(--elevation-overlay);
 }
 
 html[data-box-style="glass"] #root :is([data-slot="input"], [data-slot="select-trigger"]) {
@@ -1118,7 +1166,7 @@ html[data-box-style="glass"] #root :is([data-slot="input"], [data-slot="select-t
 html[data-box-style="glass"] #root .appearance-choice {
   border-color: var(--glass-content-border);
   background: color-mix(in oklch, var(--glass-content-surface) 88%, transparent);
-  box-shadow: 0 0.25rem 0.85rem color-mix(in oklch, var(--glass-shadow) 42%, transparent);
+  box-shadow: var(--elevation-subtle);
 }
 
 html[data-box-style="glass"] #root .appearance-choice:hover {
@@ -1129,19 +1177,18 @@ html[data-box-style="glass"] #root .appearance-choice:hover {
 html[data-box-style="glass"] #root .appearance-choice[data-selected="true"] {
   border-color: color-mix(in oklch, var(--primary) 66%, var(--glass-content-border));
   background: color-mix(in oklch, var(--primary) 8%, var(--glass-content-surface));
-  box-shadow: 0 0.35rem 1rem color-mix(in oklch, var(--primary) 10%, transparent);
+  box-shadow: var(--elevation-subtle);
 }
 
-html[data-box-style="glass"]
-  #root
-  .appearance-choice:has([data-slot="radio-group-item"]:focus-visible) {
+html[data-box-style="glass"] #root .appearance-choice:has([data-slot="radio-group-item"]:focus) {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 28%, transparent);
+  outline-color: color-mix(in oklch, var(--ring) 58%, transparent);
+  box-shadow: var(--elevation-subtle);
 }
 
 html[data-box-style="glass"] #root .appearance-choice:active {
   background: color-mix(in oklch, var(--primary) 11%, var(--glass-content-surface));
-  box-shadow: 0 0.15rem 0.55rem color-mix(in oklch, var(--glass-shadow) 42%, transparent);
+  box-shadow: var(--elevation-subtle);
 }
 
 html[data-box-style="glass"] body #root [data-slot="card"] [data-slot="card"],
@@ -1163,13 +1210,13 @@ html[data-box-style="glass"] body #root [data-slot="card"] [data-slot="alert"] {
   max-width: 100%;
   border: 1px solid var(--border);
   background-clip: padding-box;
-  box-shadow: 0 0.25rem 0.9rem color-mix(in oklch, var(--foreground) 7%, transparent);
+  box-shadow: none;
 }
 
 html[data-box-style="glass"] body #root .content-frame[data-slot="card"] {
   border-color: var(--glass-content-border);
   background: var(--glass-content-surface);
-  box-shadow: 0 0.4rem 1.25rem color-mix(in oklch, var(--glass-shadow) 48%, transparent);
+  box-shadow: none;
 }
 
 .quiz-question-card {
@@ -1206,7 +1253,7 @@ html[data-box-style="glass"]
 .record-surface {
   --record-rest-border: var(--border);
   border: 1px solid var(--record-rest-border);
-  transition-property: background-color, border-color, box-shadow;
+  transition-property: background-color, border-color;
 }
 
 html[data-box-style="glass"] #root .record-surface[data-slot="card"] {
@@ -1218,9 +1265,8 @@ html[data-box-style="glass"] #root .record-surface[data-slot="card"] {
 #root .record-surface[data-record-jump-highlight="true"] {
   z-index: 1;
   border-color: color-mix(in oklch, var(--primary) 76%, var(--record-rest-border));
-  box-shadow:
-    0 0 0 3px color-mix(in oklch, var(--primary) 30%, transparent),
-    0 0.65rem 1.8rem color-mix(in oklch, var(--primary) 18%, transparent);
+  background-color: color-mix(in oklch, var(--primary) 6%, var(--card));
+  box-shadow: none;
 }
 
 html[data-box-style="glass"]
@@ -1228,9 +1274,8 @@ html[data-box-style="glass"]
   #root
   .record-surface[data-slot="card"][data-record-jump-highlight="true"] {
   border-color: color-mix(in oklch, var(--primary) 82%, var(--glass-content-border));
-  box-shadow:
-    0 0 0 3px color-mix(in oklch, var(--primary) 34%, transparent),
-    0 0.72rem 1.9rem color-mix(in oklch, var(--primary) 20%, transparent);
+  background-color: color-mix(in oklch, var(--primary) 7%, var(--glass-content-surface));
+  box-shadow: none;
 }
 
 #root .record-surface[data-record-jump-highlight="true"][data-record-jump-fading="true"] {
@@ -1240,15 +1285,11 @@ html[data-box-style="glass"]
 @keyframes record-jump-highlight-fade {
   0% {
     border-color: color-mix(in oklch, var(--primary) 76%, var(--record-rest-border));
-    box-shadow:
-      0 0 0 3px color-mix(in oklch, var(--primary) 30%, transparent),
-      0 0.65rem 1.8rem color-mix(in oklch, var(--primary) 18%, transparent);
+    background-color: color-mix(in oklch, var(--primary) 6%, var(--card));
   }
   100% {
     border-color: var(--record-rest-border);
-    box-shadow:
-      0 0 0 0 transparent,
-      0 0.25rem 0.8rem transparent;
+    background-color: transparent;
   }
 }
 
@@ -1285,14 +1326,14 @@ html[data-box-style="glass"]
 .image-viewer-image {
   transform-origin: center;
   backface-visibility: hidden;
-  filter: drop-shadow(0 0.75rem 1.6rem color-mix(in oklch, black 26%, transparent));
+  filter: none;
   will-change: transform;
 }
 
 .image-viewer-toolbar {
   border: 1px solid color-mix(in oklch, var(--border) 84%, transparent);
   background: color-mix(in oklch, var(--popover) 82%, transparent);
-  box-shadow: 0 0.45rem 1.4rem color-mix(in oklch, black 12%, transparent);
+  box-shadow: var(--elevation-overlay);
   -webkit-backdrop-filter: blur(16px) saturate(1.12);
   backdrop-filter: blur(16px) saturate(1.12);
 }

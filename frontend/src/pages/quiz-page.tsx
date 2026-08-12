@@ -603,6 +603,7 @@ export function QuizPage() {
                                 result && isAnswer && 'is-correct',
                                 result && isSelected && !isAnswer && 'is-wrong',
                               )}
+                              aria-pressed={isSelected}
                               disabled={Boolean(result)}
                               onClick={() => {
                                 setInput(choice)

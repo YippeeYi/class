@@ -98,7 +98,7 @@ export function HomePage() {
 
   return (
     <div className="grid gap-5 sm:gap-6">
-      <Card className="guide-hero relative gap-0 overflow-hidden border-border/70 bg-card/88 py-0 shadow-sm">
+      <Card className="guide-hero relative gap-0 overflow-hidden border-border/70 bg-card/88 py-0">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_12%,color-mix(in_oklch,var(--primary)_18%,transparent),transparent_34%),linear-gradient(135deg,transparent_48%,color-mix(in_oklch,var(--secondary)_32%,transparent))]" />
         <CardContent className="relative grid p-0 lg:grid-cols-[minmax(0,1.45fr)_minmax(17rem,.72fr)]">
           <div className="px-5 py-6 sm:px-7 sm:py-7 lg:px-8 lg:py-8">
@@ -187,7 +187,7 @@ export function HomePage() {
         </CardContent>
       </Card>
 
-      <Card className="gap-0 overflow-hidden bg-card/90 py-0 shadow-sm">
+      <Card className="gap-0 overflow-hidden bg-card/90 py-0">
         <CardHeader className="border-b border-border/65 px-5 py-4 sm:px-6">
           <CardTitle className="font-heading text-xl">核心档案</CardTitle>
           <CardDescription>从最常用的三个入口开始浏览。</CardDescription>
@@ -240,7 +240,7 @@ export function HomePage() {
                   key={to}
                   className="group rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
-                  <article className="grid h-full min-h-40 content-between rounded-xl border border-border/70 bg-background/38 p-4 transition-[background-color,border-color,box-shadow] duration-150 group-hover:border-primary/35 group-hover:bg-background/62 group-hover:shadow-sm group-focus-visible:border-ring sm:p-5">
+                  <article className="grid h-full min-h-40 content-between rounded-xl border border-border/70 bg-background/38 p-4 transition-[background-color,border-color] duration-150 group-hover:border-primary/35 group-hover:bg-background/62 group-focus-visible:border-ring sm:p-5">
                     <div className="flex items-center justify-between gap-3">
                       <span className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">
                         <Icon className="size-5" />
@@ -264,7 +264,7 @@ export function HomePage() {
         </CardContent>
       </Card>
 
-      <Card className="gap-0 overflow-hidden bg-card/90 py-0 shadow-sm">
+      <Card className="gap-0 overflow-hidden bg-card/90 py-0">
         <CardHeader className="border-b border-border/65 px-5 py-4 sm:px-6">
           <CardTitle className="font-heading text-xl">继续探索</CardTitle>
           <CardDescription>统计、工具与档案补充入口集中在这里。</CardDescription>

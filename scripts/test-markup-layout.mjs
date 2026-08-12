@@ -119,7 +119,7 @@ const harness = String.raw`<!doctype html>
 
       function QuizThemeFixture({ type }) {
         return e('article', {
-          className: 'quiz-question-card overflow-hidden rounded-xl border bg-card text-card-foreground',
+          className: 'content-frame quiz-question-card overflow-hidden rounded-xl border bg-card text-card-foreground',
           'data-slot': 'card',
           'data-question-type': type,
           'data-quiz-theme-fixture': type,
@@ -144,12 +144,16 @@ const harness = String.raw`<!doctype html>
               e('span', { className: 'quiz-question-side-value' }, '人物名称'),
             ),
             e(Input, { 'aria-label': type + ' 填空输入', defaultValue: '已填写内容', disabled: true, className: 'disabled:opacity-75' }),
-            e('div', { style: { display: 'grid', gap: '8px', gridTemplateColumns: 'repeat(3,minmax(0,1fr))' } },
-              e(Button, { className: 'quiz-option disabled:opacity-100', variant: 'outline', disabled: true },
+            e('div', { style: { display: 'grid', gap: '8px', gridTemplateColumns: 'repeat(auto-fit,minmax(9rem,1fr))' } },
+              e(Button, { 'data-quiz-option-state': 'default', className: 'quiz-option', variant: 'outline' },
+                e('span', { className: 'quiz-option-label' }, 'A'), e('span', null, '默认选项')),
+              e(Button, { 'data-quiz-option-state': 'selected', className: 'quiz-option', variant: 'outline', 'aria-pressed': true },
+                e('span', { className: 'quiz-option-label' }, 'B'), e('span', null, '选中选项')),
+              e(Button, { 'data-quiz-option-state': 'disabled', className: 'quiz-option disabled:opacity-100', variant: 'outline', disabled: true },
                 e('span', { className: 'quiz-option-label' }, 'A'), e('span', null, '禁用选项')),
-              e(Button, { className: 'quiz-option is-correct disabled:opacity-100', variant: 'outline', disabled: true },
+              e(Button, { 'data-quiz-option-state': 'correct', className: 'quiz-option is-correct disabled:opacity-100', variant: 'outline', disabled: true },
                 e('span', { className: 'quiz-option-label' }, 'B'), e('span', null, '正确选项')),
-              e(Button, { className: 'quiz-option is-wrong disabled:opacity-100', variant: 'outline', disabled: true },
+              e(Button, { 'data-quiz-option-state': 'wrong', className: 'quiz-option is-wrong disabled:opacity-100', variant: 'outline', disabled: true },
                 e('span', { className: 'quiz-option-label' }, 'C'), e('span', null, '错误选项')),
             ),
           ),
@@ -517,6 +521,7 @@ try {
       borderStyle: style.borderStyle,
       borderWidth: style.borderWidth,
       borderColor: style.borderColor,
+      backgroundColor: style.backgroundColor,
       boxShadow: style.boxShadow,
     }
   })
@@ -539,10 +544,15 @@ try {
     /(?:\/ 0\)|, 0\))$/,
     `the located record highlight must retain theme color: ${JSON.stringify(initialJumpHighlight)}`,
   )
-  assert.notEqual(
+  assert.equal(
     initialJumpHighlight.boxShadow,
     'none',
-    'the located record highlight may reinforce, but not replace, its real border',
+    'the located record highlight must not use an outer shadow that a scroll container can clip',
+  )
+  assert.doesNotMatch(
+    initialJumpHighlight.backgroundColor,
+    /(?:\/ 0\)|, 0\))$/,
+    'the located record highlight must reinforce its real border with an in-box surface tint',
   )
   const recordScrollTrajectory = await page.evaluate(() => {
     window.removeEventListener('scroll', window.__recordScrollListener)
@@ -1004,37 +1014,86 @@ try {
     const original = root.dataset.themePreset
     const originallyDark = root.classList.contains('dark')
     const darkIds = new Set(['ink', 'midnight', 'pine', 'aurora'])
-    const parseOklch = (value) => {
-      const match = value.match(/oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)/)
-      if (!match) return null
-      const lightness = Number(match[1])
-      const chroma = Number(match[2])
-      const hue = Number(match[3]) * Math.PI / 180
-      const a = chroma * Math.cos(hue)
-      const b = chroma * Math.sin(hue)
-      const lPrime = lightness + 0.3963377774 * a + 0.2158037573 * b
-      const mPrime = lightness - 0.1055613458 * a - 0.0638541728 * b
-      const sPrime = lightness - 0.0894841775 * a - 1.291485548 * b
-      const l = lPrime ** 3
-      const m = mPrime ** 3
-      const s = sPrime ** 3
-      const red = Math.min(1, Math.max(0, 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s))
-      const green = Math.min(1, Math.max(0, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s))
-      const blue = Math.min(1, Math.max(0, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s))
-      return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+    const relativeLuminance = (value) => {
+      const oklch = value.match(/oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)/)
+      if (oklch) {
+        const lightness = Number(oklch[1])
+        const chroma = Number(oklch[2])
+        const hue = Number(oklch[3]) * Math.PI / 180
+        const a = chroma * Math.cos(hue)
+        const b = chroma * Math.sin(hue)
+        const lPrime = lightness + 0.3963377774 * a + 0.2158037573 * b
+        const mPrime = lightness - 0.1055613458 * a - 0.0638541728 * b
+        const sPrime = lightness - 0.0894841775 * a - 1.291485548 * b
+        const l = lPrime ** 3
+        const m = mPrime ** 3
+        const s = sPrime ** 3
+        const red = Math.min(1, Math.max(0, 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s))
+        const green = Math.min(1, Math.max(0, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s))
+        const blue = Math.min(1, Math.max(0, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s))
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+      }
+      const oklab = value.match(/oklab\(\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)/)
+      if (oklab) {
+        const lightness = Number(oklab[1])
+        const a = Number(oklab[2])
+        const b = Number(oklab[3])
+        const lPrime = lightness + 0.3963377774 * a + 0.2158037573 * b
+        const mPrime = lightness - 0.1055613458 * a - 0.0638541728 * b
+        const sPrime = lightness - 0.0894841775 * a - 1.291485548 * b
+        const l = lPrime ** 3
+        const m = mPrime ** 3
+        const s = sPrime ** 3
+        const red = Math.min(1, Math.max(0, 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s))
+        const green = Math.min(1, Math.max(0, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s))
+        const blue = Math.min(1, Math.max(0, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s))
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+      }
+      const toLinear = (channel) =>
+        channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+      const srgb = value.match(/color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/)
+      if (srgb) {
+        const [red, green, blue] = srgb.slice(1, 4).map((channel) => toLinear(Number(channel)))
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+      }
+      const rgb = value.match(/rgba?\(\s*([\d.]+)%?[,\s]+([\d.]+)%?[,\s]+([\d.]+)%?/)
+      if (rgb) {
+        const percent = value.includes('%')
+        const divisor = percent ? 100 : 255
+        const [red, green, blue] = rgb
+          .slice(1, 4)
+          .map((channel) => toLinear(Number(channel) / divisor))
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+      }
+      return null
     }
     const ratio = (first, second) => {
-      const a = parseOklch(first)
-      const b = parseOklch(second)
+      const a = relativeLuminance(first)
+      const b = relativeLuminance(second)
       if (a === null || b === null) return 0
       return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
     }
+    window.__contrastRatio = ratio
     const output = ids.map((id) => {
       root.dataset.themePreset = id
       root.classList.toggle('dark', darkIds.has(id))
       const styles = getComputedStyle(root)
       const quiz = [...document.querySelectorAll('[data-quiz-theme-fixture]')].map((card) => {
         const cardStyles = getComputedStyle(card)
+        const options = [...card.querySelectorAll('[data-quiz-option-state]')].map((option) => {
+          const optionStyles = getComputedStyle(option)
+          const label = option.querySelector('.quiz-option-label')
+          const labelStyles = getComputedStyle(label)
+          return {
+            state: option.getAttribute('data-quiz-option-state'),
+            background: optionStyles.backgroundColor,
+            foreground: optionStyles.color,
+            text: ratio(optionStyles.backgroundColor, optionStyles.color),
+            labelBackground: labelStyles.backgroundColor,
+            labelForeground: labelStyles.color,
+            label: ratio(labelStyles.backgroundColor, labelStyles.color),
+          }
+        })
         return {
           type: card.getAttribute('data-question-type'),
           typeText: ratio(cardStyles.getPropertyValue('--quiz-type-surface'), cardStyles.getPropertyValue('--quiz-type-ink')),
@@ -1042,6 +1101,7 @@ try {
           successEmphasis: ratio(cardStyles.getPropertyValue('--quiz-success-emphasis'), cardStyles.getPropertyValue('--quiz-success-emphasis-foreground')),
           error: ratio(cardStyles.getPropertyValue('--quiz-error-surface'), cardStyles.getPropertyValue('--quiz-error-foreground')),
           errorEmphasis: ratio(cardStyles.getPropertyValue('--quiz-error-emphasis'), cardStyles.getPropertyValue('--quiz-error-emphasis-foreground')),
+          options,
         }
       })
       return {
@@ -1063,11 +1123,81 @@ try {
     assert.ok(theme.primary >= 4.5, `${theme.id} primary control contrast is too low: ${JSON.stringify(theme)}`)
     assert.ok(theme.muted >= 4.5, `${theme.id} muted text contrast is too low: ${JSON.stringify(theme)}`)
     theme.quiz.forEach((sample) => {
-      for (const [state, contrast] of Object.entries(sample).filter(([key]) => key !== 'type')) {
+      for (const [state, contrast] of Object.entries(sample).filter(
+        ([key]) => key !== 'type' && key !== 'options',
+      )) {
         assert.ok(contrast >= 4.5, `${theme.id} ${sample.type} quiz ${state} contrast is too low: ${JSON.stringify(sample)}`)
       }
+      sample.options.forEach((option) => {
+        assert.ok(option.text >= 4.5, `${theme.id} ${sample.type} quiz ${option.state} text contrast is too low: ${JSON.stringify(option)}`)
+        assert.ok(option.label >= 4.5, `${theme.id} ${sample.type} quiz ${option.state} label contrast is too low: ${JSON.stringify(option)}`)
+      })
     })
   })
+
+  const assertQuizOptionInteractions = async (themeId) => {
+    await page.locator(`[data-theme-preset-option="${themeId}"]`).click()
+    await page.waitForFunction(
+      (id) => document.documentElement.dataset.themePreset === id,
+      themeId,
+    )
+    await page.waitForTimeout(220)
+    const option = page.locator(
+      '[data-quiz-theme-fixture="choice"] [data-quiz-option-state="default"]',
+    )
+    const readState = () =>
+      option.evaluate((target) => {
+        const style = getComputedStyle(target)
+        return {
+          contrast: window.__contrastRatio(style.backgroundColor, style.color),
+          background: style.backgroundColor,
+          foreground: style.color,
+          boxShadow: style.boxShadow,
+          outline: style.outlineStyle,
+          bounds: target.getBoundingClientRect().toJSON(),
+        }
+      })
+    const normal = await readState()
+    assert.ok(normal.contrast >= 4.5, `${themeId} default quiz option contrast is too low`)
+    await option.hover()
+    const hovered = await readState()
+    assert.ok(
+      hovered.contrast >= 4.5,
+      `${themeId} hovered quiz option contrast is too low: ${JSON.stringify(hovered)}`,
+    )
+    assert.deepEqual(hovered.bounds, normal.bounds, `${themeId} quiz option hover must not move or resize`)
+    await page
+      .locator('[data-quiz-theme-fixture="choice"] [data-quiz-option-state="selected"]')
+      .focus()
+    await page.keyboard.press('Shift+Tab')
+    assert.equal(
+      await option.evaluate((target) => document.activeElement === target),
+      true,
+      `${themeId} keyboard traversal must focus the default quiz option`,
+    )
+    const focused = await readState()
+    assert.ok(
+      focused.contrast >= 4.5,
+      `${themeId} focused quiz option contrast is too low: ${JSON.stringify(focused)}`,
+    )
+    assert.ok(
+      focused.boxShadow !== 'none' || focused.outline !== 'none',
+      `${themeId} focused quiz option must keep an explicit keyboard indicator`,
+    )
+    const bounds = await option.boundingBox()
+    assert.ok(bounds, `${themeId} quiz option must be measurable before pressed-state testing`)
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
+    await page.mouse.down()
+    const pressed = await readState()
+    await page.mouse.up()
+    assert.ok(pressed.contrast >= 4.5, `${themeId} pressed quiz option contrast is too low`)
+    assert.deepEqual(pressed.bounds, normal.bounds, `${themeId} quiz option press must not move or resize`)
+  }
+  await assertQuizOptionInteractions('paper')
+  await assertQuizOptionInteractions('midnight')
+  await page.locator('[data-theme-preset-option="auto"]').click()
+  await page.waitForFunction(() => document.documentElement.dataset.themePreset === 'auto')
+
   await page.locator('[data-theme-preset-option="pine"]').click()
   await page.waitForFunction(() => JSON.parse(localStorage.getItem('classRecord:appearance:v1') || 'null')?.theme === 'pine')
   await page.reload({ waitUntil: 'networkidle' })
@@ -1144,11 +1274,61 @@ try {
   await page.locator('[data-background-id="default"] [data-slot="radio-group-item"]').focus()
   const focusedBackground = await page.locator('[data-background-id="default"]').evaluate((card) => ({
     outline: getComputedStyle(card).outlineStyle,
+    outlineOffset: getComputedStyle(card).outlineOffset,
     shadow: getComputedStyle(card).boxShadow,
     bounds: card.getBoundingClientRect().toJSON(),
   }))
-  assert.equal(focusedBackground.outline, 'none', 'keyboard focus must use the same inset card geometry instead of an offset outline')
-  assert.notEqual(focusedBackground.shadow, 'none', 'keyboard focus must remain clearly visible')
+  assert.equal(focusedBackground.outline, 'solid', 'keyboard focus must use an explicit non-shadow boundary')
+  assert.ok(Number.parseFloat(focusedBackground.outlineOffset) >= 2, 'keyboard focus must remain separated from the selected border')
+  const clippedShadowRisks = await page.locator('#root').evaluate((root) => {
+    const risks = []
+    const isVisible = (target) => {
+      const bounds = target.getBoundingClientRect()
+      const style = getComputedStyle(target)
+      return bounds.width > 0 && bounds.height > 0 && style.visibility !== 'hidden' && style.display !== 'none'
+    }
+    const clips = (value) => /(?:hidden|clip|auto|scroll)/u.test(value)
+    for (const target of root.querySelectorAll('*')) {
+      const style = getComputedStyle(target)
+      if (!isVisible(target) || style.boxShadow === 'none') continue
+      const bounds = target.getBoundingClientRect()
+      let ancestor = target.parentElement
+      while (ancestor && ancestor !== root) {
+        const ancestorStyle = getComputedStyle(ancestor)
+        const clipsX = clips(ancestorStyle.overflowX)
+        const clipsY = clips(ancestorStyle.overflowY)
+        if (clipsX || clipsY) {
+          const ancestorBounds = ancestor.getBoundingClientRect()
+          const slack = {
+            top: bounds.top - ancestorBounds.top,
+            right: ancestorBounds.right - bounds.right,
+            bottom: ancestorBounds.bottom - bounds.bottom,
+            left: bounds.left - ancestorBounds.left,
+          }
+          if (
+            (clipsX && (slack.left < 12 || slack.right < 12)) ||
+            (clipsY && (slack.top < 12 || slack.bottom < 12))
+          ) {
+            risks.push({
+              target: target.getAttribute('data-slot') || target.className || target.tagName,
+              ancestor: ancestor.getAttribute('data-slot') || ancestor.className || ancestor.tagName,
+              overflowX: ancestorStyle.overflowX,
+              overflowY: ancestorStyle.overflowY,
+              slack,
+              shadow: style.boxShadow,
+            })
+          }
+        }
+        ancestor = ancestor.parentElement
+      }
+    }
+    return risks
+  })
+  assert.deepEqual(
+    clippedShadowRisks,
+    [],
+    `visible shadows need enough inset from every clipping ancestor: ${JSON.stringify(clippedShadowRisks)}`,
+  )
   await page.keyboard.press('ArrowRight')
   await page.waitForFunction(() => document.querySelector('[data-background-id="mountain"]')?.getAttribute('data-selected') === 'true')
   await page.locator('[data-background-id="cloud"]').click()
@@ -1381,7 +1561,7 @@ try {
     assert.ok(Number.parseFloat(card.cardRadius) > 0, `${card.type} quiz card must retain its outer radius`)
     assert.equal(card.edgeContent, 'none', `${card.type} quiz card must not add a second masked rim that can fracture at corners`)
     assert.equal(card.backgroundImage, 'none', `${card.type} quiz card must not retain a second top-edge gradient layer`)
-    assert.doesNotMatch(card.boxShadow, /inset/, `${card.type} quiz card must have one clean outer shadow without a duplicate inner rim`)
+    assert.equal(card.boxShadow, 'none', `${card.type} quiz card must not rely on a shadow that its locked viewport can clip`)
     assert.equal(new Set(card.borderWidths).size, 1, `${card.type} quiz card must keep one continuous border around all four corners`)
     assert.ok(card.headerTopOffset <= 2, `${card.type} quiz header must begin directly inside the single outer edge`)
     assert.equal(Number.parseFloat(card.headerRadius), 0, `${card.type} quiz header must rely on the single outer top radius`)

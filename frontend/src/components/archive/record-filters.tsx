@@ -110,7 +110,7 @@ export function RecordFilters({
   const update = (patch: Partial<RecordCriteria>) => onChange({ ...value, ...patch })
 
   return (
-    <Card className="mb-6 gap-0 bg-card/90 py-0 shadow-sm">
+    <Card className="mb-6 gap-0 bg-card/90 py-0">
       <CardContent className="flex flex-col gap-3 p-4">
         <div className="relative min-w-0 flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
