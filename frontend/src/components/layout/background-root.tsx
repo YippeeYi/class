@@ -366,6 +366,9 @@ function applyBoxStyle(id: BoxStyleId) {
 
 const LIQUID_GLASS_TARGETS = [
   '[data-liquid-glass-interactive]',
+  '[data-slot="button"]',
+  '[data-slot="tabs-trigger"]',
+  '[data-slot="sidebar-menu-button"]',
   '.app-topbar',
   '.app-sidebar [data-slot="sidebar-inner"]',
   '[data-slot="dialog-content"]:not(.image-viewer-dialog)',
@@ -465,6 +468,7 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
     root.style.backgroundRepeat = 'no-repeat'
     root.style.backgroundSize = 'cover'
     root.style.backgroundAttachment = 'fixed'
+    root.dataset.background = visible
     delete root.dataset.backgroundBootstrap
   }, [visible])
 
@@ -526,7 +530,10 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       if (!renderedPoint || renderedPoint.target !== target) {
         renderedPoint = { target, x, y }
       } else {
-        const easing = 0.24
+        // Keep the optical response attached to the pointer. A short residual
+        // interpolation softens coarse mouse events without making the light
+        // visibly trail behind the control during quick crossings.
+        const easing = 0.72
         renderedPoint.x += (x - renderedPoint.x) * easing
         renderedPoint.y += (y - renderedPoint.y) * easing
       }

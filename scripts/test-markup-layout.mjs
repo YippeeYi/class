@@ -451,6 +451,12 @@ try {
     /第 2 页/,
     'a source jump must switch to the written page that actually contains the record',
   )
+  const writtenPageSelector = recordsFixture.getByLabel('跳转书面页')
+  assert.match(
+    (await writtenPageSelector.textContent()) || '',
+    /第 2 页/,
+    'the written page selector must display the actual one-based page instead of its zero-based index',
+  )
   const initialJumpHighlight = await recordsFixture.locator('#record-r3').evaluate((target) => {
     const style = getComputedStyle(target)
     return {
@@ -1350,6 +1356,28 @@ try {
   const guide = page.locator('[data-case="guide"]')
   await guide.scrollIntoViewIfNeeded()
   await guide.getByRole('link', { name: /记录/ }).first().waitFor({ state: 'visible' })
+  const guideLogo = guide.locator('.guide-hero [role="img"]').first()
+  const guideLogoSemantics = await guideLogo.evaluate((logo) => {
+    const image = logo.querySelector('img')
+    return {
+      tag: logo.tagName,
+      interactiveAncestor: Boolean(logo.closest('a, button, [role="button"]')),
+      tabIndex: logo.getAttribute('tabindex'),
+      cursor: getComputedStyle(logo).cursor,
+      userSelect: getComputedStyle(logo).userSelect,
+      imageDraggable: image?.draggable,
+      imagePointerEvents: image ? getComputedStyle(image).pointerEvents : '',
+      imageUserSelect: image ? getComputedStyle(image).userSelect : '',
+    }
+  })
+  assert.equal(guideLogoSemantics.tag, 'DIV', 'guide logo must be a presentational container')
+  assert.equal(guideLogoSemantics.interactiveAncestor, false, 'guide logo must not retain a link, button or button role')
+  assert.equal(guideLogoSemantics.tabIndex, null, 'guide logo must not be keyboard focusable')
+  assert.notEqual(guideLogoSemantics.cursor, 'pointer', 'guide logo must not advertise click behavior')
+  assert.equal(guideLogoSemantics.userSelect, 'none', 'guide logo must not be selectable')
+  assert.equal(guideLogoSemantics.imageDraggable, false, 'guide logo image must not be draggable')
+  assert.equal(guideLogoSemantics.imagePointerEvents, 'none', 'guide logo image must not receive pointer events')
+  assert.equal(guideLogoSemantics.imageUserSelect, 'none', 'guide logo image must not be selectable')
   assert.equal(await guide.getByRole('link', { name: /记录/ }).count() > 0, true, 'guide must expose the primary records entry')
   assert.equal(await guide.getByRole('link', { name: /致谢/ }).count(), 1, 'guide must restore the baseline credits entry')
   assert.equal(await guide.getByRole('button', { name: /历史上的今天/ }).count(), 1, 'guide must retain the date-matched history entry')

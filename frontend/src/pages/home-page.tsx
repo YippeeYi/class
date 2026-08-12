@@ -13,7 +13,7 @@ import {
   Sparkles,
   Users,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import { ErrorState } from '@/components/archive/async-state'
@@ -33,7 +33,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useArchive } from '@/features/archive/archive-context'
 
 const tips = [
-  '小提示：点击 logo 没有彩蛋。',
+  '小提示：Logo 仅作为导览标识。',
   '小提示：图片均可点击查看大图。',
   '小提示：人名可点击跳转至个人界面。',
   '小提示：可以在风格页分别调整配色、背景和方框。',
@@ -61,10 +61,7 @@ export function HomePage() {
   const resource = useArchive()
   const navigate = useNavigate()
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * tips.length))
-  const [logoAnimation, setLogoAnimation] = useState<'tap' | 'secret' | ''>('')
   const [logoFailed, setLogoFailed] = useState(false)
-  const logoTapCount = useRef(0)
-  const logoTapTimer = useRef<number | undefined>(undefined)
 
   useEffect(() => {
     document.title = '编日史 · 导览'
@@ -86,13 +83,6 @@ export function HomePage() {
     return () => window.clearInterval(timer)
   }, [])
 
-  useEffect(
-    () => () => {
-      if (logoTapTimer.current) window.clearTimeout(logoTapTimer.current)
-    },
-    [],
-  )
-
   const today = useMemo(() => {
     const now = new Date()
     const month = String(now.getMonth() + 1).padStart(2, '0')
@@ -104,19 +94,6 @@ export function HomePage() {
     return { month, day, hasMatches: matches.length > 0 }
   }, [resource.data])
 
-  const tapLogo = () => {
-    logoTapCount.current += 1
-    if (logoTapTimer.current) window.clearTimeout(logoTapTimer.current)
-    logoTapTimer.current = window.setTimeout(() => {
-      logoTapCount.current = 0
-    }, 1200)
-    const animation = logoTapCount.current >= 5 ? 'secret' : 'tap'
-    if (logoTapCount.current >= 5) {
-      logoTapCount.current = 0
-    }
-    setLogoAnimation('')
-    window.requestAnimationFrame(() => setLogoAnimation(animation))
-  }
   const archiveData = resource.data
 
   return (
@@ -128,15 +105,9 @@ export function HomePage() {
             <Badge variant="outline" className="mb-3 bg-background/55">
               CLASS ARCHIVE · 共同记忆
             </Badge>
-            <Button
-              type="button"
-              variant="ghost"
-              aria-label="编日史 Logo"
-              className="mb-3 block h-auto w-auto max-w-full justify-start p-0 hover:bg-transparent focus-visible:ring-offset-4"
-              onClick={tapLogo}
-            >
+            <div className="mb-3 w-fit max-w-full select-none" aria-label="编日史 Logo" role="img">
               {logoFailed ? (
-                <span className="block font-heading text-4xl font-semibold tracking-tight">
+                <span className="pointer-events-none block select-none font-heading text-4xl font-semibold tracking-tight">
                   编日史
                 </span>
               ) : (
@@ -149,10 +120,10 @@ export function HomePage() {
                   decoding="async"
                   fetchPriority="high"
                   onError={() => setLogoFailed(true)}
-                  className={`guide-logo h-auto w-64 max-w-full object-contain object-left brightness-0 sm:w-80 dark:invert ${logoAnimation ? `guide-logo-${logoAnimation}` : ''}`}
+                  className="pointer-events-none h-auto w-64 max-w-full select-none object-contain object-left brightness-0 sm:w-80 dark:invert"
                 />
               )}
-            </Button>
+            </div>
             <p className="max-w-2xl text-data leading-7 text-muted-foreground sm:text-base">
               把散落在日常里的事件、人物、话语和资料，整理成一部可以搜索、回看，也可以继续生长的班级档案。
             </p>

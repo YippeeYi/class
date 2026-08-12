@@ -97,15 +97,15 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --glass-surface: color-mix(in oklch, var(--card) 55%, transparent);
-  --glass-content-surface: color-mix(in oklch, var(--card) 86%, transparent);
-  --glass-surface-strong: color-mix(in oklch, var(--popover) 78%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 78%, var(--foreground) 22%);
-  --glass-content-border: color-mix(in oklch, var(--border) 82%, var(--foreground) 18%);
-  --glass-edge-light: color-mix(in oklch, white 58%, transparent);
-  --glass-edge-shade: color-mix(in oklch, var(--foreground) 18%, transparent);
-  --glass-shadow: color-mix(in oklch, var(--foreground) 12%, transparent);
-  --glass-ambient: color-mix(in oklch, var(--primary) 18%, transparent);
+  --glass-surface: color-mix(in oklch, var(--card) 52%, transparent);
+  --glass-content-surface: color-mix(in oklch, var(--card) 78%, transparent);
+  --glass-surface-strong: color-mix(in oklch, var(--popover) 74%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 74%, var(--foreground) 26%);
+  --glass-content-border: color-mix(in oklch, var(--border) 78%, var(--foreground) 22%);
+  --glass-edge-light: color-mix(in oklch, white 54%, transparent);
+  --glass-edge-shade: color-mix(in oklch, var(--foreground) 17%, transparent);
+  --glass-shadow: color-mix(in oklch, var(--foreground) 13%, transparent);
+  --glass-ambient: color-mix(in oklch, var(--primary) 24%, transparent);
 }
 
 .dark {
@@ -736,42 +736,6 @@
   }
 }
 
-@keyframes guide-logo-tap {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.025) rotate(-1deg);
-  }
-}
-
-@keyframes guide-logo-secret {
-  0% {
-    transform: rotate(0) scale(1);
-    filter: saturate(1);
-  }
-  35% {
-    transform: rotate(-2deg) scale(1.04);
-    filter: saturate(1.35);
-  }
-  70% {
-    transform: rotate(2deg) scale(1.04);
-    filter: saturate(1.35);
-  }
-  100% {
-    transform: rotate(0) scale(1);
-    filter: saturate(1);
-  }
-}
-
-.guide-logo-tap {
-  animation: guide-logo-tap 0.34s ease;
-}
-.guide-logo-secret {
-  animation: guide-logo-secret 0.95s ease;
-}
-
 /* Business-level override for the shadcn Table scroll wrapper. Record markup tables
    always reflow inside their reading lane, so this wrapper must never become a scroller. */
 .record-table-scroll > [data-slot="table-container"] {
@@ -976,57 +940,94 @@ html[data-box-style="glass"]
   border-color: var(--glass-border);
   background:
     radial-gradient(
-      ellipse 78% 125% at var(--liquid-pointer-x) var(--liquid-pointer-y),
-      color-mix(in oklch, var(--glass-ambient) var(--liquid-pointer-strength), transparent) 0,
-      transparent 68%
+      ellipse 66% 120% at var(--liquid-pointer-x) var(--liquid-pointer-y),
+      color-mix(in oklch, var(--glass-edge-light) var(--liquid-pointer-strength), transparent) 0,
+      transparent 64%
     ),
     radial-gradient(
-      ellipse 82% 72% at 76% 112%,
-      color-mix(in oklch, var(--glass-ambient) 30%, transparent),
-      transparent 70%
+      ellipse 96% 78% at 78% 118%,
+      color-mix(in oklch, var(--glass-ambient) 38%, transparent),
+      transparent 68%
     ),
-    linear-gradient(155deg, color-mix(in oklch, white 6%, transparent), transparent 42%),
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--glass-edge-light) 28%, transparent),
+      transparent 28%,
+      color-mix(in oklch, var(--glass-edge-shade) 16%, transparent) 100%
+    ),
     var(--glass-surface);
   box-shadow:
-    inset 0 1px 0 var(--glass-edge-light),
+    inset 0 1px 0 color-mix(in oklch, var(--glass-edge-light) 92%, transparent),
     inset 0 -1px 0 var(--glass-edge-shade),
-    0 0.65rem 1.8rem var(--glass-shadow),
-    0 0.15rem 0.65rem color-mix(in oklch, var(--glass-ambient) 24%, transparent);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2) brightness(1.025);
-  backdrop-filter: blur(20px) saturate(1.2) brightness(1.025);
+    inset 1px 0 0 color-mix(in oklch, var(--glass-edge-light) 28%, transparent),
+    inset -1px 0 0 color-mix(in oklch, var(--glass-edge-shade) 42%, transparent),
+    0 0.8rem 2.2rem var(--glass-shadow),
+    0 0.18rem 0.7rem color-mix(in oklch, var(--glass-ambient) 32%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.28) contrast(1.025);
+  backdrop-filter: blur(18px) saturate(1.28) contrast(1.025);
   transition:
-    --liquid-pointer-strength 300ms ease,
+    --liquid-pointer-strength 240ms ease,
     border-color 220ms ease,
     box-shadow 220ms ease,
     background-color 220ms ease;
 }
 
-/* Apple distinguishes floating functional glass from the content layer. Cards
-   keep the same family resemblance, but use a calmer and more opaque standard
-   material so dense reading content and quiz state colors stay legible. */
+/* Content stays on a quieter standard material. It shares the environmental
+   tint and one continuous boundary with the functional glass layer, without
+   multiplying backdrop-filter passes through long record and quiz lists. */
 html[data-box-style="glass"]
   body
   #root
-  [data-slot="card"]:not([data-slot="card"] [data-slot="card"]) {
+  :is(
+    [data-slot="card"]:not(.quiz-question-card):not([data-slot="card"] [data-slot="card"]),
+    [data-slot="alert"]:not([data-slot="card"] [data-slot="alert"])
+  ) {
   position: relative;
   isolation: isolate;
   border-color: transparent;
   outline: 1px solid var(--glass-content-border);
   outline-offset: -1px;
-  background: var(--glass-content-surface);
-  box-shadow: 0 0.55rem 1.6rem color-mix(in oklch, var(--glass-shadow) 72%, transparent);
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in oklch, var(--glass-edge-light) 18%, transparent),
+      transparent 32%
+    ),
+    linear-gradient(
+      180deg,
+      transparent 64%,
+      color-mix(in oklch, var(--glass-edge-shade) 18%, transparent)
+    ),
+    var(--glass-content-surface);
+  box-shadow: 0 0.62rem 1.7rem color-mix(in oklch, var(--glass-shadow) 74%, transparent);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
 
-html[data-box-style="glass"] #root [data-background="default"] {
-  --glass-surface: color-mix(in oklch, var(--card) 68%, transparent);
-  --glass-content-surface: color-mix(in oklch, var(--card) 91%, transparent);
+html[data-box-style="glass"] .app-main-surface {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--background) 48%, transparent),
+    color-mix(in oklch, var(--background) 36%, transparent)
+  );
 }
 
-html[data-box-style="glass"] #root [data-background]:not([data-background="default"]) {
-  --glass-surface: color-mix(in oklch, var(--card) 54%, transparent);
-  --glass-content-surface: color-mix(in oklch, var(--card) 79%, transparent);
+html[data-box-style="glass"][data-background="default"] {
+  --glass-surface: color-mix(in oklch, var(--card) 62%, transparent);
+  --glass-content-surface: color-mix(in oklch, var(--card) 86%, transparent);
+}
+
+html[data-box-style="glass"][data-background="default"] .app-main-surface {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--background) 66%, transparent),
+    color-mix(in oklch, var(--background) 54%, transparent)
+  );
+}
+
+html[data-box-style="glass"][data-background]:not([data-background="default"]) {
+  --glass-surface: color-mix(in oklch, var(--card) 44%, transparent);
+  --glass-content-surface: color-mix(in oklch, var(--card) 72%, transparent);
 }
 
 html[data-box-style="glass"]
@@ -1042,24 +1043,36 @@ html[data-box-style="glass"]
     [data-slot="dropdown-menu-sub-content"],
     [data-slot="select-content"]
   )[data-liquid-active="true"] {
-  --liquid-pointer-strength: 22%;
+  --liquid-pointer-strength: 32%;
   box-shadow:
-    inset 0 1px 0 color-mix(in oklch, var(--glass-edge-light) 88%, transparent),
+    inset 0 1px 0 var(--glass-edge-light),
     inset 0 -1px 0 var(--glass-edge-shade),
-    0 0.72rem 1.95rem color-mix(in oklch, var(--glass-shadow) 84%, transparent),
-    0 0.2rem 0.75rem color-mix(in oklch, var(--glass-ambient) 30%, transparent);
+    inset 1px 0 0 color-mix(in oklch, var(--glass-edge-light) 34%, transparent),
+    inset -1px 0 0 color-mix(in oklch, var(--glass-edge-shade) 46%, transparent),
+    0 0.86rem 2.35rem color-mix(in oklch, var(--glass-shadow) 86%, transparent),
+    0 0.22rem 0.82rem color-mix(in oklch, var(--glass-ambient) 42%, transparent);
 }
 
 html.dark[data-box-style="glass"] {
-  --glass-surface: color-mix(in oklch, var(--card) 66%, transparent);
-  --glass-content-surface: color-mix(in oklch, var(--card) 84%, transparent);
-  --glass-surface-strong: color-mix(in oklch, var(--popover) 80%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 58%, white 42%);
-  --glass-content-border: color-mix(in oklch, var(--border) 72%, white 28%);
-  --glass-edge-light: color-mix(in oklch, white 25%, transparent);
-  --glass-edge-shade: color-mix(in oklch, black 40%, transparent);
-  --glass-shadow: color-mix(in oklch, black 34%, transparent);
-  --glass-ambient: color-mix(in oklch, var(--primary) 13%, transparent);
+  --glass-surface: color-mix(in oklch, var(--card) 60%, transparent);
+  --glass-content-surface: color-mix(in oklch, var(--card) 80%, transparent);
+  --glass-surface-strong: color-mix(in oklch, var(--popover) 76%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 54%, white 46%);
+  --glass-content-border: color-mix(in oklch, var(--border) 68%, white 32%);
+  --glass-edge-light: color-mix(in oklch, white 28%, transparent);
+  --glass-edge-shade: color-mix(in oklch, black 44%, transparent);
+  --glass-shadow: color-mix(in oklch, black 38%, transparent);
+  --glass-ambient: color-mix(in oklch, var(--primary) 18%, transparent);
+}
+
+html.dark[data-box-style="glass"][data-background="default"] {
+  --glass-surface: color-mix(in oklch, var(--card) 70%, transparent);
+  --glass-content-surface: color-mix(in oklch, var(--card) 88%, transparent);
+}
+
+html.dark[data-box-style="glass"][data-background]:not([data-background="default"]) {
+  --glass-surface: color-mix(in oklch, var(--card) 56%, transparent);
+  --glass-content-surface: color-mix(in oklch, var(--card) 78%, transparent);
 }
 
 html[data-box-style="glass"]
@@ -1073,9 +1086,49 @@ html[data-box-style="glass"]
   ) {
   background-color: var(--glass-surface-strong);
   box-shadow:
-    inset 0 1px 0 var(--glass-edge-light),
+    inset 0 1px 0 color-mix(in oklch, var(--glass-edge-light) 94%, transparent),
     inset 0 -1px 0 var(--glass-edge-shade),
+    inset 1px 0 0 color-mix(in oklch, var(--glass-edge-light) 28%, transparent),
+    inset -1px 0 0 color-mix(in oklch, var(--glass-edge-shade) 38%, transparent),
     0 1rem 2.8rem color-mix(in oklch, var(--foreground) 18%, transparent);
+}
+
+html[data-box-style="glass"]
+  body
+  :is(
+    #root [data-slot="button"],
+    #root [data-slot="tabs-trigger"],
+    #root [data-slot="sidebar-menu-button"],
+    [data-slot="dialog-portal"] [data-slot="button"]
+  ) {
+  --liquid-pointer-x: 50%;
+  --liquid-pointer-y: 50%;
+  --liquid-pointer-strength: 0%;
+  background-image:
+    radial-gradient(
+      ellipse 82% 150% at var(--liquid-pointer-x) var(--liquid-pointer-y),
+      color-mix(in oklch, var(--glass-edge-light) var(--liquid-pointer-strength), transparent) 0,
+      transparent 66%
+    ),
+    linear-gradient(180deg, color-mix(in oklch, white 7%, transparent), transparent 42%);
+  transition:
+    --liquid-pointer-strength 180ms ease,
+    color 150ms ease,
+    border-color 150ms ease,
+    background-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+html[data-box-style="glass"]
+  body
+  :is(
+    #root [data-slot="button"],
+    #root [data-slot="tabs-trigger"],
+    #root [data-slot="sidebar-menu-button"],
+    [data-slot="dialog-portal"] [data-slot="button"]
+  )[data-liquid-active="true"] {
+  --liquid-pointer-strength: 24%;
 }
 
 html[data-box-style="glass"]
@@ -1087,6 +1140,11 @@ html[data-box-style="glass"]
   ) {
   border-color: color-mix(in oklch, var(--glass-content-border) 82%, transparent);
   background-color: color-mix(in oklch, var(--glass-content-surface) 76%, transparent);
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--glass-edge-light) 18%, transparent),
+    transparent 46%
+  );
 }
 
 html[data-box-style="glass"] #root .appearance-choice {
@@ -1191,17 +1249,28 @@ html[data-box-style="glass"] #root .record-surface[data-slot="card"] {
   animation: record-jump-highlight 3.2s ease-out both;
 }
 
+html[data-box-style="glass"]
+  body
+  #root
+  .record-surface[data-slot="card"][data-record-jump-highlight="true"] {
+  outline: 2px solid color-mix(in oklch, var(--primary) 72%, transparent);
+  outline-offset: 2px;
+}
+
 @keyframes record-jump-highlight {
   0% {
+    outline-width: 2px;
     outline-color: color-mix(in oklch, var(--primary) 78%, transparent);
     outline-offset: 5px;
   }
   18%,
   72% {
+    outline-width: 2px;
     outline-color: color-mix(in oklch, var(--primary) 58%, transparent);
     outline-offset: 2px;
   }
   100% {
+    outline-width: 2px;
     outline-color: color-mix(in oklch, var(--primary) 28%, transparent);
     outline-offset: 1px;
   }
@@ -1213,16 +1282,12 @@ html[data-box-style="glass"] #root .record-surface[data-slot="card"] {
 .image-viewer-dialog[data-slot="dialog-content"] {
   position: fixed;
   inset: 0;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
   box-sizing: border-box;
-  width: 100dvw;
-  min-width: 100dvw;
+  width: auto;
+  min-width: 0;
   max-width: none;
-  height: 100dvh;
-  min-height: 100dvh;
+  height: auto;
+  min-height: 0;
   max-height: none;
   place-self: stretch;
   overflow: hidden;
@@ -1244,8 +1309,8 @@ html[data-box-style="glass"] #root .record-surface[data-slot="card"] {
 [data-slot="dialog-overlay"]:has(+ .image-viewer-dialog) {
   position: fixed;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  width: auto;
+  height: auto;
 }
 
 html[data-box-style="glass"] .image-viewer-toolbar {

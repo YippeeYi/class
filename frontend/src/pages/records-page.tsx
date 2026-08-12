@@ -88,6 +88,18 @@ function sameCriteria(left: RecordCriteria, right: RecordCriteria) {
   )
 }
 
+function recordsSearch(view: 'list' | 'written', criteria: RecordCriteria) {
+  const next = new URLSearchParams()
+  if (view === 'written') next.set('view', 'written')
+  if (criteria.query) next.set('q', criteria.query)
+  if (criteria.year) next.set('year', criteria.year)
+  if (criteria.month) next.set('month', criteria.month)
+  if (criteria.day) next.set('day', criteria.day)
+  if (criteria.important) next.set('important', '1')
+  if (criteria.excludeDaily) next.set('excludeDaily', '1')
+  return next.toString() ? `?${next}` : ''
+}
+
 function withinPage(page: RecordPage, record: RecordItem, records: RecordItem[]) {
   const ordered = records.map((item) => normalizeRecordKey(item.fileName || item.id))
   const index = ordered.indexOf(normalizeRecordKey(record.fileName || record.id))
@@ -131,7 +143,7 @@ function WrittenRecordPages({
       record.recordType ? String(record.page) === page.page : withinPage(page, record, records),
     )
   })
-  const safeIndex = Math.min(pageIndex, Math.max(0, visiblePages.length - 1))
+  const safeIndex = Math.max(0, Math.min(pageIndex, Math.max(0, visiblePages.length - 1)))
   const page = visiblePages[safeIndex]
   if (!page)
     return <EmptyState title={hidden ? '没有可展示的隐藏书面页' : '当前条件下没有手写页'} />
@@ -148,32 +160,38 @@ function WrittenRecordPages({
     <Card className="overflow-visible">
       <CardContent>
         <PageImagePreloader previousPath={previousPath} nextPath={nextPath} />
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-5 grid grid-cols-2 items-center gap-2 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-3">
           <Button
             variant="outline"
+            className="order-2 w-full sm:order-1 sm:w-auto"
             disabled={safeIndex <= 0}
             onClick={() => onPageChange(safeIndex - 1)}
           >
             上一页
           </Button>
-          <div className="flex items-center gap-2">
-            <strong className="text-sm">
+          <div className="order-1 col-span-2 flex min-w-0 flex-wrap items-center justify-center gap-2 sm:order-2 sm:col-span-1">
+            <strong className="text-center text-sm leading-5">
               {hidden ? '隐藏 ' : ''}第 {page.page} 页 · {safeIndex + 1}/{visiblePages.length}
             </strong>
             <Select
-              value={String(safeIndex)}
-              onValueChange={(value) => onPageChange(Number(value))}
+              value={page.page}
+              onValueChange={(value) => {
+                const nextIndex = visiblePages.findIndex((item) => item.page === value)
+                if (nextIndex >= 0) onPageChange(nextIndex)
+              }}
             >
               <SelectTrigger
                 size="sm"
                 aria-label="跳转书面页"
                 className="w-28 bg-background/85 transition-colors hover:bg-accent/55"
               >
-                <SelectValue />
+                <SelectValue>
+                  {(value) => (typeof value === 'string' ? `第 ${value} 页` : '选择页码')}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent align="start">
-                {visiblePages.map((item, index) => (
-                  <SelectItem key={item.page} value={String(index)}>
+                {visiblePages.map((item) => (
+                  <SelectItem key={item.page} value={item.page}>
                     第 {item.page} 页
                   </SelectItem>
                 ))}
@@ -182,6 +200,7 @@ function WrittenRecordPages({
           </div>
           <Button
             variant="outline"
+            className="order-3 w-full sm:w-auto"
             disabled={safeIndex >= visiblePages.length - 1}
             onClick={() => onPageChange(safeIndex + 1)}
           >
@@ -341,6 +360,21 @@ export function RecordsPage() {
   const [hiddenRecords, setHiddenRecords] = useState<RecordItem[]>([])
   const [hiddenError, setHiddenError] = useState('')
   const [pageIndex, setPageIndex] = useState(0)
+  const replaceRouteState = useCallback(
+    (nextView: 'list' | 'written', nextCriteria: RecordCriteria) => {
+      setView(nextView)
+      setCriteria(nextCriteria)
+      navigate(
+        {
+          pathname: '/records',
+          search: recordsSearch(nextView, nextCriteria),
+          hash: '',
+        },
+        { replace: true },
+      )
+    },
+    [navigate],
+  )
   const pendingJump = useRef<PendingRecordJump | null>(
     consumeRecordJump() ||
       (window.location.hash
@@ -416,14 +450,14 @@ export function RecordsPage() {
         if (!(await hasAdminAccess())) return
         setHiddenRecords(await loadRecords({ hidden: true }))
         setHidden(true)
-        setCriteria(EMPTY_RECORD_CRITERIA)
+        replaceRouteState(view, EMPTY_RECORD_CRITERIA)
       } catch {
         setHiddenError('隐藏记录暂时无法加载，请稍后重试。')
       }
     }
     window.addEventListener('keydown', listener)
     return () => window.removeEventListener('keydown', listener)
-  }, [])
+  }, [replaceRouteState, view])
 
   useEffect(() => {
     const records = recordsResource.data
@@ -575,34 +609,6 @@ export function RecordsPage() {
     [navigate],
   )
 
-  useEffect(() => {
-    // Internal record jumps and returns already issue an exact navigation. Do
-    // not let the general filter/view synchronizer replay an older router
-    // snapshot on top of that pathname or hash while React is committing the
-    // accompanying state transition.
-    if (pendingJump.current || pendingReturn.current) return
-    const next = new URLSearchParams()
-    if (view === 'written') next.set('view', view)
-    if (criteria.query) next.set('q', criteria.query)
-    if (criteria.year) next.set('year', criteria.year)
-    if (criteria.month) next.set('month', criteria.month)
-    if (criteria.day) next.set('day', criteria.day)
-    if (criteria.important) next.set('important', '1')
-    if (criteria.excludeDaily) next.set('excludeDaily', '1')
-    const current = new URLSearchParams(location.search)
-    if (next.toString() === current.toString()) return
-    navigate(
-      {
-        pathname: location.pathname,
-        search: next.toString() ? `?${next}` : '',
-        // Record fragments are written only after the target has been located;
-        // filter synchronization must never revive native anchor scrolling.
-        hash: '',
-      },
-      { replace: true },
-    )
-  }, [criteria, location.pathname, location.search, navigate, view])
-
   const loading = !hidden && recordsResource.loading
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: jumpRevision re-runs the locator after a same-page route stores a new pending jump in the ref.
@@ -707,16 +713,12 @@ export function RecordsPage() {
       setJumpOrigin(undefined)
       setJumpOriginHref('')
       suppressNextLocationJump.current = true
-      const search = new URLSearchParams()
-      if (jumpOrigin.view === 'written') search.set('view', 'written')
-      if (jumpOrigin.criteria.query) search.set('q', jumpOrigin.criteria.query)
-      if (jumpOrigin.criteria.year) search.set('year', jumpOrigin.criteria.year)
-      if (jumpOrigin.criteria.month) search.set('month', jumpOrigin.criteria.month)
-      if (jumpOrigin.criteria.day) search.set('day', jumpOrigin.criteria.day)
-      if (jumpOrigin.criteria.important) search.set('important', '1')
-      if (jumpOrigin.criteria.excludeDaily) search.set('excludeDaily', '1')
       navigate(
-        { pathname: '/records', search: search.toString() ? `?${search}` : '', hash: '' },
+        {
+          pathname: '/records',
+          search: recordsSearch(jumpOrigin.view, jumpOrigin.criteria),
+          hash: '',
+        },
         { replace: true },
       )
       return
@@ -738,7 +740,7 @@ export function RecordsPage() {
           <Tabs
             value={view}
             onValueChange={(value) => {
-              setView(value as 'list' | 'written')
+              replaceRouteState(value as 'list' | 'written', criteria)
               setPageIndex(0)
             }}
           >
@@ -786,7 +788,7 @@ export function RecordsPage() {
         records={sources}
         value={criteria}
         onChange={(value) => {
-          setCriteria(value)
+          replaceRouteState(view, value)
           setPageIndex(0)
         }}
       />
