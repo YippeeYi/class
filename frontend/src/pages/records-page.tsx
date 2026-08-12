@@ -66,6 +66,9 @@ import {
 } from '@/services/image-metadata'
 import type { PageMessage, PageSupplement, RecordItem, RecordPage } from '@/types/domain'
 
+const JUMP_HIGHLIGHT_HOLD_MS = 520
+const JUMP_HIGHLIGHT_FADE_MS = 680
+
 function criteriaFromSearch(params: URLSearchParams): RecordCriteria {
   return {
     year: params.get('year') || '',
@@ -622,6 +625,7 @@ export function RecordsPage() {
     }
     delete current.dataset.recordJumpHighlight
     delete current.dataset.recordJumpFading
+    delete current.dataset.recordJumpPendingFade
     if (jumpHighlightTarget.current === current) jumpHighlightTarget.current = null
   }, [])
 
@@ -634,8 +638,10 @@ export function RecordsPage() {
     if (previous && previous !== target) {
       delete previous.dataset.recordJumpHighlight
       delete previous.dataset.recordJumpFading
+      delete previous.dataset.recordJumpPendingFade
     }
     delete target.dataset.recordJumpFading
+    delete target.dataset.recordJumpPendingFade
     target.dataset.recordJumpHighlight = 'true'
     jumpHighlightTarget.current = target
   }, [])
@@ -644,13 +650,27 @@ export function RecordsPage() {
     const current = target || jumpHighlightTarget.current
     if (current?.dataset.recordJumpHighlight !== 'true') return
     if (jumpHighlightTimer.current !== undefined) window.clearTimeout(jumpHighlightTimer.current)
-    current.dataset.recordJumpFading = 'true'
+    delete current.dataset.recordJumpFading
+    current.dataset.recordJumpPendingFade = 'true'
     jumpHighlightTimer.current = window.setTimeout(() => {
-      delete current.dataset.recordJumpHighlight
-      delete current.dataset.recordJumpFading
-      if (jumpHighlightTarget.current === current) jumpHighlightTarget.current = null
-      jumpHighlightTimer.current = undefined
-    }, 700)
+      if (
+        jumpHighlightTarget.current !== current ||
+        current.dataset.recordJumpHighlight !== 'true'
+      ) {
+        delete current.dataset.recordJumpPendingFade
+        jumpHighlightTimer.current = undefined
+        return
+      }
+      delete current.dataset.recordJumpPendingFade
+      current.dataset.recordJumpFading = 'true'
+      jumpHighlightTimer.current = window.setTimeout(() => {
+        delete current.dataset.recordJumpHighlight
+        delete current.dataset.recordJumpFading
+        delete current.dataset.recordJumpPendingFade
+        if (jumpHighlightTarget.current === current) jumpHighlightTarget.current = null
+        jumpHighlightTimer.current = undefined
+      }, JUMP_HIGHLIGHT_FADE_MS)
+    }, JUMP_HIGHLIGHT_HOLD_MS)
   }, [])
 
   useEffect(
@@ -659,6 +679,7 @@ export function RecordsPage() {
       if (jumpHighlightTarget.current) {
         delete jumpHighlightTarget.current.dataset.recordJumpHighlight
         delete jumpHighlightTarget.current.dataset.recordJumpFading
+        delete jumpHighlightTarget.current.dataset.recordJumpPendingFade
       }
     },
     [],

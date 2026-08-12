@@ -75,10 +75,10 @@ function ViewerToolButton({
 function ViewportDialogContent({ children }: { children: ReactNode }) {
   return (
     <DialogPortal>
-      <DialogOverlay className="image-viewer-overlay bg-black/20" />
+      <DialogOverlay className="image-viewer-overlay" />
       <DialogPrimitive.Popup
         data-slot="image-viewer-content"
-        className="image-viewer-dialog fixed inset-0 z-50 flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden bg-popover p-[max(0.75rem,env(safe-area-inset-top))_max(0.75rem,env(safe-area-inset-right))_max(0.75rem,env(safe-area-inset-bottom))_max(0.75rem,env(safe-area-inset-left))] text-sm text-popover-foreground outline-none"
+        className="image-viewer-dialog fixed inset-0 z-50 flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden bg-transparent p-[max(0.75rem,env(safe-area-inset-top))_max(0.75rem,env(safe-area-inset-right))_max(0.75rem,env(safe-area-inset-bottom))_max(0.75rem,env(safe-area-inset-left))] text-sm text-foreground outline-none"
       >
         {children}
       </DialogPrimitive.Popup>
@@ -152,8 +152,8 @@ export function ImageViewer({
   const base = useMemo(() => {
     if (!natural.width || !natural.height || !viewportSize.width || !viewportSize.height)
       return { width: 0, height: 0 }
-    const availableWidth = Math.max(1, viewportSize.width - 32)
-    const availableHeight = Math.max(1, viewportSize.height - 32)
+    const availableWidth = Math.max(1, viewportSize.width - VIEWPORT_PADDING)
+    const availableHeight = Math.max(1, viewportSize.height - VIEWPORT_PADDING)
     const ratio = Math.min(1, availableWidth / natural.width, availableHeight / natural.height)
     return { width: natural.width * ratio, height: natural.height * ratio }
   }, [natural, viewportSize])
@@ -268,7 +268,7 @@ export function ImageViewer({
         </div>
         <section
           ref={setViewportElement}
-          className={`image-viewer-viewport relative min-h-0 flex-1 touch-none overflow-hidden rounded-xl border bg-black/90 outline-none focus-visible:ring-2 focus-visible:ring-ring ${viewTransform.scale > MIN_SCALE ? 'cursor-grab active:cursor-grabbing' : 'cursor-zoom-in'}`}
+          className={`image-viewer-viewport relative min-h-0 flex-1 touch-none overflow-hidden rounded-xl bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-ring ${viewTransform.scale > MIN_SCALE ? 'cursor-grab active:cursor-grabbing' : 'cursor-zoom-in'}`}
           aria-label={`${alt} 大图查看区域`}
           aria-describedby="image-viewer-help"
           onWheel={(event) => {

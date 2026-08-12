@@ -542,14 +542,13 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
     let animationFrame = 0
     let lastPointer: { x: number; y: number } | null = null
     let desiredPoint: { target: HTMLElement; x: number; y: number } | null = null
-    let renderedPoint: { target: HTMLElement; x: number; y: number } | null = null
+    let lastAmbientColor = ''
     const clearTarget = () => {
       if (!activeTarget) return
       delete activeTarget.dataset.liquidActive
-      activeTarget.style.removeProperty('--liquid-pointer-x')
-      activeTarget.style.removeProperty('--liquid-pointer-y')
       activeTarget.style.removeProperty('--liquid-ambient-local')
       activeTarget = null
+      lastAmbientColor = ''
     }
     const targetAtPoint = (x: number, y: number) =>
       liquidGlassTarget(document.elementFromPoint(x, y))
@@ -557,7 +556,6 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       const target = targetAtPoint(x, y)
       if (!target) {
         desiredPoint = null
-        renderedPoint = null
         clearTarget()
         return
       }
@@ -571,43 +569,21 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       const bounds = target.getBoundingClientRect()
       if (!target.isConnected || !bounds.width || !bounds.height) {
         desiredPoint = null
-        renderedPoint = null
         clearTarget()
         return
       }
       if (activeTarget !== target) {
         clearTarget()
         activeTarget = target
-        // Seed the new surface at the real local pointer before making its
-        // response visible. This prevents the default 50%/50% light from
-        // flashing at a corner while crossing adjacent glass surfaces.
-        renderedPoint = { target, x, y }
       }
-      if (!renderedPoint || renderedPoint.target !== target) {
-        renderedPoint = { target, x, y }
-      } else {
-        // Keep the optical response attached to the pointer. A short residual
-        // interpolation softens coarse mouse events without making the light
-        // visibly trail behind the control during quick crossings.
-        const easing = 0.72
-        renderedPoint.x += (x - renderedPoint.x) * easing
-        renderedPoint.y += (y - renderedPoint.y) * easing
+      if (ambientSampler) {
+        const ambientColor = sampleAmbientColor(ambientSampler, x, y)
+        if (ambientColor !== lastAmbientColor) {
+          target.style.setProperty('--liquid-ambient-local', ambientColor)
+          lastAmbientColor = ambientColor
+        }
       }
-      const relativeX = Math.min(
-        100,
-        Math.max(0, ((renderedPoint.x - bounds.left) / bounds.width) * 100),
-      )
-      const relativeY = Math.min(
-        100,
-        Math.max(0, ((renderedPoint.y - bounds.top) / bounds.height) * 100),
-      )
-      target.style.setProperty('--liquid-pointer-x', `${relativeX}%`)
-      target.style.setProperty('--liquid-pointer-y', `${relativeY}%`)
-      if (ambientSampler)
-        target.style.setProperty('--liquid-ambient-local', sampleAmbientColor(ambientSampler, x, y))
       target.dataset.liquidActive = 'true'
-      if (Math.abs(x - renderedPoint.x) > 0.35 || Math.abs(y - renderedPoint.y) > 0.35)
-        animationFrame = window.requestAnimationFrame(renderPoint)
     }
     const move = (event: PointerEvent) => {
       lastPointer = { x: event.clientX, y: event.clientY }
@@ -621,13 +597,11 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       if (event.relatedTarget !== null) return
       lastPointer = null
       desiredPoint = null
-      renderedPoint = null
       clearTarget()
     }
     const blur = () => {
       lastPointer = null
       desiredPoint = null
-      renderedPoint = null
       clearTarget()
     }
     if (visibleBackground?.image)

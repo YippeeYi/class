@@ -438,10 +438,9 @@ export function QuizPage() {
               <AlertDescription>{secretError}</AlertDescription>
             </Alert>
           )}
-          <section
+          <Card
             aria-label="答题筛选"
-            data-liquid-glass-interactive
-            className="quiz-filter-bar mb-4 flex shrink-0 flex-wrap items-center gap-x-5 gap-y-3 rounded-xl border bg-card/78 px-3 py-3 shadow-sm sm:px-4"
+            className="quiz-filter-bar mb-4 flex-row shrink-0 flex-wrap items-center gap-x-5 gap-y-3 overflow-visible px-3 py-3 shadow-sm sm:px-4"
           >
             <div className="flex flex-wrap items-center gap-2">
               <span className="mr-1 text-sm font-medium text-muted-foreground">题型</span>
@@ -493,9 +492,9 @@ export function QuizPage() {
                 全选可用
               </Button>
             </div>
-          </section>
+          </Card>
           <Card
-            className="quiz-question-card min-h-0 flex-1 gap-0 overflow-hidden bg-card py-0 shadow-sm"
+            className="quiz-question-card min-h-0 flex-1 gap-0 overflow-hidden py-0 shadow-sm"
             data-question-type={current?.type || 'choice'}
           >
             <CardHeader className="quiz-question-header shrink-0 rounded-none border-b px-4 py-3.5 sm:px-5">
@@ -638,7 +637,7 @@ export function QuizPage() {
               )}
             </CardContent>
             {current && (
-              <CardFooter className="min-h-16 shrink-0 justify-between gap-4 border-t bg-muted/32 px-4 py-3 sm:px-5">
+              <CardFooter className="min-h-16 shrink-0 justify-between gap-4 border-t bg-transparent px-4 py-3 sm:px-5">
                 <div
                   className={cn(
                     'min-w-0 flex-1 text-sm leading-6',
