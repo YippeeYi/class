@@ -4,6 +4,7 @@ export const BACKGROUND_KEY = 'classRecord:background'
 export const APPEARANCE_KEY = 'classRecord:appearance:v1'
 const PALETTE_KEY = 'classRecord:backgroundPalette:v1'
 let volatileAppearance: AppearancePreference | null = null
+let decodedBackground: { src: string; promise: Promise<HTMLImageElement> } | undefined
 const THEME_PROPERTIES = [
   '--primary',
   '--ring',
@@ -19,6 +20,19 @@ const THEME_PROPERTIES = [
 ] as const
 
 const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`
+
+function decodeBackground(src: string) {
+  if (decodedBackground?.src === src) return decodedBackground.promise
+  const image = new Image()
+  image.decoding = 'async'
+  image.src = src
+  const promise = image.decode().then(() => image)
+  decodedBackground = { src, promise }
+  promise.catch(() => {
+    if (decodedBackground?.promise === promise) decodedBackground = undefined
+  })
+  return promise
+}
 
 export type BackgroundId = 'default' | 'mountain' | 'cloud'
 export type BoxStyleId = 'default' | 'glass'
@@ -316,10 +330,7 @@ function buildPalette(red: number, green: number, blue: number): Palette {
 }
 
 async function extractPalette(src: string) {
-  const image = new Image()
-  image.decoding = 'async'
-  image.src = src
-  await image.decode()
+  const image = await decodeBackground(src)
   const canvas = document.createElement('canvas')
   canvas.width = 32
   canvas.height = 32
@@ -376,7 +387,12 @@ const LIQUID_GLASS_TARGETS = [
   '[data-slot="popover-content"]',
   '[data-slot="dropdown-menu-content"]',
   '[data-slot="dropdown-menu-sub-content"]',
+  '[data-slot="context-menu-content"]',
+  '[data-slot="context-menu-sub-content"]',
   '[data-slot="select-content"]',
+  '[data-slot="hover-card-content"]',
+  '[data-slot="sheet-content"]',
+  '[data-slot="drawer-content"]',
 ].join(',')
 
 function liquidGlassTarget(source: EventTarget | null) {
@@ -432,10 +448,7 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
         active = false
       }
     }
-    const image = new Image()
-    image.decoding = 'async'
-    image.src = selected.image
-    void image.decode().then(commit, commit)
+    void decodeBackground(selected.image).then(commit, commit)
     return () => {
       active = false
     }
@@ -484,14 +497,11 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
     let lastPointer: { x: number; y: number } | null = null
     let desiredPoint: { target: HTMLElement; x: number; y: number } | null = null
     let renderedPoint: { target: HTMLElement; x: number; y: number } | null = null
-    const touchedTargets = new Set<HTMLElement>()
-    const clearTarget = (removeCoordinates = false) => {
+    const clearTarget = () => {
       if (!activeTarget) return
       delete activeTarget.dataset.liquidActive
-      if (removeCoordinates) {
-        activeTarget.style.removeProperty('--liquid-pointer-x')
-        activeTarget.style.removeProperty('--liquid-pointer-y')
-      }
+      activeTarget.style.removeProperty('--liquid-pointer-x')
+      activeTarget.style.removeProperty('--liquid-pointer-y')
       activeTarget = null
     }
     const targetAtPoint = (x: number, y: number) =>
@@ -521,7 +531,6 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       if (activeTarget !== target) {
         clearTarget()
         activeTarget = target
-        touchedTargets.add(target)
         // Seed the new surface at the real local pointer before making its
         // response visible. This prevents the default 50%/50% light from
         // flashing at a corner while crossing adjacent glass surfaces.
@@ -584,12 +593,7 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       window.removeEventListener('pointerout', leaveWindow)
       window.removeEventListener('blur', blur)
       if (animationFrame) window.cancelAnimationFrame(animationFrame)
-      clearTarget(true)
-      for (const target of touchedTargets) {
-        delete target.dataset.liquidActive
-        target.style.removeProperty('--liquid-pointer-x')
-        target.style.removeProperty('--liquid-pointer-y')
-      }
+      clearTarget()
     }
   }, [appearance.box])
 

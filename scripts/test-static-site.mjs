@@ -189,8 +189,15 @@ assert.match(backgrounds, /if \(cached\) \{[\s\S]*applyPalette\(cached\)[\s\S]*r
 assert.match(backgrounds, /mountain\.webp/, 'the mountain background must use the optimized WebP asset')
 assert.match(backgrounds, /cloud\.webp/, 'the cloud background must use the optimized WebP asset')
 assert.match(themeBootstrap, /mountain\.webp/, 'the first-paint background path must match React')
-assert.match(styles, /url\("\/fonts\/GoogleSansFlex\//, 'the font must reuse the public deployment asset')
-assert.doesNotMatch(styles, /src\/assets\/fonts/, 'the production font must not be bundled a second time')
+assert.match(styles, /@import "@fontsource-variable\/geist"/, 'the interface must use the installed compressed variable-font package')
+assert.doesNotMatch(styles, /Google Sans Flex|GoogleSansFlex/, 'the obsolete multi-megabyte public font must not be requested')
+assert.equal(
+  await existsFrontend(
+    'public/fonts/GoogleSansFlex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf',
+  ),
+  false,
+  'the obsolete uncompressed font must not inflate the release artifact',
+)
 assert.equal(await existsFrontend('public/images/backgrounds/mountain.webp'), true)
 assert.equal(await existsFrontend('public/images/backgrounds/cloud.webp'), true)
 assert.equal(await existsFrontend('public/images/backgrounds/mountain.jpg'), false)
@@ -220,13 +227,14 @@ assert.doesNotMatch(records, /target\.scrollIntoView/, 'record location must not
 assert.match(records, /lg:sticky lg:top-20/, 'written record images must keep the baseline sticky behavior')
 assert.match(recordCard, /gap-0 py-0/, 'record cards must use the compact reading density')
 assert.match(recordCard, /record-surface/, 'record cards must expose one business-level material boundary contract')
-assert.match(records, /target\.dataset\.recordJumpHighlight = 'true'/, 'record location must publish a semantic highlight after the single scroll settles')
+assert.match(records, /target\.dataset\.recordJumpHighlight = 'true'[\s\S]*scrollTargetIntoView/, 'record location must publish its semantic highlight before the target starts moving')
 assert.doesNotMatch(records, /target\.classList\.add\('ring-2'/, 'record highlights must not rely on a box-shadow ring that glass materials can override')
 assert.match(styles, /\.record-surface\[data-slot="card"\][\s\S]*outline: 1px solid var\(--glass-content-border\)/, 'written records need a visible liquid-material boundary in every palette')
 assert.match(styles, /data-record-jump-highlight="true"[\s\S]*outline: 2px solid/, 'record jump feedback must override the quiet material edge without changing layout')
 assert.match(imageViewer, /image-viewer-dialog/, 'the image viewer must use the business-level full-viewport dialog contract')
-assert.match(imageViewer, /showCloseButton=\{false\}[\s\S]*aria-label="关闭大图"/, 'the image viewer must compose its localized close action outside shadcn source')
-assert.match(styles, /\.image-viewer-dialog\[data-slot="dialog-content"\][\s\S]*position: fixed;[\s\S]*inset: 0;[\s\S]*width: auto;[\s\S]*height: auto;[\s\S]*transform: none;/, 'the image viewer must derive its full size directly from the four fixed viewport edges')
+assert.match(imageViewer, /<DialogPortal>[\s\S]*<DialogOverlay[\s\S]*<DialogPrimitive\.Popup[\s\S]*data-slot="image-viewer-content"[\s\S]*fixed inset-0[\s\S]*aria-label="关闭大图"/, 'the image viewer must compose a viewport popup and localized close action outside shadcn source')
+assert.doesNotMatch(imageViewer, /DialogPrimitive\.Popup[\s\S]{0,600}(?:top-1\/2|left-1\/2|-translate-[xy]-1\/2|zoom-in-95)/, 'the viewport popup must never inherit the shared centred-dialog geometry or animation')
+assert.match(styles, /\.image-viewer-dialog\[data-slot="image-viewer-content"\][\s\S]*backdrop-filter: none;[\s\S]*animation: none;/, 'the image viewer CSS must own paint only, without rebuilding viewport geometry')
 assert.match(styles, /\[data-slot="dialog-content"\]:not\(\.image-viewer-dialog\)/, 'full-screen image dialogs must not receive the general liquid-glass positioning surface')
 assert.match(search, /setQuery\(\(current\)/, 'search input must restore from URL changes')
 assert.match(timeline, /params\.get\('year'\)/, 'timeline selection must restore from URL changes')
@@ -322,6 +330,7 @@ assert.match(styles, /\.dark \.quiz-question-card[\s\S]*--quiz-type-ink:[\s\S]*-
 assert.match(styles, /\.quiz-question-card > \.quiz-question-header[\s\S]*border-start-start-radius:[\s\S]*\.quiz-question-card > \[data-slot="card-footer"\][\s\S]*border-end-start-radius:/, 'quiz header and footer surfaces must follow the card inner corner geometry')
 assert.doesNotMatch(styles, /\)::before\s*\{[\s\S]*?backdrop-filter:[\s\S]*?mask-composite: exclude;/, 'the liquid edge mask must not create a second unclipped backdrop layer at quiz corners')
 assert.match(styles, /\.quiz-question-card\[data-slot="card"\][\s\S]*backdrop-filter: none;/, 'quiz glass must avoid a second rounded backdrop sample that creates corner ghosts')
+assert.match(styles, /\.quiz-question-card\[data-slot="card"\][\s\S]*border: 1px solid var\(--glass-content-border\)[\s\S]*outline: none/, 'quiz glass must rasterize one box-model border instead of an independently antialiased outline')
 assert.doesNotMatch(styles, /@keyframes guide-logo-|\.guide-logo-(?:tap|secret)/, 'removed logo interactions must not leave dead animation CSS')
 assert.match(backgrounds, /document\.elementFromPoint\(x, y\)/, 'liquid response must resolve the real visible surface at viewport coordinates')
 assert.match(backgrounds, /document\.addEventListener\('scroll', refreshGeometry/, 'liquid response must recompute local coordinates when a scroll container moves below the pointer')

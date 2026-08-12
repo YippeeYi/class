@@ -290,6 +290,18 @@ await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
 const address = server.address()
 assert.ok(address && typeof address === 'object')
 const origin = `http://127.0.0.1:${address.port}`
+if (process.env.CLASS_RECORD_LAYOUT_SERVER_ONLY === '1') {
+  console.log(`CLASS_RECORD_LAYOUT_ORIGIN=${origin}`)
+  await new Promise((resolve) => {
+    process.once('SIGINT', resolve)
+    process.once('SIGTERM', resolve)
+  })
+  await new Promise((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  )
+  await vite.close()
+  process.exit(0)
+}
 const edgePath = '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'
 const systemEdge = await access(edgePath).then(
   () => edgePath,
@@ -302,13 +314,13 @@ async function assertFullscreenImageViewer(page, label) {
   await trigger.scrollIntoViewIfNeeded()
   const scrollBeforeOpen = await page.evaluate(() => window.scrollY)
   await trigger.click()
-  const dialog = page.locator('.image-viewer-dialog[data-slot="dialog-content"]')
+  const dialog = page.locator('.image-viewer-dialog[data-slot="image-viewer-content"]')
   await dialog.waitFor({ state: 'visible' })
   await dialog.locator('img[alt="全视口测试图片"]').waitFor({ state: 'visible' })
   await page.waitForFunction(() => document.querySelector('img[alt="全视口测试图片"]')?.naturalWidth > 0)
   const geometry = await page.evaluate(() => {
-    const content = document.querySelector('.image-viewer-dialog[data-slot="dialog-content"]')
-    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    const content = document.querySelector('.image-viewer-dialog[data-slot="image-viewer-content"]')
+    const overlay = document.querySelector('.image-viewer-overlay[data-slot="dialog-overlay"]')
     const image = document.querySelector('img[alt="全视口测试图片"]')
     const toolbar = content?.firstElementChild?.nextElementSibling
     const contentBounds = content?.getBoundingClientRect()
@@ -332,6 +344,7 @@ async function assertFullscreenImageViewer(page, label) {
         left: overlayBounds.left,
         right: overlayBounds.right,
         bottom: overlayBounds.bottom,
+        backdrop: getComputedStyle(overlay).backdropFilter,
       },
       image: imageBounds && {
         top: imageBounds.top,
@@ -343,6 +356,28 @@ async function assertFullscreenImageViewer(page, label) {
       transform: content ? getComputedStyle(content).transform : '',
       translate: content ? getComputedStyle(content).translate : '',
       scale: content ? getComputedStyle(content).scale : '',
+      portalParent: content?.parentElement?.getAttribute('data-slot') || '',
+      containingBlockAncestors: content
+        ? [...document.querySelectorAll('html, body, [data-slot="dialog-portal"]')]
+            .filter((element) => element.contains(content) && element !== content)
+            .map((element) => {
+              const style = getComputedStyle(element)
+              return {
+                slot: element.getAttribute('data-slot') || element.tagName,
+                transform: style.transform,
+                filter: style.filter,
+                perspective: style.perspective,
+                contain: style.contain,
+              }
+            })
+            .filter(
+              (item) =>
+                item.transform !== 'none' ||
+                item.filter !== 'none' ||
+                item.perspective !== 'none' ||
+                /(?:layout|paint|strict|content)/u.test(item.contain),
+            )
+        : [],
       toolbarOverflow: toolbar
         ? toolbar.scrollWidth - toolbar.clientWidth
         : Number.POSITIVE_INFINITY,
@@ -353,6 +388,12 @@ async function assertFullscreenImageViewer(page, label) {
   assert.equal(geometry.transform, 'none', `${label} image viewer must not inherit centred-dialog translation`)
   assert.equal(geometry.translate, 'none', `${label} image viewer must clear Tailwind's individual translate property`)
   assert.equal(geometry.scale, 'none', `${label} image viewer must not shrink during a centred-dialog zoom animation`)
+  assert.equal(geometry.portalParent, 'dialog-portal', `${label} image viewer must be a direct child of the dialog portal`)
+  assert.deepEqual(
+    geometry.containingBlockAncestors,
+    [],
+    `${label} image viewer must not have a transformed, filtered or contained viewport ancestor`,
+  )
   assert.ok(
     geometry.content &&
       Math.abs(geometry.content.top) <= 1 &&
@@ -360,6 +401,11 @@ async function assertFullscreenImageViewer(page, label) {
       Math.abs(geometry.content.right - geometry.viewportWidth) <= 1 &&
       Math.abs(geometry.content.bottom - geometry.viewportHeight) <= 1,
     `${label} image viewer must cover the exact viewport: ${JSON.stringify(geometry)}`,
+  )
+  assert.equal(
+    geometry.overlay?.backdrop,
+    'none',
+    `${label} image overlay must not spend a full-viewport backdrop blur behind an opaque canvas`,
   )
   assert.ok(
     geometry.overlay &&
@@ -461,6 +507,7 @@ try {
     const style = getComputedStyle(target)
     return {
       active: target.getAttribute('data-record-jump-highlight'),
+      cycle: target.getAttribute('data-record-jump-cycle'),
       outlineStyle: style.outlineStyle,
       outlineWidth: style.outlineWidth,
       outlineColor: style.outlineColor,
@@ -527,6 +574,11 @@ try {
   const dialogCloseState = await page.evaluate(() => ({
     scrollY: window.scrollY,
     focusedId: document.activeElement?.id || '',
+    highlight: document.querySelector('#record-r3')?.getAttribute('data-record-jump-highlight'),
+    highlightCycle: document.querySelector('#record-r3')?.getAttribute('data-record-jump-cycle'),
+    highlightAnimation: document.querySelector('#record-r3')
+      ? getComputedStyle(document.querySelector('#record-r3')).animationName
+      : '',
   }))
   assert.ok(
     Math.abs(dialogCloseState.scrollY - scrollBeforeDialogClose) <= 1,
@@ -536,6 +588,21 @@ try {
     dialogCloseState.focusedId,
     'record-r3',
     'closing the jump dialog must leave focus on the visible record',
+  )
+  assert.equal(
+    dialogCloseState.highlight,
+    'true',
+    'closing the jump dialog must expose a fresh visible target highlight',
+  )
+  assert.notEqual(
+    dialogCloseState.highlightCycle,
+    initialJumpHighlight.cycle,
+    'the highlight animation must restart after the modal blur is removed',
+  )
+  assert.match(
+    dialogCloseState.highlightAnimation,
+    /record-jump-highlight/u,
+    'the post-dialog record highlight must run its complete feedback cycle',
   )
   const postJumpScroll = dialogCloseState.scrollY
   const postJumpAnnotation = recordsFixture
@@ -1188,7 +1255,7 @@ try {
     )
     assert.ok(
       Number.parseFloat(recordMaterial.highlightedState.width) >= 2,
-      `${themeId} jump highlight must override the quiet material boundary`,
+      `${themeId} jump highlight must override the quiet material boundary: ${JSON.stringify(recordMaterial)}`,
     )
     assert.notEqual(
       recordMaterial.highlightedState.color,
@@ -1278,6 +1345,7 @@ try {
       overflowY: card.scrollHeight - card.clientHeight,
       backdrop: getComputedStyle(card).backdropFilter,
       contain: getComputedStyle(card).contain,
+      outlineStyle: getComputedStyle(card).outlineStyle,
       overflow: getComputedStyle(card).overflow,
       cardRadius: getComputedStyle(card).borderStartStartRadius,
       edgeContent: getComputedStyle(card, '::before').content,
@@ -1302,7 +1370,8 @@ try {
       `liquid glass must not clip or enlarge ${card.type} quiz content: ${JSON.stringify(card)}`,
     )
     assert.equal(card.backdrop, 'none', `liquid glass quiz cards must avoid duplicated backdrop edge sampling on ${card.type}`)
-    assert.doesNotMatch(card.contain, /paint/, `${card.type} quiz cards must not create a second clipped paint surface at their corners`)
+    assert.equal(card.contain, 'none', `${card.type} quiz cards must not create an independent containment surface at their corners`)
+    assert.equal(card.outlineStyle, 'none', `${card.type} quiz cards must not rasterize a second rounded outline`)
     assert.equal(card.overflow, 'hidden', `${card.type} quiz material layers must be clipped by one outer radius`)
     assert.ok(Number.parseFloat(card.cardRadius) > 0, `${card.type} quiz card must retain its outer radius`)
     assert.equal(card.edgeContent, 'none', `${card.type} quiz card must not add a second masked rim that can fracture at corners`)
@@ -1640,6 +1709,60 @@ try {
   assert.deepEqual(touchErrors, [], `touch browser page errors: ${touchErrors.join('; ')}`)
   await touchPage.close()
 
+  for (const deviceScaleFactor of [1.25, 2]) {
+    const densityPage = await browser.newPage({
+      viewport: { width: 960, height: 720 },
+      deviceScaleFactor,
+    })
+    const densityErrors = []
+    densityPage.on('pageerror', (error) => densityErrors.push(error.message))
+    await densityPage.goto(origin, { waitUntil: 'networkidle' })
+    await densityPage.waitForFunction(() => window.__markupLayoutReady === true)
+    await densityPage.getByRole('tab', { name: /^方框/ }).click()
+    await densityPage.locator('[data-box-style-id="glass"]').click()
+    await densityPage.waitForFunction(
+      () => document.documentElement.dataset.boxStyle === 'glass',
+    )
+    const densityQuizEdges = await densityPage
+      .locator('[data-quiz-theme-fixture]')
+      .evaluateAll((cards) =>
+        cards.map((card) => {
+          const style = getComputedStyle(card)
+          return {
+            outline: style.outlineStyle,
+            borderWidths: [
+              style.borderTopWidth,
+              style.borderRightWidth,
+              style.borderBottomWidth,
+              style.borderLeftWidth,
+            ],
+            backdrop: style.backdropFilter,
+            pseudoContent: getComputedStyle(card, '::before').content,
+          }
+        }),
+      )
+    densityQuizEdges.forEach((edge) => {
+      assert.equal(edge.outline, 'none', `DPR ${deviceScaleFactor} quiz edge must not duplicate its border`)
+      assert.deepEqual(
+        edge.borderWidths,
+        ['1px', '1px', '1px', '1px'],
+        `DPR ${deviceScaleFactor} quiz edge must be one continuous box-model border`,
+      )
+      assert.equal(edge.backdrop, 'none', `DPR ${deviceScaleFactor} quiz edge must not resample the backdrop`)
+      assert.equal(edge.pseudoContent, 'none', `DPR ${deviceScaleFactor} quiz edge must not add a masked rim`)
+    })
+    await assertFullscreenImageViewer(
+      densityPage,
+      `liquid-glass DPR ${deviceScaleFactor}`,
+    )
+    assert.deepEqual(
+      densityErrors,
+      [],
+      `DPR ${deviceScaleFactor} browser page errors: ${densityErrors.join('; ')}`,
+    )
+    await densityPage.close()
+  }
+
   assert.deepEqual(pageErrors, [], `browser page errors: ${pageErrors.join('; ')}`)
 } finally {
   await browser.close()
@@ -1647,4 +1770,6 @@ try {
   await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
 }
 
-console.log('Record markup browser layout checks passed at 1280, 768, 390 and 320 CSS pixels.')
+console.log(
+  'Record markup browser layout checks passed at 1280, 768, 390 and 320 CSS pixels plus 1.25x and 2x DPR.',
+)

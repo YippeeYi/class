@@ -1,19 +1,50 @@
+import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { Maximize2, Minus, Plus, RotateCcw, X } from 'lucide-react'
-import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type ReactElement,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogClose,
-  DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogOverlay,
+  DialogPortal,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Spinner } from '@/components/ui/spinner'
 import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
+
+/**
+ * The shared shadcn DialogContent intentionally describes a centred, bounded
+ * dialog. A full-screen image canvas has different geometry, so compose the
+ * same Dialog portal and overlay with a viewport-native Base UI popup instead
+ * of trying to cancel the centred popup's 50% position, translations and zoom
+ * animation later in CSS.
+ */
+function ViewportDialogContent({ children }: { children: ReactNode }) {
+  return (
+    <DialogPortal>
+      <DialogOverlay className="image-viewer-overlay bg-black/20" />
+      <DialogPrimitive.Popup
+        data-slot="image-viewer-content"
+        className="image-viewer-dialog fixed inset-0 z-50 flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden bg-popover p-[max(0.75rem,env(safe-area-inset-top))_max(0.75rem,env(safe-area-inset-right))_max(0.75rem,env(safe-area-inset-bottom))_max(0.75rem,env(safe-area-inset-left))] text-sm text-popover-foreground outline-none"
+      >
+        {children}
+      </DialogPrimitive.Popup>
+    </DialogPortal>
+  )
+}
 
 export function ImageViewer({
   path,
@@ -49,7 +80,11 @@ export function ImageViewer({
     const element = viewport.current
     const update = () => {
       const box = element.getBoundingClientRect()
-      setViewportSize({ width: box.width, height: box.height })
+      setViewportSize((current) =>
+        current.width === box.width && current.height === box.height
+          ? current
+          : { width: box.width, height: box.height },
+      )
     }
     update()
     const observer = new ResizeObserver(update)
@@ -58,9 +93,10 @@ export function ImageViewer({
   }, [open])
 
   const base = useMemo(() => {
-    if (!natural.width || !natural.height) return { width: 0, height: 0 }
-    const availableWidth = Math.max(1, (viewportSize.width || window.innerWidth) - 32)
-    const availableHeight = Math.max(1, (viewportSize.height || window.innerHeight) - 32)
+    if (!natural.width || !natural.height || !viewportSize.width || !viewportSize.height)
+      return { width: 0, height: 0 }
+    const availableWidth = Math.max(1, viewportSize.width - 32)
+    const availableHeight = Math.max(1, viewportSize.height - 32)
     const ratio = Math.min(1, availableWidth / natural.width, availableHeight / natural.height)
     return { width: natural.width * ratio, height: natural.height * ratio }
   }, [natural, viewportSize])
@@ -93,10 +129,7 @@ export function ImageViewer({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={trigger} />
-      <DialogContent
-        showCloseButton={false}
-        className="image-viewer-dialog flex max-w-none flex-col gap-3 sm:max-w-none"
-      >
+      <ViewportDialogContent>
         <DialogHeader className="sr-only">
           <DialogTitle>{alt}</DialogTitle>
           <DialogDescription>
@@ -246,7 +279,7 @@ export function ImageViewer({
             </div>
           )}
         </section>
-      </DialogContent>
+      </ViewportDialogContent>
     </Dialog>
   )
 }

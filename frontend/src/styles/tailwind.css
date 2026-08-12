@@ -6,7 +6,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-sans: "Google Sans Flex", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
   --text-page-title: clamp(1.875rem, 1.3vw + 1.45rem, 2.35rem);
   --text-page-title--line-height: 1.14;
   --text-section-title: clamp(1.25rem, 0.45vw + 1.1rem, 1.5rem);
@@ -23,7 +23,7 @@
 
 @theme inline {
   --font-heading: var(--font-sans);
-  --font-sans: "Google Sans Flex", "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -143,14 +143,6 @@
 }
 
 @layer base {
-  @font-face {
-    font-family: "Google Sans Flex";
-    src: url("/fonts/GoogleSansFlex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf")
-      format("truetype");
-    font-weight: 100 1000;
-    font-style: oblique -10deg 0deg;
-    font-display: swap;
-  }
   * {
     @apply border-border outline-ring/50;
   }
@@ -931,6 +923,11 @@ html[data-box-style="glass"]
     [data-slot="popover-content"],
     [data-slot="dropdown-menu-content"],
     [data-slot="dropdown-menu-sub-content"],
+    [data-slot="context-menu-content"],
+    [data-slot="context-menu-sub-content"],
+    [data-slot="hover-card-content"],
+    [data-slot="sheet-content"],
+    [data-slot="drawer-content"],
     [data-slot="select-content"]
   ) {
   --liquid-pointer-x: 50%;
@@ -978,7 +975,7 @@ html[data-box-style="glass"]
 html[data-box-style="glass"]
   body
   #root
-  :is(
+  :where(
     [data-slot="card"]:not(.quiz-question-card):not([data-slot="card"] [data-slot="card"]),
     [data-slot="alert"]:not([data-slot="card"] [data-slot="alert"])
   ) {
@@ -1041,6 +1038,11 @@ html[data-box-style="glass"]
     [data-slot="popover-content"],
     [data-slot="dropdown-menu-content"],
     [data-slot="dropdown-menu-sub-content"],
+    [data-slot="context-menu-content"],
+    [data-slot="context-menu-sub-content"],
+    [data-slot="hover-card-content"],
+    [data-slot="sheet-content"],
+    [data-slot="drawer-content"],
     [data-slot="select-content"]
   )[data-liquid-active="true"] {
   --liquid-pointer-strength: 32%;
@@ -1082,6 +1084,11 @@ html[data-box-style="glass"]
     [data-slot="popover-content"],
     [data-slot="dropdown-menu-content"],
     [data-slot="dropdown-menu-sub-content"],
+    [data-slot="context-menu-content"],
+    [data-slot="context-menu-sub-content"],
+    [data-slot="hover-card-content"],
+    [data-slot="sheet-content"],
+    [data-slot="drawer-content"],
     [data-slot="select-content"]
   ) {
   background-color: var(--glass-surface-strong);
@@ -1212,11 +1219,11 @@ html[data-box-style="glass"]
   #root
   .quiz-question-card[data-slot="card"]:not([data-slot="card"] [data-slot="card"]) {
   overflow: hidden;
-  contain: layout style;
-  border-color: transparent;
-  outline: 1px solid var(--glass-content-border);
-  outline-offset: -1px;
+  contain: none;
+  border: 1px solid var(--glass-content-border);
+  outline: none;
   background: var(--glass-content-surface);
+  background-clip: padding-box;
   box-shadow: 0 0.55rem 1.6rem color-mix(in oklch, var(--glass-shadow) 72%, transparent);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
@@ -1234,7 +1241,7 @@ html[data-box-style="glass"]
 }
 
 .record-surface {
-  transition-property: background-color, border-color, box-shadow, outline-color, outline-offset;
+  transition-property: background-color, border-color, box-shadow;
 }
 
 html[data-box-style="glass"] #root .record-surface[data-slot="card"] {
@@ -1246,7 +1253,14 @@ html[data-box-style="glass"] #root .record-surface[data-slot="card"] {
 #root .record-surface[data-record-jump-highlight="true"] {
   outline: 2px solid color-mix(in oklch, var(--primary) 62%, transparent);
   outline-offset: 2px;
-  animation: record-jump-highlight 3.2s ease-out both;
+}
+
+#root .record-surface[data-record-jump-highlight="true"][data-record-jump-cycle="primary"] {
+  animation: record-jump-highlight-primary 3.2s ease-out both;
+}
+
+#root .record-surface[data-record-jump-highlight="true"][data-record-jump-cycle="alternate"] {
+  animation: record-jump-highlight-alternate 3.2s ease-out both;
 }
 
 html[data-box-style="glass"]
@@ -1257,7 +1271,7 @@ html[data-box-style="glass"]
   outline-offset: 2px;
 }
 
-@keyframes record-jump-highlight {
+@keyframes record-jump-highlight-primary {
   0% {
     outline-width: 2px;
     outline-color: color-mix(in oklch, var(--primary) 78%, transparent);
@@ -1276,41 +1290,43 @@ html[data-box-style="glass"]
   }
 }
 
-/* The shared image viewer is a viewport surface, not a centred content card.
-   Keep its fixed geometry independent of page flow and disable a full-screen
-   backdrop filter, which would add no useful lens edge and is costly to paint. */
-.image-viewer-dialog[data-slot="dialog-content"] {
-  position: fixed;
-  inset: 0;
+@keyframes record-jump-highlight-alternate {
+  0% {
+    outline-width: 2px;
+    outline-color: color-mix(in oklch, var(--primary) 78%, transparent);
+    outline-offset: 5px;
+  }
+  18%,
+  72% {
+    outline-width: 2px;
+    outline-color: color-mix(in oklch, var(--primary) 58%, transparent);
+    outline-offset: 2px;
+  }
+  100% {
+    outline-width: 2px;
+    outline-color: color-mix(in oklch, var(--primary) 28%, transparent);
+    outline-offset: 1px;
+  }
+}
+
+/* ImageViewer composes a viewport-native popup inside the shadcn dialog portal,
+   so this rule only owns paint. Geometry no longer has to override the shared
+   centred DialogContent contract. */
+.image-viewer-dialog[data-slot="image-viewer-content"] {
   box-sizing: border-box;
-  width: auto;
-  min-width: 0;
-  max-width: none;
-  height: auto;
-  min-height: 0;
-  max-height: none;
-  place-self: stretch;
-  overflow: hidden;
   margin: 0;
-  transform: none;
-  translate: none;
-  scale: none;
-  rotate: none;
   border-radius: 0;
   background: color-mix(in oklch, var(--popover) 96%, transparent);
-  padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right))
-    max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   box-shadow: none;
   animation: none;
 }
 
-[data-slot="dialog-overlay"]:has(+ .image-viewer-dialog) {
-  position: fixed;
-  inset: 0;
-  width: auto;
-  height: auto;
+.image-viewer-overlay {
+  overscroll-behavior: contain;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 html[data-box-style="glass"] .image-viewer-toolbar {
@@ -1329,6 +1345,11 @@ html[data-box-style="glass"] .image-viewer-toolbar {
       [data-slot="popover-content"],
       [data-slot="dropdown-menu-content"],
       [data-slot="dropdown-menu-sub-content"],
+      [data-slot="context-menu-content"],
+      [data-slot="context-menu-sub-content"],
+      [data-slot="hover-card-content"],
+      [data-slot="sheet-content"],
+      [data-slot="drawer-content"],
       [data-slot="select-content"],
       [data-slot="alert"]
     ) {
@@ -1348,6 +1369,11 @@ html[data-box-style="glass"] .image-viewer-toolbar {
       [data-slot="popover-content"],
       [data-slot="dropdown-menu-content"],
       [data-slot="dropdown-menu-sub-content"],
+      [data-slot="context-menu-content"],
+      [data-slot="context-menu-sub-content"],
+      [data-slot="hover-card-content"],
+      [data-slot="sheet-content"],
+      [data-slot="drawer-content"],
       [data-slot="select-content"],
       [data-slot="alert"]
     ) {
@@ -1369,6 +1395,11 @@ html[data-box-style="glass"] .image-viewer-toolbar {
       [data-slot="popover-content"],
       [data-slot="dropdown-menu-content"],
       [data-slot="dropdown-menu-sub-content"],
+      [data-slot="context-menu-content"],
+      [data-slot="context-menu-sub-content"],
+      [data-slot="hover-card-content"],
+      [data-slot="sheet-content"],
+      [data-slot="drawer-content"],
       [data-slot="select-content"],
       [data-slot="alert"]
     ) {
@@ -1379,6 +1410,10 @@ html[data-box-style="glass"] .image-viewer-toolbar {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  #root .record-surface[data-record-jump-highlight="true"] {
+    animation: none;
+  }
+
   .appearance-choice,
   html[data-box-style="glass"]
     :is(
@@ -1391,6 +1426,11 @@ html[data-box-style="glass"] .image-viewer-toolbar {
       [data-slot="popover-content"],
       [data-slot="dropdown-menu-content"],
       [data-slot="dropdown-menu-sub-content"],
+      [data-slot="context-menu-content"],
+      [data-slot="context-menu-sub-content"],
+      [data-slot="hover-card-content"],
+      [data-slot="sheet-content"],
+      [data-slot="drawer-content"],
       [data-slot="select-content"],
       [data-slot="alert"]
     ) {
