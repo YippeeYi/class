@@ -891,7 +891,7 @@ export function TimelinePage() {
                   </span>
                   <div className="min-w-0">
                     <p className="truncate text-meta text-muted-foreground">{label}</p>
-                    <strong className="font-heading text-[1.625rem] leading-none tabular-nums">
+                    <strong className="font-heading text-2xl leading-none tabular-nums">
                       {value.toLocaleString()}
                     </strong>
                   </div>
@@ -1083,7 +1083,7 @@ export function TimelinePage() {
                 ].map(([label, value]) => (
                   <article key={String(label)} className="bg-card/88 px-4 py-3">
                     <p className="text-meta text-muted-foreground">{label}</p>
-                    <strong className="font-heading text-[1.375rem] leading-tight tabular-nums">
+                    <strong className="font-heading text-xl leading-tight tabular-nums">
                       {Number(value).toLocaleString()}
                     </strong>
                   </article>

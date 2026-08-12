@@ -213,7 +213,10 @@ export function BackgroundsPage() {
         description="配色、背景与方框彼此独立，共同组成全站视觉风格；所有选择都会保存在当前浏览器中。"
       />
       <Tabs value={section} onValueChange={setSection} className="gap-4">
-        <TabsList className="appearance-section-tabs grid w-full grid-cols-3 gap-1 rounded-xl bg-card/72 p-1.5 shadow-sm backdrop-blur-md group-data-horizontal/tabs:h-auto">
+        <TabsList
+          data-liquid-glass-interactive
+          className="appearance-section-tabs grid w-full grid-cols-3 gap-1 rounded-xl bg-card/72 p-1.5 shadow-sm backdrop-blur-md group-data-horizontal/tabs:h-auto"
+        >
           {(
             [
               ['palette', '配色', Palette, '界面色彩'],
@@ -236,7 +239,7 @@ export function BackgroundsPage() {
         </TabsList>
 
         <TabsContent value="palette">
-          <Card className="appearance-preset-panel gap-0 overflow-hidden border-border/70 bg-card/52 py-0 shadow-sm backdrop-blur-md">
+          <Card className="appearance-preset-panel gap-0 overflow-hidden border-border/70 bg-card/88 py-0 shadow-sm">
             <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                 <Palette className="size-4" />
@@ -302,7 +305,7 @@ export function BackgroundsPage() {
         </TabsContent>
 
         <TabsContent value="background">
-          <Card className="gap-0 overflow-hidden border-border/70 bg-card/52 py-0 shadow-sm backdrop-blur-md">
+          <Card className="gap-0 overflow-hidden border-border/70 bg-card/88 py-0 shadow-sm">
             <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                 <ImageIcon className="size-4" />
@@ -399,7 +402,7 @@ export function BackgroundsPage() {
         </TabsContent>
 
         <TabsContent value="box">
-          <Card className="gap-0 overflow-hidden border-border/70 bg-card/52 py-0 shadow-sm backdrop-blur-md">
+          <Card className="gap-0 overflow-hidden border-border/70 bg-card/88 py-0 shadow-sm">
             <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                 <Square className="size-4" />

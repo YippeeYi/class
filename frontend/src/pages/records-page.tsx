@@ -613,7 +613,19 @@ export function RecordsPage() {
 
   const loading = !hidden && recordsResource.loading
 
-  const beginJumpHighlight = useCallback((target: HTMLElement, autoClear: boolean) => {
+  const clearJumpHighlight = useCallback((target?: HTMLElement | null) => {
+    const current = target || jumpHighlightTarget.current
+    if (!current) return
+    if (jumpHighlightTimer.current !== undefined) {
+      window.clearTimeout(jumpHighlightTimer.current)
+      jumpHighlightTimer.current = undefined
+    }
+    delete current.dataset.recordJumpHighlight
+    delete current.dataset.recordJumpFading
+    if (jumpHighlightTarget.current === current) jumpHighlightTarget.current = null
+  }, [])
+
+  const beginJumpHighlight = useCallback((target: HTMLElement) => {
     if (jumpHighlightTimer.current !== undefined) {
       window.clearTimeout(jumpHighlightTimer.current)
       jumpHighlightTimer.current = undefined
@@ -621,19 +633,24 @@ export function RecordsPage() {
     const previous = jumpHighlightTarget.current
     if (previous && previous !== target) {
       delete previous.dataset.recordJumpHighlight
-      delete previous.dataset.recordJumpCycle
+      delete previous.dataset.recordJumpFading
     }
+    delete target.dataset.recordJumpFading
     target.dataset.recordJumpHighlight = 'true'
-    target.dataset.recordJumpCycle =
-      target.dataset.recordJumpCycle === 'primary' ? 'alternate' : 'primary'
     jumpHighlightTarget.current = target
-    if (!autoClear) return
+  }, [])
+
+  const fadeJumpHighlight = useCallback((target?: HTMLElement | null) => {
+    const current = target || jumpHighlightTarget.current
+    if (current?.dataset.recordJumpHighlight !== 'true') return
+    if (jumpHighlightTimer.current !== undefined) window.clearTimeout(jumpHighlightTimer.current)
+    current.dataset.recordJumpFading = 'true'
     jumpHighlightTimer.current = window.setTimeout(() => {
-      delete target.dataset.recordJumpHighlight
-      delete target.dataset.recordJumpCycle
-      if (jumpHighlightTarget.current === target) jumpHighlightTarget.current = null
+      delete current.dataset.recordJumpHighlight
+      delete current.dataset.recordJumpFading
+      if (jumpHighlightTarget.current === current) jumpHighlightTarget.current = null
       jumpHighlightTimer.current = undefined
-    }, 3600)
+    }, 700)
   }, [])
 
   useEffect(
@@ -641,7 +658,7 @@ export function RecordsPage() {
       if (jumpHighlightTimer.current !== undefined) window.clearTimeout(jumpHighlightTimer.current)
       if (jumpHighlightTarget.current) {
         delete jumpHighlightTarget.current.dataset.recordJumpHighlight
-        delete jumpHighlightTarget.current.dataset.recordJumpCycle
+        delete jumpHighlightTarget.current.dataset.recordJumpFading
       }
     },
     [],
@@ -685,7 +702,7 @@ export function RecordsPage() {
     // The semantic target state starts before movement, so the border is
     // already present as the record enters the viewport. It must not depend on
     // a browser-specific scrollend event that may be skipped after user input.
-    beginJumpHighlight(target, false)
+    beginJumpHighlight(target)
     const destination = scrollTargetIntoView(target, 'smooth')
     replaceRecordJumpHash(pending.targetAnchorId)
     if (pending.originHref) {
@@ -696,7 +713,6 @@ export function RecordsPage() {
       if (!scrollCompletion.signal.aborted) {
         completeRecordJump()
         const willOpenDialog = reachedDestination && Boolean(pending.originHref || pending.origin)
-        if (!willOpenDialog) beginJumpHighlight(target, true)
         // Modal scroll locking and focus containment must start only after the
         // browser's one smooth movement has settled; otherwise they can cancel
         // the animation and create the apparent overshoot/rebound sequence.
@@ -705,15 +721,6 @@ export function RecordsPage() {
     })
     return () => {
       scrollCompletion.abort()
-      if (jumpHighlightTarget.current === target) {
-        if (jumpHighlightTimer.current !== undefined) {
-          window.clearTimeout(jumpHighlightTimer.current)
-          jumpHighlightTimer.current = undefined
-        }
-        jumpHighlightTarget.current = null
-        delete target.dataset.recordJumpHighlight
-        delete target.dataset.recordJumpCycle
-      }
     }
   }, [
     beginJumpHighlight,
@@ -743,6 +750,7 @@ export function RecordsPage() {
   }, [filtered, loading, pageIndex, view, written.loading])
 
   const returnToOrigin = () => {
+    clearJumpHighlight(jumpFocusTarget.current)
     if (jumpOrigin) {
       jumpFocusTarget.current = null
       pendingReturn.current = {
@@ -880,10 +888,8 @@ export function RecordsPage() {
         open={jumpDialogOpen}
         onOpenChange={setJumpDialogOpen}
         onOpenChangeComplete={(open) => {
-          if (!open && jumpFocusTarget.current?.isConnected) {
-            beginJumpHighlight(jumpFocusTarget.current, true)
+          if (!open && jumpFocusTarget.current?.isConnected)
             jumpFocusTarget.current.focus({ preventScroll: true })
-          }
         }}
       >
         <AlertDialogContent finalFocus={false}>
@@ -896,7 +902,9 @@ export function RecordsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>留在这里</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => fadeJumpHighlight(jumpFocusTarget.current)}>
+              留在此处
+            </AlertDialogCancel>
             <AlertDialogAction onClick={returnToOrigin}>
               {jumpOrigin ? '返回原位置' : '返回上一页'}
             </AlertDialogAction>

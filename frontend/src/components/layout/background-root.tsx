@@ -272,6 +272,13 @@ export function setBoxStyle(id: BoxStyleId) {
 }
 
 type Palette = Record<(typeof THEME_PROPERTIES)[number], string>
+type AmbientSampler = {
+  width: number
+  height: number
+  sourceWidth: number
+  sourceHeight: number
+  pixels: Uint8ClampedArray
+}
 
 function readPalette(id: BackgroundId) {
   try {
@@ -356,6 +363,43 @@ async function extractPalette(src: string) {
     weight += nextWeight
   }
   return weight ? buildPalette(red / weight, green / weight, blue / weight) : null
+}
+
+function createAmbientSampler(image: HTMLImageElement): AmbientSampler | null {
+  const canvas = document.createElement('canvas')
+  canvas.width = 48
+  canvas.height = 48
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context || !image.naturalWidth || !image.naturalHeight) return null
+  context.drawImage(image, 0, 0, canvas.width, canvas.height)
+  return {
+    width: canvas.width,
+    height: canvas.height,
+    sourceWidth: image.naturalWidth,
+    sourceHeight: image.naturalHeight,
+    pixels: context.getImageData(0, 0, canvas.width, canvas.height).data,
+  }
+}
+
+function sampleAmbientColor(sampler: AmbientSampler, viewportX: number, viewportY: number) {
+  const coverScale = Math.max(
+    window.innerWidth / sampler.sourceWidth,
+    window.innerHeight / sampler.sourceHeight,
+  )
+  const renderedWidth = sampler.sourceWidth * coverScale
+  const renderedHeight = sampler.sourceHeight * coverScale
+  const sourceX = (viewportX + (renderedWidth - window.innerWidth) / 2) / coverScale
+  const sourceY = (viewportY + (renderedHeight - window.innerHeight) / 2) / coverScale
+  const x = Math.min(
+    sampler.width - 1,
+    Math.max(0, Math.round((sourceX / sampler.sourceWidth) * (sampler.width - 1))),
+  )
+  const y = Math.min(
+    sampler.height - 1,
+    Math.max(0, Math.round((sourceY / sampler.sourceHeight) * (sampler.height - 1))),
+  )
+  const offset = (y * sampler.width + x) * 4
+  return `rgb(${sampler.pixels[offset] || 0} ${sampler.pixels[offset + 1] || 0} ${sampler.pixels[offset + 2] || 0} / 28%)`
 }
 
 export function readBackground(): BackgroundId {
@@ -492,6 +536,8 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       !window.matchMedia('(hover: hover) and (pointer: fine)').matches
     )
       return
+    let active = true
+    let ambientSampler: AmbientSampler | null = null
     let activeTarget: HTMLElement | null = null
     let animationFrame = 0
     let lastPointer: { x: number; y: number } | null = null
@@ -502,6 +548,7 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       delete activeTarget.dataset.liquidActive
       activeTarget.style.removeProperty('--liquid-pointer-x')
       activeTarget.style.removeProperty('--liquid-pointer-y')
+      activeTarget.style.removeProperty('--liquid-ambient-local')
       activeTarget = null
     }
     const targetAtPoint = (x: number, y: number) =>
@@ -556,6 +603,8 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       )
       target.style.setProperty('--liquid-pointer-x', `${relativeX}%`)
       target.style.setProperty('--liquid-pointer-y', `${relativeY}%`)
+      if (ambientSampler)
+        target.style.setProperty('--liquid-ambient-local', sampleAmbientColor(ambientSampler, x, y))
       target.dataset.liquidActive = 'true'
       if (Math.abs(x - renderedPoint.x) > 0.35 || Math.abs(y - renderedPoint.y) > 0.35)
         animationFrame = window.requestAnimationFrame(renderPoint)
@@ -581,12 +630,22 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       renderedPoint = null
       clearTarget()
     }
+    if (visibleBackground?.image)
+      void decodeBackground(visibleBackground.image).then(
+        (image) => {
+          if (!active) return
+          ambientSampler = createAmbientSampler(image)
+          refreshGeometry()
+        },
+        () => undefined,
+      )
     document.addEventListener('pointermove', move, { passive: true })
     document.addEventListener('scroll', refreshGeometry, { capture: true, passive: true })
     window.addEventListener('resize', refreshGeometry, { passive: true })
     window.addEventListener('pointerout', leaveWindow, { passive: true })
     window.addEventListener('blur', blur)
     return () => {
+      active = false
       document.removeEventListener('pointermove', move)
       document.removeEventListener('scroll', refreshGeometry, true)
       window.removeEventListener('resize', refreshGeometry)
@@ -595,7 +654,7 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       if (animationFrame) window.cancelAnimationFrame(animationFrame)
       clearTarget()
     }
-  }, [appearance.box])
+  }, [appearance.box, visibleBackground])
 
   useEffect(() => {
     let active = true

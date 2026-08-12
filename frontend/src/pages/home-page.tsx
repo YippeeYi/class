@@ -98,7 +98,7 @@ export function HomePage() {
 
   return (
     <div className="grid gap-5 sm:gap-6">
-      <Card className="guide-hero relative gap-0 overflow-hidden border-border/70 bg-card/72 py-0 shadow-sm backdrop-blur-sm">
+      <Card className="guide-hero relative gap-0 overflow-hidden border-border/70 bg-card/88 py-0 shadow-sm">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_12%,color-mix(in_oklch,var(--primary)_18%,transparent),transparent_34%),linear-gradient(135deg,transparent_48%,color-mix(in_oklch,var(--secondary)_32%,transparent))]" />
         <CardContent className="relative grid p-0 lg:grid-cols-[minmax(0,1.45fr)_minmax(17rem,.72fr)]">
           <div className="px-5 py-6 sm:px-7 sm:py-7 lg:px-8 lg:py-8">
@@ -170,9 +170,7 @@ export function HomePage() {
               <AlertDescription>请尊重档案中的个人信息与共同记忆，不要外传。</AlertDescription>
             </Alert>
             <div className="rounded-xl border border-border/65 bg-background/38 px-4 py-3">
-              <p className="mb-1 text-[0.6875rem] font-semibold tracking-[0.14em] text-primary/70">
-                小提示
-              </p>
+              <p className="mb-1 text-xs font-semibold tracking-[0.14em] text-primary/70">小提示</p>
               <p
                 className="guide-tip min-h-6 text-sm leading-6 text-muted-foreground"
                 aria-live="polite"
@@ -189,7 +187,7 @@ export function HomePage() {
         </CardContent>
       </Card>
 
-      <Card className="gap-0 overflow-hidden bg-card/76 py-0 backdrop-blur-sm">
+      <Card className="gap-0 overflow-hidden bg-card/90 py-0 shadow-sm">
         <CardHeader className="border-b border-border/65 px-5 py-4 sm:px-6">
           <CardTitle className="font-heading text-xl">核心档案</CardTitle>
           <CardDescription>从最常用的三个入口开始浏览。</CardDescription>
@@ -266,7 +264,7 @@ export function HomePage() {
         </CardContent>
       </Card>
 
-      <Card className="gap-0 overflow-hidden bg-card/72 py-0 backdrop-blur-sm">
+      <Card className="gap-0 overflow-hidden bg-card/90 py-0 shadow-sm">
         <CardHeader className="border-b border-border/65 px-5 py-4 sm:px-6">
           <CardTitle className="font-heading text-xl">继续探索</CardTitle>
           <CardDescription>统计、工具与档案补充入口集中在这里。</CardDescription>

@@ -44,7 +44,7 @@ export function MealMapPage() {
           </Badge>
         }
       />
-      <figure className="relative grid min-h-0 flex-1 place-items-center overflow-hidden rounded-xl border border-border/75 bg-card/78 shadow-sm backdrop-blur-md">
+      <figure className="relative grid min-h-0 flex-1 place-items-center overflow-hidden rounded-xl border border-border/75 bg-card/88 shadow-sm">
         {src && !imageFailure.failed ? (
           <ImageViewer
             path={MAP_PATH}
@@ -75,7 +75,11 @@ export function MealMapPage() {
                   onError={imageFailure.markFailed}
                   className="absolute inset-0 size-full object-contain p-2 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300 sm:p-3"
                 />
-                <span className="absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-md border border-border/60 bg-background/90 px-3 py-2 text-xs text-foreground opacity-0 shadow-sm backdrop-blur transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+                <span
+                  data-liquid-glass-interactive
+                  data-glass-variant="clear"
+                  className="absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/90 px-3 py-2 text-xs font-medium text-foreground opacity-0 shadow-sm backdrop-blur transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100"
+                >
                   <Expand className="size-3.5" />
                   查看大图
                 </span>

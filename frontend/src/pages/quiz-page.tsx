@@ -94,7 +94,7 @@ function QuestionSource({ question, revealed }: { question: PlayQuestion; reveal
         <div className="quiz-question-side">
           <span className="quiz-question-side-label">{question.sideLabel}</span>
           {revealed && question.sideCorrection ? (
-            <span className="quiz-judge-correction">
+            <span className="quiz-question-side-value quiz-judge-correction">
               <span className="quiz-judge-wrong">{question.sideText}</span>
               <span className="quiz-judge-answer">{question.sideCorrection.correctText}</span>
             </span>
@@ -440,7 +440,8 @@ export function QuizPage() {
           )}
           <section
             aria-label="答题筛选"
-            className="mb-3 flex shrink-0 flex-wrap items-center gap-x-5 gap-y-2 border-b border-border/70 pb-3"
+            data-liquid-glass-interactive
+            className="quiz-filter-bar mb-4 flex shrink-0 flex-wrap items-center gap-x-5 gap-y-3 rounded-xl border bg-card/78 px-3 py-3 shadow-sm sm:px-4"
           >
             <div className="flex flex-wrap items-center gap-2">
               <span className="mr-1 text-sm font-medium text-muted-foreground">题型</span>
@@ -497,7 +498,7 @@ export function QuizPage() {
             className="quiz-question-card min-h-0 flex-1 gap-0 overflow-hidden bg-card py-0 shadow-sm"
             data-question-type={current?.type || 'choice'}
           >
-            <CardHeader className="quiz-question-header shrink-0 rounded-none border-b py-3">
+            <CardHeader className="quiz-question-header shrink-0 rounded-none border-b px-4 py-3.5 sm:px-5">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="quiz-question-type-icon grid size-9 shrink-0 place-items-center rounded-lg">
@@ -532,7 +533,7 @@ export function QuizPage() {
                   <div
                     ref={questionAnchorRef}
                     key={current.id}
-                    className="min-h-full px-4 py-4 pr-7 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-6 sm:py-5 sm:pr-9"
+                    className="min-h-full px-4 py-5 pr-7 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-6 sm:py-6 sm:pr-9"
                   >
                     <h2 className="quiz-question-prompt font-heading text-section-title font-semibold text-foreground">
                       {current.prompt}
@@ -637,7 +638,7 @@ export function QuizPage() {
               )}
             </CardContent>
             {current && (
-              <CardFooter className="min-h-16 shrink-0 justify-between gap-4 bg-muted/38 px-4 py-3 sm:px-5">
+              <CardFooter className="min-h-16 shrink-0 justify-between gap-4 border-t bg-muted/32 px-4 py-3 sm:px-5">
                 <div
                   className={cn(
                     'min-w-0 flex-1 text-sm leading-6',

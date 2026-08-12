@@ -22,8 +22,48 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Spinner } from '@/components/ui/spinner'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
+
+const MIN_SCALE = 1
+const MAX_SCALE = 8
+const SCALE_STEP = 1.25
+const VIEWPORT_PADDING = 32
+
+type ViewTransform = { scale: number; x: number; y: number }
+
+function ViewerToolButton({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string
+  disabled?: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="outline"
+            aria-label={label}
+            disabled={disabled}
+            onClick={onClick}
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
 
 /**
  * The shared shadcn DialogContent intentionally describes a centred, bounded
@@ -60,24 +100,41 @@ export function ImageViewer({
   const [open, setOpen] = useState(false)
   const asset = useSignedAsset(open ? path : '')
   const imageFailure = useBoundedImageRetry(open ? path : '', asset.retry)
-  const [scale, setScale] = useState(1)
-  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [viewTransform, setViewTransform] = useState<ViewTransform>({ scale: 1, x: 0, y: 0 })
+  const transformRef = useRef(viewTransform)
+  transformRef.current = viewTransform
   const [natural, setNatural] = useState({ width: 0, height: 0 })
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 })
-  const viewport = useRef<HTMLElement>(null)
-  const drag = useRef<{ id: number; x: number; y: number; panX: number; panY: number } | null>(null)
+  const [viewportElement, setViewportElement] = useState<HTMLElement | null>(null)
+  const pointers = useRef(new Map<number, { x: number; y: number }>())
+  const drag = useRef<{
+    id: number
+    x: number
+    y: number
+    transform: ViewTransform
+  } | null>(null)
+  const pinch = useRef<{
+    distance: number
+    focalX: number
+    focalY: number
+    transform: ViewTransform
+  } | null>(null)
   const src = asset.src || initialUrl
 
   useEffect(() => {
-    if (!open) {
-      setScale(1)
-      setPan({ x: 0, y: 0 })
-    }
+    if (open) return
+    const reset: ViewTransform = { scale: 1, x: 0, y: 0 }
+    transformRef.current = reset
+    setViewTransform(reset)
+    setNatural({ width: 0, height: 0 })
+    pointers.current.clear()
+    drag.current = null
+    pinch.current = null
   }, [open])
 
   useEffect(() => {
-    if (!open || !viewport.current) return
-    const element = viewport.current
+    if (!open || !viewportElement) return
+    const element = viewportElement
     const update = () => {
       const box = element.getBoundingClientRect()
       setViewportSize((current) =>
@@ -90,7 +147,7 @@ export function ImageViewer({
     const observer = new ResizeObserver(update)
     observer.observe(element)
     return () => observer.disconnect()
-  }, [open])
+  }, [open, viewportElement])
 
   const base = useMemo(() => {
     if (!natural.width || !natural.height || !viewportSize.width || !viewportSize.height)
@@ -101,29 +158,58 @@ export function ImageViewer({
     return { width: natural.width * ratio, height: natural.height * ratio }
   }, [natural, viewportSize])
 
-  const clampPan = useCallback(
-    (candidate: { x: number; y: number }, nextScale = scale) => {
-      if (nextScale <= 1) return { x: 0, y: 0 }
-      const boundX = Math.max(0, (base.width * nextScale - viewportSize.width) / 2)
-      const boundY = Math.max(0, (base.height * nextScale - viewportSize.height) / 2)
+  const clampTransform = useCallback(
+    (candidate: ViewTransform): ViewTransform => {
+      const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, candidate.scale))
+      if (scale <= MIN_SCALE || !base.width || !base.height) return { scale: MIN_SCALE, x: 0, y: 0 }
+      const availableWidth = Math.max(1, viewportSize.width - VIEWPORT_PADDING)
+      const availableHeight = Math.max(1, viewportSize.height - VIEWPORT_PADDING)
+      const boundX = Math.max(0, (base.width * scale - availableWidth) / 2)
+      const boundY = Math.max(0, (base.height * scale - availableHeight) / 2)
       return {
+        scale,
         x: Math.min(boundX, Math.max(-boundX, candidate.x)),
         y: Math.min(boundY, Math.max(-boundY, candidate.y)),
       }
     },
-    [base.height, base.width, scale, viewportSize.height, viewportSize.width],
+    [base.height, base.width, viewportSize.height, viewportSize.width],
   )
 
   useEffect(() => {
-    setPan((current) => {
-      const next = clampPan(current)
-      return next.x === current.x && next.y === current.y ? current : next
+    setViewTransform((current) => {
+      const next = clampTransform(current)
+      transformRef.current = next
+      return next.scale === current.scale && next.x === current.x && next.y === current.y
+        ? current
+        : next
     })
-  }, [clampPan])
+  }, [clampTransform])
+
+  const commitTransform = useCallback(
+    (candidate: ViewTransform) => {
+      const next = clampTransform(candidate)
+      transformRef.current = next
+      setViewTransform(next)
+    },
+    [clampTransform],
+  )
+
+  const zoomTo = useCallback(
+    (requestedScale: number, focal = { x: 0, y: 0 }) => {
+      const current = transformRef.current
+      const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, requestedScale))
+      const ratio = scale / current.scale
+      commitTransform({
+        scale,
+        x: focal.x - (focal.x - current.x) * ratio,
+        y: focal.y - (focal.y - current.y) * ratio,
+      })
+    },
+    [commitTransform],
+  )
 
   const reset = () => {
-    setScale(1)
-    setPan({ x: 0, y: 0 })
+    commitTransform({ scale: MIN_SCALE, x: 0, y: 0 })
   }
 
   return (
@@ -138,35 +224,39 @@ export function ImageViewer({
         </DialogHeader>
         <div
           data-liquid-glass-interactive
-          className="image-viewer-toolbar flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5"
+          className="image-viewer-toolbar flex min-w-0 items-center gap-2 rounded-xl px-2.5 py-2"
         >
           <Maximize2 className="size-4 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate text-sm font-medium">{alt}</span>
           <div className="flex shrink-0 items-center gap-1">
-            <Button
-              size="icon-sm"
-              variant="outline"
-              aria-label="缩小"
-              title="缩小"
-              onClick={() => setScale((value) => Math.max(0.25, value / 1.25))}
+            <ViewerToolButton
+              label="缩小"
+              disabled={!base.width || viewTransform.scale <= MIN_SCALE}
+              onClick={() => zoomTo(transformRef.current.scale / SCALE_STEP)}
             >
               <Minus />
-            </Button>
-            <span className="w-12 text-center text-xs tabular-nums text-muted-foreground">
-              {Math.round(scale * 100)}%
+            </ViewerToolButton>
+            <span
+              className="w-12 text-center text-xs tabular-nums text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              {Math.round(viewTransform.scale * 100)}%
             </span>
-            <Button
-              size="icon-sm"
-              variant="outline"
-              aria-label="放大"
-              title="放大"
-              onClick={() => setScale((value) => Math.min(8, value * 1.25))}
+            <ViewerToolButton
+              label="放大"
+              disabled={!base.width || viewTransform.scale >= MAX_SCALE}
+              onClick={() => zoomTo(transformRef.current.scale * SCALE_STEP)}
             >
               <Plus />
-            </Button>
-            <Button size="icon-sm" variant="outline" aria-label="复位" title="复位" onClick={reset}>
+            </ViewerToolButton>
+            <ViewerToolButton
+              label="适合窗口"
+              disabled={!base.width || viewTransform.scale === MIN_SCALE}
+              onClick={reset}
+            >
               <RotateCcw />
-            </Button>
+            </ViewerToolButton>
             <DialogClose
               render={
                 <Button size="icon-sm" variant="ghost" aria-label="关闭大图" title="关闭大图" />
@@ -177,58 +267,98 @@ export function ImageViewer({
           </div>
         </div>
         <section
-          ref={viewport}
-          className={`relative min-h-0 flex-1 touch-none overflow-hidden rounded-lg border bg-muted/55 ${scale > 1 ? 'cursor-grab active:cursor-grabbing' : ''}`}
+          ref={setViewportElement}
+          className={`image-viewer-viewport relative min-h-0 flex-1 touch-none overflow-hidden rounded-xl border bg-black/90 outline-none focus-visible:ring-2 focus-visible:ring-ring ${viewTransform.scale > MIN_SCALE ? 'cursor-grab active:cursor-grabbing' : 'cursor-zoom-in'}`}
           aria-label={`${alt} 大图查看区域`}
+          aria-describedby="image-viewer-help"
           onWheel={(event) => {
             event.preventDefault()
-            const next = Math.min(8, Math.max(0.25, scale * Math.exp(-event.deltaY * 0.0015)))
             const box = event.currentTarget.getBoundingClientRect()
-            const pointerX = event.clientX - box.left - box.width / 2
-            const pointerY = event.clientY - box.top - box.height / 2
-            const ratio = next / scale
-            setPan(
-              clampPan(
-                {
-                  x: pan.x - (pointerX - pan.x) * (ratio - 1),
-                  y: pan.y - (pointerY - pan.y) * (ratio - 1),
-                },
-                next,
-              ),
-            )
-            setScale(next)
+            const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 18 : 1
+            const sensitivity = event.ctrlKey ? 0.01 : 0.0018
+            zoomTo(transformRef.current.scale * Math.exp(-event.deltaY * unit * sensitivity), {
+              x: event.clientX - box.left - box.width / 2,
+              y: event.clientY - box.top - box.height / 2,
+            })
+          }}
+          onDoubleClick={(event) => {
+            const box = event.currentTarget.getBoundingClientRect()
+            zoomTo(transformRef.current.scale > MIN_SCALE ? MIN_SCALE : 2, {
+              x: event.clientX - box.left - box.width / 2,
+              y: event.clientY - box.top - box.height / 2,
+            })
           }}
           onPointerDown={(event) => {
-            if (scale <= 1) return
             event.currentTarget.setPointerCapture(event.pointerId)
+            pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+            if (pointers.current.size >= 2) {
+              const [first, second] = [...pointers.current.values()]
+              if (!first || !second) return
+              const box = event.currentTarget.getBoundingClientRect()
+              pinch.current = {
+                distance: Math.hypot(second.x - first.x, second.y - first.y),
+                focalX: (first.x + second.x) / 2 - box.left - box.width / 2,
+                focalY: (first.y + second.y) / 2 - box.top - box.height / 2,
+                transform: transformRef.current,
+              }
+              drag.current = null
+              return
+            }
+            if (transformRef.current.scale <= MIN_SCALE) return
             drag.current = {
               id: event.pointerId,
               x: event.clientX,
               y: event.clientY,
-              panX: pan.x,
-              panY: pan.y,
+              transform: transformRef.current,
             }
           }}
           onPointerMove={(event) => {
+            if (!pointers.current.has(event.pointerId)) return
+            pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+            if (pinch.current && pointers.current.size >= 2) {
+              const [first, second] = [...pointers.current.values()]
+              if (!first || !second) return
+              const gesture = pinch.current
+              const box = event.currentTarget.getBoundingClientRect()
+              const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y))
+              const focalX = (first.x + second.x) / 2 - box.left - box.width / 2
+              const focalY = (first.y + second.y) / 2 - box.top - box.height / 2
+              const scale = gesture.transform.scale * (distance / Math.max(1, gesture.distance))
+              const ratio = scale / gesture.transform.scale
+              commitTransform({
+                scale,
+                x: focalX - (gesture.focalX - gesture.transform.x) * ratio,
+                y: focalY - (gesture.focalY - gesture.transform.y) * ratio,
+              })
+              return
+            }
             const current = drag.current
             if (!current || current.id !== event.pointerId) return
-            setPan(
-              clampPan({
-                x: current.panX + event.clientX - current.x,
-                y: current.panY + event.clientY - current.y,
-              }),
-            )
+            commitTransform({
+              scale: current.transform.scale,
+              x: current.transform.x + event.clientX - current.x,
+              y: current.transform.y + event.clientY - current.y,
+            })
           }}
-          onPointerUp={() => {
+          onPointerUp={(event) => {
+            pointers.current.delete(event.pointerId)
+            if (pointers.current.size < 2) pinch.current = null
             drag.current = null
           }}
-          onPointerCancel={() => {
+          onPointerCancel={(event) => {
+            pointers.current.delete(event.pointerId)
+            if (pointers.current.size < 2) pinch.current = null
             drag.current = null
           }}
-          onLostPointerCapture={() => {
+          onLostPointerCapture={(event) => {
+            pointers.current.delete(event.pointerId)
+            if (pointers.current.size < 2) pinch.current = null
             drag.current = null
           }}
         >
+          <span id="image-viewer-help" className="sr-only">
+            使用加减按钮、滚轮、触控板手势或双击缩放；放大后拖动图片浏览，工具栏可复位。
+          </span>
           {(asset.loading || imageFailure.retrying) && !src && (
             <div className="grid size-full place-items-center">
               <Spinner className="size-7" />
@@ -253,18 +383,20 @@ export function ImageViewer({
               decoding="async"
               onLoad={(event) => {
                 imageFailure.markLoaded()
+                reset()
                 setNatural({
                   width: event.currentTarget.naturalWidth,
                   height: event.currentTarget.naturalHeight,
                 })
               }}
               onError={imageFailure.markFailed}
-              className="absolute left-1/2 top-1/2 max-w-none select-none will-change-transform"
+              className="image-viewer-image absolute left-1/2 top-1/2 max-w-none select-none"
               style={{
-                width: base.width ? `${base.width * scale}px` : '100%',
-                height: base.height ? `${base.height * scale}px` : '100%',
+                width: base.width ? `${base.width}px` : '100%',
+                height: base.height ? `${base.height}px` : '100%',
                 objectFit: base.width ? undefined : 'contain',
-                transform: `translate3d(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px), 0)`,
+                transform: `translate3d(calc(-50% + ${viewTransform.x}px), calc(-50% + ${viewTransform.y}px), 0) scale(${viewTransform.scale})`,
+                transformOrigin: 'center',
               }}
             />
           )}
