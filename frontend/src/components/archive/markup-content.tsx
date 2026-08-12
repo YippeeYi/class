@@ -270,6 +270,7 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
               alt="记录插图预览"
               width={lockedDimensions?.width || dimensions?.width}
               height={lockedDimensions?.height || dimensions?.height}
+              decoding="async"
               className="size-full object-contain motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
             />
           )}

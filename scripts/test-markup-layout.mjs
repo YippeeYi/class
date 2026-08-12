@@ -117,40 +117,44 @@ const harness = String.raw`<!doctype html>
 
       function QuizThemeFixture({ type }) {
         return e('article', {
-          className: 'quiz-question-card',
+          className: 'quiz-question-card overflow-hidden rounded-xl border bg-card text-card-foreground',
           'data-slot': 'card',
           'data-question-type': type,
           'data-quiz-theme-fixture': type,
-          style: { display: 'grid', gap: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', background: 'var(--card)', color: 'var(--card-foreground)', padding: '16px' },
+          style: { display: 'grid' },
         },
-          e('header', { className: 'quiz-question-header', style: { display: 'flex', alignItems: 'center', gap: '8px', padding: '12px' } },
+          e('header', { 'data-slot': 'card-header', className: 'quiz-question-header', style: { display: 'flex', alignItems: 'center', gap: '8px', padding: '12px' } },
             e('span', { className: 'quiz-question-type-icon', style: { display: 'grid', width: '32px', height: '32px', placeItems: 'center', borderRadius: '8px' } }, 'Q'),
             e(Badge, { className: 'quiz-question-type-badge', variant: 'outline' }, type),
           ),
-          e('h2', { className: 'quiz-question-prompt' }, '题干与主要说明文字'),
-          e('blockquote', { className: 'quiz-question-source' },
-            '题目记录正文 ',
-            e('span', { className: 'quiz-answer-blank is-revealed' }, e('span', { className: 'quiz-answer-blank-text' }, '答案')),
-            e('span', { className: 'quiz-judge-correction' },
-              e('span', { className: 'quiz-judge-wrong' }, '错误'),
-              e('span', { className: 'quiz-judge-answer' }, '正确'),
+          e('div', { 'data-slot': 'card-content', style: { display: 'grid', gap: '12px', padding: '16px' } },
+            e('h2', { className: 'quiz-question-prompt' }, '题干与主要说明文字'),
+            e('blockquote', { className: 'quiz-question-source' },
+              '题目记录正文 ',
+              e('span', { className: 'quiz-answer-blank is-revealed' }, e('span', { className: 'quiz-answer-blank-text' }, '答案')),
+              e('span', { className: 'quiz-judge-correction' },
+                e('span', { className: 'quiz-judge-wrong' }, '错误'),
+                e('span', { className: 'quiz-judge-answer' }, '正确'),
+              ),
+            ),
+            e('div', { className: 'quiz-question-side' },
+              e('span', { className: 'quiz-question-side-label' }, '记录人'),
+              e('span', { className: 'quiz-question-side-value' }, '人物名称'),
+            ),
+            e(Input, { 'aria-label': type + ' 填空输入', defaultValue: '已填写内容', disabled: true, className: 'disabled:opacity-75' }),
+            e('div', { style: { display: 'grid', gap: '8px', gridTemplateColumns: 'repeat(3,minmax(0,1fr))' } },
+              e(Button, { className: 'quiz-option disabled:opacity-100', variant: 'outline', disabled: true },
+                e('span', { className: 'quiz-option-label' }, 'A'), e('span', null, '禁用选项')),
+              e(Button, { className: 'quiz-option is-correct disabled:opacity-100', variant: 'outline', disabled: true },
+                e('span', { className: 'quiz-option-label' }, 'B'), e('span', null, '正确选项')),
+              e(Button, { className: 'quiz-option is-wrong disabled:opacity-100', variant: 'outline', disabled: true },
+                e('span', { className: 'quiz-option-label' }, 'C'), e('span', null, '错误选项')),
             ),
           ),
-          e('div', { className: 'quiz-question-side' },
-            e('span', { className: 'quiz-question-side-label' }, '记录人'),
-            e('span', { className: 'quiz-question-side-value' }, '人物名称'),
+          e('footer', { 'data-slot': 'card-footer', style: { display: 'grid', gap: '8px', padding: '12px', background: 'color-mix(in oklch, var(--muted) 38%, transparent)' } },
+            e('div', { className: 'quiz-result-correct' }, '回答正确与解释内容'),
+            e('div', { className: 'quiz-result-wrong' }, '回答错误与正确答案'),
           ),
-          e(Input, { 'aria-label': type + ' 填空输入', defaultValue: '已填写内容', disabled: true, className: 'disabled:opacity-75' }),
-          e('div', { style: { display: 'grid', gap: '8px', gridTemplateColumns: 'repeat(3,minmax(0,1fr))' } },
-            e(Button, { className: 'quiz-option disabled:opacity-100', variant: 'outline', disabled: true },
-              e('span', { className: 'quiz-option-label' }, 'A'), e('span', null, '禁用选项')),
-            e(Button, { className: 'quiz-option is-correct disabled:opacity-100', variant: 'outline', disabled: true },
-              e('span', { className: 'quiz-option-label' }, 'B'), e('span', null, '正确选项')),
-            e(Button, { className: 'quiz-option is-wrong disabled:opacity-100', variant: 'outline', disabled: true },
-              e('span', { className: 'quiz-option-label' }, 'C'), e('span', null, '错误选项')),
-          ),
-          e('div', { className: 'quiz-result-correct' }, '回答正确与解释内容'),
-          e('div', { className: 'quiz-result-wrong' }, '回答错误与正确答案'),
         )
       }
 
@@ -320,6 +324,26 @@ try {
     'a source jump must switch to the written page that actually contains the record',
   )
   await page.getByRole('button', { name: '留在这里' }).click()
+  await page.waitForTimeout(380)
+  const locatedRecordGeometry = await recordsFixture.locator('#record-r3').evaluate((target) => {
+    const bounds = target.getBoundingClientRect()
+    const viewportHeight = window.visualViewport?.height || window.innerHeight
+    return {
+      top: bounds.top,
+      bottom: bounds.bottom,
+      viewportHeight,
+      scrollY: window.scrollY,
+      maximumScroll: Math.max(0, document.documentElement.scrollHeight - viewportHeight),
+    }
+  })
+  assert.ok(
+    locatedRecordGeometry.top >= -1 && locatedRecordGeometry.bottom <= locatedRecordGeometry.viewportHeight + 1,
+    `the written record target must settle inside the real viewport: ${JSON.stringify(locatedRecordGeometry)}`,
+  )
+  assert.ok(
+    locatedRecordGeometry.scrollY <= locatedRecordGeometry.maximumScroll + 1,
+    `record location must not exceed the real document scroll range: ${JSON.stringify(locatedRecordGeometry)}`,
+  )
 
   for (const width of [1280, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 })
@@ -652,13 +676,23 @@ try {
   await page.locator('[data-theme-preset-option="auto"]').click()
   await page.waitForFunction(() => !document.documentElement.classList.contains('dark') && document.documentElement.dataset.themePreset === 'auto')
 
+  const paletteChoice = page.locator('[data-theme-preset-option="mist"]')
+  const paletteBoundsBefore = await paletteChoice.boundingBox()
+  await paletteChoice.hover()
+  await page.waitForTimeout(220)
+  const paletteBoundsAfter = await paletteChoice.boundingBox()
+  assert.deepEqual(paletteBoundsAfter, paletteBoundsBefore, 'palette hover must not move or resize its real label hit target')
+
   await page.getByRole('tab', { name: /^背景/ }).click()
   const backgroundCards = page.locator('[data-background-id]')
   assert.equal(await backgroundCards.count(), 3, 'all baseline background choices must remain available')
   await backgroundCards.last().scrollIntoViewIfNeeded()
   await page.waitForFunction(() => [...document.querySelectorAll('[data-background-id] img')].every((image) => image.naturalWidth > 0))
+  const mountainBoundsBefore = await page.locator('[data-background-id="mountain"]').boundingBox()
   await page.locator('[data-background-id="mountain"]').hover()
   await page.waitForTimeout(220)
+  const mountainBoundsAfter = await page.locator('[data-background-id="mountain"]').boundingBox()
+  assert.deepEqual(mountainBoundsAfter, mountainBoundsBefore, 'background hover must preserve the exact selectable-card geometry')
   const backgroundHoverTransforms = await page.locator('[data-background-id] img').evaluateAll((images) =>
     images.map((image) => ({
       id: image.closest('[data-background-id]')?.getAttribute('data-background-id'),
@@ -700,8 +734,19 @@ try {
     assert.ok(card.stripIntegrated && card.stripWidthRatio < 0.3, `background ${card.id} swatch must remain a secondary part of its metadata`)
     assert.notEqual(card.backdrop, 'none', `background ${card.id} metadata needs a readable glass surface`)
   })
+  assert.ok(
+    await backgroundCards.evaluateAll((cards) => cards.every((card) => card.tagName === 'LABEL')),
+    'each background visual boundary must itself be the complete label hit target',
+  )
   assert.equal(new Set(backgroundGeometry.map((card) => card.strip)).size, 3, 'background theme strips must reflect distinct source palettes')
   await page.locator('[data-background-id="default"] [data-slot="radio-group-item"]').focus()
+  const focusedBackground = await page.locator('[data-background-id="default"]').evaluate((card) => ({
+    outline: getComputedStyle(card).outlineStyle,
+    shadow: getComputedStyle(card).boxShadow,
+    bounds: card.getBoundingClientRect().toJSON(),
+  }))
+  assert.equal(focusedBackground.outline, 'none', 'keyboard focus must use the same inset card geometry instead of an offset outline')
+  assert.notEqual(focusedBackground.shadow, 'none', 'keyboard focus must remain clearly visible')
   await page.keyboard.press('ArrowRight')
   await page.waitForFunction(() => document.querySelector('[data-background-id="mountain"]')?.getAttribute('data-selected') === 'true')
   await page.locator('[data-background-id="cloud"]').click()
@@ -721,6 +766,8 @@ try {
       topbarBackdrop: topbar ? getComputedStyle(topbar).backdropFilter : '',
       sidebarBackdrop: sidebar ? getComputedStyle(sidebar).backdropFilter : '',
       cardColor: card ? getComputedStyle(card).backgroundColor : '',
+      rootImage: getComputedStyle(document.documentElement).backgroundImage,
+      bodyColor: getComputedStyle(document.body).backgroundColor,
     }
   })
   assert.match(surfaceGeometry.layerImage, /cloud\.webp/, 'the selected background must remain mounted behind the formal application surface')
@@ -728,10 +775,18 @@ try {
   assert.match(surfaceGeometry.surfaceColor, /(?:\/ 0\)|, 0\))$/, `the application surface must not keep an opaque shadcn background: ${JSON.stringify(surfaceGeometry)}`)
   assert.notEqual(surfaceGeometry.topbarBackdrop, 'none', 'the top bar must keep a bounded glass treatment')
   assert.notEqual(surfaceGeometry.sidebarBackdrop, 'none', 'the sidebar must keep a bounded glass treatment')
+  assert.match(surfaceGeometry.rootImage, /cloud\.webp/, 'elastic overscroll must reveal the same selected image on the document canvas')
+  assert.match(surfaceGeometry.bodyColor, /(?:\/ 0\)|, 0\))$/, `the body must not cover the shared overscroll canvas: ${JSON.stringify(surfaceGeometry)}`)
 
   await page.getByRole('tab', { name: /^方框/ }).click()
   const boxStyleCards = page.locator('[data-box-style-id]')
   assert.equal(await boxStyleCards.count(), 2, 'default and liquid-glass box styles must remain available')
+  const glassChoice = page.locator('[data-box-style-id="glass"]')
+  const glassChoiceBoundsBefore = await glassChoice.boundingBox()
+  await glassChoice.hover()
+  await page.waitForTimeout(220)
+  const glassChoiceBoundsAfter = await glassChoice.boundingBox()
+  assert.deepEqual(glassChoiceBoundsAfter, glassChoiceBoundsBefore, 'box-style hover must preserve the exact selectable-card geometry')
   await page.locator('[data-box-style-id="glass"]').click()
   await page.waitForFunction(() => {
     const value = JSON.parse(localStorage.getItem('classRecord:appearance:v1') || 'null')
@@ -750,6 +805,12 @@ try {
       overflowY: card.scrollHeight - card.clientHeight,
       backdrop: getComputedStyle(card).backdropFilter,
       contain: getComputedStyle(card).contain,
+      overflow: getComputedStyle(card).overflow,
+      cardRadius: getComputedStyle(card).borderStartStartRadius,
+      edgeRadius: getComputedStyle(card, '::before').borderStartStartRadius,
+      edgeBackdrop: getComputedStyle(card, '::before').backdropFilter,
+      headerRadius: getComputedStyle(card.querySelector('[data-slot="card-header"]')).borderStartStartRadius,
+      footerRadius: getComputedStyle(card.querySelector('[data-slot="card-footer"]')).borderEndStartRadius,
     })),
   )
   glassQuizGeometry.forEach((card) => {
@@ -767,9 +828,26 @@ try {
       /layout paint/,
       `${card.type} quiz cards need a stable local paint boundary under liquid glass`,
     )
+    assert.equal(card.overflow, 'clip', `${card.type} quiz material layers must be clipped by one outer radius`)
+    assert.equal(card.edgeRadius, card.cardRadius, `${card.type} quiz edge highlight must follow the card corner`)
+    assert.equal(card.edgeBackdrop, 'none', `${card.type} quiz edge highlight must not create an unclipped second blur layer`)
+    assert.ok(Number.parseFloat(card.headerRadius) > 0, `${card.type} quiz header needs a continuous inner top radius`)
+    assert.ok(Number.parseFloat(card.footerRadius) > 0, `${card.type} quiz footer needs a continuous inner bottom radius`)
   })
   await page.locator('[data-box-style-id="default"]').click()
   await page.waitForFunction(() => document.documentElement.dataset.boxStyle === 'default')
+
+  await page.evaluate(() => window.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: 'auto' }))
+  const bottomBoundary = await page.evaluate(() => {
+    const viewportHeight = window.visualViewport?.height || window.innerHeight
+    return {
+      scrollY: window.scrollY,
+      maximum: Math.max(0, document.documentElement.scrollHeight - viewportHeight),
+      rootImage: getComputedStyle(document.documentElement).backgroundImage,
+    }
+  })
+  assert.ok(Math.abs(bottomBoundary.scrollY - bottomBoundary.maximum) <= 1, `the document must clamp its final scroll position: ${JSON.stringify(bottomBoundary)}`)
+  assert.match(bottomBoundary.rootImage, /cloud\.webp/, 'the selected root background must remain continuous at the lower scroll edge')
 
   const teacherSection = page.locator('[data-people-role="teacher"]')
   await teacherSection.scrollIntoViewIfNeeded()

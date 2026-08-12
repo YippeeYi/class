@@ -41,6 +41,7 @@ import { normalizeRecordKey } from '@/lib/archive'
 import { extractMarkupReferences, recordAnchor } from '@/lib/markup'
 import { buildSupplementalRecords } from '@/lib/record-identity'
 import { consumeRecordJump, type PendingRecordJump } from '@/lib/record-navigation'
+import { clampWindowScrollTop, scrollTargetIntoView } from '@/lib/viewport-scroll'
 import {
   hasAdminAccess,
   loadPageMessages,
@@ -279,6 +280,8 @@ function SignedPageImage({ path, page }: { path: string; page: string }) {
           width={dimensions.width}
           height={dimensions.height}
           alt={`手写记录第 ${page} 页`}
+          decoding="async"
+          fetchPriority="high"
           onLoad={(event) => {
             rememberImageDimensions(path, {
               width: event.currentTarget.naturalWidth,
@@ -627,24 +630,37 @@ export function RecordsPage() {
       return
     }
     pendingJump.current = null
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    target.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-background')
-    const timer = window.setTimeout(
-      () =>
-        target.classList.remove(
-          'ring-2',
-          'ring-primary',
-          'ring-offset-2',
-          'ring-offset-background',
-        ),
-      3200,
-    )
+    let timer = 0
+    let secondFrame = 0
+    const firstFrame = window.requestAnimationFrame(() => {
+      // Written mode may have changed pages in the preceding render. Two
+      // frames give the committed card and its reserved image geometry one
+      // stable measurement before calculating an explicitly clamped target.
+      secondFrame = window.requestAnimationFrame(() => {
+        scrollTargetIntoView(target)
+        target.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-background')
+        timer = window.setTimeout(
+          () =>
+            target.classList.remove(
+              'ring-2',
+              'ring-primary',
+              'ring-offset-2',
+              'ring-offset-background',
+            ),
+          3200,
+        )
+      })
+    })
     if (pending.originHref) {
       setJumpOriginHref(pending.originHref)
     }
     setJumpOrigin(pending.origin)
     if (pending.originHref || pending.origin) setJumpDialogOpen(true)
-    return () => window.clearTimeout(timer)
+    return () => {
+      window.cancelAnimationFrame(firstFrame)
+      if (secondFrame) window.cancelAnimationFrame(secondFrame)
+      if (timer) window.clearTimeout(timer)
+    }
   }, [
     extras,
     filtered,
@@ -662,7 +678,12 @@ export function RecordsPage() {
     const pending = pendingReturn.current
     if (!pending || loading || (view === 'written' && written.loading)) return
     pendingReturn.current = null
-    const restore = () => window.scrollTo({ top: pending.scrollY, left: 0, behavior: 'smooth' })
+    const restore = () =>
+      window.scrollTo({
+        top: clampWindowScrollTop(pending.scrollY),
+        left: 0,
+        behavior: 'smooth',
+      })
     const frame = window.requestAnimationFrame(() => window.requestAnimationFrame(restore))
     return () => window.cancelAnimationFrame(frame)
   }, [filtered, loading, pageIndex, view, written.loading])

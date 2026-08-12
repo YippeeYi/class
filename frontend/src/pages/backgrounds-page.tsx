@@ -25,6 +25,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 type ThemePreset = (typeof themePresets)[number]
 
+const themeModeGroups = [
+  {
+    mode: 'light' as const,
+    label: '浅色模式',
+    description: '适合明亮环境，正文和控件保持清晰深色层级。',
+    icon: Sun,
+  },
+  {
+    mode: 'dark' as const,
+    label: '深色模式',
+    description: '适合低光环境，卡片、边框和强调色均同步降亮。',
+    icon: Moon,
+  },
+]
+
 function ThemePresetOption({ preset, selected }: { preset: ThemePreset; selected: boolean }) {
   return (
     <label
@@ -191,20 +206,6 @@ export function BackgroundsPage() {
   }
   const chooseTheme = (id: ThemePresetId) => setThemePreset(id)
   const chooseBox = (id: BoxStyleId) => setBoxStyle(id)
-  const themeGroups = [
-    {
-      mode: 'light' as const,
-      label: '浅色模式',
-      description: '适合明亮环境，正文和控件保持清晰深色层级。',
-      icon: Sun,
-    },
-    {
-      mode: 'dark' as const,
-      label: '深色模式',
-      description: '适合低光环境，卡片、边框和强调色均同步降亮。',
-      icon: Moon,
-    },
-  ]
   return (
     <div>
       <PageHeading
@@ -263,7 +264,7 @@ export function BackgroundsPage() {
                     从当前背景提取强调色；已缓存的配色会直接复用。
                   </p>
                 </section>
-                {themeGroups.map((group) => {
+                {themeModeGroups.map((group) => {
                   const Icon = group.icon
                   const items = themePresets.filter((preset) => preset.mode === group.mode)
                   return (
@@ -321,13 +322,13 @@ export function BackgroundsPage() {
                 className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
               >
                 {backgrounds.map((item) => (
-                  <div
-                    key={item.id}
-                    data-background-id={item.id}
-                    data-selected={current === item.id ? 'true' : 'false'}
-                    className="appearance-choice group/background-choice relative min-w-0 overflow-hidden"
-                  >
-                    <label htmlFor={`background-${item.id}`} className="block cursor-pointer">
+                  <div key={item.id} className="grid min-w-0 content-start gap-2">
+                    <label
+                      htmlFor={`background-${item.id}`}
+                      data-background-id={item.id}
+                      data-selected={current === item.id ? 'true' : 'false'}
+                      className="appearance-choice group/background-choice relative block min-w-0 overflow-hidden"
+                    >
                       <AspectRatio
                         ratio={4 / 3}
                         className="aspect-[4/3] overflow-hidden bg-muted"
@@ -374,8 +375,8 @@ export function BackgroundsPage() {
                         />
                       </AspectRatio>
                     </label>
-                    <div className="border-t border-border/55 bg-background/44 px-4 py-2.5">
-                      <p className="truncate text-xs leading-5 text-muted-foreground sm:text-sm">
+                    <div className="min-w-0 px-1">
+                      <p className="truncate text-meta leading-5 text-muted-foreground">
                         {item.credit.href ? (
                           <a
                             href={item.credit.href}

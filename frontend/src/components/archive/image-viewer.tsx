@@ -200,6 +200,7 @@ export function ImageViewer({
               src={src}
               alt={alt}
               draggable={false}
+              decoding="async"
               onLoad={(event) => {
                 imageFailure.markLoaded()
                 setNatural({

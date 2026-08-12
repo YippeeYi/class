@@ -411,10 +411,6 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
   const [previous, setPrevious] = useState<BackgroundId | null>(null)
   const transitionTimer = useRef<number | null>(null)
   useEffect(() => {
-    document.documentElement.style.removeProperty('background')
-    delete document.documentElement.dataset.backgroundBootstrap
-  }, [])
-  useEffect(() => {
     const update = (event: Event) =>
       setAppearance((event as CustomEvent<AppearancePreference>).detail || readAppearance())
     window.addEventListener('classrecord:appearance', update)
@@ -465,6 +461,21 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
   useEffect(() => {
     applyBoxStyle(appearance.box)
   }, [appearance.box])
+
+  useEffect(() => {
+    const root = document.documentElement
+    const layer = backgroundLayerStyle(visible)
+    // The fixed React layer paints the normal viewport, while the document
+    // canvas is what Safari and other elastic scrollers reveal beyond its
+    // edges. Keep both on the same source instead of disabling overscroll.
+    root.style.backgroundColor = 'var(--background)'
+    root.style.backgroundImage = String(layer.backgroundImage || 'none')
+    root.style.backgroundPosition = 'center'
+    root.style.backgroundRepeat = 'no-repeat'
+    root.style.backgroundSize = 'cover'
+    root.style.backgroundAttachment = 'fixed'
+    delete root.dataset.backgroundBootstrap
+  }, [visible])
 
   useEffect(() => {
     if (

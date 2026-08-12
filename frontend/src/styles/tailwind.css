@@ -152,8 +152,17 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+  html {
+    @apply bg-background font-sans;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background: transparent;
     min-width: 320px;
     margin: 0;
     line-height: 1.6;
@@ -182,9 +191,6 @@
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
-  }
-  html {
-    @apply font-sans;
   }
 }
 
@@ -805,6 +811,9 @@
    contract keeps palette, background, and box options aligned while allowing
    their previews to use different natural proportions. */
 .appearance-choice {
+  position: relative;
+  box-sizing: border-box;
+  overflow: clip;
   cursor: pointer;
   border: 1px solid color-mix(in oklch, var(--border) 82%, transparent);
   border-radius: calc(var(--radius) + 0.25rem);
@@ -814,31 +823,30 @@
   transition:
     border-color 180ms ease,
     background-color 180ms ease,
-    box-shadow 180ms ease,
-    transform 180ms ease;
+    box-shadow 180ms ease;
 }
 .appearance-choice:hover {
   border-color: color-mix(in oklch, var(--primary) 38%, var(--border));
   background: color-mix(in oklch, var(--background) 76%, transparent);
   box-shadow: 0 0.45rem 1.3rem color-mix(in oklch, var(--foreground) 9%, transparent);
-  transform: translateY(-1px);
-}
-.appearance-choice:has([data-slot="radio-group-item"]:focus-visible) {
-  border-color: var(--ring);
-  outline: 2px solid color-mix(in oklch, var(--ring) 42%, transparent);
-  outline-offset: 2px;
 }
 .appearance-choice[data-selected="true"] {
   border-color: color-mix(in oklch, var(--primary) 72%, var(--border));
   background: color-mix(in oklch, var(--primary) 7%, var(--background));
   box-shadow:
-    0 0 0 1px color-mix(in oklch, var(--primary) 24%, transparent),
+    inset 0 0 0 1px color-mix(in oklch, var(--primary) 36%, transparent),
     0 0.55rem 1.5rem color-mix(in oklch, var(--primary) 12%, transparent);
+}
+.appearance-choice:has([data-slot="radio-group-item"]:focus-visible) {
+  border-color: var(--ring);
+  outline: none;
+  box-shadow:
+    inset 0 0 0 2px color-mix(in oklch, var(--ring) 52%, transparent),
+    0 0.55rem 1.5rem color-mix(in oklch, var(--ring) 14%, transparent);
 }
 .appearance-choice:has([data-slot="radio-group-item"][data-disabled]) {
   cursor: not-allowed;
   opacity: 0.58;
-  transform: none;
 }
 
 /* The preview deliberately exposes the optical layers: a colorful environment,
@@ -953,8 +961,7 @@ html[data-box-style="glass"]
   transition:
     border-color 220ms ease,
     box-shadow 220ms ease,
-    background-color 220ms ease,
-    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    background-color 220ms ease;
 }
 
 html[data-box-style="glass"]
@@ -984,8 +991,6 @@ html[data-box-style="glass"]
     color-mix(in oklch, var(--glass-ambient) 58%, transparent) 82%,
     transparent 94%
   );
-  -webkit-backdrop-filter: blur(2px) saturate(1.55) brightness(1.06);
-  backdrop-filter: blur(2px) saturate(1.55) brightness(1.06);
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
@@ -1053,8 +1058,29 @@ html[data-box-style="glass"] body #root [data-slot="card"] [data-slot="alert"] {
   backdrop-filter: none;
 }
 
+.quiz-question-card {
+  --quiz-card-radius: var(--radius-xl);
+  --quiz-card-inner-radius: max(0px, calc(var(--quiz-card-radius) - 1px));
+  border-radius: var(--quiz-card-radius);
+  background-clip: padding-box;
+  isolation: isolate;
+}
+.quiz-question-card > .quiz-question-header {
+  border-start-start-radius: var(--quiz-card-inner-radius);
+  border-start-end-radius: var(--quiz-card-inner-radius);
+  background-clip: padding-box;
+}
+.quiz-question-card > [data-slot="card-footer"] {
+  border-end-start-radius: var(--quiz-card-inner-radius);
+  border-end-end-radius: var(--quiz-card-inner-radius);
+  background-clip: padding-box;
+}
 html[data-box-style="glass"] .quiz-question-card {
+  overflow: clip;
   contain: layout paint;
+}
+html[data-box-style="glass"] .quiz-question-card::before {
+  border-radius: inherit;
 }
 html[data-box-style="glass"]
   .quiz-question-card
@@ -1133,9 +1159,6 @@ html[data-box-style="glass"]
       [data-slot="alert"]
     ) {
     transition: none;
-  }
-  .appearance-choice:hover {
-    transform: none;
   }
 }
 

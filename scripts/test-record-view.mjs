@@ -64,6 +64,8 @@ assert.match(
   /view === 'written' && \(written\.loading \|\| !written\.data\)/,
   'same-route list-to-written jumps must wait for written data, not only its next loading flag',
 )
+assert.match(page, /scrollTargetIntoView\(target\)/, 'record targets must use the clamped shared scroll coordinator')
+assert.doesNotMatch(page, /target\.scrollIntoView/, 'near-bottom records must not rely on browser centre alignment')
 assert.doesNotMatch(page, /<Card className="bg-muted\/45">/, 'proverbs must not keep a separate heavy card treatment')
 assert.match(
   page,

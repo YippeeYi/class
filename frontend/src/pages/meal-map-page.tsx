@@ -63,6 +63,8 @@ export function MealMapPage() {
                   width={dimensions.width}
                   height={dimensions.height}
                   alt="地图"
+                  decoding="async"
+                  fetchPriority="high"
                   onLoad={(event) => {
                     imageFailure.markLoaded()
                     rememberImageDimensions(MAP_PATH, {
