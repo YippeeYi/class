@@ -462,7 +462,7 @@ export function QuizPage() {
                   ))}
                 </ButtonGroup>
               </div>
-              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              <div className="flex min-w-0 basis-full flex-wrap items-center gap-2 xl:basis-auto">
                 <span className="text-sm font-medium text-muted-foreground">内容</span>
                 <ButtonGroup data-liquid-glass-group className="liquid-control-group">
                   {(

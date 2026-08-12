@@ -106,17 +106,19 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --glass-surface: color-mix(in oklch, var(--card) 62%, transparent);
+  --glass-surface: color-mix(in oklch, var(--card) 64%, transparent);
   --glass-clear-surface: color-mix(in oklch, black 10%, transparent);
   --glass-content-surface: color-mix(in oklch, var(--card) 92%, transparent);
-  --glass-surface-strong: color-mix(in oklch, var(--popover) 82%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 74%, white 26%);
+  --glass-surface-strong: color-mix(in oklch, var(--popover) 84%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 70%, white 30%);
   --glass-content-border: color-mix(in oklch, var(--border) 88%, var(--foreground) 12%);
-  --glass-edge-light: color-mix(in oklch, white 22%, transparent);
-  --glass-ambient: color-mix(in oklch, var(--primary) 14%, transparent);
-  --glass-radius-control: 0.75rem;
-  --glass-radius-group: 0.95rem;
-  --glass-radius-panel: 1.15rem;
+  --glass-edge-light: color-mix(in oklch, white 34%, transparent);
+  --glass-ambient: color-mix(in oklch, var(--primary) 5%, transparent);
+  --glass-radius-control: 0.875rem;
+  --glass-radius-group: 1.125rem;
+  --glass-radius-panel: 1.5rem;
+  --glass-blur: 18px;
+  --glass-saturation: 1.12;
   --elevation-subtle: 0 1px 2px oklch(0.22 0.016 55 / 7%);
   --elevation-raised: 0 2px 5px -3px oklch(0.22 0.016 55 / 12%);
   --elevation-overlay: 0 4px 10px -5px oklch(0.18 0.012 55 / 16%);
@@ -167,9 +169,14 @@
   body,
   #root {
     min-height: 100%;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
   }
   html {
     @apply bg-background font-sans;
+    overflow-x: clip;
+    overscroll-behavior-x: none;
     overscroll-behavior-y: none;
   }
   html[data-record-jump-active="true"] {
@@ -179,8 +186,9 @@
     @apply text-foreground;
     background: transparent;
     min-height: 100svh;
-    min-width: 320px;
     margin: 0;
+    overflow-x: clip;
+    overscroll-behavior-x: none;
     overscroll-behavior-y: none;
     line-height: 1.6;
     letter-spacing: 0.005em;
@@ -188,6 +196,7 @@
   }
   #root {
     min-height: 100svh;
+    overflow-x: clip;
   }
   html[data-viewport-locked="true"],
   body[data-viewport-locked="true"],
@@ -488,7 +497,7 @@
     --quiz-option-disabled-surface: color-mix(in oklch, var(--muted) 52%, var(--card));
     --quiz-option-disabled-foreground: color-mix(
       in oklch,
-      var(--foreground) 76%,
+      var(--foreground) 90%,
       var(--muted-foreground)
     );
   }
@@ -691,7 +700,7 @@
   opacity: 1;
 }
 .quiz-question-card .quiz-option:disabled:not(.is-correct, .is-wrong) {
-  border-color: color-mix(in oklch, var(--border) 88%, var(--foreground));
+  border-color: color-mix(in oklch, var(--border) 82%, var(--foreground));
   background: var(--quiz-option-disabled-surface);
   color: var(--quiz-option-disabled-foreground);
 }
@@ -791,17 +800,17 @@
 }
 
 .app-topbar {
-  background: color-mix(in oklch, var(--background) 86%, transparent);
-  -webkit-backdrop-filter: blur(10px) saturate(1.08);
-  backdrop-filter: blur(10px) saturate(1.08);
+  background: color-mix(in oklch, var(--background) 94%, transparent);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   box-shadow: none;
 }
 
 .app-sidebar [data-slot="sidebar-inner"],
 [data-sidebar="sidebar"][data-mobile="true"] {
-  background: color-mix(in oklch, var(--sidebar) 90%, transparent);
-  -webkit-backdrop-filter: blur(12px) saturate(1.06);
-  backdrop-filter: blur(12px) saturate(1.06);
+  background: color-mix(in oklch, var(--sidebar) 94%, transparent);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 [data-background]:not([data-background="default"])
@@ -876,21 +885,12 @@
 .liquid-glass-preview-control {
   border: 1px solid var(--glass-border);
   background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklch, var(--glass-edge-light) 28%, transparent),
-      transparent 28%
-    ),
-    linear-gradient(
-      90deg,
-      color-mix(in oklch, var(--glass-ambient) 18%, transparent),
-      transparent 62%
-    ),
-    var(--glass-surface);
+    linear-gradient(180deg, var(--glass-edge-light) 0, transparent 1.5px),
+    linear-gradient(90deg, var(--glass-ambient), transparent 72%), var(--glass-surface);
   background-clip: padding-box;
   box-shadow: var(--elevation-raised);
-  -webkit-backdrop-filter: blur(16px) saturate(1.12);
-  backdrop-filter: blur(16px) saturate(1.12);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
 }
 .liquid-glass-preview-surface {
   position: absolute;
@@ -938,26 +938,18 @@ html[data-box-style="glass"]
     [data-slot="hover-card-content"],
     [data-slot="sheet-content"],
     [data-slot="drawer-content"],
-    [data-slot="select-content"]
+    [data-slot="select-content"],
+    [data-slot="toast"]
   ) {
   isolation: isolate;
   border-color: var(--glass-border);
   background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklch, var(--glass-edge-light) 24%, transparent),
-      transparent 24%
-    ),
-    linear-gradient(
-      90deg,
-      color-mix(in oklch, var(--glass-ambient) 10%, transparent),
-      transparent 68%
-    ),
-    var(--glass-surface);
+    linear-gradient(180deg, var(--glass-edge-light) 0, transparent 1.5px),
+    linear-gradient(90deg, var(--glass-ambient), transparent 74%), var(--glass-surface);
   background-clip: padding-box;
   box-shadow: var(--elevation-raised);
-  -webkit-backdrop-filter: blur(18px) saturate(1.16);
-  backdrop-filter: blur(18px) saturate(1.16);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
   transition:
     border-color 180ms ease,
     background-color 180ms ease,
@@ -967,7 +959,7 @@ html[data-box-style="glass"]
 html[data-box-style="glass"] body [data-glass-variant="clear"] {
   background:
     linear-gradient(rgb(0 0 0 / 32%), rgb(0 0 0 / 32%)),
-    linear-gradient(180deg, rgb(255 255 255 / 7%), transparent 24%), var(--glass-clear-surface);
+    linear-gradient(180deg, rgb(255 255 255 / 12%), transparent 1.5px), var(--glass-clear-surface);
   color: oklch(0.97 0.005 250);
   -webkit-backdrop-filter: blur(12px) saturate(1.12);
   backdrop-filter: blur(12px) saturate(1.12);
@@ -976,6 +968,30 @@ html[data-box-style="glass"] body [data-glass-variant="clear"] {
 html[data-box-style="glass"] body [data-liquid-glass-group] {
   overflow: visible;
   border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-group);
+}
+
+html[data-box-style="glass"] body [data-liquid-glass-interactive]:not([data-liquid-glass-group]) {
+  border-radius: var(--glass-radius-control);
+}
+
+html[data-box-style="glass"]
+  body
+  :is([data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="toast"]) {
+  border-radius: var(--glass-radius-panel);
+}
+
+html[data-box-style="glass"]
+  body
+  :is(
+    [data-slot="popover-content"],
+    [data-slot="dropdown-menu-content"],
+    [data-slot="dropdown-menu-sub-content"],
+    [data-slot="context-menu-content"],
+    [data-slot="context-menu-sub-content"],
+    [data-slot="hover-card-content"],
+    [data-slot="select-content"]
+  ) {
   border-radius: var(--glass-radius-group);
 }
 
@@ -1015,6 +1031,7 @@ html[data-box-style="glass"]
   .liquid-control-group
   > [data-slot="button"][aria-pressed="true"] {
   background: color-mix(in oklch, var(--primary) 16%, var(--glass-surface-strong));
+  color: var(--foreground);
   box-shadow: none;
 }
 
@@ -1052,8 +1069,12 @@ html[data-box-style="glass"]
   body
   [data-slot="tabs-list"]:not([data-variant="line"])
   > [data-slot="tabs-trigger"][data-active] {
-  background: color-mix(in oklch, var(--primary) 13%, var(--glass-surface-strong));
+  background: color-mix(in oklch, var(--primary) 18%, var(--glass-surface-strong));
   box-shadow: none;
+}
+
+.quiz-filter-bar [data-slot="button"]:disabled {
+  opacity: 0.72;
 }
 
 html[data-box-style="glass"] body [data-liquid-glass-interactive]:is(:hover, :focus-visible) {
@@ -1119,14 +1140,15 @@ html[data-box-style="glass"][data-background]:not([data-background="default"]) {
 /* Dark appearance is independently tuned: lower edge luminance, more
    transmitted background and no inner glow or elevated-looking halo. */
 html.dark[data-box-style="glass"] {
-  --glass-surface: color-mix(in oklch, var(--card) 48%, transparent);
+  --glass-surface: color-mix(in oklch, var(--card) 56%, transparent);
   --glass-clear-surface: color-mix(in oklch, black 18%, transparent);
-  --glass-content-surface: color-mix(in oklch, var(--card) 90%, transparent);
-  --glass-surface-strong: color-mix(in oklch, var(--popover) 74%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 86%, var(--foreground) 14%);
+  --glass-content-surface: color-mix(in oklch, var(--card) 92%, transparent);
+  --glass-surface-strong: color-mix(in oklch, var(--popover) 80%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 82%, var(--foreground) 18%);
   --glass-content-border: color-mix(in oklch, var(--border) 88%, var(--foreground) 12%);
-  --glass-edge-light: color-mix(in oklch, white 8%, transparent);
-  --glass-ambient: color-mix(in oklch, var(--primary) 10%, transparent);
+  --glass-edge-light: color-mix(in oklch, white 10%, transparent);
+  --glass-ambient: color-mix(in oklch, var(--primary) 4%, transparent);
+  --glass-saturation: 1.06;
 }
 
 html.dark[data-box-style="glass"][data-background="default"] {
@@ -1135,8 +1157,8 @@ html.dark[data-box-style="glass"][data-background="default"] {
 }
 
 html.dark[data-box-style="glass"][data-background]:not([data-background="default"]) {
-  --glass-surface: color-mix(in oklch, var(--card) 44%, transparent);
-  --glass-content-surface: color-mix(in oklch, var(--card) 88%, transparent);
+  --glass-surface: color-mix(in oklch, var(--card) 52%, transparent);
+  --glass-content-surface: color-mix(in oklch, var(--card) 90%, transparent);
 }
 
 html[data-box-style="glass"]
@@ -1151,7 +1173,8 @@ html[data-box-style="glass"]
     [data-slot="hover-card-content"],
     [data-slot="sheet-content"],
     [data-slot="drawer-content"],
-    [data-slot="select-content"]
+    [data-slot="select-content"],
+    [data-slot="toast"]
   ) {
   background-color: var(--glass-surface-strong);
   box-shadow: var(--elevation-overlay);
@@ -1309,21 +1332,42 @@ html[data-box-style="glass"]
 
 .image-viewer-overlay {
   overscroll-behavior: contain;
-  background: color-mix(in oklch, var(--background) 88%, black 12%);
+  background: var(--background);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
 
 .dark .image-viewer-overlay {
-  background: color-mix(in oklch, var(--background) 92%, black 8%);
+  background: var(--background);
 }
 
 .image-viewer-viewport {
+  isolation: isolate;
   overscroll-behavior: contain;
-  background: transparent;
+  background: var(--background);
+}
+
+.image-viewer-ambient {
+  z-index: -2;
+  transform: scale(1.09);
+  filter: blur(32px) saturate(0.72) brightness(0.72);
+}
+
+.image-viewer-ambient-scrim {
+  z-index: -1;
+  background: color-mix(in oklch, var(--background) 24%, transparent);
+}
+
+.dark .image-viewer-ambient {
+  filter: blur(32px) saturate(0.68) brightness(0.58);
+}
+
+.dark .image-viewer-ambient-scrim {
+  background: rgb(0 0 0 / 18%);
 }
 
 .image-viewer-image {
+  z-index: 1;
   transform-origin: center;
   backface-visibility: hidden;
   filter: none;
@@ -1332,10 +1376,20 @@ html[data-box-style="glass"]
 
 .image-viewer-toolbar {
   border: 1px solid color-mix(in oklch, var(--border) 84%, transparent);
-  background: color-mix(in oklch, var(--popover) 82%, transparent);
+  background: color-mix(in oklch, var(--popover) 88%, transparent);
   box-shadow: var(--elevation-overlay);
-  -webkit-backdrop-filter: blur(16px) saturate(1.12);
-  backdrop-filter: blur(16px) saturate(1.12);
+  -webkit-backdrop-filter: blur(14px) saturate(1.08);
+  backdrop-filter: blur(14px) saturate(1.08);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .image-viewer-ambient {
+    filter: blur(24px) saturate(0.62) brightness(0.62);
+  }
+
+  .image-viewer-ambient-scrim {
+    background: color-mix(in oklch, var(--background) 44%, transparent);
+  }
 }
 
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
@@ -1358,6 +1412,7 @@ html[data-box-style="glass"]
       [data-slot="sheet-content"],
       [data-slot="drawer-content"],
       [data-slot="select-content"],
+      [data-slot="toast"],
       [data-slot="alert"]
     ) {
     background: color-mix(in oklch, var(--card) 96%, var(--background));
@@ -1384,6 +1439,7 @@ html[data-box-style="glass"]
       [data-slot="sheet-content"],
       [data-slot="drawer-content"],
       [data-slot="select-content"],
+      [data-slot="toast"],
       [data-slot="alert"]
     ) {
     background: color-mix(in oklch, var(--card) 94%, var(--background));
@@ -1412,6 +1468,7 @@ html[data-box-style="glass"]
       [data-slot="sheet-content"],
       [data-slot="drawer-content"],
       [data-slot="select-content"],
+      [data-slot="toast"],
       [data-slot="alert"]
     ) {
     border-color: color-mix(in oklch, var(--foreground) 52%, var(--border));
@@ -1445,6 +1502,7 @@ html[data-box-style="glass"]
       [data-slot="sheet-content"],
       [data-slot="drawer-content"],
       [data-slot="select-content"],
+      [data-slot="toast"],
       [data-slot="alert"]
     ) {
     transition: none;

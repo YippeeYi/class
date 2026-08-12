@@ -30,7 +30,7 @@ export function ErrorState({
   onRetry?: () => void
 }) {
   return (
-    <Empty className="border">
+    <Empty className="border bg-card/88">
       <EmptyHeader>
         <EmptyMedia variant="icon">
           <AlertCircle />
@@ -58,7 +58,7 @@ export function EmptyState({
   description?: string
 }) {
   return (
-    <Empty className="border">
+    <Empty className="border bg-card/88">
       <EmptyHeader>
         <EmptyMedia variant="icon">
           <Inbox />

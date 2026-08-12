@@ -284,7 +284,7 @@ export function BackgroundsPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                      <div className="grid grid-cols-2 gap-2 lg:grid-cols-3 xl:grid-cols-5">
                         {items.map((preset) => (
                           <ThemePresetOption
                             key={preset.id}

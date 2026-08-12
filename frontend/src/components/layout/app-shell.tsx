@@ -313,7 +313,7 @@ export function AppShell() {
   return (
     <PageHeaderProvider registerTitle={registerTitle}>
       <TooltipProvider>
-        <SidebarProvider>
+        <SidebarProvider className="min-w-0 max-w-full">
           <RouteScrollManager />
           <a
             href="#page-content"
@@ -323,7 +323,10 @@ export function AppShell() {
           </a>
           <AppSidebar onClearAccess={clearAccess} />
           <SidebarInset
-            className={cn('app-main-surface', isViewportLocked && 'h-svh min-h-0 overflow-hidden')}
+            className={cn(
+              'app-main-surface min-w-0 max-w-full',
+              isViewportLocked && 'h-svh min-h-0 overflow-hidden',
+            )}
           >
             <header className="app-topbar sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b border-border/70 px-3 sm:px-4">
               <SidebarTrigger />
@@ -368,7 +371,7 @@ export function AppShell() {
               tabIndex={-1}
               key={location.pathname}
               className={cn(
-                'mx-auto w-full px-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-6 lg:px-8',
+                'mx-auto w-full min-w-0 max-w-full px-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-6 lg:px-8',
                 isViewportLocked
                   ? 'h-[calc(100dvh-4rem)] min-h-0 max-w-[96rem] overflow-hidden py-4 sm:py-5 lg:py-6'
                   : 'min-h-[calc(100svh-4rem)] py-6 pb-12 sm:py-7 sm:pb-16 lg:py-8',
