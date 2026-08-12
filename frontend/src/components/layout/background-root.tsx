@@ -143,7 +143,7 @@ export const boxStyles: Array<{
   {
     id: 'glass',
     label: '液体玻璃',
-    description: '使用克制的透明度、柔和高光与局部模糊呈现层次。',
+    description: '以自适应透光、边缘聚光、环境色渗透和轻量交互呈现立体材质。',
   },
 ]
 
@@ -364,6 +364,34 @@ function applyBoxStyle(id: BoxStyleId) {
   document.documentElement.dataset.boxStyle = id
 }
 
+const LIQUID_GLASS_TARGETS = [
+  '[data-liquid-glass]',
+  '.app-topbar',
+  '.app-sidebar [data-slot="sidebar-inner"]',
+  '[data-slot="card"]',
+  '[data-slot="dialog-content"]',
+  '[data-slot="alert-dialog-content"]',
+  '[data-slot="popover-content"]',
+  '[data-slot="dropdown-menu-content"]',
+  '[data-slot="dropdown-menu-sub-content"]',
+  '[data-slot="select-content"]',
+  '[data-slot="alert"]',
+].join(',')
+
+function liquidGlassTarget(source: EventTarget | null) {
+  if (!(source instanceof Element)) return null
+  let target = source.closest<HTMLElement>(LIQUID_GLASS_TARGETS)
+  if (!target) return null
+  if (target.dataset.slot === 'card') {
+    let parent = target.parentElement?.closest<HTMLElement>('[data-slot="card"]') || null
+    while (parent) {
+      target = parent
+      parent = parent.parentElement?.closest<HTMLElement>('[data-slot="card"]') || null
+    }
+  }
+  return target
+}
+
 function backgroundLayerStyle(id: BackgroundId): CSSProperties {
   const background = backgrounds.find((item) => item.id === id)
   return background?.image
@@ -436,6 +464,62 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     applyBoxStyle(appearance.box)
+  }, [appearance.box])
+
+  useEffect(() => {
+    if (
+      appearance.box !== 'glass' ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+      !window.matchMedia('(hover: hover) and (pointer: fine)').matches
+    )
+      return
+    let activeTarget: HTMLElement | null = null
+    let animationFrame = 0
+    let point: { target: HTMLElement; x: number; y: number } | null = null
+    const clearTarget = () => {
+      if (!activeTarget) return
+      delete activeTarget.dataset.liquidActive
+      activeTarget.style.removeProperty('--liquid-pointer-x')
+      activeTarget.style.removeProperty('--liquid-pointer-y')
+      activeTarget = null
+    }
+    const renderPoint = () => {
+      animationFrame = 0
+      if (!point) return
+      const { target, x, y } = point
+      if (activeTarget !== target) {
+        clearTarget()
+        activeTarget = target
+        activeTarget.dataset.liquidActive = 'true'
+      }
+      const bounds = target.getBoundingClientRect()
+      if (!bounds.width || !bounds.height) return
+      target.style.setProperty('--liquid-pointer-x', `${((x - bounds.left) / bounds.width) * 100}%`)
+      target.style.setProperty('--liquid-pointer-y', `${((y - bounds.top) / bounds.height) * 100}%`)
+    }
+    const move = (event: PointerEvent) => {
+      const target = liquidGlassTarget(event.target)
+      if (!target) {
+        point = null
+        clearTarget()
+        return
+      }
+      point = { target, x: event.clientX, y: event.clientY }
+      if (!animationFrame) animationFrame = window.requestAnimationFrame(renderPoint)
+    }
+    const leave = (event: PointerEvent) => {
+      if (event.relatedTarget) return
+      point = null
+      clearTarget()
+    }
+    document.addEventListener('pointermove', move, { passive: true })
+    document.addEventListener('pointerout', leave, { passive: true })
+    return () => {
+      document.removeEventListener('pointermove', move)
+      document.removeEventListener('pointerout', leave)
+      if (animationFrame) window.cancelAnimationFrame(animationFrame)
+      clearTarget()
+    }
   }, [appearance.box])
 
   useEffect(() => {

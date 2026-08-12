@@ -32,7 +32,7 @@ function ThemePresetOption({ preset, selected }: { preset: ThemePreset; selected
       data-theme-preset-option={preset.id}
       data-theme-mode={preset.mode}
       data-selected={selected ? 'true' : 'false'}
-      className="group/preset grid min-w-0 cursor-pointer gap-2 rounded-xl border border-border/70 bg-background/34 p-2 shadow-xs backdrop-blur-sm transition-[background-color,border-color,box-shadow] hover:border-primary/35 hover:bg-background/52 has-[[data-slot=radio-group-item]:focus-visible]:ring-2 has-[[data-slot=radio-group-item]:focus-visible]:ring-ring/45 data-[selected=true]:border-primary/65 data-[selected=true]:bg-background/62 data-[selected=true]:shadow-sm"
+      className="appearance-choice group/preset grid min-w-0 gap-2 p-2"
     >
       <span
         data-theme-preview={preset.id}
@@ -47,13 +47,30 @@ function ThemePresetOption({ preset, selected }: { preset: ThemePreset; selected
         <span className="appearance-preset-preview-accent absolute right-1.5 top-1.5 size-3 rounded-full border" />
       </span>
       <span className="flex min-w-0 items-center gap-2 px-0.5">
-        <RadioGroupItem id={`theme-preset-${preset.id}`} value={preset.id} className="size-3.5" />
+        <RadioGroupItem id={`theme-preset-${preset.id}`} value={preset.id} />
         <span className="min-w-0 flex-1 truncate text-sm font-semibold">{preset.label}</span>
         <span className="shrink-0 text-meta text-muted-foreground">{preset.category}</span>
       </span>
       <span className="line-clamp-2 px-0.5 text-meta leading-5 text-muted-foreground">
         {preset.description}
       </span>
+    </label>
+  )
+}
+
+function AutomaticThemeOption({ selected }: { selected: boolean }) {
+  return (
+    <label
+      htmlFor="theme-preset-auto"
+      data-theme-preset-option="auto"
+      data-theme-mode="auto"
+      data-selected={selected ? 'true' : 'false'}
+      className="appearance-choice inline-flex min-h-11 min-w-44 items-center gap-2.5 px-3 py-2"
+    >
+      <RadioGroupItem id="theme-preset-auto" value="auto" />
+      <Sparkles className="size-4 text-primary" />
+      <span className="font-semibold">随背景</span>
+      {selected && <Check className="ml-auto size-4 text-primary" aria-hidden="true" />}
     </label>
   )
 }
@@ -100,7 +117,7 @@ function BackgroundPreview({ src, active }: { src: string; active: boolean }) {
         decoding="async"
         onLoad={() => setReady(true)}
         onError={() => setFailed(true)}
-        className={`absolute inset-0 size-full object-cover transition-[opacity,transform] duration-300 group-hover/card:scale-[1.012] ${ready ? 'opacity-100' : 'opacity-0'}`}
+        className={`absolute inset-0 size-full object-cover transition-[opacity,transform] duration-300 group-hover/background-choice:scale-[1.012] ${ready ? 'opacity-100' : 'opacity-0'}`}
       />
     </>
   )
@@ -114,21 +131,30 @@ function BoxStyleOption({ id, selected }: { id: BoxStyleId; selected: boolean })
       htmlFor={`box-style-${id}`}
       data-box-style-id={id}
       data-selected={selected ? 'true' : 'false'}
-      className="group/box cursor-pointer overflow-hidden rounded-xl border border-border/70 bg-background/38 shadow-xs transition-[border-color,background-color,box-shadow] hover:border-primary/40 hover:bg-background/52 has-[[data-slot=radio-group-item]:focus-visible]:ring-2 has-[[data-slot=radio-group-item]:focus-visible]:ring-ring/45 data-[selected=true]:border-primary/65 data-[selected=true]:bg-background/62 data-[selected=true]:shadow-md"
+      className="appearance-choice group/box overflow-hidden"
     >
       <span
-        className={`relative grid h-36 place-items-center overflow-hidden border-b border-border/60 ${id === 'glass' ? 'bg-[radial-gradient(circle_at_20%_20%,color-mix(in_oklch,var(--primary)_36%,transparent),transparent_34%),radial-gradient(circle_at_82%_75%,color-mix(in_oklch,var(--chart-2)_32%,transparent),transparent_38%),var(--muted)]' : 'bg-muted/70'}`}
+        className={`relative grid min-h-40 place-items-center overflow-hidden border-b border-border/60 ${id === 'glass' ? 'liquid-glass-preview' : 'bg-muted/70'}`}
         aria-hidden="true"
       >
+        <span className={id === 'glass' ? 'liquid-glass-preview-orb' : 'hidden'} />
         <span
-          className={`absolute left-[15%] top-[22%] h-20 w-[58%] rounded-xl border p-3 ${id === 'glass' ? 'border-white/35 bg-card/48 shadow-[inset_0_1px_rgb(255_255_255/.38),0_12px_36px_rgb(0_0_0/.12)] backdrop-blur-md' : 'border-border bg-card shadow-sm'}`}
+          className={
+            id === 'glass'
+              ? 'liquid-glass-preview-surface'
+              : 'absolute left-[15%] top-[22%] h-20 w-[58%] rounded-xl border border-border bg-card p-3 shadow-sm'
+          }
         >
           <span className="mb-2 block h-2 w-2/3 rounded-full bg-foreground/70" />
           <span className="block h-1.5 w-full rounded-full bg-muted-foreground/35" />
           <span className="mt-1.5 block h-1.5 w-4/5 rounded-full bg-muted-foreground/25" />
         </span>
         <span
-          className={`absolute bottom-[18%] right-[13%] size-16 rounded-xl border ${id === 'glass' ? 'border-white/32 bg-card/42 shadow-[inset_0_1px_rgb(255_255_255/.32),0_10px_28px_rgb(0_0_0/.1)] backdrop-blur-md' : 'border-border bg-card shadow-sm'}`}
+          className={
+            id === 'glass'
+              ? 'liquid-glass-preview-control'
+              : 'absolute bottom-[18%] right-[13%] size-16 rounded-xl border border-border bg-card shadow-sm'
+          }
         />
       </span>
       <span className="flex items-start gap-3 p-4">
@@ -222,42 +248,21 @@ export function BackgroundsPage() {
               </div>
             </div>
             <CardContent className="p-3 sm:p-4">
-              <section
-                data-theme-mode-group="auto"
-                className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-3"
-              >
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={appearance.theme === 'auto' ? 'secondary' : 'outline'}
-                  aria-pressed={appearance.theme === 'auto'}
-                  aria-describedby="theme-preset-auto-description"
-                  data-theme-preset-option="auto"
-                  data-theme-mode="auto"
-                  data-selected={appearance.theme === 'auto' ? 'true' : 'false'}
-                  className="h-8 gap-1.5 px-3 shadow-xs"
-                  onClick={() => chooseTheme('auto')}
-                >
-                  <Sparkles className="size-3.5" />
-                  随背景
-                  <Check
-                    aria-hidden="true"
-                    className={`size-3.5 transition-opacity ${appearance.theme === 'auto' ? 'opacity-100' : 'opacity-0'}`}
-                  />
-                </Button>
-                <p
-                  id="theme-preset-auto-description"
-                  className="min-w-48 flex-1 text-meta leading-5 text-muted-foreground"
-                >
-                  从当前背景提取强调色；已缓存的配色会直接复用。
-                </p>
-              </section>
               <RadioGroup
                 aria-label="选择全站配色方案"
                 value={appearance.theme}
                 onValueChange={(value) => chooseTheme(value as ThemePresetId)}
-                className="grid gap-4 border-t border-border/60 pt-3"
+                className="grid gap-4"
               >
+                <section
+                  data-theme-mode-group="auto"
+                  className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/60 pb-3"
+                >
+                  <AutomaticThemeOption selected={appearance.theme === 'auto'} />
+                  <p className="min-w-48 flex-1 text-meta leading-5 text-muted-foreground">
+                    从当前背景提取强调色；已缓存的配色会直接复用。
+                  </p>
+                </section>
                 {themeGroups.map((group) => {
                   const Icon = group.icon
                   const items = themePresets.filter((preset) => preset.mode === group.mode)
@@ -316,59 +321,60 @@ export function BackgroundsPage() {
                 className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
               >
                 {backgrounds.map((item) => (
-                  <Card
+                  <div
                     key={item.id}
                     data-background-id={item.id}
                     data-selected={current === item.id ? 'true' : 'false'}
-                    className="group/card relative cursor-pointer gap-0 overflow-hidden border-border/70 bg-card/38 py-0 shadow-sm ring-1 ring-border/75 backdrop-blur-md transition-[background-color,box-shadow,ring-color] duration-200 hover:bg-card/54 hover:ring-primary/35 data-[selected=true]:bg-card/62 data-[selected=true]:shadow-md data-[selected=true]:ring-2 data-[selected=true]:ring-primary"
-                    onClick={() => choose(item.id)}
+                    className="appearance-choice group/background-choice relative min-w-0 overflow-hidden"
                   >
-                    <AspectRatio
-                      ratio={4 / 3}
-                      className="aspect-[4/3] overflow-hidden bg-muted"
-                      style={{ background: item.swatch }}
-                    >
-                      {item.image ? (
-                        <BackgroundPreview src={item.image} active={current === item.id} />
-                      ) : (
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_12%,color-mix(in_oklch,var(--primary)_20%,transparent),transparent_34%),repeating-linear-gradient(0deg,transparent_0_31px,color-mix(in_oklch,var(--primary)_7%,transparent)_32px),linear-gradient(145deg,var(--background),color-mix(in_oklch,var(--secondary)_62%,var(--background)))]" />
-                      )}
-                      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,transparent_42%,rgb(18_16_14/.18)_100%)]" />
-                      <div className="absolute inset-x-3 bottom-3 rounded-xl border border-border/75 bg-background/62 p-3 shadow-md backdrop-blur-md sm:inset-x-4 sm:bottom-4">
-                        <div className="mb-1.5 flex min-w-0 items-center justify-between gap-3">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <CardTitle className="truncate text-base sm:text-lg">
-                              {item.label}
-                            </CardTitle>
-                            <span
-                              data-background-swatch
-                              className="block h-2 w-8 shrink-0 rounded-full ring-1 ring-background/65"
-                              style={{ background: item.swatch }}
-                              aria-hidden="true"
-                            />
+                    <label htmlFor={`background-${item.id}`} className="block cursor-pointer">
+                      <AspectRatio
+                        ratio={4 / 3}
+                        className="aspect-[4/3] overflow-hidden bg-muted"
+                        style={{ background: item.swatch }}
+                      >
+                        {item.image ? (
+                          <BackgroundPreview src={item.image} active={current === item.id} />
+                        ) : (
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_12%,color-mix(in_oklch,var(--primary)_20%,transparent),transparent_34%),repeating-linear-gradient(0deg,transparent_0_31px,color-mix(in_oklch,var(--primary)_7%,transparent)_32px),linear-gradient(145deg,var(--background),color-mix(in_oklch,var(--secondary)_62%,var(--background)))]" />
+                        )}
+                        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,transparent_42%,rgb(18_16_14/.18)_100%)]" />
+                        <div className="absolute inset-x-3 bottom-3 rounded-xl border border-border/75 bg-background/70 p-3 shadow-md backdrop-blur-md sm:inset-x-4 sm:bottom-4">
+                          <div className="mb-1.5 flex min-w-0 items-center justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <strong className="truncate font-heading text-base sm:text-lg">
+                                {item.label}
+                              </strong>
+                              <span
+                                data-background-swatch
+                                className="block h-2 w-8 shrink-0 rounded-full ring-1 ring-background/65"
+                                style={{ background: item.swatch }}
+                                aria-hidden="true"
+                              />
+                            </div>
+                            <Badge
+                              variant={current === item.id ? 'default' : 'outline'}
+                              className={
+                                current === item.id ? 'shrink-0' : 'shrink-0 bg-background/64'
+                              }
+                            >
+                              {current === item.id && <Check data-icon="inline-start" />}
+                              {current === item.id ? '使用中' : item.category}
+                            </Badge>
                           </div>
-                          <Badge
-                            variant={current === item.id ? 'default' : 'outline'}
-                            className={
-                              current === item.id ? 'shrink-0' : 'shrink-0 bg-background/52'
-                            }
-                          >
-                            {current === item.id && <Check data-icon="inline-start" />}
-                            {current === item.id ? '使用中' : item.category}
-                          </Badge>
+                          <p className="line-clamp-2 text-sm leading-5 text-muted-foreground">
+                            {item.description}
+                          </p>
                         </div>
-                        <p className="line-clamp-2 text-sm leading-5 text-muted-foreground">
-                          {item.description}
-                        </p>
-                      </div>
-                      <RadioGroupItem
-                        value={item.id}
-                        aria-label={`使用${item.label}背景`}
-                        className="absolute right-3 top-3 z-20 size-5 border-background/80 bg-background/90 shadow-sm after:-inset-2 sm:right-4 sm:top-4"
-                        onClick={(event) => event.stopPropagation()}
-                      />
-                    </AspectRatio>
-                    <CardContent className="border-t border-border/55 bg-background/32 px-4 py-2.5 backdrop-blur-sm">
+                        <RadioGroupItem
+                          id={`background-${item.id}`}
+                          value={item.id}
+                          aria-label={`使用${item.label}背景`}
+                          className="absolute right-3 top-3 z-20 size-5 border-background/80 bg-background/90 shadow-sm after:-inset-2 sm:right-4 sm:top-4"
+                        />
+                      </AspectRatio>
+                    </label>
+                    <div className="border-t border-border/55 bg-background/44 px-4 py-2.5">
                       <p className="truncate text-xs leading-5 text-muted-foreground sm:text-sm">
                         {item.credit.href ? (
                           <a
@@ -376,7 +382,6 @@ export function BackgroundsPage() {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="underline decoration-foreground/30 underline-offset-4 hover:text-foreground"
-                            onClick={(event) => event.stopPropagation()}
                           >
                             {item.credit.label}
                           </a>
@@ -384,8 +389,8 @@ export function BackgroundsPage() {
                           item.credit.label
                         )}
                       </p>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 ))}
               </RadioGroup>
             </CardContent>

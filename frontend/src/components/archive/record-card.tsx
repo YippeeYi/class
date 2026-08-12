@@ -48,10 +48,12 @@ function AttachmentLink({ attachment }: { attachment: Attachment }) {
 export const RecordCard = memo(function RecordCard({
   record,
   onRecordReference,
+  onSourceAction,
   showSourceAction = true,
 }: {
   record: RecordItem
   onRecordReference?: (recordId: string, source: HTMLElement) => void
+  onSourceAction?: (record: RecordItem, source: HTMLElement) => void
   showSourceAction?: boolean
 }) {
   const typeLabel =
@@ -107,12 +109,30 @@ export const RecordCard = memo(function RecordCard({
                   <Tooltip>
                     <TooltipTrigger
                       render={
-                        <Link
-                          to={recordWrittenHref(record)}
-                          aria-label={`在书面记录中查看${recordDisplayNumber(record)}`}
-                          className="record-source-action inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,opacity,transform] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          onClick={() => prepareRecordJump(anchor)}
-                        />
+                        onSourceAction ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`在书面记录中查看${recordDisplayNumber(record)}`}
+                            className="record-source-action text-muted-foreground hover:text-accent-foreground"
+                            onClick={(event) => onSourceAction(record, event.currentTarget)}
+                          />
+                        ) : (
+                          <Button
+                            nativeButton={false}
+                            render={
+                              <Link
+                                to={recordWrittenHref(record)}
+                                onClick={() => prepareRecordJump(anchor)}
+                              />
+                            }
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`在书面记录中查看${recordDisplayNumber(record)}`}
+                            className="record-source-action text-muted-foreground hover:text-accent-foreground"
+                          />
+                        )
                       }
                     >
                       <BookOpenText className="size-4" />

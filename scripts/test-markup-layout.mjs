@@ -23,6 +23,7 @@ const harness = String.raw`<!doctype html>
       import { BackgroundsPage } from '/src/pages/backgrounds-page.tsx'
       import { HomePage } from '/src/pages/home-page.tsx'
       import { PeoplePage } from '/src/pages/people-page.tsx'
+      import { RecordsPage } from '/src/pages/records-page.tsx'
       import { BackgroundRoot } from '/src/components/layout/background-root.tsx'
       import { Badge } from '/src/components/ui/badge.tsx'
       import { Button } from '/src/components/ui/button.tsx'
@@ -46,11 +47,31 @@ const harness = String.raw`<!doctype html>
       const cacheEntry = (data) => JSON.stringify({ time: Date.now(), data })
       const today = new Date()
       const todayDate = String(today.getFullYear()) + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0')
+      const recordFixture = (id, recordIndex, date, content) => ({
+        id,
+        fileName: id + '.json',
+        recordIndex,
+        date,
+        time: '',
+        author: '',
+        recorder: '',
+        content,
+        text: content,
+        importance: 'normal',
+        attachments: [],
+        hidden: false,
+      })
       sessionStorage.setItem(cachePrefix + 'records:false', cacheEntry([
-        { id: 'r1', fileName: 'r1', date: todayDate, content: '今天的记录 [[quote:q1|一句话]]' },
-        { id: 'r2', fileName: 'r2', date: '2025-02-03', content: '第二条记录' },
-        { id: 'r3', fileName: 'r3', date: '2026-05-06', content: '第三条记录' },
+        recordFixture('r1', 1, todayDate, '今天的记录 [[quote:q1|一句话]]'),
+        recordFixture('r2', 2, '2025-02-03', '第二条记录'),
+        recordFixture('r3', 3, '2026-05-06', '第三条记录'),
       ]))
+      sessionStorage.setItem(cachePrefix + 'record-pages:false', cacheEntry([
+        { page: '1', startFile: 'r1.json', endFile: 'r2.json', imagePath: 'fixtures/page-1.webp', hidden: false },
+        { page: '2', startFile: 'r3.json', endFile: 'r3.json', imagePath: 'fixtures/page-2.webp', hidden: false },
+      ]))
+      sessionStorage.setItem(cachePrefix + 'page-messages', cacheEntry([]))
+      sessionStorage.setItem(cachePrefix + 'page-supplements:false', cacheEntry([]))
       sessionStorage.setItem(cachePrefix + 'people', cacheEntry([
         { id: 'p1', name: '人物一', role: 'student' },
         { id: 'p2', name: '人物二', role: 'student' },
@@ -97,6 +118,7 @@ const harness = String.raw`<!doctype html>
       function QuizThemeFixture({ type }) {
         return e('article', {
           className: 'quiz-question-card',
+          'data-slot': 'card',
           'data-question-type': type,
           'data-quiz-theme-fixture': type,
           style: { display: 'grid', gap: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', background: 'var(--card)', color: 'var(--card-foreground)', padding: '16px' },
@@ -160,6 +182,12 @@ const harness = String.raw`<!doctype html>
         return null
       }
 
+      function RecordsRouteFixture() {
+        const location = useLocation()
+        if (location.pathname !== '/' && location.pathname !== '/records') return null
+        return e('section', { 'data-case': 'records', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(RecordsPage))
+      }
+
       function App() {
         return e(MemoryRouter, null,
           e(BackgroundRoot, null,
@@ -178,6 +206,7 @@ const harness = String.raw`<!doctype html>
                 e(DailyGrid, { id: 'narrow', width: '18rem', columns: 4 }),
                 e(DailyGrid, { id: 'medium', width: '38rem', columns: 7 }),
                 e(DailyGrid, { id: 'wide', width: '52rem', columns: 10 }),
+                e(RecordsRouteFixture),
                 e('section', { 'data-case': 'backgrounds', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(BackgroundsPage)),
                 e('section', { 'data-case': 'quiz-theme', style: { display: 'grid', width: '68rem', maxWidth: '100%', gap: '12px', margin: '24px auto' } },
                   e(QuizThemeFixture, { type: 'choice' }),
@@ -264,6 +293,33 @@ try {
   await page.goto(origin, { waitUntil: 'networkidle' })
   await page.waitForFunction(() => window.__markupLayoutReady === true)
   assert.deepEqual(pageErrors, [], `browser page errors during initial render: ${pageErrors.join('; ')}`)
+
+  const recordsFixture = page.locator('[data-case="records"]')
+  const sourceJump = recordsFixture.getByRole('button', {
+    name: '在书面记录中查看#r3',
+  })
+  await sourceJump.hover()
+  await sourceJump.click()
+  await page.waitForTimeout(300)
+  const recordJumpLocation = await page.evaluate(() => window.__memoryLocation)
+  assert.equal(
+    recordJumpLocation,
+    '/records?view=written#record-r3',
+    'the records-page source action must navigate to the written anchor',
+  )
+  await recordsFixture.locator('#record-r3').waitFor({ state: 'visible' })
+  await page.getByRole('alertdialog').waitFor({ state: 'visible' })
+  assert.equal(
+    await recordsFixture.getByText('未找到要跳转的记录，请检查来源是否仍然存在。').count(),
+    0,
+    'same-route list-to-written source jumps must not discard their anchor before written data loads',
+  )
+  assert.match(
+    (await recordsFixture.getByText(/第 2 页/).first().textContent()) || '',
+    /第 2 页/,
+    'a source jump must switch to the written page that actually contains the record',
+  )
+  await page.getByRole('button', { name: '留在这里' }).click()
 
   for (const width of [1280, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 })
@@ -475,12 +531,18 @@ try {
   const autoThemeGeometry = await autoThemeControl.evaluate((element) => ({
     height: element.getBoundingClientRect().height,
     width: element.getBoundingClientRect().width,
-    slot: element.getAttribute('data-slot'),
-    pressed: element.getAttribute('aria-pressed'),
+    radioSlot: element.querySelector('[data-slot="radio-group-item"]')?.getAttribute('data-slot'),
     hasPreview: Boolean(element.querySelector('[data-theme-preview]')),
   }))
-  assert.equal(autoThemeGeometry.slot, 'button', 'automatic palette must use the shared shadcn Button')
-  assert.ok(autoThemeGeometry.height <= 36, `automatic palette control must stay compact: ${JSON.stringify(autoThemeGeometry)}`)
+  assert.equal(
+    autoThemeGeometry.radioSlot,
+    'radio-group-item',
+    'automatic palette must share the same shadcn RadioGroup as designed palettes',
+  )
+  assert.ok(
+    autoThemeGeometry.height >= 40 && autoThemeGeometry.height <= 52,
+    `automatic palette control must retain a readable touch target without becoming oversized: ${JSON.stringify(autoThemeGeometry)}`,
+  )
   assert.equal(autoThemeGeometry.hasPreview, false, 'automatic palette must not render a full preview card')
   const designedThemeOptions = page.locator('[data-theme-preset-option]:not([data-theme-preset-option="auto"])')
   const themePreviewColors = await designedThemeOptions.evaluateAll((options) =>
@@ -595,6 +657,24 @@ try {
   assert.equal(await backgroundCards.count(), 3, 'all baseline background choices must remain available')
   await backgroundCards.last().scrollIntoViewIfNeeded()
   await page.waitForFunction(() => [...document.querySelectorAll('[data-background-id] img')].every((image) => image.naturalWidth > 0))
+  await page.locator('[data-background-id="mountain"]').hover()
+  await page.waitForTimeout(220)
+  const backgroundHoverTransforms = await page.locator('[data-background-id] img').evaluateAll((images) =>
+    images.map((image) => ({
+      id: image.closest('[data-background-id]')?.getAttribute('data-background-id'),
+      scale: getComputedStyle(image).scale,
+    })),
+  )
+  assert.notEqual(
+    backgroundHoverTransforms.find((item) => item.id === 'mountain')?.scale,
+    'none',
+    'the hovered background preview must receive its restrained scale feedback',
+  )
+  assert.equal(
+    backgroundHoverTransforms.find((item) => item.id === 'cloud')?.scale,
+    'none',
+    'hovering one background must not lift every preview image',
+  )
   const backgroundGeometry = await backgroundCards.evaluateAll((cards) =>
     cards.map((card) => {
       const preview = card.querySelector('[data-slot="aspect-ratio"]')
@@ -661,6 +741,33 @@ try {
     .locator('[data-case="app-surface"] [data-slot="card"]')
     .evaluate((card) => getComputedStyle(card).backdropFilter)
   assert.notEqual(glassCardBackdrop, 'none', 'liquid-glass must apply globally to semantic card containers')
+  const glassQuizGeometry = await page.locator('[data-quiz-theme-fixture]').evaluateAll((cards) =>
+    cards.map((card) => ({
+      type: card.getAttribute('data-question-type'),
+      width: card.getBoundingClientRect().width,
+      height: card.getBoundingClientRect().height,
+      overflowX: card.scrollWidth - card.clientWidth,
+      overflowY: card.scrollHeight - card.clientHeight,
+      backdrop: getComputedStyle(card).backdropFilter,
+      contain: getComputedStyle(card).contain,
+    })),
+  )
+  glassQuizGeometry.forEach((card) => {
+    assert.ok(
+      card.overflowX <= 1 && card.overflowY <= 1,
+      `liquid glass must not clip or enlarge ${card.type} quiz content: ${JSON.stringify(card)}`,
+    )
+    assert.notEqual(
+      card.backdrop,
+      'none',
+      `liquid glass must retain the top-level material on ${card.type} quiz cards`,
+    )
+    assert.match(
+      card.contain,
+      /layout paint/,
+      `${card.type} quiz cards need a stable local paint boundary under liquid glass`,
+    )
+  })
   await page.locator('[data-box-style-id="default"]').click()
   await page.waitForFunction(() => document.documentElement.dataset.boxStyle === 'default')
 
@@ -801,7 +908,7 @@ try {
   await longTrigger.focus()
   await page.keyboard.press('Enter')
   await page.waitForFunction(() => document.activeElement?.matches('a.person-link'))
-  await page.keyboard.press('Enter')
+  await nestedPerson.press('Enter')
   await page.waitForFunction(() => window.__memoryLocation === '/person?id=p01')
 
   await page.setViewportSize({ width: 320, height: 1000 })

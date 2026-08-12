@@ -46,12 +46,23 @@ assert.match(card, /record\.recordType === 'message' \? '箴言'/, 'proverbs nee
 assert.match(card, /recordDisplayNumber\(record\)/, 'all record cards must use the shared number formatter')
 assert.doesNotMatch(card, /日期未记录/, 'record cards must omit absent dates instead of rendering a placeholder')
 assert.match(card, /recordWrittenHref\(record\)/, 'record cards must expose the written-source jump')
+assert.match(card, /onSourceAction\(record, event\.currentTarget\)/, 'record cards must let the records page coordinate same-route source jumps')
 assert.match(card, /record-source-action/, 'record source actions must remain quiet until hover or focus')
 assert.match(page, /showSourceAction=\{false\}/, 'written-mode cards must not show a redundant source action')
 assert.match(
   page,
+  /navigateToWrittenSource = useCallback[\s\S]*origin:[\s\S]*view: state\.view,[\s\S]*criteria: \{ \.\.\.state\.criteria \}[\s\S]*setView\('written'\)/,
+  'list source actions must preserve their in-page origin before switching to written mode',
+)
+assert.match(
+  page,
   /targetRecord = \[\.\.\.records, \.\.\.extras\][\s\S]*targetPageIndex[\s\S]*setPageIndex/,
   'asynchronous written jumps must select the page containing the target before scrolling',
+)
+assert.match(
+  page,
+  /view === 'written' && \(written\.loading \|\| !written\.data\)/,
+  'same-route list-to-written jumps must wait for written data, not only its next loading flag',
 )
 assert.doesNotMatch(page, /<Card className="bg-muted\/45">/, 'proverbs must not keep a separate heavy card treatment')
 assert.match(

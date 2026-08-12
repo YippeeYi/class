@@ -321,7 +321,7 @@ export function RecordsPage() {
   const recordsResource = useAsyncData(() => loadRecords())
   const location = useLocation()
   const navigate = useNavigate()
-  const [params, setParams] = useSearchParams()
+  const [params] = useSearchParams()
   const [view, setView] = useState<'list' | 'written'>(
     params.get('view') === 'written' ? 'written' : 'list',
   )
@@ -529,7 +529,47 @@ export function RecordsPage() {
     [navigate],
   )
 
+  const navigateToWrittenSource = useCallback(
+    (target: RecordItem, source: HTMLElement) => {
+      const state = recordNavigation.current
+      const anchor = recordAnchor(target)
+      const sourceRecord = source.closest<HTMLElement>('[id^="record-"]')
+      const visiblePages = state.pages.filter((page) => Boolean(page.imagePath))
+      const knownPageIndex = visiblePages.findIndex((page) =>
+        withinPage(page, target, state.records),
+      )
+      pendingJump.current = {
+        targetAnchorId: anchor,
+        originHref: '',
+        createdAt: Date.now(),
+        origin: {
+          view: state.view,
+          pageIndex: state.pageIndex,
+          criteria: { ...state.criteria },
+          anchorId: sourceRecord?.id || '',
+          scrollY: window.scrollY,
+        },
+      }
+      setJumpError('')
+      setCriteria(EMPTY_RECORD_CRITERIA)
+      setView('written')
+      setPageIndex(knownPageIndex >= 0 ? knownPageIndex : 0)
+      setJumpRevision((value) => value + 1)
+      suppressNextLocationJump.current = true
+      navigate(
+        { pathname: '/records', search: '?view=written', hash: `#${anchor}` },
+        { replace: true },
+      )
+    },
+    [navigate],
+  )
+
   useEffect(() => {
+    // Internal record jumps and returns already issue an exact navigation. Do
+    // not let the general filter/view synchronizer replay an older router
+    // snapshot on top of that pathname or hash while React is committing the
+    // accompanying state transition.
+    if (pendingJump.current || pendingReturn.current) return
     const next = new URLSearchParams()
     if (view === 'written') next.set('view', view)
     if (criteria.query) next.set('q', criteria.query)
@@ -538,16 +578,32 @@ export function RecordsPage() {
     if (criteria.day) next.set('day', criteria.day)
     if (criteria.important) next.set('important', '1')
     if (criteria.excludeDaily) next.set('excludeDaily', '1')
-    const current = new URLSearchParams(window.location.search)
-    if (next.toString() !== current.toString()) setParams(next, { replace: true })
-  }, [criteria, setParams, view])
+    const current = new URLSearchParams(location.search)
+    if (next.toString() === current.toString()) return
+    navigate(
+      {
+        pathname: location.pathname,
+        search: next.toString() ? `?${next}` : '',
+        // A record jump owns its hash until the locator consumes it. Keeping
+        // the current hash here prevents filter/view URL synchronization from
+        // racing with, and erasing, the just-created target anchor.
+        hash: location.hash,
+      },
+      { replace: true },
+    )
+  }, [criteria, location.hash, location.pathname, location.search, navigate, view])
 
   const loading = !hidden && recordsResource.loading
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: jumpRevision re-runs the locator after a same-page route stores a new pending jump in the ref.
   useEffect(() => {
     const pending = pendingJump.current
-    if (loading || (view === 'written' && written.loading) || !pending) return
+    // A same-route list → written navigation renders once before useAsyncData's
+    // dependency effect can mark the new written resource as loading. Waiting
+    // for actual data (instead of the loading flag alone) keeps the pending
+    // anchor alive across that render and matches the legacy load-then-locate
+    // sequence.
+    if (loading || (view === 'written' && (written.loading || !written.data)) || !pending) return
     const target = document.getElementById(pending.targetAnchorId)
     if (!target) {
       if (view === 'written' && written.data) {
@@ -716,6 +772,7 @@ export function RecordsPage() {
                 key={record.fileName || record.id}
                 record={record}
                 onRecordReference={navigateToRecord}
+                onSourceAction={navigateToWrittenSource}
               />
             ))
           ) : (

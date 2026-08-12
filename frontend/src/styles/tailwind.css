@@ -97,10 +97,13 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --glass-surface: color-mix(in oklch, var(--card) 68%, transparent);
-  --glass-surface-strong: color-mix(in oklch, var(--popover) 78%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 76%, white 24%);
-  --glass-shadow: color-mix(in oklch, var(--foreground) 13%, transparent);
+  --glass-surface: color-mix(in oklch, var(--card) 58%, transparent);
+  --glass-surface-strong: color-mix(in oklch, var(--popover) 72%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 62%, white 38%);
+  --glass-edge-light: color-mix(in oklch, white 72%, transparent);
+  --glass-edge-shade: color-mix(in oklch, var(--foreground) 16%, transparent);
+  --glass-shadow: color-mix(in oklch, var(--foreground) 14%, transparent);
+  --glass-ambient: color-mix(in oklch, var(--primary) 20%, transparent);
 }
 
 .dark {
@@ -798,25 +801,231 @@
   );
 }
 
-/* The box-style preference is a single global container contract. It targets
-   semantic surfaces only; controls and table cells deliberately retain their
-   shadcn interaction geometry and contrast. */
-html[data-box-style="glass"] body #root [data-slot="card"] {
-  border-color: var(--glass-border);
-  background-color: var(--glass-surface);
+/* Appearance choices are controls, not content cards. A shared selection
+   contract keeps palette, background, and box options aligned while allowing
+   their previews to use different natural proportions. */
+.appearance-choice {
+  cursor: pointer;
+  border: 1px solid color-mix(in oklch, var(--border) 82%, transparent);
+  border-radius: calc(var(--radius) + 0.25rem);
+  background: color-mix(in oklch, var(--background) 62%, transparent);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px color-mix(in oklch, var(--foreground) 7%, transparent);
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+.appearance-choice:hover {
+  border-color: color-mix(in oklch, var(--primary) 38%, var(--border));
+  background: color-mix(in oklch, var(--background) 76%, transparent);
+  box-shadow: 0 0.45rem 1.3rem color-mix(in oklch, var(--foreground) 9%, transparent);
+  transform: translateY(-1px);
+}
+.appearance-choice:has([data-slot="radio-group-item"]:focus-visible) {
+  border-color: var(--ring);
+  outline: 2px solid color-mix(in oklch, var(--ring) 42%, transparent);
+  outline-offset: 2px;
+}
+.appearance-choice[data-selected="true"] {
+  border-color: color-mix(in oklch, var(--primary) 72%, var(--border));
+  background: color-mix(in oklch, var(--primary) 7%, var(--background));
   box-shadow:
-    inset 0 1px color-mix(in oklch, white 42%, transparent),
-    0 0.75rem 2.2rem var(--glass-shadow);
-  -webkit-backdrop-filter: blur(14px) saturate(1.12);
-  backdrop-filter: blur(14px) saturate(1.12);
+    0 0 0 1px color-mix(in oklch, var(--primary) 24%, transparent),
+    0 0.55rem 1.5rem color-mix(in oklch, var(--primary) 12%, transparent);
+}
+.appearance-choice:has([data-slot="radio-group-item"][data-disabled]) {
+  cursor: not-allowed;
+  opacity: 0.58;
+  transform: none;
 }
 
-html.dark[data-box-style="glass"] body #root [data-slot="card"] {
-  border-color: color-mix(in oklch, var(--border) 82%, white 18%);
-  background-color: color-mix(in oklch, var(--card) 72%, transparent);
+/* The preview deliberately exposes the optical layers: a colorful environment,
+   a refractive rim, a soft body tint, an ambient spill, and a separate floating
+   control. It is a compact visual explanation rather than a generic blur demo. */
+.liquid-glass-preview {
+  background:
+    radial-gradient(
+      circle at 18% 20%,
+      color-mix(in oklch, var(--primary) 66%, transparent),
+      transparent 31%
+    ),
+    radial-gradient(
+      circle at 82% 77%,
+      color-mix(in oklch, var(--chart-2) 58%, transparent),
+      transparent 34%
+    ),
+    linear-gradient(
+      145deg,
+      color-mix(in oklch, var(--muted) 82%, var(--background)),
+      var(--background)
+    );
+}
+.liquid-glass-preview-orb {
+  position: absolute;
+  top: 12%;
+  right: 12%;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--chart-3) 48%, transparent);
+  filter: blur(0.15rem);
+}
+.liquid-glass-preview-surface,
+.liquid-glass-preview-control {
+  border: 1px solid color-mix(in oklch, white 56%, var(--border));
+  background:
+    radial-gradient(circle at 24% 8%, rgb(255 255 255 / 42%), transparent 38%),
+    color-mix(in oklch, var(--card) 46%, transparent);
   box-shadow:
-    inset 0 1px color-mix(in oklch, white 16%, transparent),
-    0 0.9rem 2.5rem color-mix(in oklch, black 32%, transparent);
+    inset 0 1px rgb(255 255 255 / 58%),
+    inset 0 -1px color-mix(in oklch, var(--foreground) 12%, transparent),
+    0 0.9rem 2.2rem color-mix(in oklch, var(--foreground) 18%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.35) contrast(1.04);
+  backdrop-filter: blur(14px) saturate(1.35) contrast(1.04);
+}
+.liquid-glass-preview-surface {
+  position: absolute;
+  top: 19%;
+  left: 13%;
+  width: 62%;
+  min-height: 5.5rem;
+  border-radius: 1.15rem;
+  padding: 0.9rem;
+  transform: perspective(24rem) rotateX(2deg) rotateY(-2deg);
+}
+.liquid-glass-preview-control {
+  position: absolute;
+  right: 11%;
+  bottom: 14%;
+  width: 4.1rem;
+  height: 4.1rem;
+  border-radius: 1.25rem;
+}
+.liquid-glass-preview-control::after {
+  position: absolute;
+  inset: 38%;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 0 1rem color-mix(in oklch, var(--primary) 48%, transparent);
+  content: "";
+}
+
+/* Liquid Glass is treated as a hierarchy, not a blanket transparency filter.
+   Top-level semantic containers carry the optical material; nested cards and
+   nested alerts keep stable fills to avoid glass-on-glass and preserve quiz
+   state colors. Controls and table cells retain their shadcn geometry. */
+html[data-box-style="glass"]
+  body
+  :is(
+    #root .app-topbar,
+    #root .app-sidebar [data-slot="sidebar-inner"],
+    #root [data-slot="card"]:not([data-slot="card"] [data-slot="card"]),
+    [data-slot="dialog-content"],
+    [data-slot="alert-dialog-content"],
+    [data-slot="popover-content"],
+    [data-slot="dropdown-menu-content"],
+    [data-slot="dropdown-menu-sub-content"],
+    [data-slot="select-content"],
+    #root [data-slot="alert"]:not([data-slot="card"] [data-slot="alert"])
+  ) {
+  --liquid-pointer-x: 18%;
+  --liquid-pointer-y: 0%;
+  position: relative;
+  isolation: isolate;
+  border-color: var(--glass-border);
+  background:
+    radial-gradient(
+      circle at var(--liquid-pointer-x) var(--liquid-pointer-y),
+      color-mix(in oklch, var(--glass-edge-light) 42%, transparent) 0,
+      transparent 29%
+    ),
+    linear-gradient(145deg, color-mix(in oklch, white 12%, transparent), transparent 38%),
+    var(--glass-surface);
+  box-shadow:
+    inset 0 1px var(--glass-edge-light),
+    inset 0 -1px var(--glass-edge-shade),
+    0 0.85rem 2.6rem var(--glass-shadow),
+    0 0.25rem 1.1rem color-mix(in oklch, var(--glass-ambient) 52%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.32) contrast(1.035);
+  backdrop-filter: blur(18px) saturate(1.32) contrast(1.035);
+  transition:
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    background-color 220ms ease,
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+html[data-box-style="glass"]
+  body
+  :is(
+    #root .app-topbar,
+    #root .app-sidebar [data-slot="sidebar-inner"],
+    #root [data-slot="card"]:not([data-slot="card"] [data-slot="card"]),
+    [data-slot="dialog-content"],
+    [data-slot="alert-dialog-content"],
+    [data-slot="popover-content"],
+    [data-slot="dropdown-menu-content"],
+    [data-slot="dropdown-menu-sub-content"],
+    [data-slot="select-content"],
+    #root [data-slot="alert"]:not([data-slot="card"] [data-slot="alert"])
+  )::before {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from 208deg at 50% 50%,
+    transparent 0 18%,
+    color-mix(in oklch, var(--glass-edge-light) 76%, transparent) 27%,
+    transparent 42% 70%,
+    color-mix(in oklch, var(--glass-ambient) 58%, transparent) 82%,
+    transparent 94%
+  );
+  -webkit-backdrop-filter: blur(2px) saturate(1.55) brightness(1.06);
+  backdrop-filter: blur(2px) saturate(1.55) brightness(1.06);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  content: "";
+  opacity: 0.74;
+  transition: opacity 180ms ease;
+}
+
+html[data-box-style="glass"]
+  body
+  :is(
+    #root [data-slot="card"]:not([data-slot="card"] [data-slot="card"]),
+    [data-slot="dialog-content"],
+    [data-slot="alert-dialog-content"],
+    [data-slot="popover-content"],
+    [data-slot="dropdown-menu-content"],
+    [data-slot="dropdown-menu-sub-content"],
+    [data-slot="select-content"]
+  )[data-liquid-active="true"] {
+  box-shadow:
+    inset 0 1px color-mix(in oklch, var(--glass-edge-light) 90%, transparent),
+    inset 0 -1px var(--glass-edge-shade),
+    0 1rem 3rem color-mix(in oklch, var(--glass-shadow) 92%, transparent),
+    0 0.35rem 1.35rem color-mix(in oklch, var(--glass-ambient) 76%, transparent);
+}
+
+html.dark[data-box-style="glass"] {
+  --glass-surface: color-mix(in oklch, var(--card) 62%, transparent);
+  --glass-surface-strong: color-mix(in oklch, var(--popover) 74%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 66%, white 34%);
+  --glass-edge-light: color-mix(in oklch, white 28%, transparent);
+  --glass-edge-shade: color-mix(in oklch, black 34%, transparent);
+  --glass-shadow: color-mix(in oklch, black 38%, transparent);
+  --glass-ambient: color-mix(in oklch, var(--primary) 16%, transparent);
 }
 
 html[data-box-style="glass"]
@@ -828,21 +1037,51 @@ html[data-box-style="glass"]
     [data-slot="dropdown-menu-sub-content"],
     [data-slot="select-content"]
   ) {
-  border-color: var(--glass-border);
   background-color: var(--glass-surface-strong);
   box-shadow:
-    inset 0 1px color-mix(in oklch, white 36%, transparent),
-    0 1rem 3rem color-mix(in oklch, var(--foreground) 18%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(1.14);
-  backdrop-filter: blur(18px) saturate(1.14);
+    inset 0 1px var(--glass-edge-light),
+    inset 0 -1px var(--glass-edge-shade),
+    0 1.2rem 3.4rem color-mix(in oklch, var(--foreground) 22%, transparent);
 }
 
-html[data-box-style="glass"] [data-slot="alert"] {
-  border-color: color-mix(in oklch, var(--border) 76%, white 24%);
-  background-color: color-mix(in oklch, var(--card) 52%, transparent);
-  box-shadow: inset 0 1px color-mix(in oklch, white 28%, transparent);
-  -webkit-backdrop-filter: blur(10px) saturate(1.08);
-  backdrop-filter: blur(10px) saturate(1.08);
+html[data-box-style="glass"] body #root [data-slot="card"] [data-slot="card"],
+html[data-box-style="glass"] body #root [data-slot="card"] [data-slot="alert"] {
+  border-color: color-mix(in oklch, var(--border) 78%, transparent);
+  background: color-mix(in oklch, var(--card) 88%, var(--background));
+  box-shadow: inset 0 1px color-mix(in oklch, white 14%, transparent);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+html[data-box-style="glass"] .quiz-question-card {
+  contain: layout paint;
+}
+html[data-box-style="glass"]
+  .quiz-question-card
+  :is(
+    .quiz-question-header,
+    .quiz-question-source,
+    .quiz-question-side,
+    [data-slot="card-footer"]
+  ) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  html[data-box-style="glass"]
+    :is(
+      [data-slot="card"],
+      [data-slot="dialog-content"],
+      [data-slot="alert-dialog-content"],
+      [data-slot="popover-content"],
+      [data-slot="dropdown-menu-content"],
+      [data-slot="dropdown-menu-sub-content"],
+      [data-slot="select-content"],
+      [data-slot="alert"]
+    ) {
+    background: color-mix(in oklch, var(--card) 96%, var(--background));
+  }
 }
 
 @media (prefers-reduced-transparency: reduce) {
@@ -857,9 +1096,46 @@ html[data-box-style="glass"] [data-slot="alert"] {
       [data-slot="select-content"],
       [data-slot="alert"]
     ) {
-    background-color: color-mix(in oklch, var(--card) 94%, var(--background));
+    background: color-mix(in oklch, var(--card) 94%, var(--background));
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  html[data-box-style="glass"]
+    :is(
+      [data-slot="card"],
+      [data-slot="dialog-content"],
+      [data-slot="alert-dialog-content"],
+      [data-slot="popover-content"],
+      [data-slot="dropdown-menu-content"],
+      [data-slot="dropdown-menu-sub-content"],
+      [data-slot="select-content"],
+      [data-slot="alert"]
+    ) {
+    border-color: color-mix(in oklch, var(--foreground) 52%, var(--border));
+    background: color-mix(in oklch, var(--card) 90%, var(--background));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .appearance-choice,
+  html[data-box-style="glass"]
+    :is(
+      [data-slot="card"],
+      [data-slot="dialog-content"],
+      [data-slot="alert-dialog-content"],
+      [data-slot="popover-content"],
+      [data-slot="dropdown-menu-content"],
+      [data-slot="dropdown-menu-sub-content"],
+      [data-slot="select-content"],
+      [data-slot="alert"]
+    ) {
+    transition: none;
+  }
+  .appearance-choice:hover {
+    transform: none;
   }
 }
 
