@@ -1,4 +1,51 @@
 const JUMP_KEY = 'classrecord:pending-record-jump'
+const JUMP_ACTIVITY_WINDOW = 10 * 60 * 1000
+let recordJumpActiveUntil = 0
+let previousRootOverflowAnchor: string | undefined
+let previousBodyOverflowAnchor: string | undefined
+
+function markRecordJumpActive(createdAt = Date.now()) {
+  recordJumpActiveUntil = Math.max(recordJumpActiveUntil, createdAt + JUMP_ACTIVITY_WINDOW)
+  if (typeof document !== 'undefined') {
+    document.documentElement.dataset.recordJumpActive = 'true'
+    // Apply directly to the real scrolling element before React changes the
+    // record view. Waiting for a stylesheet/data-attribute recalc is late
+    // enough for Chromium to choose the removed source button as an anchor.
+    if (previousRootOverflowAnchor === undefined)
+      previousRootOverflowAnchor = document.documentElement.style.overflowAnchor
+    document.documentElement.style.overflowAnchor = 'none'
+    if (document.body) {
+      if (previousBodyOverflowAnchor === undefined)
+        previousBodyOverflowAnchor = document.body.style.overflowAnchor
+      document.body.style.overflowAnchor = 'none'
+    }
+  }
+}
+
+export function beginRecordJump() {
+  markRecordJumpActive()
+}
+
+export function isRecordJumpActive() {
+  return Date.now() <= recordJumpActiveUntil
+}
+
+export function completeRecordJump() {
+  recordJumpActiveUntil = 0
+  if (typeof document !== 'undefined') {
+    delete document.documentElement.dataset.recordJumpActive
+    if (previousRootOverflowAnchor)
+      document.documentElement.style.overflowAnchor = previousRootOverflowAnchor
+    else document.documentElement.style.removeProperty('overflow-anchor')
+    if (document.body) {
+      if (previousBodyOverflowAnchor)
+        document.body.style.overflowAnchor = previousBodyOverflowAnchor
+      else document.body.style.removeProperty('overflow-anchor')
+    }
+    previousRootOverflowAnchor = undefined
+    previousBodyOverflowAnchor = undefined
+  }
+}
 
 export type PendingRecordJump = {
   targetAnchorId: string
@@ -20,14 +67,18 @@ export type PendingRecordJump = {
   }
 }
 
+let volatilePendingRecordJump: PendingRecordJump | null = null
+
 export function prepareRecordJump(targetAnchorId: string) {
   if (typeof window === 'undefined') return
+  markRecordJumpActive()
   try {
     const pending: PendingRecordJump = {
       targetAnchorId,
       originHref: window.location.href,
       createdAt: Date.now(),
     }
+    volatilePendingRecordJump = pending
     window.sessionStorage.setItem(JUMP_KEY, JSON.stringify(pending))
   } catch {
     // The hash link remains usable when storage is unavailable.
@@ -37,9 +88,9 @@ export function prepareRecordJump(targetAnchorId: string) {
 function pendingRecordJump() {
   try {
     const raw = window.sessionStorage.getItem(JUMP_KEY)
-    return raw ? (JSON.parse(raw) as PendingRecordJump) : null
+    return raw ? (JSON.parse(raw) as PendingRecordJump) : volatilePendingRecordJump
   } catch {
-    return null
+    return volatilePendingRecordJump
   }
 }
 
@@ -57,6 +108,7 @@ function recordHashTarget() {
 function captureRecordHash() {
   const targetAnchorId = recordHashTarget()
   if (!targetAnchorId) return
+  markRecordJumpActive()
 
   const existing = pendingRecordJump()
   if (existing?.targetAnchorId !== targetAnchorId) {
@@ -66,6 +118,7 @@ function captureRecordHash() {
         originHref: '',
         createdAt: Date.now(),
       }
+      volatilePendingRecordJump = pending
       window.sessionStorage.setItem(JUMP_KEY, JSON.stringify(pending))
     } catch {
       // In-memory hash removal still prevents the browser from racing the app.
@@ -110,13 +163,14 @@ export function replaceRecordJumpHash(targetAnchorId: string) {
   window.history.replaceState(window.history.state, '', url)
 }
 
-export function consumeRecordJump(maxAge = 10 * 60 * 1000) {
+export function consumeRecordJump(maxAge = JUMP_ACTIVITY_WINDOW) {
   if (typeof window === 'undefined') return null
   try {
     const raw = window.sessionStorage.getItem(JUMP_KEY)
     window.sessionStorage.removeItem(JUMP_KEY)
-    if (!raw) return null
-    const pending = JSON.parse(raw) as PendingRecordJump
+    const pending = raw ? (JSON.parse(raw) as PendingRecordJump) : volatilePendingRecordJump
+    volatilePendingRecordJump = null
+    if (!pending) return null
     if (
       !pending.targetAnchorId ||
       typeof pending.originHref !== 'string' ||
@@ -124,8 +178,11 @@ export function consumeRecordJump(maxAge = 10 * 60 * 1000) {
       Date.now() - pending.createdAt > maxAge
     )
       return null
+    markRecordJumpActive(pending.createdAt)
     return pending
   } catch {
-    return null
+    const pending = volatilePendingRecordJump
+    volatilePendingRecordJump = null
+    return pending
   }
 }

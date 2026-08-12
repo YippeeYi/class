@@ -368,7 +368,7 @@ const LIQUID_GLASS_TARGETS = [
   '[data-liquid-glass-interactive]',
   '.app-topbar',
   '.app-sidebar [data-slot="sidebar-inner"]',
-  '[data-slot="dialog-content"]',
+  '[data-slot="dialog-content"]:not(.image-viewer-dialog)',
   '[data-slot="alert-dialog-content"]',
   '[data-slot="popover-content"]',
   '[data-slot="dropdown-menu-content"]',
@@ -478,11 +478,14 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
     let activeTarget: HTMLElement | null = null
     let animationFrame = 0
     let point: { target: HTMLElement; x: number; y: number } | null = null
-    const clearTarget = () => {
+    const touchedTargets = new Set<HTMLElement>()
+    const clearTarget = (removeCoordinates = false) => {
       if (!activeTarget) return
       delete activeTarget.dataset.liquidActive
-      activeTarget.style.removeProperty('--liquid-pointer-x')
-      activeTarget.style.removeProperty('--liquid-pointer-y')
+      if (removeCoordinates) {
+        activeTarget.style.removeProperty('--liquid-pointer-x')
+        activeTarget.style.removeProperty('--liquid-pointer-y')
+      }
       activeTarget = null
     }
     const renderPoint = () => {
@@ -492,12 +495,18 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       if (activeTarget !== target) {
         clearTarget()
         activeTarget = target
+        touchedTargets.add(target)
         activeTarget.dataset.liquidActive = 'true'
       }
       const bounds = target.getBoundingClientRect()
-      if (!bounds.width || !bounds.height) return
-      target.style.setProperty('--liquid-pointer-x', `${((x - bounds.left) / bounds.width) * 100}%`)
-      target.style.setProperty('--liquid-pointer-y', `${((y - bounds.top) / bounds.height) * 100}%`)
+      if (!target.isConnected || !bounds.width || !bounds.height) {
+        clearTarget()
+        return
+      }
+      const relativeX = Math.min(100, Math.max(0, ((x - bounds.left) / bounds.width) * 100))
+      const relativeY = Math.min(100, Math.max(0, ((y - bounds.top) / bounds.height) * 100))
+      target.style.setProperty('--liquid-pointer-x', `${relativeX}%`)
+      target.style.setProperty('--liquid-pointer-y', `${relativeY}%`)
     }
     const move = (event: PointerEvent) => {
       const target = liquidGlassTarget(event.target)
@@ -509,18 +518,29 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       point = { target, x: event.clientX, y: event.clientY }
       if (!animationFrame) animationFrame = window.requestAnimationFrame(renderPoint)
     }
-    const leave = (event: PointerEvent) => {
-      if (event.relatedTarget) return
+    const leaveWindow = (event: PointerEvent) => {
+      if (event.relatedTarget !== null) return
+      point = null
+      clearTarget()
+    }
+    const blur = () => {
       point = null
       clearTarget()
     }
     document.addEventListener('pointermove', move, { passive: true })
-    document.addEventListener('pointerout', leave, { passive: true })
+    window.addEventListener('pointerout', leaveWindow, { passive: true })
+    window.addEventListener('blur', blur)
     return () => {
       document.removeEventListener('pointermove', move)
-      document.removeEventListener('pointerout', leave)
+      window.removeEventListener('pointerout', leaveWindow)
+      window.removeEventListener('blur', blur)
       if (animationFrame) window.cancelAnimationFrame(animationFrame)
-      clearTarget()
+      clearTarget(true)
+      for (const target of touchedTargets) {
+        delete target.dataset.liquidActive
+        target.style.removeProperty('--liquid-pointer-x')
+        target.style.removeProperty('--liquid-pointer-y')
+      }
     }
   }, [appearance.box])
 

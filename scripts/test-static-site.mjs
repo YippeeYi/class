@@ -77,6 +77,7 @@ assert.match(shell, /href="#page-content"/, 'the skip-to-content link is missing
 assert.match(shell, /setOpenMobile\(false\)/, 'mobile sidebar must close after navigation')
 assert.match(shell, /data-active:bg-sidebar-primary/, 'active sidebar items need a clear inverse state')
 assert.match(shell, /app-main-surface/, 'the selected background must remain visible through one shared surface')
+assert.match(shell, /recordJumpOwnsScroll[\s\S]*isRecordJumpActive\(\)/, 'route resets must yield scroll ownership to measured record jumps')
 assert.match(shell, /<Breadcrumb/, 'brand and current-page title must share the application top bar')
 assert.match(shell, /PAGE_HEADER_ACTIONS_ID/, 'page-level actions need a stable top-bar slot')
 assert.match(pageHeader, /createPortal/, 'page actions must be composed into the shared top bar')
@@ -193,9 +194,11 @@ assert.match(recordFilters, /placeholder="仅搜索记录正文"/, 'record-list 
 assert.match(records, /observedLocationKey/, 'same-page record links must refresh the pending jump')
 assert.match(
   records,
-  /scrollTargetIntoView\(target, 'auto'\)/,
-  'record jumps must use one immediate shared clamped viewport locator',
+  /scrollTargetIntoView\(target, 'smooth'\)/,
+  'record jumps must use one natural shared clamped viewport locator',
 )
+assert.match(records, /waitForWindowScrollEnd\(destination, scrollCompletion\.signal\)/, 'record dialogs must wait for the one browser-owned scroll to settle')
+assert.equal((records.match(/scrollTargetIntoView\(target/g) || []).length, 1, 'record location must issue exactly one target scroll')
 assert.match(
   records,
   /replaceRecordJumpHash\(pending\.targetAnchorId\)/,
@@ -205,7 +208,9 @@ assert.match(records, /clampWindowScrollTop\(pending\.scrollY\)/, 'record return
 assert.doesNotMatch(records, /target\.scrollIntoView/, 'record location must not delegate near-bottom positioning to browser centering')
 assert.match(records, /lg:sticky lg:top-20/, 'written record images must keep the baseline sticky behavior')
 assert.match(recordCard, /gap-0 py-0/, 'record cards must use the compact reading density')
-assert.match(imageViewer, /sm:max-w-none/, 'the image viewer must override the dialog desktop width cap')
+assert.match(imageViewer, /image-viewer-dialog/, 'the image viewer must use the business-level full-viewport dialog contract')
+assert.match(styles, /\.image-viewer-dialog\[data-slot="dialog-content"\][\s\S]*position: fixed;[\s\S]*inset: 0;[\s\S]*height: 100dvh;[\s\S]*transform: none;/, 'the image viewer must remain fixed to every viewport edge')
+assert.match(styles, /\[data-slot="dialog-content"\]:not\(\.image-viewer-dialog\)/, 'full-screen image dialogs must not receive the general liquid-glass positioning surface')
 assert.match(search, /setQuery\(\(current\)/, 'search input must restore from URL changes')
 assert.match(timeline, /params\.get\('year'\)/, 'timeline selection must restore from URL changes')
 assert.match(timeline, /AuthorDistributionChart/, 'the author distribution chart is missing')

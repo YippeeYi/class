@@ -494,7 +494,7 @@ export function QuizPage() {
             </div>
           </section>
           <Card
-            className="quiz-question-card min-h-0 flex-1 gap-0 overflow-hidden bg-card/88 py-0 shadow-sm backdrop-blur-md"
+            className="quiz-question-card min-h-0 flex-1 gap-0 overflow-hidden bg-card py-0 shadow-sm"
             data-question-type={current?.type || 'choice'}
           >
             <CardHeader className="quiz-question-header shrink-0 rounded-none border-b py-3">

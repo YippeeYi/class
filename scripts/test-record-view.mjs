@@ -66,14 +66,16 @@ assert.match(
 )
 assert.match(
   page,
-  /useLayoutEffect\(\(\) => \{[\s\S]*scrollTargetIntoView\(target, 'auto'\)[\s\S]*replaceRecordJumpHash/,
-  'record targets must synchronously perform one clamped scroll before publishing the fragment',
+  /useLayoutEffect\(\(\) => \{[\s\S]*scrollTargetIntoView\(target, 'smooth'\)[\s\S]*replaceRecordJumpHash[\s\S]*waitForWindowScrollEnd/,
+  'record targets must perform one clamped smooth scroll and wait for its real completion',
 )
 assert.doesNotMatch(
   page.slice(page.indexOf('const loading ='), page.indexOf('const returnToOrigin')),
-  /requestAnimationFrame|behavior: 'smooth'/,
-  'record locating and return restoration must not stack delayed or animated corrections',
+  /scrollIntoView|scrollTargetIntoView\(target[^)]*\)[\s\S]*scrollTargetIntoView\(target/,
+  'record locating must not stack native alignment or a second target correction',
 )
+assert.match(page, /waitForWindowScrollEnd[\s\S]*setJumpDialogOpen\(true\)/, 'the jump dialog must not lock scrolling until movement settles')
+assert.equal((page.match(/scrollTargetIntoView\(target/g) || []).length, 1, 'the locator must contain exactly one target scroll call')
 assert.doesNotMatch(page, /target\.scrollIntoView/, 'near-bottom records must not rely on browser centre alignment')
 assert.match(
   page,

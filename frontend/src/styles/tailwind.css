@@ -162,6 +162,9 @@
     @apply bg-background font-sans;
     overscroll-behavior-y: none;
   }
+  html[data-record-jump-active="true"] {
+    overflow-anchor: none;
+  }
   body {
     @apply text-foreground;
     background: transparent;
@@ -942,30 +945,35 @@
    layered surface lets environmental color through, the radial highlight
    follows fine-pointer input on functional chrome, and inset light/shade define
    one continuous lens edge without adding another clipped border element. */
+@property --liquid-pointer-strength {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
 html[data-box-style="glass"]
   body
   :is(
     #root .app-topbar,
     #root .app-sidebar [data-slot="sidebar-inner"],
-    #root [data-slot="card"]:not([data-slot="card"] [data-slot="card"]),
-    [data-slot="dialog-content"],
+    #root [data-liquid-glass-interactive],
+    [data-slot="dialog-content"]:not(.image-viewer-dialog),
     [data-slot="alert-dialog-content"],
     [data-slot="popover-content"],
     [data-slot="dropdown-menu-content"],
     [data-slot="dropdown-menu-sub-content"],
-    [data-slot="select-content"],
-    #root [data-slot="alert"]:not([data-slot="card"] [data-slot="alert"])
+    [data-slot="select-content"]
   ) {
-  --liquid-pointer-x: 18%;
-  --liquid-pointer-y: 0%;
-  position: relative;
+  --liquid-pointer-x: 50%;
+  --liquid-pointer-y: 50%;
+  --liquid-pointer-strength: 0%;
   isolation: isolate;
   border-color: var(--glass-border);
   background:
     radial-gradient(
       circle at var(--liquid-pointer-x) var(--liquid-pointer-y),
-      color-mix(in oklch, var(--glass-edge-light) 42%, transparent) 0,
-      transparent 29%
+      color-mix(in oklch, var(--glass-edge-light) var(--liquid-pointer-strength), transparent) 0,
+      transparent 30%
     ),
     radial-gradient(
       ellipse at 78% 115%,
@@ -982,6 +990,7 @@ html[data-box-style="glass"]
   -webkit-backdrop-filter: blur(18px) saturate(1.28) contrast(1.04);
   backdrop-filter: blur(18px) saturate(1.28) contrast(1.04);
   transition:
+    --liquid-pointer-strength 220ms ease,
     border-color 220ms ease,
     box-shadow 220ms ease,
     background-color 220ms ease;
@@ -994,6 +1003,9 @@ html[data-box-style="glass"]
   body
   #root
   [data-slot="card"]:not([data-slot="card"] [data-slot="card"]) {
+  position: relative;
+  isolation: isolate;
+  border-color: var(--glass-border);
   background:
     linear-gradient(145deg, color-mix(in oklch, white 10%, transparent), transparent 42%),
     var(--glass-content-surface);
@@ -1018,14 +1030,17 @@ html[data-box-style="glass"] #root [data-background]:not([data-background="defau
 html[data-box-style="glass"]
   body
   :is(
-    #root [data-slot="card"]:not([data-slot="card"] [data-slot="card"]),
-    [data-slot="dialog-content"],
+    #root .app-topbar,
+    #root .app-sidebar [data-slot="sidebar-inner"],
+    #root [data-liquid-glass-interactive],
+    [data-slot="dialog-content"]:not(.image-viewer-dialog),
     [data-slot="alert-dialog-content"],
     [data-slot="popover-content"],
     [data-slot="dropdown-menu-content"],
     [data-slot="dropdown-menu-sub-content"],
     [data-slot="select-content"]
   )[data-liquid-active="true"] {
+  --liquid-pointer-strength: 58%;
   box-shadow:
     inset 0 1px color-mix(in oklch, var(--glass-edge-light) 90%, transparent),
     inset 0 -1px var(--glass-edge-shade),
@@ -1046,7 +1061,7 @@ html.dark[data-box-style="glass"] {
 
 html[data-box-style="glass"]
   :is(
-    [data-slot="dialog-content"],
+    [data-slot="dialog-content"]:not(.image-viewer-dialog),
     [data-slot="alert-dialog-content"],
     [data-slot="popover-content"],
     [data-slot="dropdown-menu-content"],
@@ -1086,9 +1101,14 @@ html[data-box-style="glass"] body #root [data-slot="card"] [data-slot="alert"] {
   border-end-end-radius: 0;
   background-clip: padding-box;
 }
-html[data-box-style="glass"] .quiz-question-card {
+html[data-box-style="glass"]
+  body
+  #root
+  .quiz-question-card[data-slot="card"]:not([data-slot="card"] [data-slot="card"]) {
   overflow: hidden;
   contain: paint;
+  background: var(--glass-content-surface);
+  box-shadow: 0 0.75rem 2.2rem color-mix(in oklch, var(--glass-shadow) 82%, transparent);
 }
 html[data-box-style="glass"]
   .quiz-question-card
@@ -1100,6 +1120,32 @@ html[data-box-style="glass"]
   ) {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+}
+
+/* The shared image viewer is a viewport surface, not a centred content card.
+   Keep its fixed geometry independent of page flow and disable a full-screen
+   backdrop filter, which would add no useful lens edge and is costly to paint. */
+.image-viewer-dialog[data-slot="dialog-content"] {
+  position: fixed;
+  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100dvw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  transform: none;
+  translate: none;
+  scale: none;
+  rotate: none;
+  border-radius: 0;
+  background: color-mix(in oklch, var(--popover) 96%, transparent);
+  padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right))
+    max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
+  animation: none;
 }
 
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {

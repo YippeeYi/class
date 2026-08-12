@@ -59,6 +59,7 @@ import {
 } from '@/components/ui/sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAuth } from '@/features/auth/auth-context'
+import { completeRecordJump, isRecordJumpActive } from '@/lib/record-navigation'
 import { preloadRoute } from '@/lib/route-preload'
 import { cn } from '@/lib/utils'
 
@@ -94,7 +95,15 @@ function RouteScrollManager() {
     const isInitialRender = last === null
     const changedPage = last?.pathname !== location.pathname
     const changedPerson = location.pathname === '/person' && last?.search !== location.search
-    if (isInitialRender || (navigationType !== 'POP' && (changedPage || changedPerson))) {
+    // Record links own their one clamped movement. Resetting here in the same
+    // layout commit races the records page when its data is already cached and
+    // produces the visible overshoot/rebound that normal route resets avoid.
+    const recordJumpOwnsScroll = location.pathname === '/records' && isRecordJumpActive()
+    if (location.pathname !== '/records' && isRecordJumpActive()) completeRecordJump()
+    if (
+      !recordJumpOwnsScroll &&
+      (isInitialRender || (navigationType !== 'POP' && (changedPage || changedPerson)))
+    ) {
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
     }
     previous.current = { pathname: location.pathname, search: location.search }

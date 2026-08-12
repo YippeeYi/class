@@ -41,11 +41,17 @@ import { normalizeRecordKey } from '@/lib/archive'
 import { extractMarkupReferences, recordAnchor } from '@/lib/markup'
 import { buildSupplementalRecords } from '@/lib/record-identity'
 import {
+  beginRecordJump,
+  completeRecordJump,
   consumeRecordJump,
   type PendingRecordJump,
   replaceRecordJumpHash,
 } from '@/lib/record-navigation'
-import { clampWindowScrollTop, scrollTargetIntoView } from '@/lib/viewport-scroll'
+import {
+  clampWindowScrollTop,
+  scrollTargetIntoView,
+  waitForWindowScrollEnd,
+} from '@/lib/viewport-scroll'
 import {
   hasAdminAccess,
   loadPageMessages,
@@ -505,6 +511,7 @@ export function RecordsPage() {
       }
 
       const anchor = recordAnchor(target)
+      beginRecordJump()
       const sourceRecord = source.closest<HTMLElement>('[id^="record-"]')
       pendingJump.current = {
         targetAnchorId: anchor,
@@ -539,6 +546,7 @@ export function RecordsPage() {
     (target: RecordItem, source: HTMLElement) => {
       const state = recordNavigation.current
       const anchor = recordAnchor(target)
+      beginRecordJump()
       const sourceRecord = source.closest<HTMLElement>('[id^="record-"]')
       const visiblePages = state.pages.filter((page) => Boolean(page.imagePath))
       const knownPageIndex = visiblePages.findIndex((page) =>
@@ -625,12 +633,14 @@ export function RecordsPage() {
         }
       }
       pendingJump.current = null
+      completeRecordJump()
       setJumpError('未找到要跳转的记录，请检查来源是否仍然存在。')
       return
     }
     pendingJump.current = null
     jumpFocusTarget.current = target
-    scrollTargetIntoView(target, 'auto')
+    const scrollCompletion = new AbortController()
+    const destination = scrollTargetIntoView(target, 'smooth')
     replaceRecordJumpHash(pending.targetAnchorId)
     target.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-background')
     const timer = window.setTimeout(
@@ -647,8 +657,17 @@ export function RecordsPage() {
       setJumpOriginHref(pending.originHref)
     }
     setJumpOrigin(pending.origin)
-    if (pending.originHref || pending.origin) setJumpDialogOpen(true)
+    void waitForWindowScrollEnd(destination, scrollCompletion.signal).then((reachedDestination) => {
+      if (!scrollCompletion.signal.aborted) {
+        completeRecordJump()
+        // Modal scroll locking and focus containment must start only after the
+        // browser's one smooth movement has settled; otherwise they can cancel
+        // the animation and create the apparent overshoot/rebound sequence.
+        if (reachedDestination && (pending.originHref || pending.origin)) setJumpDialogOpen(true)
+      }
+    })
     return () => {
+      scrollCompletion.abort()
       window.clearTimeout(timer)
     }
   }, [

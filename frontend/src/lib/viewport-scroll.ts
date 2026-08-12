@@ -79,6 +79,71 @@ export function scrollTargetIntoView(target: HTMLElement, behavior: ScrollBehavi
   return top
 }
 
+/**
+ * Observe the single browser-owned scroll operation without issuing any
+ * corrective movement. Both native `scrollend` and the RAF sampler are gated
+ * by the exact precomputed destination, so a late event from a prior scroll
+ * cannot open a modal and interrupt the current animation.
+ */
+export function waitForWindowScrollEnd(expectedTop: number, signal?: AbortSignal) {
+  const destination = clampWindowScrollTop(expectedTop)
+  const initialTop = window.scrollY
+  if (signal?.aborted) return Promise.resolve(false)
+  if (Math.abs(initialTop - destination) <= 1) return Promise.resolve(true)
+
+  return new Promise<boolean>((resolve) => {
+    let animationFrame = 0
+    let lastTop = initialTop
+    let stableFrames = 0
+    let observedMovement = false
+    let nativeEndObserved = false
+    let settled = false
+
+    const finish = (reachedDestination: boolean) => {
+      if (settled) return
+      settled = true
+      if (animationFrame) window.cancelAnimationFrame(animationFrame)
+      window.removeEventListener('scrollend', finishIfAtDestination)
+      signal?.removeEventListener('abort', abort)
+      resolve(reachedDestination)
+    }
+
+    const sample = () => {
+      animationFrame = 0
+      if (settled || signal?.aborted) {
+        finish(false)
+        return
+      }
+      const currentTop = window.scrollY
+      if (Math.abs(currentTop - initialTop) > 0.5) observedMovement = true
+      stableFrames = Math.abs(currentTop - lastTop) <= 0.5 ? stableFrames + 1 : 0
+      lastTop = currentTop
+      if (Math.abs(currentTop - destination) <= 1) {
+        finish(true)
+        return
+      }
+      // A real user wheel/touch interruption may end away from the requested
+      // position. Stop observing without a corrective scroll or modal instead
+      // of keeping a perpetual animation-frame loop alive.
+      if (nativeEndObserved && observedMovement && stableFrames >= 2) {
+        finish(false)
+        return
+      }
+      animationFrame = window.requestAnimationFrame(sample)
+    }
+
+    const finishIfAtDestination = () => {
+      nativeEndObserved = true
+      if (Math.abs(window.scrollY - destination) <= 1) finish(true)
+    }
+    const abort = () => finish(false)
+
+    window.addEventListener('scrollend', finishIfAtDestination, { passive: true })
+    signal?.addEventListener('abort', abort, { once: true })
+    animationFrame = window.requestAnimationFrame(sample)
+  })
+}
+
 export function clampWindowScrollTop(top: number) {
   return clampScrollTop(top, {
     viewportHeight: viewportHeight(),

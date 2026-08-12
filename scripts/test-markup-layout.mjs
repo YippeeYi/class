@@ -18,6 +18,7 @@ const harness = String.raw`<!doctype html>
       import { createRoot } from 'react-dom/client'
       import { MemoryRouter, useLocation, useNavigate } from 'react-router'
       import { MarkupContent, QuizMarkupContent } from '/src/components/archive/markup-content.tsx'
+      import { ImageViewer } from '/src/components/archive/image-viewer.tsx'
       import { TooltipProvider } from '/src/components/ui/tooltip.tsx'
       import { DailyDistributionCell } from '/src/pages/timeline-page.tsx'
       import { BackgroundsPage } from '/src/pages/backgrounds-page.tsx'
@@ -177,6 +178,19 @@ const harness = String.raw`<!doctype html>
         )
       }
 
+      function ImageViewerFixture() {
+        const image = 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221600%22 height=%221200%22 viewBox=%220 0 1600 1200%22%3E%3Crect width=%221600%22 height=%221200%22 fill=%22%23233a5b%22/%3E%3Ccircle cx=%22800%22 cy=%22600%22 r=%22320%22 fill=%22%237ac7c4%22/%3E%3C/svg%3E'
+        return e('section', {
+          'data-case': 'image-viewer',
+          style: { width: '68rem', maxWidth: '100%', margin: '24px auto', padding: '16px', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' },
+        }, e(ImageViewer, {
+          path: '',
+          alt: '全视口测试图片',
+          initialUrl: image,
+          trigger: e(Button, { type: 'button', variant: 'outline' }, '打开全视口测试图片'),
+        }))
+      }
+
       function LocationProbe() {
         const location = useLocation()
         const navigate = useNavigate()
@@ -226,6 +240,7 @@ const harness = String.raw`<!doctype html>
                   ),
                   e('div', { 'data-slot': 'card', className: 'mt-4 rounded-xl bg-card p-4' }, '内容卡片'),
                 ),
+                e(ImageViewerFixture),
                 e(ArchiveProvider, null,
                   e('section', { 'data-case': 'guide', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(HomePage)),
                   e('section', { 'data-case': 'people', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(PeoplePage)),
@@ -282,6 +297,96 @@ const systemEdge = await access(edgePath).then(
 )
 const browser = await chromium.launch({ headless: true, executablePath: systemEdge })
 
+async function assertFullscreenImageViewer(page, label) {
+  const trigger = page.getByRole('button', { name: '打开全视口测试图片' })
+  await trigger.scrollIntoViewIfNeeded()
+  const scrollBeforeOpen = await page.evaluate(() => window.scrollY)
+  await trigger.click()
+  const dialog = page.locator('.image-viewer-dialog[data-slot="dialog-content"]')
+  await dialog.waitFor({ state: 'visible' })
+  await dialog.locator('img[alt="全视口测试图片"]').waitFor({ state: 'visible' })
+  await page.waitForFunction(() => document.querySelector('img[alt="全视口测试图片"]')?.naturalWidth > 0)
+  const geometry = await page.evaluate(() => {
+    const content = document.querySelector('.image-viewer-dialog[data-slot="dialog-content"]')
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    const image = document.querySelector('img[alt="全视口测试图片"]')
+    const toolbar = content?.firstElementChild?.nextElementSibling
+    const contentBounds = content?.getBoundingClientRect()
+    const overlayBounds = overlay?.getBoundingClientRect()
+    const imageBounds = image?.getBoundingClientRect()
+    const viewportWidth = window.visualViewport?.width || window.innerWidth
+    const viewportHeight = window.visualViewport?.height || window.innerHeight
+    return {
+      viewportWidth,
+      viewportHeight,
+      content: contentBounds && {
+        top: contentBounds.top,
+        left: contentBounds.left,
+        right: contentBounds.right,
+        bottom: contentBounds.bottom,
+        width: contentBounds.width,
+        height: contentBounds.height,
+      },
+      overlay: overlayBounds && {
+        top: overlayBounds.top,
+        left: overlayBounds.left,
+        right: overlayBounds.right,
+        bottom: overlayBounds.bottom,
+      },
+      image: imageBounds && {
+        top: imageBounds.top,
+        left: imageBounds.left,
+        right: imageBounds.right,
+        bottom: imageBounds.bottom,
+      },
+      position: content ? getComputedStyle(content).position : '',
+      transform: content ? getComputedStyle(content).transform : '',
+      translate: content ? getComputedStyle(content).translate : '',
+      scale: content ? getComputedStyle(content).scale : '',
+      toolbarOverflow: toolbar
+        ? toolbar.scrollWidth - toolbar.clientWidth
+        : Number.POSITIVE_INFINITY,
+      scrollY: window.scrollY,
+    }
+  })
+  assert.equal(geometry.position, 'fixed', `${label} image viewer must be viewport-fixed`)
+  assert.equal(geometry.transform, 'none', `${label} image viewer must not inherit centred-dialog translation`)
+  assert.equal(geometry.translate, 'none', `${label} image viewer must clear Tailwind's individual translate property`)
+  assert.equal(geometry.scale, 'none', `${label} image viewer must not shrink during a centred-dialog zoom animation`)
+  assert.ok(
+    geometry.content &&
+      Math.abs(geometry.content.top) <= 1 &&
+      Math.abs(geometry.content.left) <= 1 &&
+      Math.abs(geometry.content.right - geometry.viewportWidth) <= 1 &&
+      Math.abs(geometry.content.bottom - geometry.viewportHeight) <= 1,
+    `${label} image viewer must cover the exact viewport: ${JSON.stringify(geometry)}`,
+  )
+  assert.ok(
+    geometry.overlay &&
+      Math.abs(geometry.overlay.top) <= 1 &&
+      Math.abs(geometry.overlay.left) <= 1 &&
+      Math.abs(geometry.overlay.right - geometry.viewportWidth) <= 1 &&
+      Math.abs(geometry.overlay.bottom - geometry.viewportHeight) <= 1,
+    `${label} image overlay must cover the exact viewport: ${JSON.stringify(geometry)}`,
+  )
+  assert.ok(
+    geometry.image &&
+      geometry.image.top >= -1 &&
+      geometry.image.left >= -1 &&
+      geometry.image.right <= geometry.viewportWidth + 1 &&
+      geometry.image.bottom <= geometry.viewportHeight + 1,
+    `${label} initial image must be fully visible: ${JSON.stringify(geometry)}`,
+  )
+  assert.ok(geometry.toolbarOverflow <= 1, `${label} image toolbar must not overflow: ${JSON.stringify(geometry)}`)
+  assert.ok(Math.abs(geometry.scrollY - scrollBeforeOpen) <= 1, `${label} opening the viewer must not move the page`)
+  await page.getByRole('button', { name: 'Close' }).click()
+  await dialog.waitFor({ state: 'hidden' })
+  assert.ok(
+    Math.abs((await page.evaluate(() => window.scrollY)) - scrollBeforeOpen) <= 1,
+    `${label} closing the viewer must restore the unchanged page position`,
+  )
+}
+
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } })
   const pageErrors = []
@@ -306,13 +411,25 @@ try {
   })
   await sourceJump.scrollIntoViewIfNeeded()
   await sourceJump.hover()
+  const sourceJumpBounds = await sourceJump.boundingBox()
+  assert.ok(sourceJumpBounds, 'record source control must be visible before its real pointer click')
   await page.evaluate(() => {
+    window.__recordNativeScrollTo = window.scrollTo.bind(window)
+    window.__recordScrollCalls = []
+    window.scrollTo = (...args) => {
+      window.__recordScrollCalls.push({ args, current: window.scrollY, time: performance.now() })
+      return window.__recordNativeScrollTo(...args)
+    }
     window.__recordScrollSamples = [window.scrollY]
     window.__recordScrollListener = () => window.__recordScrollSamples.push(window.scrollY)
     window.addEventListener('scroll', window.__recordScrollListener, { passive: true })
   })
-  await sourceJump.click()
-  await page.waitForTimeout(300)
+  await page.mouse.click(
+    sourceJumpBounds.x + sourceJumpBounds.width / 2,
+    sourceJumpBounds.y + sourceJumpBounds.height / 2,
+  )
+  await recordsFixture.locator('#record-r3').waitFor({ state: 'visible' })
+  await page.getByRole('alertdialog').waitFor({ state: 'visible' })
   const recordJumpLocation = await page.evaluate(() => window.__memoryLocation)
   assert.equal(
     recordJumpLocation,
@@ -324,8 +441,6 @@ try {
     '#record-r3',
     'the shareable fragment must be written only after exact positioning',
   )
-  await recordsFixture.locator('#record-r3').waitFor({ state: 'visible' })
-  await page.getByRole('alertdialog').waitFor({ state: 'visible' })
   assert.equal(
     await recordsFixture.getByText('未找到要跳转的记录，请检查来源是否仍然存在。').count(),
     0,
@@ -339,13 +454,18 @@ try {
   const recordScrollTrajectory = await page.evaluate(() => {
     window.removeEventListener('scroll', window.__recordScrollListener)
     const samples = window.__recordScrollSamples || []
+    const calls = window.__recordScrollCalls || []
+    window.scrollTo = window.__recordNativeScrollTo
     const viewportHeight = window.visualViewport?.height || window.innerHeight
     return {
       samples,
+      calls,
       maximum: Math.max(0, document.documentElement.scrollHeight - viewportHeight),
     }
   })
   assert.ok(recordScrollTrajectory.samples.length >= 1, 'record positioning must expose a stable scroll sample')
+  assert.equal(recordScrollTrajectory.calls.length, 1, `record positioning must issue one window.scrollTo call: ${JSON.stringify(recordScrollTrajectory)}`)
+  assert.equal(recordScrollTrajectory.calls[0]?.args?.[0]?.behavior, 'smooth', 'the single record scroll must remain browser-native smooth movement')
   const recordScrollStart = recordScrollTrajectory.samples[0]
   const recordScrollEnd = recordScrollTrajectory.samples.at(-1)
   assert.ok(
@@ -419,12 +539,53 @@ try {
     ['record-r3', '第一条记录', 'record-r1'],
     ['record-r1', '第二条记录', 'record-r2'],
   ]) {
-    await recordsFixture
+    const repeatLink = recordsFixture
       .locator(`#${sourceId} .record-link`)
       .filter({ hasText: linkName })
-      .click()
+    await repeatLink.scrollIntoViewIfNeeded()
+    const repeatLinkBounds = await repeatLink.boundingBox()
+    assert.ok(repeatLinkBounds, `${sourceId} link must be visible before jumping to ${targetId}`)
+    await page.evaluate(() => {
+      window.__recordRepeatSamples = [window.scrollY]
+      window.__recordRepeatListener = () => window.__recordRepeatSamples.push(window.scrollY)
+      window.addEventListener('scroll', window.__recordRepeatListener, { passive: true })
+    })
+    await page.mouse.click(
+      repeatLinkBounds.x + repeatLinkBounds.width / 2,
+      repeatLinkBounds.y + repeatLinkBounds.height / 2,
+    )
     await recordsFixture.locator(`#${targetId}`).waitFor({ state: 'visible' })
     await page.getByRole('alertdialog').waitFor({ state: 'visible' })
+    const repeatTrajectory = await page.evaluate(() => {
+      window.removeEventListener('scroll', window.__recordRepeatListener)
+      const samples = window.__recordRepeatSamples || []
+      const viewportHeight = window.visualViewport?.height || window.innerHeight
+      return {
+        samples,
+        maximum: Math.max(0, document.documentElement.scrollHeight - viewportHeight),
+      }
+    })
+    const repeatStart = repeatTrajectory.samples[0]
+    const repeatEnd = repeatTrajectory.samples.at(-1)
+    assert.ok(
+      repeatTrajectory.samples.every(
+        (value) => value >= -1 && value <= repeatTrajectory.maximum + 1,
+      ),
+      `repeated jump to ${targetId} must stay inside the document: ${JSON.stringify(repeatTrajectory)}`,
+    )
+    if (repeatEnd >= repeatStart) {
+      assert.ok(
+        Math.min(...repeatTrajectory.samples) >= repeatStart - 1 &&
+          Math.max(...repeatTrajectory.samples) <= repeatEnd + 1,
+        `repeated jump to ${targetId} must move downward without overshoot: ${JSON.stringify(repeatTrajectory)}`,
+      )
+    } else {
+      assert.ok(
+        Math.max(...repeatTrajectory.samples) <= repeatStart + 1 &&
+          Math.min(...repeatTrajectory.samples) >= repeatEnd - 1,
+        `repeated jump to ${targetId} must move upward without rebound: ${JSON.stringify(repeatTrajectory)}`,
+      )
+    }
     const beforeClose = await page.evaluate(() => window.scrollY)
     await page.getByRole('button', { name: '留在这里' }).click()
     await page.getByRole('alertdialog').waitFor({ state: 'hidden' })
@@ -488,6 +649,7 @@ try {
   }
 
   await page.setViewportSize({ width: 1280, height: 1000 })
+  await assertFullscreenImageViewer(page, 'default 1280px')
   const tableBalance = await page.evaluate(() => {
     const small = document.querySelector('[data-case="small"]')
     const smallTable = small?.querySelector('table')
@@ -932,6 +1094,76 @@ try {
     .locator('[data-case="app-surface"] [data-slot="card"]')
     .evaluate((card) => getComputedStyle(card).backdropFilter)
   assert.notEqual(glassCardBackdrop, 'none', 'liquid-glass must apply globally to semantic card containers')
+  const liquidTopbar = page.locator('[data-case="app-surface"] .app-topbar')
+  await liquidTopbar.scrollIntoViewIfNeeded()
+  const liquidSidebar = page.locator('[data-case="app-surface"] [data-slot="sidebar-inner"]')
+  const liquidContentCard = page.locator('[data-case="app-surface"] [data-slot="card"]')
+  const topbarBounds = await liquidTopbar.boundingBox()
+  assert.ok(topbarBounds, 'liquid-glass pointer fixture needs a visible top bar')
+  await page.mouse.move(
+    topbarBounds.x + topbarBounds.width * 0.72,
+    topbarBounds.y + topbarBounds.height * 0.38,
+  )
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+  const topbarPointer = await liquidTopbar.evaluate((target) => ({
+    active: target.dataset.liquidActive,
+    x: Number.parseFloat(target.style.getPropertyValue('--liquid-pointer-x')),
+    y: Number.parseFloat(target.style.getPropertyValue('--liquid-pointer-y')),
+    count: document.querySelectorAll('[data-liquid-active="true"]').length,
+  }))
+  assert.equal(topbarPointer.active, 'true', 'the top bar must own its local pointer highlight')
+  assert.ok(Math.abs(topbarPointer.x - 72) <= 2, `top-bar highlight x must use local client coordinates: ${JSON.stringify(topbarPointer)}`)
+  assert.ok(Math.abs(topbarPointer.y - 38) <= 3, `top-bar highlight y must use local client coordinates: ${JSON.stringify(topbarPointer)}`)
+  assert.equal(topbarPointer.count, 1, 'only one liquid surface may be active at a time')
+  await page.evaluate(() => {
+    window.__liquidActiveCounts = []
+    window.__liquidObserver = new MutationObserver(() => {
+      window.__liquidActiveCounts.push(
+        document.querySelectorAll('[data-liquid-active="true"]').length,
+      )
+    })
+    window.__liquidObserver.observe(document.documentElement, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-liquid-active'],
+    })
+  })
+  const sidebarBounds = await liquidSidebar.boundingBox()
+  assert.ok(sidebarBounds, 'liquid-glass pointer fixture needs a visible sidebar')
+  await page.mouse.move(
+    sidebarBounds.x + sidebarBounds.width * 0.31,
+    sidebarBounds.y + sidebarBounds.height * 0.67,
+    { steps: 10 },
+  )
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+  const sidebarPointer = await liquidSidebar.evaluate((target) => ({
+    active: target.dataset.liquidActive,
+    x: Number.parseFloat(target.style.getPropertyValue('--liquid-pointer-x')),
+    y: Number.parseFloat(target.style.getPropertyValue('--liquid-pointer-y')),
+    count: document.querySelectorAll('[data-liquid-active="true"]').length,
+    observations: window.__liquidActiveCounts || [],
+  }))
+  assert.equal(sidebarPointer.active, 'true', 'the sidebar must take ownership without retaining the top-bar highlight')
+  assert.ok(Math.abs(sidebarPointer.x - 31) <= 2, `sidebar highlight x must use local client coordinates: ${JSON.stringify(sidebarPointer)}`)
+  assert.ok(Math.abs(sidebarPointer.y - 67) <= 3, `sidebar highlight y must use local client coordinates: ${JSON.stringify(sidebarPointer)}`)
+  assert.equal(sidebarPointer.count, 1, 'switching liquid surfaces must not leave shared active state')
+  assert.ok(
+    sidebarPointer.observations.every((count) => count <= 1),
+    `crossing topbar/sidebar must never activate multiple highlights: ${JSON.stringify(sidebarPointer)}`,
+  )
+  const contentBounds = await liquidContentCard.boundingBox()
+  assert.ok(contentBounds, 'liquid-glass fixture needs a visible content card')
+  await page.mouse.move(contentBounds.x + contentBounds.width / 2, contentBounds.y + contentBounds.height / 2)
+  await page.waitForTimeout(260)
+  const pointerLeaveState = await page.evaluate(() => {
+    window.__liquidObserver?.disconnect()
+    return {
+      active: document.querySelectorAll('[data-liquid-active="true"]').length,
+      contentActive: document.querySelector('[data-case="app-surface"] [data-slot="card"]')?.getAttribute('data-liquid-active'),
+    }
+  })
+  assert.equal(pointerLeaveState.active, 0, 'leaving functional glass must clear its active light without a corner residue')
+  assert.equal(pointerLeaveState.contentActive, null, 'content cards must remain standard material instead of sharing pointer light')
   const glassQuizGeometry = await page.locator('[data-quiz-theme-fixture]').evaluateAll((cards) =>
     cards.map((card) => ({
       type: card.getAttribute('data-question-type'),
@@ -944,6 +1176,17 @@ try {
       overflow: getComputedStyle(card).overflow,
       cardRadius: getComputedStyle(card).borderStartStartRadius,
       edgeContent: getComputedStyle(card, '::before').content,
+      backgroundImage: getComputedStyle(card).backgroundImage,
+      boxShadow: getComputedStyle(card).boxShadow,
+      borderWidths: [
+        getComputedStyle(card).borderTopWidth,
+        getComputedStyle(card).borderRightWidth,
+        getComputedStyle(card).borderBottomWidth,
+        getComputedStyle(card).borderLeftWidth,
+      ],
+      headerTopOffset:
+        card.querySelector('[data-slot="card-header"]').getBoundingClientRect().top -
+        card.getBoundingClientRect().top,
       headerRadius: getComputedStyle(card.querySelector('[data-slot="card-header"]')).borderStartStartRadius,
       footerRadius: getComputedStyle(card.querySelector('[data-slot="card-footer"]')).borderEndStartRadius,
     })),
@@ -966,6 +1209,10 @@ try {
     assert.equal(card.overflow, 'hidden', `${card.type} quiz material layers must be clipped by one outer radius`)
     assert.ok(Number.parseFloat(card.cardRadius) > 0, `${card.type} quiz card must retain its outer radius`)
     assert.equal(card.edgeContent, 'none', `${card.type} quiz card must not add a second masked rim that can fracture at corners`)
+    assert.equal(card.backgroundImage, 'none', `${card.type} quiz card must not retain a second top-edge gradient layer`)
+    assert.doesNotMatch(card.boxShadow, /inset/, `${card.type} quiz card must have one clean outer shadow without a duplicate inner rim`)
+    assert.equal(new Set(card.borderWidths).size, 1, `${card.type} quiz card must keep one continuous border around all four corners`)
+    assert.ok(card.headerTopOffset <= 2, `${card.type} quiz header must begin directly inside the single outer edge`)
     assert.equal(Number.parseFloat(card.headerRadius), 0, `${card.type} quiz header must rely on the single outer top radius`)
     assert.equal(Number.parseFloat(card.footerRadius), 0, `${card.type} quiz footer must rely on the single outer bottom radius`)
   })
@@ -977,6 +1224,9 @@ try {
   if (process.env.CLASS_RECORD_GLASS_SCREENSHOT) {
     await page.screenshot({ path: process.env.CLASS_RECORD_GLASS_SCREENSHOT, fullPage: true })
   }
+  await page.setViewportSize({ width: 390, height: 720 })
+  await assertFullscreenImageViewer(page, 'liquid-glass 390px')
+  await page.setViewportSize({ width: 1280, height: 1000 })
   await page.locator('[data-box-style-id="default"]').click()
   await page.waitForFunction(() => document.documentElement.dataset.boxStyle === 'default')
   const resetGlassState = await page.locator('[data-case="app-surface"] [data-slot="card"]').evaluate((card) => ({

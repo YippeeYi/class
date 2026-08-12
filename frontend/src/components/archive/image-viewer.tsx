@@ -92,44 +92,47 @@ export function ImageViewer({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={trigger} />
-      <DialogContent className="flex h-[calc(100svh-1rem)] w-[calc(100vw-1rem)] max-w-none flex-col gap-3 p-3 sm:max-w-none sm:p-4">
+      <DialogContent className="image-viewer-dialog flex max-w-none flex-col gap-3 sm:max-w-none">
         <DialogHeader className="sr-only">
           <DialogTitle>{alt}</DialogTitle>
           <DialogDescription>
             滚轮缩放，按住图片拖动浏览；使用工具栏可缩放或复位。
           </DialogDescription>
         </DialogHeader>
-        <div className="flex items-center gap-2 pr-10">
+        <div className="flex min-w-0 items-center gap-2 pr-9">
           <Maximize2 className="size-4 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate text-sm font-medium">{alt}</span>
-          <Button
-            size="icon-sm"
-            variant="outline"
-            aria-label="缩小"
-            title="缩小"
-            onClick={() => setScale((value) => Math.max(0.25, value / 1.25))}
-          >
-            <Minus />
-          </Button>
-          <span className="w-14 text-center text-xs text-muted-foreground">
-            {Math.round(scale * 100)}%
-          </span>
-          <Button
-            size="icon-sm"
-            variant="outline"
-            aria-label="放大"
-            title="放大"
-            onClick={() => setScale((value) => Math.min(8, value * 1.25))}
-          >
-            <Plus />
-          </Button>
-          <Button size="icon-sm" variant="outline" aria-label="复位" title="复位" onClick={reset}>
-            <RotateCcw />
-          </Button>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              size="icon-sm"
+              variant="outline"
+              aria-label="缩小"
+              title="缩小"
+              onClick={() => setScale((value) => Math.max(0.25, value / 1.25))}
+            >
+              <Minus />
+            </Button>
+            <span className="w-12 text-center text-xs tabular-nums text-muted-foreground">
+              {Math.round(scale * 100)}%
+            </span>
+            <Button
+              size="icon-sm"
+              variant="outline"
+              aria-label="放大"
+              title="放大"
+              onClick={() => setScale((value) => Math.min(8, value * 1.25))}
+            >
+              <Plus />
+            </Button>
+            <Button size="icon-sm" variant="outline" aria-label="复位" title="复位" onClick={reset}>
+              <RotateCcw />
+            </Button>
+          </div>
         </div>
-        <div
+        <section
           ref={viewport}
-          className="relative min-h-0 flex-1 touch-none overflow-hidden rounded-lg border bg-muted/55"
+          className={`relative min-h-0 flex-1 touch-none overflow-hidden rounded-lg border bg-muted/55 ${scale > 1 ? 'cursor-grab active:cursor-grabbing' : ''}`}
+          aria-label={`${alt} 大图查看区域`}
           onWheel={(event) => {
             event.preventDefault()
             const next = Math.min(8, Math.max(0.25, scale * Math.exp(-event.deltaY * 0.0015)))
@@ -211,8 +214,9 @@ export function ImageViewer({
               onError={imageFailure.markFailed}
               className="absolute left-1/2 top-1/2 max-w-none select-none will-change-transform"
               style={{
-                width: base.width ? `${base.width * scale}px` : 'auto',
-                height: base.height ? `${base.height * scale}px` : 'auto',
+                width: base.width ? `${base.width * scale}px` : '100%',
+                height: base.height ? `${base.height * scale}px` : '100%',
+                objectFit: base.width ? undefined : 'contain',
                 transform: `translate3d(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px), 0)`,
               }}
             />
@@ -227,7 +231,7 @@ export function ImageViewer({
               </div>
             </div>
           )}
-        </div>
+        </section>
       </DialogContent>
     </Dialog>
   )
