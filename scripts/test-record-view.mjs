@@ -64,8 +64,22 @@ assert.match(
   /view === 'written' && \(written\.loading \|\| !written\.data\)/,
   'same-route list-to-written jumps must wait for written data, not only its next loading flag',
 )
-assert.match(page, /scrollTargetIntoView\(target\)/, 'record targets must use the clamped shared scroll coordinator')
+assert.match(
+  page,
+  /useLayoutEffect\(\(\) => \{[\s\S]*scrollTargetIntoView\(target, 'auto'\)[\s\S]*replaceRecordJumpHash/,
+  'record targets must synchronously perform one clamped scroll before publishing the fragment',
+)
+assert.doesNotMatch(
+  page.slice(page.indexOf('const loading ='), page.indexOf('const returnToOrigin')),
+  /requestAnimationFrame|behavior: 'smooth'/,
+  'record locating and return restoration must not stack delayed or animated corrections',
+)
 assert.doesNotMatch(page, /target\.scrollIntoView/, 'near-bottom records must not rely on browser centre alignment')
+assert.match(
+  page,
+  /onOpenChangeComplete=\{\(open\) =>[\s\S]*focus\(\{ preventScroll: true \}\)[\s\S]*finalFocus=\{false\}/,
+  'closing the jump dialog must focus the visible target instead of the offscreen source control',
+)
 assert.doesNotMatch(page, /<Card className="bg-muted\/45">/, 'proverbs must not keep a separate heavy card treatment')
 assert.match(
   page,

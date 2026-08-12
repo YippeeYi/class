@@ -1,6 +1,6 @@
 import { BookOpenText, MessageSquareQuote, Search, Users } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { PageHeading } from '@/components/archive/page-heading'
@@ -19,7 +19,7 @@ import {
   recordTypeLabel,
   recordWrittenHref,
 } from '@/lib/record-identity'
-import { prepareRecordJump } from '@/lib/record-navigation'
+import { isModifiedRecordClick, prepareRecordJump, recordClientHref } from '@/lib/record-navigation'
 import { loadSupplementalRecords } from '@/services/data'
 import type { Quote, RecordItem } from '@/types/domain'
 
@@ -75,6 +75,7 @@ function Snippet({ text, query }: { text: string; query: string }) {
 
 function ResultCard({ result, query }: { result: SearchResult; query: string }) {
   const Icon = icons[result.type]
+  const navigate = useNavigate()
   const content = (
     <Card>
       <CardContent className="flex gap-4">
@@ -103,7 +104,16 @@ function ResultCard({ result, query }: { result: SearchResult; query: string }) 
   if (!result.href) return <div aria-disabled="true">{content}</div>
   const anchor = result.href.split('#')[1]
   return (
-    <Link to={result.href} onClick={() => anchor && prepareRecordJump(anchor)}>
+    <Link
+      to={result.href}
+      onClick={(event) => {
+        if (!anchor) return
+        prepareRecordJump(anchor)
+        if (isModifiedRecordClick(event)) return
+        event.preventDefault()
+        navigate(recordClientHref(result.href))
+      }}
+    >
       {content}
     </Link>
   )

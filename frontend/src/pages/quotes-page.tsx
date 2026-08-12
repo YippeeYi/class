@@ -1,6 +1,6 @@
 import { ArrowDownAZ, ArrowUpAZ, BookOpenText, Quote as QuoteIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { MarkupContent } from '@/components/archive/markup-content'
@@ -19,13 +19,14 @@ import {
 import { useArchive } from '@/features/archive/archive-context'
 import { stripMarkup } from '@/lib/markup'
 import { quoteRecordTarget } from '@/lib/quote-navigation'
-import { prepareRecordJump } from '@/lib/record-navigation'
+import { isModifiedRecordClick, prepareRecordJump, recordClientHref } from '@/lib/record-navigation'
 
 export function QuotesPage() {
   const [sort, setSort] = useState<'id' | 'quote'>('id')
   const [descending, setDescending] = useState(false)
   const [sourceError, setSourceError] = useState('')
   const resource = useArchive()
+  const navigate = useNavigate()
   useEffect(() => {
     document.title = '名言 · 编日史'
   }, [])
@@ -102,6 +103,9 @@ export function QuotesPage() {
                   }
                   setSourceError('')
                   prepareRecordJump(anchor)
+                  if (isModifiedRecordClick(event)) return
+                  event.preventDefault()
+                  navigate(recordClientHref(target))
                 }}
               >
                 <Card className="h-fit gap-0 py-0 transition-[background-color,box-shadow] group-hover:bg-card/95 group-hover:ring-primary/30 group-active:bg-accent/30">

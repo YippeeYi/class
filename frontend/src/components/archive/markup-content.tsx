@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 
 import { ImageViewer } from '@/components/archive/image-viewer'
 import { Button } from '@/components/ui/button'
@@ -24,7 +24,7 @@ import {
   type QuizMarkupNode,
   recordAnchor,
 } from '@/lib/markup'
-import { prepareRecordJump } from '@/lib/record-navigation'
+import { isModifiedRecordClick, prepareRecordJump, recordClientHref } from '@/lib/record-navigation'
 import {
   getImageDimensions,
   preloadImageDimensions,
@@ -495,6 +495,7 @@ export function MarkupContent({
   interactionMode?: 'full' | 'references' | 'plain'
 }) {
   const tree = useMemo(() => parseMarkup(content), [content])
+  const navigate = useNavigate()
 
   const renderNodes = (nodes: MarkupNode[], path: string): ReactNode =>
     nodes.map((node, position) => {
@@ -549,6 +550,9 @@ export function MarkupContent({
                 return
               }
               prepareRecordJump(recordTarget)
+              if (isModifiedRecordClick(event)) return
+              event.preventDefault()
+              navigate(recordClientHref(target))
             }}
           >
             {renderNodes(node.children, key)}

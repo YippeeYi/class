@@ -365,30 +365,21 @@ function applyBoxStyle(id: BoxStyleId) {
 }
 
 const LIQUID_GLASS_TARGETS = [
-  '[data-liquid-glass]',
+  '[data-liquid-glass-interactive]',
   '.app-topbar',
   '.app-sidebar [data-slot="sidebar-inner"]',
-  '[data-slot="card"]',
   '[data-slot="dialog-content"]',
   '[data-slot="alert-dialog-content"]',
   '[data-slot="popover-content"]',
   '[data-slot="dropdown-menu-content"]',
   '[data-slot="dropdown-menu-sub-content"]',
   '[data-slot="select-content"]',
-  '[data-slot="alert"]',
 ].join(',')
 
 function liquidGlassTarget(source: EventTarget | null) {
   if (!(source instanceof Element)) return null
-  let target = source.closest<HTMLElement>(LIQUID_GLASS_TARGETS)
+  const target = source.closest<HTMLElement>(LIQUID_GLASS_TARGETS)
   if (!target) return null
-  if (target.dataset.slot === 'card') {
-    let parent = target.parentElement?.closest<HTMLElement>('[data-slot="card"]') || null
-    while (parent) {
-      target = parent
-      parent = parent.parentElement?.closest<HTMLElement>('[data-slot="card"]') || null
-    }
-  }
   return target
 }
 

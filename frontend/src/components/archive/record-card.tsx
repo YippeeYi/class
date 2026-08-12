@@ -1,6 +1,6 @@
 import { BookOpenText, CalendarDays, Clock, Paperclip, UserRound } from 'lucide-react'
 import { memo, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 
 import { MarkupContent } from '@/components/archive/markup-content'
 import { Badge } from '@/components/ui/badge'
@@ -10,7 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { recordAnchor } from '@/lib/markup'
 import { recordDisplayNumber, recordWrittenHref } from '@/lib/record-identity'
-import { prepareRecordJump } from '@/lib/record-navigation'
+import { isModifiedRecordClick, prepareRecordJump, recordClientHref } from '@/lib/record-navigation'
 import { signAssetUrl } from '@/services/data'
 import type { Attachment, RecordItem } from '@/types/domain'
 
@@ -56,6 +56,7 @@ export const RecordCard = memo(function RecordCard({
   onSourceAction?: (record: RecordItem, source: HTMLElement) => void
   showSourceAction?: boolean
 }) {
+  const navigate = useNavigate()
   const typeLabel =
     record.recordType === 'message' ? '箴言' : record.recordType === 'supplement' ? '补充' : ''
   const anchor = recordAnchor(record)
@@ -64,6 +65,7 @@ export const RecordCard = memo(function RecordCard({
     <Collapsible>
       <Card
         id={anchor}
+        tabIndex={-1}
         className="group/record scroll-mt-24 gap-0 py-0 transition-[background-color,border-color,box-shadow] duration-500"
       >
         <CardHeader className="border-b border-border/60 pt-3 !pb-3">
@@ -124,7 +126,12 @@ export const RecordCard = memo(function RecordCard({
                             render={
                               <Link
                                 to={recordWrittenHref(record)}
-                                onClick={() => prepareRecordJump(anchor)}
+                                onClick={(event) => {
+                                  prepareRecordJump(anchor)
+                                  if (isModifiedRecordClick(event)) return
+                                  event.preventDefault()
+                                  navigate(recordClientHref(recordWrittenHref(record)))
+                                }}
                               />
                             }
                             variant="ghost"

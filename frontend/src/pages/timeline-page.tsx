@@ -25,7 +25,7 @@ import {
   stripMarkup,
 } from '@/lib/markup'
 import { quoteRecordTarget } from '@/lib/quote-navigation'
-import { prepareRecordJump } from '@/lib/record-navigation'
+import { prepareRecordJump, recordClientHref } from '@/lib/record-navigation'
 import { fixedTimelineChartScale } from '@/lib/timeline'
 import type { RecordItem } from '@/types/domain'
 
@@ -825,7 +825,7 @@ export function TimelinePage() {
     }
     setNavigationError('')
     prepareRecordJump(target.anchor)
-    navigate(target.href)
+    navigate(recordClientHref(target.href))
   }
   const summaryStats = useMemo(
     () => [

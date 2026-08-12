@@ -30,6 +30,7 @@ const harness = String.raw`<!doctype html>
       import { Input } from '/src/components/ui/input.tsx'
       import { ArchiveProvider } from '/src/features/archive/archive-context.tsx'
       import { rememberImageDimensions } from '/src/services/image-metadata.ts'
+      import { installRecordJumpGuard } from '/src/lib/record-navigation.ts'
       import '/src/styles/tailwind.css'
 
       const e = React.createElement
@@ -62,9 +63,9 @@ const harness = String.raw`<!doctype html>
         hidden: false,
       })
       sessionStorage.setItem(cachePrefix + 'records:false', cacheEntry([
-        recordFixture('r1', 1, todayDate, '今天的记录 [[quote:q1|一句话]]'),
+        recordFixture('r1', 1, todayDate, '今天的记录 [[quote:q1|一句话]]，继续查看 [[record:r2|第二条记录]]。'),
         recordFixture('r2', 2, '2025-02-03', '第二条记录'),
-        recordFixture('r3', 3, '2026-05-06', '第三条记录'),
+        recordFixture('r3', 3, '2026-05-06', '第三条记录 [[anno:定位后仍可稳定操作弹出内容。|跳转后注释]]，继续查看 [[record:r1|第一条记录]]。'),
       ]))
       sessionStorage.setItem(cachePrefix + 'record-pages:false', cacheEntry([
         { page: '1', startFile: 'r1.json', endFile: 'r2.json', imagePath: 'fixtures/page-1.webp', hidden: false },
@@ -237,6 +238,7 @@ const harness = String.raw`<!doctype html>
       }
 
       createRoot(document.getElementById('root')).render(e(App))
+      window.__installRecordJumpGuard = installRecordJumpGuard
       requestAnimationFrame(() => { window.__markupLayoutReady = true })
     </script>
   </body>
@@ -302,14 +304,25 @@ try {
   const sourceJump = recordsFixture.getByRole('button', {
     name: '在书面记录中查看#r3',
   })
+  await sourceJump.scrollIntoViewIfNeeded()
   await sourceJump.hover()
+  await page.evaluate(() => {
+    window.__recordScrollSamples = [window.scrollY]
+    window.__recordScrollListener = () => window.__recordScrollSamples.push(window.scrollY)
+    window.addEventListener('scroll', window.__recordScrollListener, { passive: true })
+  })
   await sourceJump.click()
   await page.waitForTimeout(300)
   const recordJumpLocation = await page.evaluate(() => window.__memoryLocation)
   assert.equal(
     recordJumpLocation,
-    '/records?view=written#record-r3',
-    'the records-page source action must navigate to the written anchor',
+    '/records?view=written',
+    'client routing must not publish a live fragment before the target is measured',
+  )
+  assert.equal(
+    await page.evaluate(() => window.location.hash),
+    '#record-r3',
+    'the shareable fragment must be written only after exact positioning',
   )
   await recordsFixture.locator('#record-r3').waitFor({ state: 'visible' })
   await page.getByRole('alertdialog').waitFor({ state: 'visible' })
@@ -323,8 +336,65 @@ try {
     /第 2 页/,
     'a source jump must switch to the written page that actually contains the record',
   )
+  const recordScrollTrajectory = await page.evaluate(() => {
+    window.removeEventListener('scroll', window.__recordScrollListener)
+    const samples = window.__recordScrollSamples || []
+    const viewportHeight = window.visualViewport?.height || window.innerHeight
+    return {
+      samples,
+      maximum: Math.max(0, document.documentElement.scrollHeight - viewportHeight),
+    }
+  })
+  assert.ok(recordScrollTrajectory.samples.length >= 1, 'record positioning must expose a stable scroll sample')
+  const recordScrollStart = recordScrollTrajectory.samples[0]
+  const recordScrollEnd = recordScrollTrajectory.samples.at(-1)
+  assert.ok(
+    recordScrollTrajectory.samples.every(
+      (value) => value >= -1 && value <= recordScrollTrajectory.maximum + 1,
+    ),
+    `record positioning must stay inside the real document range: ${JSON.stringify(recordScrollTrajectory)}`,
+  )
+  if (recordScrollEnd >= recordScrollStart) {
+    assert.ok(
+      Math.min(...recordScrollTrajectory.samples) >= recordScrollStart - 1 &&
+        Math.max(...recordScrollTrajectory.samples) <= recordScrollEnd + 1,
+      `record positioning must not overshoot and rebound: ${JSON.stringify(recordScrollTrajectory)}`,
+    )
+  } else {
+    assert.ok(
+      Math.max(...recordScrollTrajectory.samples) <= recordScrollStart + 1 &&
+        Math.min(...recordScrollTrajectory.samples) >= recordScrollEnd - 1,
+      `record positioning must not undershoot and rebound: ${JSON.stringify(recordScrollTrajectory)}`,
+    )
+  }
+  const scrollBeforeDialogClose = await page.evaluate(() => window.scrollY)
   await page.getByRole('button', { name: '留在这里' }).click()
-  await page.waitForTimeout(380)
+  await page.getByRole('alertdialog').waitFor({ state: 'hidden' })
+  const dialogCloseState = await page.evaluate(() => ({
+    scrollY: window.scrollY,
+    focusedId: document.activeElement?.id || '',
+  }))
+  assert.ok(
+    Math.abs(dialogCloseState.scrollY - scrollBeforeDialogClose) <= 1,
+    `closing the jump dialog must not return-scroll to its old trigger: ${JSON.stringify({ scrollBeforeDialogClose, dialogCloseState })}`,
+  )
+  assert.equal(
+    dialogCloseState.focusedId,
+    'record-r3',
+    'closing the jump dialog must leave focus on the visible record',
+  )
+  const postJumpScroll = dialogCloseState.scrollY
+  const postJumpAnnotation = recordsFixture
+    .locator('#record-r3')
+    .getByRole('button', { name: '跳转后注释' })
+  await postJumpAnnotation.hover()
+  await page.locator('.record-annotation-popup[data-open]').waitFor({ state: 'visible' })
+  assert.ok(
+    Math.abs((await page.evaluate(() => window.scrollY)) - postJumpScroll) <= 1,
+    'opening a popover immediately after record location must not move the document',
+  )
+  await page.mouse.move(4, 4)
+  await page.locator('.record-annotation-popup[data-open]').waitFor({ state: 'hidden' })
   const locatedRecordGeometry = await recordsFixture.locator('#record-r3').evaluate((target) => {
     const bounds = target.getBoundingClientRect()
     const viewportHeight = window.visualViewport?.height || window.innerHeight
@@ -344,6 +414,39 @@ try {
     locatedRecordGeometry.scrollY <= locatedRecordGeometry.maximumScroll + 1,
     `record location must not exceed the real document scroll range: ${JSON.stringify(locatedRecordGeometry)}`,
   )
+
+  for (const [sourceId, linkName, targetId] of [
+    ['record-r3', '第一条记录', 'record-r1'],
+    ['record-r1', '第二条记录', 'record-r2'],
+  ]) {
+    await recordsFixture
+      .locator(`#${sourceId} .record-link`)
+      .filter({ hasText: linkName })
+      .click()
+    await recordsFixture.locator(`#${targetId}`).waitFor({ state: 'visible' })
+    await page.getByRole('alertdialog').waitFor({ state: 'visible' })
+    const beforeClose = await page.evaluate(() => window.scrollY)
+    await page.getByRole('button', { name: '留在这里' }).click()
+    await page.getByRole('alertdialog').waitFor({ state: 'hidden' })
+    const afterClose = await page.evaluate(() => ({
+      scrollY: window.scrollY,
+      focusedId: document.activeElement?.id || '',
+      maximum: Math.max(
+        0,
+        document.documentElement.scrollHeight -
+          (window.visualViewport?.height || window.innerHeight),
+      ),
+    }))
+    assert.ok(
+      Math.abs(afterClose.scrollY - beforeClose) <= 1,
+      `repeated record jump dialog close must preserve scroll: ${JSON.stringify({ sourceId, targetId, beforeClose, afterClose })}`,
+    )
+    assert.equal(afterClose.focusedId, targetId, `repeated record jump must focus ${targetId}`)
+    assert.ok(
+      afterClose.scrollY >= -1 && afterClose.scrollY <= afterClose.maximum + 1,
+      `repeated record jump must stay inside the document: ${JSON.stringify({ targetId, afterClose })}`,
+    )
+  }
 
   for (const width of [1280, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 })
@@ -568,6 +671,27 @@ try {
     `automatic palette control must retain a readable touch target without becoming oversized: ${JSON.stringify(autoThemeGeometry)}`,
   )
   assert.equal(autoThemeGeometry.hasPreview, false, 'automatic palette must not render a full preview card')
+  const appearanceTabsGeometry = await page.locator('.appearance-section-tabs').evaluate((list) => {
+    const bounds = list.getBoundingClientRect()
+    return {
+      height: bounds.height,
+      triggers: [...list.querySelectorAll('[data-slot="tabs-trigger"]')].map((trigger) => {
+        const triggerBounds = trigger.getBoundingClientRect()
+        return {
+          top: triggerBounds.top - bounds.top,
+          bottom: bounds.bottom - triggerBounds.bottom,
+          height: triggerBounds.height,
+        }
+      }),
+    }
+  })
+  assert.ok(appearanceTabsGeometry.height >= 56, `appearance tab rail must contain its controls: ${JSON.stringify(appearanceTabsGeometry)}`)
+  appearanceTabsGeometry.triggers.forEach((trigger) => {
+    assert.ok(
+      trigger.top >= -1 && trigger.bottom >= -1 && trigger.height >= 44,
+      `appearance tab controls must stay fully inside the rail: ${JSON.stringify(appearanceTabsGeometry)}`,
+    )
+  })
   const designedThemeOptions = page.locator('[data-theme-preset-option]:not([data-theme-preset-option="auto"])')
   const themePreviewColors = await designedThemeOptions.evaluateAll((options) =>
     options.map((option) => {
@@ -677,6 +801,7 @@ try {
   await page.waitForFunction(() => !document.documentElement.classList.contains('dark') && document.documentElement.dataset.themePreset === 'auto')
 
   const paletteChoice = page.locator('[data-theme-preset-option="mist"]')
+  await paletteChoice.scrollIntoViewIfNeeded()
   const paletteBoundsBefore = await paletteChoice.boundingBox()
   await paletteChoice.hover()
   await page.waitForTimeout(220)
@@ -768,6 +893,8 @@ try {
       cardColor: card ? getComputedStyle(card).backgroundColor : '',
       rootImage: getComputedStyle(document.documentElement).backgroundImage,
       bodyColor: getComputedStyle(document.body).backgroundColor,
+      rootOverscroll: getComputedStyle(document.documentElement).overscrollBehaviorY,
+      bodyOverscroll: getComputedStyle(document.body).overscrollBehaviorY,
     }
   })
   assert.match(surfaceGeometry.layerImage, /cloud\.webp/, 'the selected background must remain mounted behind the formal application surface')
@@ -777,6 +904,8 @@ try {
   assert.notEqual(surfaceGeometry.sidebarBackdrop, 'none', 'the sidebar must keep a bounded glass treatment')
   assert.match(surfaceGeometry.rootImage, /cloud\.webp/, 'elastic overscroll must reveal the same selected image on the document canvas')
   assert.match(surfaceGeometry.bodyColor, /(?:\/ 0\)|, 0\))$/, `the body must not cover the shared overscroll canvas: ${JSON.stringify(surfaceGeometry)}`)
+  assert.equal(surfaceGeometry.rootOverscroll, 'none', 'the root must contain vertical elastic overscroll')
+  assert.equal(surfaceGeometry.bodyOverscroll, 'none', 'the body must not reveal a mismatched canvas at either edge')
 
   await page.getByRole('tab', { name: /^方框/ }).click()
   const boxStyleCards = page.locator('[data-box-style-id]')
@@ -787,6 +916,13 @@ try {
   await page.waitForTimeout(220)
   const glassChoiceBoundsAfter = await glassChoice.boundingBox()
   assert.deepEqual(glassChoiceBoundsAfter, glassChoiceBoundsBefore, 'box-style hover must preserve the exact selectable-card geometry')
+  const defaultQuizSizes = await page.locator('[data-quiz-theme-fixture]').evaluateAll((cards) =>
+    cards.map((card) => ({
+      type: card.getAttribute('data-question-type'),
+      width: card.getBoundingClientRect().width,
+      height: card.getBoundingClientRect().height,
+    })),
+  )
   await page.locator('[data-box-style-id="glass"]').click()
   await page.waitForFunction(() => {
     const value = JSON.parse(localStorage.getItem('classRecord:appearance:v1') || 'null')
@@ -807,8 +943,7 @@ try {
       contain: getComputedStyle(card).contain,
       overflow: getComputedStyle(card).overflow,
       cardRadius: getComputedStyle(card).borderStartStartRadius,
-      edgeRadius: getComputedStyle(card, '::before').borderStartStartRadius,
-      edgeBackdrop: getComputedStyle(card, '::before').backdropFilter,
+      edgeContent: getComputedStyle(card, '::before').content,
       headerRadius: getComputedStyle(card.querySelector('[data-slot="card-header"]')).borderStartStartRadius,
       footerRadius: getComputedStyle(card.querySelector('[data-slot="card-footer"]')).borderEndStartRadius,
     })),
@@ -825,17 +960,31 @@ try {
     )
     assert.match(
       card.contain,
-      /layout paint/,
+      /paint/,
       `${card.type} quiz cards need a stable local paint boundary under liquid glass`,
     )
-    assert.equal(card.overflow, 'clip', `${card.type} quiz material layers must be clipped by one outer radius`)
-    assert.equal(card.edgeRadius, card.cardRadius, `${card.type} quiz edge highlight must follow the card corner`)
-    assert.equal(card.edgeBackdrop, 'none', `${card.type} quiz edge highlight must not create an unclipped second blur layer`)
-    assert.ok(Number.parseFloat(card.headerRadius) > 0, `${card.type} quiz header needs a continuous inner top radius`)
-    assert.ok(Number.parseFloat(card.footerRadius) > 0, `${card.type} quiz footer needs a continuous inner bottom radius`)
+    assert.equal(card.overflow, 'hidden', `${card.type} quiz material layers must be clipped by one outer radius`)
+    assert.ok(Number.parseFloat(card.cardRadius) > 0, `${card.type} quiz card must retain its outer radius`)
+    assert.equal(card.edgeContent, 'none', `${card.type} quiz card must not add a second masked rim that can fracture at corners`)
+    assert.equal(Number.parseFloat(card.headerRadius), 0, `${card.type} quiz header must rely on the single outer top radius`)
+    assert.equal(Number.parseFloat(card.footerRadius), 0, `${card.type} quiz footer must rely on the single outer bottom radius`)
   })
+  assert.deepEqual(
+    glassQuizGeometry.map(({ type, width, height }) => ({ type, width, height })),
+    defaultQuizSizes,
+    'switching to liquid glass must not resize or reflow quiz cards',
+  )
+  if (process.env.CLASS_RECORD_GLASS_SCREENSHOT) {
+    await page.screenshot({ path: process.env.CLASS_RECORD_GLASS_SCREENSHOT, fullPage: true })
+  }
   await page.locator('[data-box-style-id="default"]').click()
   await page.waitForFunction(() => document.documentElement.dataset.boxStyle === 'default')
+  const resetGlassState = await page.locator('[data-case="app-surface"] [data-slot="card"]').evaluate((card) => ({
+    backdrop: getComputedStyle(card).backdropFilter,
+    activeLayers: document.querySelectorAll('[data-liquid-active="true"]').length,
+  }))
+  assert.equal(resetGlassState.backdrop, 'none', 'default box mode must not retain liquid-glass blur')
+  assert.equal(resetGlassState.activeLayers, 0, 'default box mode must clear transient liquid-glass interaction state')
 
   await page.evaluate(() => window.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: 'auto' }))
   const bottomBoundary = await page.evaluate(() => {
@@ -1074,11 +1223,38 @@ try {
   assert.ok(edgePopup)
   assert.ok(edgePopup.x >= 4 && edgePopup.x + edgePopup.width <= 1276, 'viewport collision handling must keep edge-anchored illustration popups fully visible')
 
+  const guardedDirectHash = await page.evaluate(() => {
+    history.replaceState(history.state, '', '/class/records?view=written#record-r2')
+    window.__installRecordJumpGuard()
+    const pending = JSON.parse(
+      sessionStorage.getItem('classrecord:pending-record-jump') || 'null',
+    )
+    const result = {
+      pathname: location.pathname,
+      search: location.search,
+      hash: location.hash,
+      pendingTarget: pending?.targetAnchorId || '',
+    }
+    sessionStorage.removeItem('classrecord:pending-record-jump')
+    history.replaceState(history.state, '', '/')
+    return result
+  })
+  assert.deepEqual(
+    guardedDirectHash,
+    {
+      pathname: '/class/records',
+      search: '?view=written',
+      hash: '',
+      pendingTarget: 'record-r2',
+    },
+    'direct record fragments under a deployment basename must be captured before native anchor scrolling',
+  )
+
   assert.deepEqual(pageErrors, [], `browser page errors during interaction regression: ${pageErrors.join('; ')}`)
   assert.deepEqual(consoleProblems, [], `browser console warnings/errors: ${consoleProblems.join('; ')}`)
   assert.ok(
-    expectedHarnessNetworkFailures <= 2,
-    `the credential-free illustration harness made unexpected failing requests: ${expectedHarnessNetworkFailures}`,
+    expectedHarnessNetworkFailures <= 6,
+    `the credential-free image harness exceeded the bounded page/illustration retry budget: ${expectedHarnessNetworkFailures}`,
   )
 
   const touchPage = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true })

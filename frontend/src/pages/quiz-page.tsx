@@ -560,7 +560,7 @@ export function QuizPage() {
                       <form onSubmit={submit} className="mt-6">
                         <Field>
                           <FieldLabel htmlFor="quiz-answer">填入完整答案（需完全相同）</FieldLabel>
-                          <div className="flex gap-2">
+                          <div className="flex flex-col gap-2 sm:flex-row">
                             <Input
                               id="quiz-answer"
                               className="disabled:opacity-75"
@@ -571,7 +571,11 @@ export function QuizPage() {
                               autoFocus
                               placeholder="请输入挖空内容"
                             />
-                            <Button type="submit" disabled={!input.trim() || Boolean(result)}>
+                            <Button
+                              type="submit"
+                              className="w-full sm:w-auto"
+                              disabled={!input.trim() || Boolean(result)}
+                            >
                               提交
                             </Button>
                           </div>

@@ -1,5 +1,5 @@
 import { Eye, FileImage, List } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
@@ -40,7 +40,11 @@ import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { normalizeRecordKey } from '@/lib/archive'
 import { extractMarkupReferences, recordAnchor } from '@/lib/markup'
 import { buildSupplementalRecords } from '@/lib/record-identity'
-import { consumeRecordJump, type PendingRecordJump } from '@/lib/record-navigation'
+import {
+  consumeRecordJump,
+  type PendingRecordJump,
+  replaceRecordJumpHash,
+} from '@/lib/record-navigation'
 import { clampWindowScrollTop, scrollTargetIntoView } from '@/lib/viewport-scroll'
 import {
   hasAdminAccess,
@@ -266,11 +270,9 @@ function SignedPageImage({ path, page }: { path: string; page: string }) {
     >
       {!ready && !image.error && !imageFailure.failed && <Spinner className="size-7" />}
       {(imageFailure.failed || (image.error && !image.src)) && (
-        <div className="grid gap-3 px-4 text-center text-sm text-muted-foreground">
+        <div className="grid gap-1 px-4 text-center text-sm text-muted-foreground">
           <p>手写页图片加载失败。</p>
-          <Button size="sm" variant="outline" onClick={() => void imageFailure.retryManually()}>
-            重试
-          </Button>
+          <span className="text-meta text-primary">打开大图后可重试</span>
         </div>
       )}
       {image.src && (
@@ -350,7 +352,8 @@ export function RecordsPage() {
   const [jumpOriginHref, setJumpOriginHref] = useState('')
   const [jumpOrigin, setJumpOrigin] = useState<PendingRecordJump['origin']>()
   const [jumpError, setJumpError] = useState('')
-  const pendingReturn = useRef<{ scrollY: number } | null>(null)
+  const pendingReturn = useRef<{ scrollY: number; anchorId: string } | null>(null)
+  const jumpFocusTarget = useRef<HTMLElement | null>(null)
   const suppressNextLocationJump = useRef(false)
   const written = useAsyncData(async () => {
     if (view !== 'written') return null
@@ -524,7 +527,7 @@ export function RecordsPage() {
         {
           pathname: '/records',
           search: targetView === 'written' ? '?view=written' : '',
-          hash: `#${anchor}`,
+          hash: '',
         },
         { replace: true },
       )
@@ -559,10 +562,7 @@ export function RecordsPage() {
       setPageIndex(knownPageIndex >= 0 ? knownPageIndex : 0)
       setJumpRevision((value) => value + 1)
       suppressNextLocationJump.current = true
-      navigate(
-        { pathname: '/records', search: '?view=written', hash: `#${anchor}` },
-        { replace: true },
-      )
+      navigate({ pathname: '/records', search: '?view=written', hash: '' }, { replace: true })
     },
     [navigate],
   )
@@ -587,19 +587,18 @@ export function RecordsPage() {
       {
         pathname: location.pathname,
         search: next.toString() ? `?${next}` : '',
-        // A record jump owns its hash until the locator consumes it. Keeping
-        // the current hash here prevents filter/view URL synchronization from
-        // racing with, and erasing, the just-created target anchor.
-        hash: location.hash,
+        // Record fragments are written only after the target has been located;
+        // filter synchronization must never revive native anchor scrolling.
+        hash: '',
       },
       { replace: true },
     )
-  }, [criteria, location.hash, location.pathname, location.search, navigate, view])
+  }, [criteria, location.pathname, location.search, navigate, view])
 
   const loading = !hidden && recordsResource.loading
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: jumpRevision re-runs the locator after a same-page route stores a new pending jump in the ref.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const pending = pendingJump.current
     // A same-route list → written navigation renders once before useAsyncData's
     // dependency effect can mark the new written resource as loading. Waiting
@@ -630,36 +629,27 @@ export function RecordsPage() {
       return
     }
     pendingJump.current = null
-    let timer = 0
-    let secondFrame = 0
-    const firstFrame = window.requestAnimationFrame(() => {
-      // Written mode may have changed pages in the preceding render. Two
-      // frames give the committed card and its reserved image geometry one
-      // stable measurement before calculating an explicitly clamped target.
-      secondFrame = window.requestAnimationFrame(() => {
-        scrollTargetIntoView(target)
-        target.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-background')
-        timer = window.setTimeout(
-          () =>
-            target.classList.remove(
-              'ring-2',
-              'ring-primary',
-              'ring-offset-2',
-              'ring-offset-background',
-            ),
-          3200,
-        )
-      })
-    })
+    jumpFocusTarget.current = target
+    scrollTargetIntoView(target, 'auto')
+    replaceRecordJumpHash(pending.targetAnchorId)
+    target.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-background')
+    const timer = window.setTimeout(
+      () =>
+        target.classList.remove(
+          'ring-2',
+          'ring-primary',
+          'ring-offset-2',
+          'ring-offset-background',
+        ),
+      3200,
+    )
     if (pending.originHref) {
       setJumpOriginHref(pending.originHref)
     }
     setJumpOrigin(pending.origin)
     if (pending.originHref || pending.origin) setJumpDialogOpen(true)
     return () => {
-      window.cancelAnimationFrame(firstFrame)
-      if (secondFrame) window.cancelAnimationFrame(secondFrame)
-      if (timer) window.clearTimeout(timer)
+      window.clearTimeout(timer)
     }
   }, [
     extras,
@@ -674,23 +664,26 @@ export function RecordsPage() {
   ])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: filtered/pageIndex are render-completion signals for restoring an exact pre-jump scroll position.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const pending = pendingReturn.current
     if (!pending || loading || (view === 'written' && written.loading)) return
     pendingReturn.current = null
-    const restore = () =>
-      window.scrollTo({
-        top: clampWindowScrollTop(pending.scrollY),
-        left: 0,
-        behavior: 'smooth',
-      })
-    const frame = window.requestAnimationFrame(() => window.requestAnimationFrame(restore))
-    return () => window.cancelAnimationFrame(frame)
+    window.scrollTo({
+      top: clampWindowScrollTop(pending.scrollY),
+      left: 0,
+      behavior: 'auto',
+    })
+    const originTarget = pending.anchorId ? document.getElementById(pending.anchorId) : null
+    if (originTarget) originTarget.focus({ preventScroll: true })
   }, [filtered, loading, pageIndex, view, written.loading])
 
   const returnToOrigin = () => {
     if (jumpOrigin) {
-      pendingReturn.current = { scrollY: jumpOrigin.scrollY }
+      jumpFocusTarget.current = null
+      pendingReturn.current = {
+        scrollY: jumpOrigin.scrollY,
+        anchorId: jumpOrigin.anchorId,
+      }
       setCriteria(jumpOrigin.criteria)
       setView(jumpOrigin.view)
       setPageIndex(jumpOrigin.pageIndex)
@@ -822,8 +815,15 @@ export function RecordsPage() {
             onRecordReference={navigateToRecord}
           />
         ))}
-      <AlertDialog open={jumpDialogOpen} onOpenChange={setJumpDialogOpen}>
-        <AlertDialogContent>
+      <AlertDialog
+        open={jumpDialogOpen}
+        onOpenChange={setJumpDialogOpen}
+        onOpenChangeComplete={(open) => {
+          if (!open && jumpFocusTarget.current?.isConnected)
+            jumpFocusTarget.current.focus({ preventScroll: true })
+        }}
+      >
+        <AlertDialogContent finalFocus={false}>
           <AlertDialogHeader>
             <AlertDialogTitle>已定位到来源记录</AlertDialogTitle>
             <AlertDialogDescription>

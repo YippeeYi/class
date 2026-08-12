@@ -213,7 +213,7 @@ export function BackgroundsPage() {
         description="配色、背景与方框彼此独立，共同组成全站视觉风格；所有选择都会保存在当前浏览器中。"
       />
       <Tabs value={section} onValueChange={setSection} className="gap-4">
-        <TabsList className="grid h-auto w-full grid-cols-3 gap-1 rounded-xl bg-card/72 p-1.5 shadow-sm backdrop-blur-md">
+        <TabsList className="appearance-section-tabs grid w-full grid-cols-3 gap-1 rounded-xl bg-card/72 p-1.5 shadow-sm backdrop-blur-md group-data-horizontal/tabs:h-auto">
           {(
             [
               ['palette', '配色', Palette, '界面色彩'],
@@ -224,7 +224,7 @@ export function BackgroundsPage() {
             <TabsTrigger
               key={String(value)}
               value={String(value)}
-              className="h-auto min-w-0 flex-col gap-0.5 px-2 py-2.5 sm:flex-row sm:gap-2 sm:px-4"
+              className="h-auto min-h-11 min-w-0 flex-col gap-0.5 px-2 py-2 sm:flex-row sm:gap-2 sm:px-4"
             >
               <Icon className="size-4 shrink-0" />
               <span className="font-semibold">{String(label)}</span>

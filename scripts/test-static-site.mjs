@@ -191,7 +191,16 @@ assert.match(recordFilters, /normalizeText\(stripMarkup\(record\.content\)\)/, '
 assert.doesNotMatch(recordFilters, /record\.author[\s\S]*recordBodySearchTextCache/, 'record-list search must not index author metadata')
 assert.match(recordFilters, /placeholder="仅搜索记录正文"/, 'record-list search must explain its body-only scope')
 assert.match(records, /observedLocationKey/, 'same-page record links must refresh the pending jump')
-assert.match(records, /scrollTargetIntoView\(target\)/, 'record jumps must use the shared clamped viewport locator')
+assert.match(
+  records,
+  /scrollTargetIntoView\(target, 'auto'\)/,
+  'record jumps must use one immediate shared clamped viewport locator',
+)
+assert.match(
+  records,
+  /replaceRecordJumpHash\(pending\.targetAnchorId\)/,
+  'record fragments must be published without invoking native anchor scrolling',
+)
 assert.match(records, /clampWindowScrollTop\(pending\.scrollY\)/, 'record return restoration must respect the current document height')
 assert.doesNotMatch(records, /target\.scrollIntoView/, 'record location must not delegate near-bottom positioning to browser centering')
 assert.match(records, /lg:sticky lg:top-20/, 'written record images must keep the baseline sticky behavior')
