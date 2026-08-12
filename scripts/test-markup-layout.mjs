@@ -466,11 +466,11 @@ try {
   assert.notEqual(await largeDailyValue.textContent(), '9,876,543', 'large daily values must use compact visible notation')
 
   const themeOptions = page.locator('[data-theme-preset-option]')
-  assert.equal(await themeOptions.count(), 8, 'automatic plus seven designed light/dark theme presets must remain available')
+  assert.equal(await themeOptions.count(), 10, 'automatic plus nine designed light/dark theme presets must remain available')
   const themeModeGroups = page.locator('[data-theme-mode-group]')
   assert.equal(await themeModeGroups.count(), 3, 'automatic, light, and dark choices must have separate visual groups')
-  assert.equal(await page.locator('[data-theme-mode="light"]').count(), 4, 'four distinct light themes must remain available')
-  assert.equal(await page.locator('[data-theme-mode="dark"]').count(), 3, 'three distinct dark themes must remain available')
+  assert.equal(await page.locator('[data-theme-mode="light"]').count(), 5, 'five distinct light themes must remain available')
+  assert.equal(await page.locator('[data-theme-mode="dark"]').count(), 4, 'four distinct dark themes must remain available')
   const autoThemeControl = page.locator('[data-theme-preset-option="auto"]')
   const autoThemeGeometry = await autoThemeControl.evaluate((element) => ({
     height: element.getBoundingClientRect().height,
@@ -494,8 +494,8 @@ try {
       }
     }),
   )
-  assert.equal(themePreviewColors.length, 7, 'all designed light/dark themes need compact previews')
-  assert.equal(new Set(themePreviewColors.map((item) => `${item.background}|${item.accent}`)).size, 7, 'every designed theme preset needs a distinct visible preview')
+  assert.equal(themePreviewColors.length, 9, 'all designed light/dark themes need compact previews')
+  assert.equal(new Set(themePreviewColors.map((item) => `${item.background}|${item.accent}`)).size, 9, 'every designed theme preset needs a distinct visible preview')
   await page.locator('[data-theme-preset-option="midnight"]').click()
   await page.waitForFunction(() => {
     const value = JSON.parse(localStorage.getItem('classRecord:appearance:v1') || 'null')
@@ -516,7 +516,7 @@ try {
     const root = document.documentElement
     const original = root.dataset.themePreset
     const originallyDark = root.classList.contains('dark')
-    const darkIds = new Set(['ink', 'midnight', 'pine'])
+    const darkIds = new Set(['ink', 'midnight', 'pine', 'aurora'])
     const parseOklch = (value) => {
       const match = value.match(/oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)/)
       if (!match) return null
@@ -569,7 +569,7 @@ try {
     root.dataset.themePreset = original
     root.classList.toggle('dark', originallyDark)
     return output
-  }, ['auto', 'paper', 'mist', 'apricot', 'sage', 'ink', 'midnight', 'pine'])
+  }, ['auto', 'paper', 'mist', 'apricot', 'sage', 'rose', 'ink', 'midnight', 'pine', 'aurora'])
   themeContrasts.forEach((theme) => {
     assert.ok(theme.page >= 7, `${theme.id} page text contrast is too low: ${JSON.stringify(theme)}`)
     assert.ok(theme.card >= 7, `${theme.id} card text contrast is too low: ${JSON.stringify(theme)}`)
@@ -590,6 +590,7 @@ try {
   await page.locator('[data-theme-preset-option="auto"]').click()
   await page.waitForFunction(() => !document.documentElement.classList.contains('dark') && document.documentElement.dataset.themePreset === 'auto')
 
+  await page.getByRole('tab', { name: /^背景/ }).click()
   const backgroundCards = page.locator('[data-background-id]')
   assert.equal(await backgroundCards.count(), 3, 'all baseline background choices must remain available')
   await backgroundCards.last().scrollIntoViewIfNeeded()
@@ -647,6 +648,21 @@ try {
   assert.match(surfaceGeometry.surfaceColor, /(?:\/ 0\)|, 0\))$/, `the application surface must not keep an opaque shadcn background: ${JSON.stringify(surfaceGeometry)}`)
   assert.notEqual(surfaceGeometry.topbarBackdrop, 'none', 'the top bar must keep a bounded glass treatment')
   assert.notEqual(surfaceGeometry.sidebarBackdrop, 'none', 'the sidebar must keep a bounded glass treatment')
+
+  await page.getByRole('tab', { name: /^方框/ }).click()
+  const boxStyleCards = page.locator('[data-box-style-id]')
+  assert.equal(await boxStyleCards.count(), 2, 'default and liquid-glass box styles must remain available')
+  await page.locator('[data-box-style-id="glass"]').click()
+  await page.waitForFunction(() => {
+    const value = JSON.parse(localStorage.getItem('classRecord:appearance:v1') || 'null')
+    return value?.box === 'glass' && document.documentElement.dataset.boxStyle === 'glass'
+  })
+  const glassCardBackdrop = await page
+    .locator('[data-case="app-surface"] [data-slot="card"]')
+    .evaluate((card) => getComputedStyle(card).backdropFilter)
+  assert.notEqual(glassCardBackdrop, 'none', 'liquid-glass must apply globally to semantic card containers')
+  await page.locator('[data-box-style-id="default"]').click()
+  await page.waitForFunction(() => document.documentElement.dataset.boxStyle === 'default')
 
   const teacherSection = page.locator('[data-people-role="teacher"]')
   await teacherSection.scrollIntoViewIfNeeded()

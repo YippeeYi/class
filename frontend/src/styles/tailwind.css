@@ -97,6 +97,10 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --glass-surface: color-mix(in oklch, var(--card) 68%, transparent);
+  --glass-surface-strong: color-mix(in oklch, var(--popover) 78%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 76%, white 24%);
+  --glass-shadow: color-mix(in oklch, var(--foreground) 13%, transparent);
 }
 
 .dark {
@@ -199,6 +203,10 @@
     overflow: visible;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
+  }
+
+  .record-source-action {
+    opacity: 1;
   }
 
   .record-paragraph {
@@ -665,6 +673,22 @@
   }
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .record-source-action {
+    opacity: 0;
+    transform: translateY(0.12rem);
+  }
+  .group\/record:hover .record-source-action,
+  .group\/record:focus-within .record-source-action,
+  .group:hover .record-source-action,
+  a:hover .record-source-action,
+  a:focus-visible .record-source-action,
+  .record-source-action:focus-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes quiz-answer-reveal {
   from {
     opacity: 0;
@@ -772,6 +796,71 @@
     color-mix(in oklch, var(--background) 84%, transparent),
     color-mix(in oklch, var(--background) 74%, transparent)
   );
+}
+
+/* The box-style preference is a single global container contract. It targets
+   semantic surfaces only; controls and table cells deliberately retain their
+   shadcn interaction geometry and contrast. */
+html[data-box-style="glass"] body #root [data-slot="card"] {
+  border-color: var(--glass-border);
+  background-color: var(--glass-surface);
+  box-shadow:
+    inset 0 1px color-mix(in oklch, white 42%, transparent),
+    0 0.75rem 2.2rem var(--glass-shadow);
+  -webkit-backdrop-filter: blur(14px) saturate(1.12);
+  backdrop-filter: blur(14px) saturate(1.12);
+}
+
+html.dark[data-box-style="glass"] body #root [data-slot="card"] {
+  border-color: color-mix(in oklch, var(--border) 82%, white 18%);
+  background-color: color-mix(in oklch, var(--card) 72%, transparent);
+  box-shadow:
+    inset 0 1px color-mix(in oklch, white 16%, transparent),
+    0 0.9rem 2.5rem color-mix(in oklch, black 32%, transparent);
+}
+
+html[data-box-style="glass"]
+  :is(
+    [data-slot="dialog-content"],
+    [data-slot="alert-dialog-content"],
+    [data-slot="popover-content"],
+    [data-slot="dropdown-menu-content"],
+    [data-slot="dropdown-menu-sub-content"],
+    [data-slot="select-content"]
+  ) {
+  border-color: var(--glass-border);
+  background-color: var(--glass-surface-strong);
+  box-shadow:
+    inset 0 1px color-mix(in oklch, white 36%, transparent),
+    0 1rem 3rem color-mix(in oklch, var(--foreground) 18%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.14);
+  backdrop-filter: blur(18px) saturate(1.14);
+}
+
+html[data-box-style="glass"] [data-slot="alert"] {
+  border-color: color-mix(in oklch, var(--border) 76%, white 24%);
+  background-color: color-mix(in oklch, var(--card) 52%, transparent);
+  box-shadow: inset 0 1px color-mix(in oklch, white 28%, transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(1.08);
+  backdrop-filter: blur(10px) saturate(1.08);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-box-style="glass"]
+    :is(
+      [data-slot="card"],
+      [data-slot="dialog-content"],
+      [data-slot="alert-dialog-content"],
+      [data-slot="popover-content"],
+      [data-slot="dropdown-menu-content"],
+      [data-slot="dropdown-menu-sub-content"],
+      [data-slot="select-content"],
+      [data-slot="alert"]
+    ) {
+    background-color: color-mix(in oklch, var(--card) 94%, var(--background));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 /* Appearance presets are expressed with the same shadcn tokens as the rest of
@@ -1018,6 +1107,75 @@
   --sidebar-ring: oklch(0.6 0.075 145);
 }
 
+:root[data-theme-preset="rose"] {
+  color-scheme: light;
+  --background: oklch(0.973 0.014 350);
+  --foreground: oklch(0.25 0.027 342);
+  --card: oklch(0.992 0.007 350);
+  --card-foreground: oklch(0.25 0.027 342);
+  --popover: oklch(0.992 0.007 350);
+  --popover-foreground: oklch(0.25 0.027 342);
+  --primary: oklch(0.5 0.105 350);
+  --primary-foreground: oklch(0.99 0.005 350);
+  --secondary: oklch(0.92 0.03 350);
+  --secondary-foreground: oklch(0.32 0.055 345);
+  --muted: oklch(0.94 0.017 350);
+  --muted-foreground: oklch(0.51 0.038 342);
+  --accent: oklch(0.91 0.04 355);
+  --accent-foreground: oklch(0.32 0.065 345);
+  --border: oklch(0.835 0.035 350);
+  --input: oklch(0.815 0.04 350);
+  --ring: oklch(0.61 0.1 350);
+  --chart-1: oklch(0.57 0.13 350);
+  --chart-2: oklch(0.65 0.1 20);
+  --chart-3: oklch(0.58 0.085 315);
+  --chart-4: oklch(0.7 0.085 95);
+  --chart-5: oklch(0.5 0.07 225);
+  --sidebar: oklch(0.96 0.018 350);
+  --sidebar-foreground: oklch(0.25 0.027 342);
+  --sidebar-primary: oklch(0.47 0.105 350);
+  --sidebar-primary-foreground: oklch(0.99 0.005 350);
+  --sidebar-accent: oklch(0.9 0.04 355);
+  --sidebar-accent-foreground: oklch(0.32 0.065 345);
+  --sidebar-border: oklch(0.83 0.035 350);
+  --sidebar-ring: oklch(0.61 0.1 350);
+}
+
+:root[data-theme-preset="aurora"] {
+  color-scheme: dark;
+  --background: oklch(0.175 0.032 292);
+  --foreground: oklch(0.945 0.016 270);
+  --card: oklch(0.22 0.04 292);
+  --card-foreground: oklch(0.945 0.016 270);
+  --popover: oklch(0.23 0.043 292);
+  --popover-foreground: oklch(0.945 0.016 270);
+  --primary: oklch(0.76 0.12 172);
+  --primary-foreground: oklch(0.18 0.035 180);
+  --secondary: oklch(0.29 0.06 292);
+  --secondary-foreground: oklch(0.94 0.018 270);
+  --muted: oklch(0.27 0.045 292);
+  --muted-foreground: oklch(0.71 0.045 275);
+  --accent: oklch(0.34 0.08 305);
+  --accent-foreground: oklch(0.96 0.014 275);
+  --destructive: oklch(0.7 0.18 25);
+  --border: oklch(0.44 0.065 292 / 76%);
+  --input: oklch(0.48 0.07 292 / 82%);
+  --ring: oklch(0.72 0.11 172);
+  --chart-1: oklch(0.74 0.13 172);
+  --chart-2: oklch(0.71 0.14 285);
+  --chart-3: oklch(0.72 0.13 225);
+  --chart-4: oklch(0.76 0.13 80);
+  --chart-5: oklch(0.69 0.13 335);
+  --sidebar: oklch(0.2 0.036 292);
+  --sidebar-foreground: oklch(0.945 0.016 270);
+  --sidebar-primary: oklch(0.76 0.12 172);
+  --sidebar-primary-foreground: oklch(0.18 0.035 180);
+  --sidebar-accent: oklch(0.315 0.07 300);
+  --sidebar-accent-foreground: oklch(0.96 0.014 275);
+  --sidebar-border: oklch(0.44 0.065 292 / 76%);
+  --sidebar-ring: oklch(0.72 0.11 172);
+}
+
 [data-theme-preview] {
   --appearance-preview-bg: oklch(0.976 0.011 76);
   --appearance-preview-card: oklch(0.995 0.006 78 / 86%);
@@ -1081,6 +1239,22 @@
   --appearance-preview-muted: oklch(0.62 0.03 145);
   --appearance-preview-accent: oklch(0.49 0.07 145);
   --appearance-preview-border: oklch(0.815 0.033 135);
+}
+[data-theme-preview="rose"] {
+  --appearance-preview-bg: oklch(0.973 0.014 350);
+  --appearance-preview-card: oklch(0.992 0.007 350 / 88%);
+  --appearance-preview-text: oklch(0.32 0.055 345);
+  --appearance-preview-muted: oklch(0.63 0.038 342);
+  --appearance-preview-accent: oklch(0.5 0.105 350);
+  --appearance-preview-border: oklch(0.815 0.04 350);
+}
+[data-theme-preview="aurora"] {
+  --appearance-preview-bg: oklch(0.175 0.032 292);
+  --appearance-preview-card: oklch(0.245 0.045 292 / 92%);
+  --appearance-preview-text: oklch(0.91 0.016 270);
+  --appearance-preview-muted: oklch(0.65 0.045 275);
+  --appearance-preview-accent: oklch(0.76 0.12 172);
+  --appearance-preview-border: oklch(0.44 0.065 292);
 }
 .appearance-preset-preview {
   border-color: var(--appearance-preview-border);

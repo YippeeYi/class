@@ -12,14 +12,18 @@ import {
   type RecordCriteria,
   RecordFilters,
 } from '@/components/archive/record-filters'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { buttonVariants } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
+import { useAsyncData } from '@/hooks/use-async-data'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { extractAuthorIds, extractParticipantIds, stripMarkup } from '@/lib/markup'
+import { recordStableKey } from '@/lib/record-identity'
+import { loadSupplementalRecords } from '@/services/data'
 import type { Person, RecordItem } from '@/types/domain'
 
 const participantCache = new WeakMap<RecordItem, string[]>()
@@ -76,20 +80,25 @@ export function PersonPage() {
   const [mode, setMode] = useState('participated')
   const [criteria, setCriteria] = useState<RecordCriteria>(EMPTY_RECORD_CRITERIA)
   const resource = useArchive()
+  const supplementalResource = useAsyncData(() => loadSupplementalRecords())
   const person = resource.data?.people.find((item) => item.id === id)
+  const relatedSources = useMemo(
+    () => [...(resource.data?.records || []), ...(supplementalResource.data || [])],
+    [resource.data?.records, supplementalResource.data],
+  )
   const participatedRecords = useMemo(
     () =>
-      (resource.data?.records || [])
+      relatedSources
         .filter((record) => participantIds(record).includes(id))
-        .sort((a, b) => b.id.localeCompare(a.id)),
-    [id, resource.data],
+        .sort((a, b) => recordStableKey(b).localeCompare(recordStableKey(a))),
+    [id, relatedSources],
   )
   const authoredRecords = useMemo(
     () =>
-      (resource.data?.records || [])
+      relatedSources
         .filter((record) => authorIds(record).includes(id))
-        .sort((a, b) => b.id.localeCompare(a.id)),
-    [id, resource.data],
+        .sort((a, b) => recordStableKey(b).localeCompare(recordStableKey(a))),
+    [id, relatedSources],
   )
   const allRelated = mode === 'authored' ? authoredRecords : participatedRecords
   const related = useMemo(() => filterRecords(allRelated, criteria), [allRelated, criteria])
@@ -162,16 +171,16 @@ export function PersonPage() {
           {person.avatarUrl && <PersonAvatar key={person.avatarUrl} person={person} />}
           <div className={`grid gap-5 sm:grid-cols-2 ${person.avatarUrl ? '' : 'sm:col-span-2'}`}>
             <div>
-              <p className="mb-1 text-xs font-medium text-muted-foreground">别名</p>
+              <p className="mb-1 text-meta font-medium text-muted-foreground">别名</p>
               <p>{aliasText}</p>
             </div>
             <div>
-              <p className="mb-1 text-xs font-medium text-muted-foreground">人物 ID</p>
+              <p className="mb-1 text-meta font-medium text-muted-foreground">人物 ID</p>
               <p>{person.id}</p>
             </div>
             {person.bio && (
               <div className="sm:col-span-2">
-                <p className="mb-2 text-xs font-medium text-muted-foreground">简介</p>
+                <p className="mb-2 text-meta font-medium text-muted-foreground">简介</p>
                 <MarkupContent content={person.bio} />
               </div>
             )}
@@ -199,9 +208,25 @@ export function PersonPage() {
         )}
       </div>
       <RecordFilters records={allRelated} value={criteria} onChange={setCriteria} />
+      {supplementalResource.loading && (
+        <p className="mb-4 text-sm text-muted-foreground" role="status">
+          正在补全书面记录…
+        </p>
+      )}
+      {supplementalResource.error && (
+        <Alert variant="destructive" className="mb-4" role="alert">
+          <AlertTitle>补充记录暂未载入</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>人物资料和普通记录仍可使用；重试后会补全箴言与补充记录。</span>
+            <Button size="sm" variant="outline" onClick={supplementalResource.retry}>
+              重试
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="grid gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
         {related.length ? (
-          related.map((record) => <RecordCard record={record} key={record.fileName || record.id} />)
+          related.map((record) => <RecordCard record={record} key={recordStableKey(record)} />)
         ) : (
           <EmptyState title="暂时没有相关记录" />
         )}

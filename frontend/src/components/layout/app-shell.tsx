@@ -72,7 +72,7 @@ const navigation = [
   { to: '/quiz', label: '答题', icon: BrainCircuit },
   { to: '/materials', label: '资料', icon: FileText },
   { to: '/map', label: '地图', icon: MapIcon },
-  { to: '/backgrounds', label: '背景', icon: Image },
+  { to: '/backgrounds', label: '风格', icon: Image },
   { to: '/credits', label: '致谢', icon: Sparkles },
 ]
 

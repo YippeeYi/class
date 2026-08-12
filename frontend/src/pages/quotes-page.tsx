@@ -1,4 +1,4 @@
-import { ArrowDownAZ, ArrowUpAZ, Quote as QuoteIcon } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpAZ, BookOpenText, Quote as QuoteIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
@@ -82,7 +82,7 @@ export function QuotesPage() {
               quote,
               resource.data?.records || [],
             )
-            const target = anchor ? `/records?view=list#${anchor}` : `/quotes#quote-${quote.id}`
+            const target = anchor ? `/records?view=written#${anchor}` : `/quotes#quote-${quote.id}`
             return (
               <Link
                 id={`quote-${quote.id}`}
@@ -115,10 +115,13 @@ export function QuotesPage() {
                     <blockquote className="border-l-2 border-primary/30 pl-4">
                       <MarkupContent content={quote.quote} className="text-reading" />
                     </blockquote>
-                    <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-3 text-sm text-muted-foreground">
-                      <span>{quote.sourceDate || '日期未记录'}</span>
-                      <span className={buttonVariants({ variant: 'link', size: 'xs' })}>
-                        查看来源
+                    <div className="mt-4 flex min-h-8 items-center justify-between gap-3 border-t border-border/60 pt-3 text-sm text-muted-foreground">
+                      <span>{quote.sourceDate || '来源记录'}</span>
+                      <span
+                        className={`${buttonVariants({ variant: 'link', size: 'xs' })} record-source-action`}
+                      >
+                        <BookOpenText data-icon="inline-start" />
+                        跳转到原记录
                       </span>
                     </div>
                   </CardContent>

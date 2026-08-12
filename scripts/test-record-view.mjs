@@ -39,10 +39,20 @@ assert.match(
 )
 assert.match(
   page,
-  /supplementalRecords\(\[page\], records, \[pageMessage\], \[\]\)\.map[\s\S]*<RecordCard/,
+  /buildSupplementalRecords\(\[pageMessage\], \[\]\)\.map[\s\S]*<RecordCard/,
   'written-page proverbs must reuse the shared record card',
 )
 assert.match(card, /record\.recordType === 'message' \? '箴言'/, 'proverbs need a lightweight type badge')
+assert.match(card, /recordDisplayNumber\(record\)/, 'all record cards must use the shared number formatter')
+assert.doesNotMatch(card, /日期未记录/, 'record cards must omit absent dates instead of rendering a placeholder')
+assert.match(card, /recordWrittenHref\(record\)/, 'record cards must expose the written-source jump')
+assert.match(card, /record-source-action/, 'record source actions must remain quiet until hover or focus')
+assert.match(page, /showSourceAction=\{false\}/, 'written-mode cards must not show a redundant source action')
+assert.match(
+  page,
+  /targetRecord = \[\.\.\.records, \.\.\.extras\][\s\S]*targetPageIndex[\s\S]*setPageIndex/,
+  'asynchronous written jumps must select the page containing the target before scrolling',
+)
 assert.doesNotMatch(page, /<Card className="bg-muted\/45">/, 'proverbs must not keep a separate heavy card treatment')
 assert.match(
   page,

@@ -21,7 +21,7 @@ export function quoteRecordTarget(quote: Quote, records: RecordItem[]) {
   const anchor = source ? recordAnchor(source) : ''
   return {
     anchor,
-    href: anchor ? `/records?view=list#${anchor}` : '',
+    href: anchor ? `/records?view=written#${anchor}` : '',
     source,
     sources,
   }

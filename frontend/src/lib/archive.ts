@@ -1,5 +1,5 @@
 export function formatDate(value: string) {
-  if (!value) return '日期未记录'
+  if (!value) return ''
   const date = new Date(`${value}T00:00:00`)
   if (Number.isNaN(date.getTime())) return value
   return new Intl.DateTimeFormat('zh-CN', {

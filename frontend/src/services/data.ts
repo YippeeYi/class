@@ -1,5 +1,6 @@
 import { getStoredAccessToken } from '@/features/auth/auth-storage'
 import { extractQuoteMarkers } from '@/lib/markup'
+import { buildSupplementalRecords } from '@/lib/record-identity'
 import { clearRuntimeCache, loadCached } from '@/services/cache'
 import { getSupabase, supabaseConfig } from '@/services/supabase'
 import type {
@@ -315,6 +316,14 @@ export function loadPageSupplements({ hidden = false, force = false } = {}) {
         .filter((item) => item.page && item.content && item.hidden === hidden)
     },
   })
+}
+
+export async function loadSupplementalRecords({ hidden = false, force = false } = {}) {
+  const [messages, supplements] = await Promise.all([
+    hidden ? Promise.resolve([]) : loadPageMessages(force),
+    loadPageSupplements({ hidden, force }),
+  ])
+  return buildSupplementalRecords(messages, supplements)
 }
 
 function normalizeTextItems(value: unknown) {

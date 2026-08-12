@@ -1,4 +1,4 @@
-import { CalendarDays, Clock, Paperclip, UserRound } from 'lucide-react'
+import { BookOpenText, CalendarDays, Clock, Paperclip, UserRound } from 'lucide-react'
 import { memo, useState } from 'react'
 import { Link } from 'react-router'
 
@@ -7,7 +7,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { recordAnchor } from '@/lib/markup'
+import { recordDisplayNumber, recordWrittenHref } from '@/lib/record-identity'
+import { prepareRecordJump } from '@/lib/record-navigation'
 import { signAssetUrl } from '@/services/data'
 import type { Attachment, RecordItem } from '@/types/domain'
 
@@ -45,28 +48,34 @@ function AttachmentLink({ attachment }: { attachment: Attachment }) {
 export const RecordCard = memo(function RecordCard({
   record,
   onRecordReference,
+  showSourceAction = true,
 }: {
   record: RecordItem
   onRecordReference?: (recordId: string, source: HTMLElement) => void
+  showSourceAction?: boolean
 }) {
   const typeLabel =
     record.recordType === 'message' ? '箴言' : record.recordType === 'supplement' ? '补充' : ''
+  const anchor = recordAnchor(record)
 
   return (
     <Collapsible>
-      <Card id={recordAnchor(record)} className="scroll-mt-24 gap-0 py-0">
+      <Card
+        id={anchor}
+        className="group/record scroll-mt-24 gap-0 py-0 transition-[background-color,border-color,box-shadow] duration-500"
+      >
         <CardHeader className="border-b border-border/60 pt-3 !pb-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-meta leading-5 text-muted-foreground">
+            <Badge variant={record.importance === 'important' ? 'default' : 'outline'}>
+              {recordDisplayNumber(record)}
+            </Badge>
             {typeLabel && <Badge variant="secondary">{typeLabel}</Badge>}
-            {record.recordType !== 'message' && (
-              <Badge variant={record.importance === 'important' ? 'default' : 'outline'}>
-                #{record.id}
-              </Badge>
+            {record.date && (
+              <span className="inline-flex items-center gap-1.5">
+                <CalendarDays className="size-3.5" />
+                {record.date}
+              </span>
             )}
-            <span className="inline-flex items-center gap-1.5">
-              <CalendarDays className="size-3.5" />
-              {record.date || '日期未记录'}
-            </span>
             {record.time && (
               <span className="inline-flex items-center gap-1.5">
                 <Clock className="size-3.5" />
@@ -82,15 +91,36 @@ export const RecordCard = memo(function RecordCard({
                 {record.author}
               </Link>
             )}
-            {record.attachments.length > 0 && (
-              <CollapsibleTrigger
-                render={
-                  <Button variant="ghost" size="xs" className="ml-auto">
-                    <Paperclip data-icon="inline-start" />
-                    附件 {record.attachments.length}
-                  </Button>
-                }
-              />
+            {(record.attachments.length > 0 || showSourceAction) && (
+              <span className="ml-auto inline-flex items-center gap-1.5">
+                {record.attachments.length > 0 && (
+                  <CollapsibleTrigger
+                    render={
+                      <Button variant="ghost" size="xs">
+                        <Paperclip data-icon="inline-start" />
+                        附件 {record.attachments.length}
+                      </Button>
+                    }
+                  />
+                )}
+                {showSourceAction && (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Link
+                          to={recordWrittenHref(record)}
+                          aria-label={`在书面记录中查看${recordDisplayNumber(record)}`}
+                          className="record-source-action inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,opacity,transform] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          onClick={() => prepareRecordJump(anchor)}
+                        />
+                      }
+                    >
+                      <BookOpenText className="size-4" />
+                    </TooltipTrigger>
+                    <TooltipContent>跳转到原记录</TooltipContent>
+                  </Tooltip>
+                )}
+              </span>
             )}
           </div>
         </CardHeader>

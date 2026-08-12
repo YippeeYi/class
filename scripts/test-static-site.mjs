@@ -25,6 +25,7 @@ const quiz = await readFrontend('src/pages/quiz-page.tsx')
 const search = await readFrontend('src/pages/search-page.tsx')
 const timeline = await readFrontend('src/pages/timeline-page.tsx')
 const quoteNavigation = await readFrontend('src/lib/quote-navigation.ts')
+const recordIdentity = await readFrontend('src/lib/record-identity.ts')
 const routePreload = await readFrontend('src/lib/route-preload.ts')
 const themeBootstrap = await readFrontend('public/theme-bootstrap.js')
 const backgrounds = await readFrontend('src/components/layout/background-root.tsx')
@@ -95,6 +96,12 @@ assert.ok(
   person.indexOf('const heading') < person.indexOf('if (resource.loading)'),
   'the person heading must register a stable placeholder before the data loader returns',
 )
+assert.doesNotMatch(
+  person,
+  /if \(resource\.loading \|\| supplementalResource\.loading\)/,
+  'supplemental records must not block the person profile first render',
+)
+assert.match(person, /正在补全书面记录/, 'non-blocking supplemental loading needs visible status')
 assert.match(person, /WeakMap<RecordItem, string\[\]>/, 'person relationship parsing must be cached per record')
 assert.doesNotMatch(home, /fixed top-3 left-3/, 'today history must not cover the top-left navigation')
 assert.equal(home.match(/历史上的今天/g)?.length, 1, 'today history must mount only one responsive control')
@@ -144,6 +151,18 @@ assert.match(backgroundsPage, /data-background-swatch/, 'background palette swat
 assert.match(backgroundsPage, /data-theme-preset-option/, 'designed theme presets must expose compact visual previews')
 assert.match(backgroundsPage, /data-theme-mode-group/, 'light and dark presets must be visibly grouped')
 assert.match(backgroundsPage, /setThemePreset/, 'theme presets must use the shared appearance controller')
+assert.match(backgroundsPage, /title="风格"/, 'the appearance page must use its new user-facing name')
+assert.match(shell, /label: '风格'/, 'global navigation must expose the style page under its new name')
+assert.match(home, /label: '风格'/, 'the guide must expose the style page under its new name')
+assert.match(backgroundsPage, /value="palette"[\s\S]*value="background"[\s\S]*value="box"/, 'palette, background, and box must be parallel first-level style sections')
+assert.doesNotMatch(backgroundsPage, /\{items\.length\}/, 'the style page must not display palette counts')
+assert.match(backgroundsPage, /setBoxStyle/, 'box style must use the shared appearance controller')
+assert.match(backgrounds, /box: BoxStyleId/, 'box style must persist in the unified appearance preference')
+assert.match(themeBootstrap, /dataset\.boxStyle/, 'box style must restore before React starts')
+assert.match(styles, /data-box-style="glass"[\s\S]*backdrop-filter: blur/, 'liquid glass must be a global semantic-container style')
+assert.match(styles, /prefers-reduced-transparency/, 'liquid glass must offer a readable low-transparency fallback')
+assert.match(recordIdentity, /#箴-[\s\S]*#补-/, 'proverbs and supplements must use distinct shared number systems')
+assert.match(recordIdentity, /fileName: ''/, 'supplemental display records must not carry visible JSON file names')
 assert.match(backgroundsPage, /data-theme-preset-option="auto"[\s\S]*<Sparkles/, 'automatic palette must use one compact business control')
 assert.match(backgroundsPage, /size="sm"[\s\S]*aria-pressed=\{appearance\.theme === 'auto'\}/, 'automatic palette must use a compact accessible shadcn button')
 assert.doesNotMatch(backgroundsPage, /<ThemePresetOption[\s\S]*preset=\{themePresets\.find/, 'automatic palette must not return to a full preset card')

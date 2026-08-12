@@ -36,9 +36,8 @@ import { stripMarkup } from '@/lib/markup'
 import { cn } from '@/lib/utils'
 import {
   hasAdminAccess,
-  loadPageMessages,
-  loadPageSupplements,
   loadQuizQuestions,
+  loadSupplementalRecords,
   signAssetUrl,
 } from '@/services/data'
 import {
@@ -46,7 +45,6 @@ import {
   preloadImageDimensionList,
   rememberImageDimensions,
 } from '@/services/image-metadata'
-import type { RecordItem } from '@/types/domain'
 
 const TYPE_LABELS: Record<PlayQuestion['type'], string> = {
   choice: '选择题',
@@ -198,45 +196,7 @@ function SecretImage({ path }: { path: string }) {
 export function QuizPage() {
   const resource = useArchive()
   const adminResource = useAsyncData(() => hasAdminAccess())
-  const supplementalResource = useAsyncData(async () => {
-    const [messages, supplements] = await Promise.all([
-      loadPageMessages().catch(() => []),
-      loadPageSupplements({ hidden: false }).catch(() => []),
-    ])
-    const records: RecordItem[] = [
-      ...messages.map((item, index) => ({
-        id: `message-${item.page || index + 1}`,
-        fileName: `message-${item.page || index + 1}`,
-        recordIndex: index,
-        date: '',
-        time: '',
-        author: item.author,
-        recorder: item.author,
-        content: item.content,
-        text: item.content,
-        importance: 'normal',
-        attachments: [],
-        hidden: false,
-        recordType: 'message' as const,
-      })),
-      ...supplements.map((item) => ({
-        id: item.id,
-        fileName: item.fileName || item.id,
-        recordIndex: item.supplementIndex,
-        date: item.date,
-        time: item.time,
-        author: item.author,
-        recorder: item.author,
-        content: item.content,
-        text: item.content,
-        importance: item.importance,
-        attachments: [],
-        hidden: false,
-        recordType: 'supplement' as const,
-      })),
-    ]
-    return records.filter((record) => record.content)
-  })
+  const supplementalResource = useAsyncData(() => loadSupplementalRecords())
   const [enabledTypes, setEnabledTypes] = useState<Set<PlayQuestion['type']>>(
     new Set(['choice', 'fill', 'judge']),
   )

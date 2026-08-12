@@ -36,7 +36,7 @@ const tips = [
   '小提示：点击 logo 没有彩蛋。',
   '小提示：图片均可点击查看大图。',
   '小提示：人名可点击跳转至个人界面。',
-  '小提示：可以在背景页切换全站背景。',
+  '小提示：可以在风格页分别调整配色、背景和方框。',
   '小提示：看看注释吧！',
   '小提示：挑战一下答题吗？',
   '小提示：每天看看左上角吧。',
@@ -53,7 +53,7 @@ const secondary = [
   { to: '/quiz', label: '档案答题', description: '从共同记忆里抽一道题', icon: BrainCircuit },
   { to: '/materials', label: '资料', description: '阅读补充资料与专题', icon: FileText },
   { to: '/map', label: '地图', description: '查看班级成员内部地图', icon: MapIcon },
-  { to: '/backgrounds', label: '背景', description: '选择全站视觉背景', icon: Image },
+  { to: '/backgrounds', label: '风格', description: '调整配色、背景与方框', icon: Image },
   { to: '/credits', label: '致谢', description: '查看档案的制作与贡献者', icon: Sparkles },
 ]
 

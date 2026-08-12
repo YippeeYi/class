@@ -526,7 +526,7 @@ export function MarkupContent({
           node.kind === 'person' || node.kind === 'author'
             ? `/person?id=${encodeURIComponent(node.id)}`
             : node.kind === 'record'
-              ? `/records?view=list#${recordTarget}`
+              ? `/records?view=written#${recordTarget}`
               : node.kind === 'material'
                 ? `/materials?id=${encodeURIComponent(node.id)}`
                 : node.kind === 'quote'

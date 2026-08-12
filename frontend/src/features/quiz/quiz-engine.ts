@@ -1,5 +1,6 @@
 import { unique } from '@/lib/archive'
 import { extractMarkupReferences, stripMarkup } from '@/lib/markup'
+import { recordDisplayNumber, recordStableKey } from '@/lib/record-identity'
 import type { Person, QuizQuestion, Quote, RecordItem } from '@/types/domain'
 
 export type QuizCorrection = {
@@ -177,8 +178,8 @@ function baseQuestion(
   content: PlayQuestion['content'],
   type: PlayQuestion['type'],
 ) {
-  const entryId = String(record.id || record.fileName)
-  const sourceKey = String(record.fileName || record.id).replace(/\.json$/i, '')
+  const entryId = recordDisplayNumber(record)
+  const sourceKey = recordStableKey(record)
   const sourceId = `${sourceType}:${sourceKey}`
   return {
     id: questionId(sourceId, content, type),

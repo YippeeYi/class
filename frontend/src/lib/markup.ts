@@ -1,3 +1,7 @@
+import type { RecordItem } from '@/types/domain'
+
+import { recordAnchorId } from './record-identity.ts'
+
 export type MarkupNode =
   | { type: 'text'; value: string }
   | {
@@ -385,8 +389,6 @@ export function countTextCharacters(value: unknown) {
   ).length
 }
 
-export function recordAnchor(record: { fileName?: string; id?: string }) {
-  return `record-${String(record.fileName || record.id || '')
-    .replace(/\.json$/i, '')
-    .replace(/[^a-zA-Z0-9_-]/g, '-')}`
+export function recordAnchor(record: Partial<RecordItem>) {
+  return recordAnchorId(record)
 }

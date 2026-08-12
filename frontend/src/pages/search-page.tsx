@@ -9,10 +9,18 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useArchive } from '@/features/archive/archive-context'
+import { useAsyncData } from '@/hooks/use-async-data'
 import { normalizeText } from '@/lib/archive'
-import { recordAnchor, stripMarkup } from '@/lib/markup'
+import { stripMarkup } from '@/lib/markup'
 import { quoteRecordTarget } from '@/lib/quote-navigation'
+import {
+  recordDisplayNumber,
+  recordStableKey,
+  recordTypeLabel,
+  recordWrittenHref,
+} from '@/lib/record-identity'
 import { prepareRecordJump } from '@/lib/record-navigation'
+import { loadSupplementalRecords } from '@/services/data'
 import type { Quote, RecordItem } from '@/types/domain'
 
 type SearchType = 'record' | 'person' | 'quote'
@@ -73,12 +81,18 @@ function ResultCard({ result, query }: { result: SearchResult; query: string }) 
         <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-muted">
           <Icon className="size-4" />
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-center gap-2">
             <strong className="text-sm">{result.title}</strong>
             <Badge variant="outline">{labels[result.type]}</Badge>
+            {result.type !== 'person' && (
+              <span className="record-source-action ml-auto inline-flex items-center gap-1.5 text-meta font-medium text-primary">
+                <BookOpenText className="size-3.5" />
+                跳转到原记录
+              </span>
+            )}
           </div>
-          <p className="mb-1 text-xs text-muted-foreground">{result.meta || result.id}</p>
+          <p className="mb-1 text-meta text-muted-foreground">{result.meta || result.id}</p>
           <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">
             <Snippet text={result.text} query={query} />
           </p>
@@ -101,6 +115,7 @@ export function SearchPage() {
   const [debouncedQuery, setDebouncedQuery] = useState(query)
   const [types, setTypes] = useState<Set<SearchType>>(new Set(['record', 'person', 'quote']))
   const resource = useArchive()
+  const supplementalResource = useAsyncData(() => loadSupplementalRecords())
 
   useEffect(() => {
     document.title = '全站搜索 · 编日史'
@@ -127,7 +142,8 @@ export function SearchPage() {
 
   const index = useMemo<SearchResult[]>(() => {
     if (!resource.data) return []
-    const { records, people, quotes } = resource.data
+    const { people, quotes } = resource.data
+    const records = [...resource.data.records, ...(supplementalResource.data || [])]
     return [
       ...records.map((record) => {
         const text = [
@@ -142,13 +158,16 @@ export function SearchPage() {
         return {
           type: 'record' as const,
           id: record.id,
-          title: `#${record.id} · ${record.date || '未知日期'}`,
-          meta: [record.author && `记录人 ${record.author}`, record.time]
+          title: [recordDisplayNumber(record), record.recordType && recordTypeLabel(record)]
             .filter(Boolean)
             .join(' · '),
+          meta:
+            [record.date, record.time, record.author && `记录人 ${record.author}`]
+              .filter(Boolean)
+              .join(' · ') || recordTypeLabel(record),
           text,
-          href: `/records?view=list#${recordAnchor(record)}`,
-          sortKey: record.id || record.fileName,
+          href: recordWrittenHref(record),
+          sortKey: record.date || recordStableKey(record),
           normalized: normalizeText(stripMarkup(text)),
         }
       }),
@@ -186,7 +205,7 @@ export function SearchPage() {
         }
       }),
     ]
-  }, [resource.data])
+  }, [resource.data, supplementalResource.data])
 
   const grouped = useMemo(() => {
     const matches = index
@@ -209,8 +228,17 @@ export function SearchPage() {
     })
 
   let body: ReactNode = null
-  if (resource.loading) body = <PageSkeleton rows={4} />
-  else if (resource.error) body = <ErrorState title="搜索索引建立失败" onRetry={resource.retry} />
+  if (resource.loading || supplementalResource.loading) body = <PageSkeleton rows={4} />
+  else if (resource.error || supplementalResource.error)
+    body = (
+      <ErrorState
+        title="搜索索引建立失败"
+        onRetry={() => {
+          resource.retry()
+          supplementalResource.retry()
+        }}
+      />
+    )
   else if (!debouncedQuery.trim())
     body = <EmptyState title={`已索引 ${index.length} 个条目，输入关键词开始搜索`} />
   else if (!total) body = <EmptyState title="没有找到匹配条目" />

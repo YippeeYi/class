@@ -9,11 +9,13 @@
     'mist',
     'apricot',
     'sage',
+    'rose',
     'ink',
     'midnight',
     'pine',
+    'aurora',
   ])
-  const darkThemes = new Set(['ink', 'midnight', 'pine'])
+  const darkThemes = new Set(['ink', 'midnight', 'pine', 'aurora'])
   const themeColors = {
     auto: '#f5f0e8',
     paper: '#f8f5ef',
@@ -21,8 +23,10 @@
     apricot: '#faf1e7',
     ink: '#1d232d',
     sage: '#f0f5ed',
+    rose: '#f8f0f2',
     midnight: '#171e31',
     pine: '#19271f',
+    aurora: '#1d1b2e',
   }
   const properties = [
     '--primary',
@@ -43,9 +47,11 @@
     const stored = appearance?.background || localStorage.getItem(backgroundKey)
     const id = stored === 'mountain' || stored === 'cloud' ? stored : 'default'
     const theme = themes.has(appearance?.theme) ? appearance.theme : 'auto'
+    const box = appearance?.box === 'glass' ? 'glass' : 'default'
     const root = document.documentElement
     root.dataset.backgroundBootstrap = id
     root.dataset.themePreset = theme
+    root.dataset.boxStyle = box
     root.classList.toggle('dark', darkThemes.has(theme))
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColors[theme])
 

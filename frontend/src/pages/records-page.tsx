@@ -39,6 +39,7 @@ import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { normalizeRecordKey } from '@/lib/archive'
 import { extractMarkupReferences, recordAnchor } from '@/lib/markup'
+import { buildSupplementalRecords } from '@/lib/record-identity'
 import { consumeRecordJump, type PendingRecordJump } from '@/lib/record-navigation'
 import {
   hasAdminAccess,
@@ -88,53 +89,6 @@ function withinPage(page: RecordPage, record: RecordItem, records: RecordItem[])
     index >= Math.min(start, end) &&
     index <= Math.max(start, end)
   )
-}
-
-function pageDate(page: RecordPage, records: RecordItem[]) {
-  return records.find((record) => withinPage(page, record, records))?.date || ''
-}
-
-function supplementalRecords(
-  pages: RecordPage[],
-  records: RecordItem[],
-  messages: PageMessage[],
-  supplements: PageSupplement[],
-) {
-  const dates = new Map(pages.map((page) => [page.page, pageDate(page, records)]))
-  const messageRecords: RecordItem[] = messages.map((item, index) => ({
-    id: `message-${item.page || index + 1}`,
-    fileName: `message-${item.page || index + 1}`,
-    recordIndex: index,
-    date: dates.get(item.page) || '',
-    time: '',
-    author: item.author,
-    recorder: item.author,
-    content: item.content,
-    text: item.content,
-    importance: 'normal',
-    attachments: [],
-    hidden: false,
-    recordType: 'message',
-    page: item.page,
-  }))
-  const supplementRecords: RecordItem[] = supplements.map((item) => ({
-    id: item.id,
-    fileName: item.fileName || item.id,
-    recordIndex: item.supplementIndex,
-    date: item.date || dates.get(item.page) || '',
-    time: item.time,
-    author: item.author,
-    recorder: item.author,
-    content: item.content,
-    text: item.content,
-    importance: item.importance || 'normal',
-    attachments: [],
-    hidden: item.hidden,
-    recordType: 'supplement',
-    page: item.page,
-    supplementIndex: item.supplementIndex,
-  }))
-  return [...messageRecords, ...supplementRecords]
 }
 
 function WrittenRecordPages({
@@ -246,21 +200,34 @@ function WrittenRecordPages({
             {pageMessage &&
               (!activeFilter ||
                 matched.some((item) => item.recordType === 'message' && item.page === page.page)) &&
-              supplementalRecords([page], records, [pageMessage], []).map((record) => (
-                <RecordCard key={record.id} record={record} onRecordReference={onRecordReference} />
+              buildSupplementalRecords([pageMessage], []).map((record) => (
+                <RecordCard
+                  key={record.id}
+                  record={record}
+                  onRecordReference={onRecordReference}
+                  showSourceAction={false}
+                />
               ))}
             {pageSupplements
               .filter(
                 (item) =>
                   !activeFilter ||
                   matched.some(
-                    (record) => record.recordType === 'supplement' && record.id === item.id,
+                    (record) =>
+                      record.recordType === 'supplement' &&
+                      record.page === item.page &&
+                      record.supplementIndex === item.supplementIndex,
                   ),
               )
               .map((item) => {
-                const [record] = supplementalRecords([page], records, [], [item])
+                const [record] = buildSupplementalRecords([], [item])
                 return record ? (
-                  <RecordCard key={item.id} record={record} onRecordReference={onRecordReference} />
+                  <RecordCard
+                    key={item.id}
+                    record={record}
+                    onRecordReference={onRecordReference}
+                    showSourceAction={false}
+                  />
                 ) : null
               })}
             {pageRecords.map((record) => (
@@ -268,6 +235,7 @@ function WrittenRecordPages({
                 key={record.fileName || record.id}
                 record={record}
                 onRecordReference={onRecordReference}
+                showSourceAction={false}
               />
             ))}
             {!pageMessage && !pageSupplements.length && !pageRecords.length && (
@@ -478,15 +446,8 @@ export function RecordsPage() {
   const records = hidden ? hiddenRecords : recordsResource.data || []
   const extras = useMemo(
     () =>
-      written.data
-        ? supplementalRecords(
-            written.data.pages,
-            records,
-            written.data.messages,
-            written.data.supplements,
-          )
-        : [],
-    [records, written.data],
+      written.data ? buildSupplementalRecords(written.data.messages, written.data.supplements) : [],
+    [written.data],
   )
   const sources = useMemo(
     () => (view === 'written' ? [...records, ...extras] : records),
@@ -589,6 +550,22 @@ export function RecordsPage() {
     if (loading || (view === 'written' && written.loading) || !pending) return
     const target = document.getElementById(pending.targetAnchorId)
     if (!target) {
+      if (view === 'written' && written.data) {
+        const targetRecord = [...records, ...extras].find(
+          (record) => recordAnchor(record) === pending.targetAnchorId,
+        )
+        if (targetRecord) {
+          const visiblePages = written.data.pages.filter((page) => Boolean(page.imagePath))
+          const targetPage = targetRecord.recordType
+            ? String(targetRecord.page)
+            : visiblePages.find((page) => withinPage(page, targetRecord, records))?.page
+          const targetPageIndex = visiblePages.findIndex((page) => page.page === targetPage)
+          if (targetPageIndex >= 0 && targetPageIndex !== pageIndex) {
+            setPageIndex(targetPageIndex)
+            return
+          }
+        }
+      }
       pendingJump.current = null
       setJumpError('未找到要跳转的记录，请检查来源是否仍然存在。')
       return
@@ -612,7 +589,17 @@ export function RecordsPage() {
     setJumpOrigin(pending.origin)
     if (pending.originHref || pending.origin) setJumpDialogOpen(true)
     return () => window.clearTimeout(timer)
-  }, [filtered, jumpRevision, loading, view, written.loading])
+  }, [
+    extras,
+    filtered,
+    jumpRevision,
+    loading,
+    pageIndex,
+    records,
+    view,
+    written.data,
+    written.loading,
+  ])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: filtered/pageIndex are render-completion signals for restoring an exact pre-jump scroll position.
   useEffect(() => {
@@ -672,11 +659,11 @@ export function RecordsPage() {
             <TabsList>
               <TabsTrigger value="list">
                 <List data-icon="inline-start" />
-                列表
+                按条记录
               </TabsTrigger>
               <TabsTrigger value="written">
                 <FileImage data-icon="inline-start" />
-                手写页
+                书面记录
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -763,8 +750,8 @@ export function RecordsPage() {
             <AlertDialogTitle>已定位到来源记录</AlertDialogTitle>
             <AlertDialogDescription>
               {jumpOrigin
-                ? '你可以留在目标记录，或恢复跳转前的视图、筛选、手写页和滚动位置。'
-                : '你可以留在记录页继续浏览，或返回刚才的页面。'}
+                ? '你可以留在目标记录，或恢复跳转前的视图、筛选、书面页和滚动位置。'
+                : '你可以留在书面记录中继续浏览，或返回刚才的页面。'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

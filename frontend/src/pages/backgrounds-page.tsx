@@ -1,13 +1,16 @@
-import { Check, Image as ImageIcon, Moon, Palette, Sparkles, Sun } from 'lucide-react'
+import { Check, Image as ImageIcon, Moon, Palette, Sparkles, Square, Sun } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { PageHeading } from '@/components/archive/page-heading'
 import {
   type AppearancePreference,
   type BackgroundId,
+  type BoxStyleId,
   backgrounds,
+  boxStyles,
   readAppearance,
   setBackground,
+  setBoxStyle,
   setThemePreset,
   type ThemePresetId,
   themePresets,
@@ -18,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 type ThemePreset = (typeof themePresets)[number]
 
@@ -45,9 +49,9 @@ function ThemePresetOption({ preset, selected }: { preset: ThemePreset; selected
       <span className="flex min-w-0 items-center gap-2 px-0.5">
         <RadioGroupItem id={`theme-preset-${preset.id}`} value={preset.id} className="size-3.5" />
         <span className="min-w-0 flex-1 truncate text-sm font-semibold">{preset.label}</span>
-        <span className="shrink-0 text-xs text-muted-foreground">{preset.category}</span>
+        <span className="shrink-0 text-meta text-muted-foreground">{preset.category}</span>
       </span>
-      <span className="line-clamp-2 px-0.5 text-xs leading-4 text-muted-foreground">
+      <span className="line-clamp-2 px-0.5 text-meta leading-5 text-muted-foreground">
         {preset.description}
       </span>
     </label>
@@ -102,11 +106,53 @@ function BackgroundPreview({ src, active }: { src: string; active: boolean }) {
   )
 }
 
+function BoxStyleOption({ id, selected }: { id: BoxStyleId; selected: boolean }) {
+  const option = boxStyles.find((item) => item.id === id)
+  if (!option) return null
+  return (
+    <label
+      htmlFor={`box-style-${id}`}
+      data-box-style-id={id}
+      data-selected={selected ? 'true' : 'false'}
+      className="group/box cursor-pointer overflow-hidden rounded-xl border border-border/70 bg-background/38 shadow-xs transition-[border-color,background-color,box-shadow] hover:border-primary/40 hover:bg-background/52 has-[[data-slot=radio-group-item]:focus-visible]:ring-2 has-[[data-slot=radio-group-item]:focus-visible]:ring-ring/45 data-[selected=true]:border-primary/65 data-[selected=true]:bg-background/62 data-[selected=true]:shadow-md"
+    >
+      <span
+        className={`relative grid h-36 place-items-center overflow-hidden border-b border-border/60 ${id === 'glass' ? 'bg-[radial-gradient(circle_at_20%_20%,color-mix(in_oklch,var(--primary)_36%,transparent),transparent_34%),radial-gradient(circle_at_82%_75%,color-mix(in_oklch,var(--chart-2)_32%,transparent),transparent_38%),var(--muted)]' : 'bg-muted/70'}`}
+        aria-hidden="true"
+      >
+        <span
+          className={`absolute left-[15%] top-[22%] h-20 w-[58%] rounded-xl border p-3 ${id === 'glass' ? 'border-white/35 bg-card/48 shadow-[inset_0_1px_rgb(255_255_255/.38),0_12px_36px_rgb(0_0_0/.12)] backdrop-blur-md' : 'border-border bg-card shadow-sm'}`}
+        >
+          <span className="mb-2 block h-2 w-2/3 rounded-full bg-foreground/70" />
+          <span className="block h-1.5 w-full rounded-full bg-muted-foreground/35" />
+          <span className="mt-1.5 block h-1.5 w-4/5 rounded-full bg-muted-foreground/25" />
+        </span>
+        <span
+          className={`absolute bottom-[18%] right-[13%] size-16 rounded-xl border ${id === 'glass' ? 'border-white/32 bg-card/42 shadow-[inset_0_1px_rgb(255_255_255/.32),0_10px_28px_rgb(0_0_0/.1)] backdrop-blur-md' : 'border-border bg-card shadow-sm'}`}
+        />
+      </span>
+      <span className="flex items-start gap-3 p-4">
+        <RadioGroupItem id={`box-style-${id}`} value={id} className="mt-0.5" />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center justify-between gap-2 font-semibold">
+            {option.label}
+            {selected && <Check className="size-4 text-primary" />}
+          </span>
+          <span className="mt-1 block text-sm leading-5 text-muted-foreground">
+            {option.description}
+          </span>
+        </span>
+      </span>
+    </label>
+  )
+}
+
 export function BackgroundsPage() {
   const [appearance, setAppearance] = useState<AppearancePreference>(readAppearance)
+  const [section, setSection] = useState('palette')
   const current = appearance.background
   useEffect(() => {
-    document.title = '背景 · 编日史'
+    document.title = '风格 · 编日史'
   }, [])
   useEffect(() => {
     const update = (event: Event) =>
@@ -118,6 +164,7 @@ export function BackgroundsPage() {
     setBackground(id)
   }
   const chooseTheme = (id: ThemePresetId) => setThemePreset(id)
+  const chooseBox = (id: BoxStyleId) => setBoxStyle(id)
   const themeGroups = [
     {
       mode: 'light' as const,
@@ -135,169 +182,243 @@ export function BackgroundsPage() {
   return (
     <div>
       <PageHeading
-        title="背景"
-        description={`共 ${backgrounds.length} 个背景；当前使用 ${backgrounds.find((item) => item.id === current)?.label || '默认'}。设置保存在当前浏览器中。`}
+        title="风格"
+        description="配色、背景与方框彼此独立，共同组成全站视觉风格；所有选择都会保存在当前浏览器中。"
       />
-      <Card className="appearance-preset-panel mb-5 gap-0 overflow-hidden border-border/70 bg-card/42 py-0 shadow-sm backdrop-blur-md">
-        <div className="flex items-start gap-3 border-b border-border/55 px-4 py-3 sm:px-5">
-          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-            <Palette className="size-4" />
-          </span>
-          <div className="min-w-0">
-            <CardTitle className="text-base">配色方案</CardTitle>
-            <p className="mt-0.5 text-sm leading-5 text-muted-foreground">
-              预设会与当前背景共同保存；选择后仍可随时改用其他背景或配色。
-            </p>
-          </div>
-        </div>
-        <CardContent className="p-3 sm:p-4">
-          <section
-            data-theme-mode-group="auto"
-            className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-3"
-          >
-            <Button
-              type="button"
-              size="sm"
-              variant={appearance.theme === 'auto' ? 'secondary' : 'outline'}
-              aria-pressed={appearance.theme === 'auto'}
-              aria-describedby="theme-preset-auto-description"
-              data-theme-preset-option="auto"
-              data-theme-mode="auto"
-              data-selected={appearance.theme === 'auto' ? 'true' : 'false'}
-              className="h-8 gap-1.5 px-3 shadow-xs"
-              onClick={() => chooseTheme('auto')}
+      <Tabs value={section} onValueChange={setSection} className="gap-4">
+        <TabsList className="grid h-auto w-full grid-cols-3 gap-1 rounded-xl bg-card/72 p-1.5 shadow-sm backdrop-blur-md">
+          {(
+            [
+              ['palette', '配色', Palette, '界面色彩'],
+              ['background', '背景', ImageIcon, '底层画面'],
+              ['box', '方框', Square, '容器质感'],
+            ] as const
+          ).map(([value, label, Icon, description]) => (
+            <TabsTrigger
+              key={String(value)}
+              value={String(value)}
+              className="h-auto min-w-0 flex-col gap-0.5 px-2 py-2.5 sm:flex-row sm:gap-2 sm:px-4"
             >
-              <Sparkles className="size-3.5" />
-              随背景
-              <Check
-                aria-hidden="true"
-                className={`size-3.5 transition-opacity ${appearance.theme === 'auto' ? 'opacity-100' : 'opacity-0'}`}
-              />
-            </Button>
-            <p
-              id="theme-preset-auto-description"
-              className="min-w-48 flex-1 text-xs leading-4 text-muted-foreground"
-            >
-              从当前背景提取强调色；已缓存的配色会直接复用。
-            </p>
-          </section>
-          <RadioGroup
-            aria-label="选择全站配色方案"
-            value={appearance.theme}
-            onValueChange={(value) => chooseTheme(value as ThemePresetId)}
-            className="grid gap-4 border-t border-border/60 pt-3"
-          >
-            {themeGroups.map((group) => {
-              const Icon = group.icon
-              const items = themePresets.filter((preset) => preset.mode === group.mode)
-              return (
-                <section
-                  key={group.mode}
-                  data-theme-mode-group={group.mode}
-                  className="grid gap-2.5 border-border/60 [&+section]:border-t [&+section]:pt-3"
-                >
-                  <div className="flex min-w-0 items-center gap-2.5 px-0.5">
-                    <span className="grid size-7 shrink-0 place-items-center rounded-md bg-muted/72 text-muted-foreground">
-                      <Icon className="size-3.5" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-sm font-semibold">{group.label}</h3>
-                      <p className="text-xs leading-4 text-muted-foreground">{group.description}</p>
-                    </div>
-                    <Badge variant="outline" className="shrink-0 bg-background/38">
-                      {items.length}
-                    </Badge>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                    {items.map((preset) => (
-                      <ThemePresetOption
-                        key={preset.id}
-                        preset={preset}
-                        selected={appearance.theme === preset.id}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )
-            })}
-          </RadioGroup>
-        </CardContent>
-      </Card>
-      <RadioGroup
-        aria-label="选择全站背景"
-        value={current}
-        onValueChange={(value) => choose(value as BackgroundId)}
-        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
-      >
-        {backgrounds.map((item) => (
-          <Card
-            key={item.id}
-            data-background-id={item.id}
-            data-selected={current === item.id ? 'true' : 'false'}
-            className="group/card relative cursor-pointer gap-0 overflow-hidden border-border/70 bg-card/38 py-0 shadow-sm ring-1 ring-border/75 backdrop-blur-md transition-[background-color,box-shadow,ring-color] duration-200 hover:bg-card/54 hover:ring-primary/35 data-[selected=true]:bg-card/62 data-[selected=true]:shadow-md data-[selected=true]:ring-2 data-[selected=true]:ring-primary"
-            onClick={() => choose(item.id)}
-          >
-            <AspectRatio
-              ratio={4 / 3}
-              className="aspect-[4/3] overflow-hidden bg-muted"
-              style={{ background: item.swatch }}
-            >
-              {item.image ? (
-                <BackgroundPreview src={item.image} active={current === item.id} />
-              ) : (
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_12%,color-mix(in_oklch,var(--primary)_20%,transparent),transparent_34%),repeating-linear-gradient(0deg,transparent_0_31px,color-mix(in_oklch,var(--primary)_7%,transparent)_32px),linear-gradient(145deg,var(--background),color-mix(in_oklch,var(--secondary)_62%,var(--background)))]" />
-              )}
-              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,transparent_42%,rgb(18_16_14/.18)_100%)]" />
-              <div className="absolute inset-x-3 bottom-3 rounded-xl border border-border/75 bg-background/62 p-3 shadow-md backdrop-blur-md sm:inset-x-4 sm:bottom-4">
-                <div className="mb-1.5 flex min-w-0 items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <CardTitle className="truncate text-base sm:text-lg">{item.label}</CardTitle>
-                    <span
-                      data-background-swatch
-                      className="block h-2 w-8 shrink-0 rounded-full ring-1 ring-background/65"
-                      style={{ background: item.swatch }}
-                      aria-hidden="true"
-                    />
-                  </div>
-                  <Badge
-                    variant={current === item.id ? 'default' : 'outline'}
-                    className={current === item.id ? 'shrink-0' : 'shrink-0 bg-background/52'}
-                  >
-                    {current === item.id && <Check data-icon="inline-start" />}
-                    {current === item.id ? '使用中' : item.category}
-                  </Badge>
-                </div>
-                <p className="line-clamp-2 text-sm leading-5 text-muted-foreground">
-                  {item.description}
+              <Icon className="size-4 shrink-0" />
+              <span className="font-semibold">{String(label)}</span>
+              <span className="hidden text-xs font-normal opacity-70 lg:inline">
+                {String(description)}
+              </span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        <TabsContent value="palette">
+          <Card className="appearance-preset-panel gap-0 overflow-hidden border-border/70 bg-card/52 py-0 shadow-sm backdrop-blur-md">
+            <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                <Palette className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <CardTitle className="text-base">配色</CardTitle>
+                <p className="mt-0.5 text-sm leading-5 text-muted-foreground">
+                  选择完整的明暗与强调色关系，或让界面自动跟随当前背景。
                 </p>
               </div>
-              <RadioGroupItem
-                value={item.id}
-                aria-label={`使用${item.label}背景`}
-                className="absolute right-3 top-3 z-20 size-5 border-background/80 bg-background/90 shadow-sm after:-inset-2 sm:right-4 sm:top-4"
-                onClick={(event) => event.stopPropagation()}
-              />
-            </AspectRatio>
-            <CardContent className="border-t border-border/55 bg-background/32 px-4 py-2.5 backdrop-blur-sm">
-              <p className="truncate text-xs leading-5 text-muted-foreground sm:text-sm">
-                {item.credit.href ? (
-                  <a
-                    href={item.credit.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline decoration-foreground/30 underline-offset-4 hover:text-foreground"
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    {item.credit.label}
-                  </a>
-                ) : (
-                  item.credit.label
-                )}
-              </p>
+            </div>
+            <CardContent className="p-3 sm:p-4">
+              <section
+                data-theme-mode-group="auto"
+                className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-3"
+              >
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={appearance.theme === 'auto' ? 'secondary' : 'outline'}
+                  aria-pressed={appearance.theme === 'auto'}
+                  aria-describedby="theme-preset-auto-description"
+                  data-theme-preset-option="auto"
+                  data-theme-mode="auto"
+                  data-selected={appearance.theme === 'auto' ? 'true' : 'false'}
+                  className="h-8 gap-1.5 px-3 shadow-xs"
+                  onClick={() => chooseTheme('auto')}
+                >
+                  <Sparkles className="size-3.5" />
+                  随背景
+                  <Check
+                    aria-hidden="true"
+                    className={`size-3.5 transition-opacity ${appearance.theme === 'auto' ? 'opacity-100' : 'opacity-0'}`}
+                  />
+                </Button>
+                <p
+                  id="theme-preset-auto-description"
+                  className="min-w-48 flex-1 text-meta leading-5 text-muted-foreground"
+                >
+                  从当前背景提取强调色；已缓存的配色会直接复用。
+                </p>
+              </section>
+              <RadioGroup
+                aria-label="选择全站配色方案"
+                value={appearance.theme}
+                onValueChange={(value) => chooseTheme(value as ThemePresetId)}
+                className="grid gap-4 border-t border-border/60 pt-3"
+              >
+                {themeGroups.map((group) => {
+                  const Icon = group.icon
+                  const items = themePresets.filter((preset) => preset.mode === group.mode)
+                  return (
+                    <section
+                      key={group.mode}
+                      data-theme-mode-group={group.mode}
+                      className="grid gap-2.5 border-border/60 [&+section]:border-t [&+section]:pt-3"
+                    >
+                      <div className="flex min-w-0 items-center gap-2.5 px-0.5">
+                        <span className="grid size-7 shrink-0 place-items-center rounded-md bg-muted/72 text-muted-foreground">
+                          <Icon className="size-3.5" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-sm font-semibold">{group.label}</h3>
+                          <p className="text-meta leading-5 text-muted-foreground">
+                            {group.description}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                        {items.map((preset) => (
+                          <ThemePresetOption
+                            key={preset.id}
+                            preset={preset}
+                            selected={appearance.theme === preset.id}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  )
+                })}
+              </RadioGroup>
             </CardContent>
           </Card>
-        ))}
-      </RadioGroup>
+        </TabsContent>
+
+        <TabsContent value="background">
+          <Card className="gap-0 overflow-hidden border-border/70 bg-card/52 py-0 shadow-sm backdrop-blur-md">
+            <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                <ImageIcon className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <CardTitle className="text-base">背景</CardTitle>
+                <p className="mt-0.5 text-sm leading-5 text-muted-foreground">
+                  选择页面底层画面；它会与配色及方框风格独立组合。
+                </p>
+              </div>
+            </div>
+            <CardContent className="p-3 sm:p-4">
+              <RadioGroup
+                aria-label="选择全站背景"
+                value={current}
+                onValueChange={(value) => choose(value as BackgroundId)}
+                className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+              >
+                {backgrounds.map((item) => (
+                  <Card
+                    key={item.id}
+                    data-background-id={item.id}
+                    data-selected={current === item.id ? 'true' : 'false'}
+                    className="group/card relative cursor-pointer gap-0 overflow-hidden border-border/70 bg-card/38 py-0 shadow-sm ring-1 ring-border/75 backdrop-blur-md transition-[background-color,box-shadow,ring-color] duration-200 hover:bg-card/54 hover:ring-primary/35 data-[selected=true]:bg-card/62 data-[selected=true]:shadow-md data-[selected=true]:ring-2 data-[selected=true]:ring-primary"
+                    onClick={() => choose(item.id)}
+                  >
+                    <AspectRatio
+                      ratio={4 / 3}
+                      className="aspect-[4/3] overflow-hidden bg-muted"
+                      style={{ background: item.swatch }}
+                    >
+                      {item.image ? (
+                        <BackgroundPreview src={item.image} active={current === item.id} />
+                      ) : (
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_12%,color-mix(in_oklch,var(--primary)_20%,transparent),transparent_34%),repeating-linear-gradient(0deg,transparent_0_31px,color-mix(in_oklch,var(--primary)_7%,transparent)_32px),linear-gradient(145deg,var(--background),color-mix(in_oklch,var(--secondary)_62%,var(--background)))]" />
+                      )}
+                      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,transparent_42%,rgb(18_16_14/.18)_100%)]" />
+                      <div className="absolute inset-x-3 bottom-3 rounded-xl border border-border/75 bg-background/62 p-3 shadow-md backdrop-blur-md sm:inset-x-4 sm:bottom-4">
+                        <div className="mb-1.5 flex min-w-0 items-center justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <CardTitle className="truncate text-base sm:text-lg">
+                              {item.label}
+                            </CardTitle>
+                            <span
+                              data-background-swatch
+                              className="block h-2 w-8 shrink-0 rounded-full ring-1 ring-background/65"
+                              style={{ background: item.swatch }}
+                              aria-hidden="true"
+                            />
+                          </div>
+                          <Badge
+                            variant={current === item.id ? 'default' : 'outline'}
+                            className={
+                              current === item.id ? 'shrink-0' : 'shrink-0 bg-background/52'
+                            }
+                          >
+                            {current === item.id && <Check data-icon="inline-start" />}
+                            {current === item.id ? '使用中' : item.category}
+                          </Badge>
+                        </div>
+                        <p className="line-clamp-2 text-sm leading-5 text-muted-foreground">
+                          {item.description}
+                        </p>
+                      </div>
+                      <RadioGroupItem
+                        value={item.id}
+                        aria-label={`使用${item.label}背景`}
+                        className="absolute right-3 top-3 z-20 size-5 border-background/80 bg-background/90 shadow-sm after:-inset-2 sm:right-4 sm:top-4"
+                        onClick={(event) => event.stopPropagation()}
+                      />
+                    </AspectRatio>
+                    <CardContent className="border-t border-border/55 bg-background/32 px-4 py-2.5 backdrop-blur-sm">
+                      <p className="truncate text-xs leading-5 text-muted-foreground sm:text-sm">
+                        {item.credit.href ? (
+                          <a
+                            href={item.credit.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline decoration-foreground/30 underline-offset-4 hover:text-foreground"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            {item.credit.label}
+                          </a>
+                        ) : (
+                          item.credit.label
+                        )}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </RadioGroup>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="box">
+          <Card className="gap-0 overflow-hidden border-border/70 bg-card/52 py-0 shadow-sm backdrop-blur-md">
+            <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                <Square className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <CardTitle className="text-base">方框</CardTitle>
+                <p className="mt-0.5 text-sm leading-5 text-muted-foreground">
+                  统一控制记录卡片、统计卡片、筛选区与弹窗等视觉容器。
+                </p>
+              </div>
+            </div>
+            <CardContent className="p-3 sm:p-4">
+              <RadioGroup
+                aria-label="选择全站方框风格"
+                value={appearance.box}
+                onValueChange={(value) => chooseBox(value as BoxStyleId)}
+                className="grid gap-3 md:grid-cols-2"
+              >
+                <BoxStyleOption id="default" selected={appearance.box === 'default'} />
+                <BoxStyleOption id="glass" selected={appearance.box === 'glass'} />
+              </RadioGroup>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
