@@ -439,7 +439,10 @@ export function QuizPage() {
               <AlertDescription>{secretError}</AlertDescription>
             </Alert>
           )}
-          <Card aria-label="答题筛选" className="quiz-filter-bar mb-4 shrink-0 gap-0 py-0">
+          <Card
+            aria-label="答题筛选"
+            className="content-frame quiz-filter-bar mb-4 shrink-0 gap-0 py-0"
+          >
             <CardContent className="flex flex-wrap items-center gap-x-5 gap-y-3 px-3 py-3 sm:px-4">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="text-sm font-medium text-muted-foreground">题型</span>
@@ -498,7 +501,7 @@ export function QuizPage() {
             </CardContent>
           </Card>
           <Card
-            className="quiz-question-card min-h-0 flex-1 gap-0 overflow-hidden py-0"
+            className="content-frame quiz-question-card min-h-0 flex-1 gap-0 overflow-hidden py-0"
             data-question-type={current?.type || 'choice'}
           >
             <CardHeader className="quiz-question-header shrink-0 rounded-none border-b px-4 py-3.5 sm:px-5">

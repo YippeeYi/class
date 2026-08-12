@@ -99,16 +99,18 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --glass-surface: color-mix(in oklch, var(--card) 58%, transparent);
-  --glass-clear-surface: color-mix(in oklch, var(--card) 18%, transparent);
-  --glass-content-surface: color-mix(in oklch, var(--card) 88%, transparent);
-  --glass-surface-strong: color-mix(in oklch, var(--popover) 78%, transparent);
-  --glass-border: color-mix(in oklch, white 34%, var(--border));
-  --glass-content-border: color-mix(in oklch, var(--border) 86%, var(--foreground) 14%);
-  --glass-edge-light: color-mix(in oklch, white 46%, transparent);
-  --glass-edge-shade: color-mix(in oklch, var(--foreground) 12%, transparent);
-  --glass-shadow: color-mix(in oklch, var(--foreground) 12%, transparent);
-  --glass-ambient: color-mix(in oklch, var(--primary) 18%, transparent);
+  --glass-surface: color-mix(in oklch, var(--card) 62%, transparent);
+  --glass-clear-surface: color-mix(in oklch, black 10%, transparent);
+  --glass-content-surface: color-mix(in oklch, var(--card) 92%, transparent);
+  --glass-surface-strong: color-mix(in oklch, var(--popover) 82%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 74%, white 26%);
+  --glass-content-border: color-mix(in oklch, var(--border) 88%, var(--foreground) 12%);
+  --glass-edge-light: color-mix(in oklch, white 22%, transparent);
+  --glass-shadow: color-mix(in oklch, var(--foreground) 10%, transparent);
+  --glass-ambient: color-mix(in oklch, var(--primary) 14%, transparent);
+  --glass-radius-control: 0.75rem;
+  --glass-radius-group: 0.95rem;
+  --glass-radius-panel: 1.15rem;
 }
 
 .dark {
@@ -810,9 +812,6 @@
 .appearance-choice [data-slot="radio-group-item"] {
   flex: none;
 }
-.appearance-section-tabs > [data-slot="tabs-trigger"] {
-  align-self: stretch;
-}
 .appearance-choice:has([data-slot="radio-group-item"]:focus-visible) {
   border-color: var(--ring);
   outline: none;
@@ -825,54 +824,33 @@
   opacity: 0.58;
 }
 
-/* The compact preview uses the same planar material as the app. Depth comes
-   from transmitted color, a narrow edge response and layer separation — never
-   perspective rotation or a bright radial centre. */
+/* This preview mirrors the production material: planar geometry, transmitted
+   colour, a restrained top-edge response, and no radial centre highlight. */
 .liquid-glass-preview {
   background:
-    radial-gradient(
-      circle at 16% 18%,
-      color-mix(in oklch, var(--primary) 52%, transparent),
-      transparent 34%
-    ),
-    radial-gradient(
-      circle at 82% 77%,
-      color-mix(in oklch, var(--chart-2) 42%, transparent),
-      transparent 38%
-    ),
-    linear-gradient(
-      145deg,
-      color-mix(in oklch, var(--muted) 82%, var(--background)),
-      var(--background)
-    );
-}
-.liquid-glass-preview-orb {
-  position: absolute;
-  top: 12%;
-  right: 12%;
-  width: 4.5rem;
-  height: 4.5rem;
-  border-radius: 999px;
-  background: radial-gradient(
-    circle at 36% 30%,
-    color-mix(in oklch, var(--chart-3) 38%, white),
-    color-mix(in oklch, var(--chart-3) 56%, transparent) 68%,
-    transparent 70%
-  );
+    linear-gradient(115deg, color-mix(in oklch, var(--primary) 34%, transparent), transparent 42%),
+    linear-gradient(300deg, color-mix(in oklch, var(--chart-2) 28%, transparent), transparent 46%),
+    color-mix(in oklch, var(--muted) 78%, var(--background));
 }
 .liquid-glass-preview-surface,
 .liquid-glass-preview-control {
-  border: 1px solid color-mix(in oklch, var(--border) 72%, var(--foreground) 28%);
+  border: 1px solid var(--glass-border);
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 12%), transparent 26%),
-    linear-gradient(90deg, color-mix(in oklch, var(--primary) 8%, transparent), transparent),
-    color-mix(in oklch, var(--card) 54%, transparent);
-  box-shadow:
-    inset 0 1px rgb(255 255 255 / 30%),
-    inset 0 -1px color-mix(in oklch, var(--foreground) 10%, transparent),
-    0 0.55rem 1.5rem color-mix(in oklch, var(--foreground) 11%, transparent);
-  -webkit-backdrop-filter: blur(16px) saturate(1.14) brightness(1.01);
-  backdrop-filter: blur(16px) saturate(1.14) brightness(1.01);
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--glass-edge-light) 28%, transparent),
+      transparent 28%
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(in oklch, var(--glass-ambient) 18%, transparent),
+      transparent 62%
+    ),
+    var(--glass-surface);
+  background-clip: padding-box;
+  box-shadow: 0 0.55rem 1.5rem color-mix(in oklch, var(--glass-shadow) 64%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.12);
+  backdrop-filter: blur(16px) saturate(1.12);
 }
 .liquid-glass-preview-surface {
   position: absolute;
@@ -880,7 +858,7 @@
   left: 13%;
   width: 62%;
   min-height: 5.5rem;
-  border-radius: 1.15rem;
+  border-radius: var(--glass-radius-panel);
   padding: 0.9rem;
 }
 .liquid-glass-preview-control {
@@ -889,7 +867,7 @@
   bottom: 14%;
   width: 3.8rem;
   height: 3.8rem;
-  border-radius: 1.25rem;
+  border-radius: var(--glass-radius-group);
 }
 .liquid-glass-preview-control::after {
   position: absolute;
@@ -899,11 +877,9 @@
   content: "";
 }
 
-/* Liquid Glass is a functional layer above content, never the content layer
-   itself. The regular lens adapts tint, local luminosity and its narrow
-   specular edge to the environment; clear is reserved for bold controls over
-   media. Cards below use a quiet reading surface and never sample a second
-   backdrop, avoiding glass-on-glass and repeated GPU blur passes. */
+/* Liquid Glass stays in the floating functional layer. These elements each
+   allocate one backdrop sample; dense cards below remain standard content
+   material so the hierarchy stays legible and glass is never stacked. */
 html[data-box-style="glass"]
   body
   :is(
@@ -929,83 +905,123 @@ html[data-box-style="glass"]
   background:
     linear-gradient(
       180deg,
-      color-mix(in oklch, var(--glass-edge-light) 18%, transparent),
-      transparent 27%
+      color-mix(in oklch, var(--glass-edge-light) 24%, transparent),
+      transparent 24%
     ),
     linear-gradient(
       90deg,
-      color-mix(in oklch, var(--liquid-ambient-local, var(--glass-ambient)) 11%, transparent),
-      color-mix(in oklch, var(--liquid-ambient-local, var(--glass-ambient)) 4%, transparent)
+      color-mix(in oklch, var(--glass-ambient) 10%, transparent),
+      transparent 68%
     ),
     var(--glass-surface);
-  box-shadow:
-    inset 0 0.7px 0 color-mix(in oklch, var(--glass-edge-light) 58%, transparent),
-    inset 0 -0.7px 0 color-mix(in oklch, var(--glass-edge-shade) 46%, transparent),
-    0 0.65rem 1.9rem color-mix(in oklch, var(--glass-shadow) 72%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2) brightness(1.01);
-  backdrop-filter: blur(18px) saturate(1.2) brightness(1.01);
+  background-clip: padding-box;
+  box-shadow: 0 0.65rem 1.9rem color-mix(in oklch, var(--glass-shadow) 64%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.16);
+  backdrop-filter: blur(18px) saturate(1.16);
   transition:
-    border-color 220ms ease,
-    box-shadow 220ms ease,
-    background-color 220ms ease;
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
 }
 
 html[data-box-style="glass"] body [data-glass-variant="clear"] {
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 13%), transparent 30%),
-    linear-gradient(90deg, rgb(0 0 0 / 8%), rgb(0 0 0 / 12%)), var(--glass-clear-surface);
+    linear-gradient(rgb(0 0 0 / 32%), rgb(0 0 0 / 32%)),
+    linear-gradient(180deg, rgb(255 255 255 / 7%), transparent 24%), var(--glass-clear-surface);
   color: oklch(0.97 0.005 250);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2) brightness(0.9);
-  backdrop-filter: blur(14px) saturate(1.2) brightness(0.9);
+  -webkit-backdrop-filter: blur(12px) saturate(1.12);
+  backdrop-filter: blur(12px) saturate(1.12);
 }
 
-/* A nearby control set shares one material sample, matching Apple's
-   GlassEffectContainer model. Children retain shadcn's semantic variants and
-   focus rings; they don't each allocate another blur or outer shadow. */
 html[data-box-style="glass"] body [data-liquid-glass-group] {
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
   overflow: visible;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-group);
 }
 
+/* Neighbouring controls share the parent sample. Hover, press, selection and
+   focus alter only thin overlay fills, so geometry and edges never jump. */
 html[data-box-style="glass"] body .liquid-control-group {
   gap: 2px;
   padding: 2px;
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in oklch, var(--liquid-ambient-local, var(--glass-ambient)) 8%, transparent),
-      transparent
-    ),
-    color-mix(in oklch, var(--glass-surface-strong) 62%, transparent);
-  box-shadow: none;
 }
 
 html[data-box-style="glass"] body .liquid-control-group > [data-slot="button"] {
   border-color: transparent;
-  background-image: none;
+  border-radius: calc(var(--glass-radius-group) - 3px);
+  background: transparent;
   box-shadow: none;
   transform: none;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+html[data-box-style="glass"] body .liquid-control-group:is(:hover, :focus-within) {
+  border-color: color-mix(in oklch, var(--primary) 24%, var(--glass-border));
 }
 
 html[data-box-style="glass"]
   body
   .liquid-control-group
-  > [data-slot="button"][aria-pressed="false"] {
-  background-color: transparent;
+  > [data-slot="button"]:not(:disabled):hover {
+  background: color-mix(in oklch, var(--foreground) 7%, transparent);
 }
 
 html[data-box-style="glass"]
   body
   .liquid-control-group
   > [data-slot="button"][aria-pressed="true"] {
-  border-color: color-mix(in oklch, var(--primary) 24%, transparent);
+  background: color-mix(in oklch, var(--primary) 16%, var(--glass-surface-strong));
+  box-shadow: 0 1px 3px color-mix(in oklch, var(--glass-shadow) 56%, transparent);
+}
+
+html[data-box-style="glass"]
+  body
+  .liquid-control-group
+  > [data-slot="button"]:not(:disabled):active {
+  background: color-mix(in oklch, var(--primary) 21%, var(--glass-surface-strong));
+  transform: none;
+}
+
+html[data-box-style="glass"] body [data-slot="tabs-list"]:not([data-variant="line"]) {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-group);
+}
+
+html[data-box-style="glass"]
+  body
+  [data-slot="tabs-list"]:not([data-variant="line"])
+  > [data-slot="tabs-trigger"] {
+  border-radius: calc(var(--glass-radius-group) - 3px);
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+html[data-box-style="glass"]
+  body
+  [data-slot="tabs-list"]:not([data-variant="line"])
+  > [data-slot="tabs-trigger"]:not([data-active]):hover {
+  background: color-mix(in oklch, var(--foreground) 6%, transparent);
+}
+
+html[data-box-style="glass"]
+  body
+  [data-slot="tabs-list"]:not([data-variant="line"])
+  > [data-slot="tabs-trigger"][data-active] {
+  background: color-mix(in oklch, var(--primary) 13%, var(--glass-surface-strong));
   box-shadow: 0 1px 3px color-mix(in oklch, var(--glass-shadow) 52%, transparent);
 }
 
-/* Dense reading surfaces stay in the content layer. They can admit a small
-   amount of environmental color but remain substantially opaque and never
-   use backdrop-filter. */
+html[data-box-style="glass"] body [data-liquid-glass-interactive]:is(:hover, :focus-visible) {
+  border-color: color-mix(in oklch, var(--primary) 30%, var(--glass-border));
+  box-shadow: 0 0.75rem 2rem color-mix(in oklch, var(--glass-shadow) 72%, transparent);
+}
+
+/* Dense reading surfaces use actual borders and a quiet standard material.
+   They never run backdrop-filter, including in the glass appearance. */
 html[data-box-style="glass"]
   body
   #root
@@ -1019,7 +1035,8 @@ html[data-box-style="glass"]
   border: 1px solid var(--glass-content-border);
   outline: none;
   background: var(--glass-content-surface);
-  box-shadow: 0 0.45rem 1.35rem color-mix(in oklch, var(--glass-shadow) 54%, transparent);
+  background-clip: padding-box;
+  box-shadow: 0 0.4rem 1.25rem color-mix(in oklch, var(--glass-shadow) 48%, transparent);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
@@ -1028,76 +1045,50 @@ html[data-box-style="glass"] .app-main-surface {
   background: linear-gradient(
     to bottom,
     color-mix(in oklch, var(--background) 48%, transparent),
-    color-mix(in oklch, var(--background) 36%, transparent)
+    color-mix(in oklch, var(--background) 38%, transparent)
   );
 }
 
 html[data-box-style="glass"][data-background="default"] {
-  --glass-surface: color-mix(in oklch, var(--card) 68%, transparent);
-  --glass-content-surface: color-mix(in oklch, var(--card) 94%, transparent);
+  --glass-surface: color-mix(in oklch, var(--card) 72%, transparent);
+  --glass-content-surface: color-mix(in oklch, var(--card) 96%, transparent);
 }
 
 html[data-box-style="glass"][data-background="default"] .app-main-surface {
   background: linear-gradient(
     to bottom,
-    color-mix(in oklch, var(--background) 66%, transparent),
-    color-mix(in oklch, var(--background) 54%, transparent)
+    color-mix(in oklch, var(--background) 68%, transparent),
+    color-mix(in oklch, var(--background) 56%, transparent)
   );
 }
 
 html[data-box-style="glass"][data-background]:not([data-background="default"]) {
-  --glass-surface: color-mix(in oklch, var(--card) 52%, transparent);
-  --glass-content-surface: color-mix(in oklch, var(--card) 86%, transparent);
-}
-
-html[data-box-style="glass"]
-  body
-  :is(
-    #root .app-topbar,
-    #root .app-sidebar [data-slot="sidebar-inner"],
-    [data-liquid-glass-group],
-    [data-liquid-glass-interactive],
-    [data-slot="tabs-list"]:not([data-variant="line"]),
-    [data-slot="dialog-content"]:not(.image-viewer-dialog),
-    [data-slot="alert-dialog-content"],
-    [data-slot="popover-content"],
-    [data-slot="dropdown-menu-content"],
-    [data-slot="dropdown-menu-sub-content"],
-    [data-slot="context-menu-content"],
-    [data-slot="context-menu-sub-content"],
-    [data-slot="hover-card-content"],
-    [data-slot="sheet-content"],
-    [data-slot="drawer-content"],
-    [data-slot="select-content"]
-  )[data-liquid-active="true"] {
-  border-color: color-mix(in oklch, var(--glass-border) 78%, var(--glass-edge-light));
-  box-shadow:
-    inset 0 0.7px 0 color-mix(in oklch, var(--glass-edge-light) 68%, transparent),
-    inset 0 -0.7px 0 color-mix(in oklch, var(--glass-edge-shade) 52%, transparent),
-    0 0.7rem 2rem color-mix(in oklch, var(--glass-shadow) 78%, transparent);
-}
-
-html.dark[data-box-style="glass"] {
-  --glass-surface: color-mix(in oklch, var(--card) 64%, transparent);
-  --glass-clear-surface: color-mix(in oklch, black 22%, transparent);
+  --glass-surface: color-mix(in oklch, var(--card) 54%, transparent);
   --glass-content-surface: color-mix(in oklch, var(--card) 88%, transparent);
-  --glass-surface-strong: color-mix(in oklch, var(--popover) 76%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 78%, white 22%);
-  --glass-content-border: color-mix(in oklch, var(--border) 76%, white 24%);
-  --glass-edge-light: color-mix(in oklch, white 16%, transparent);
-  --glass-edge-shade: color-mix(in oklch, black 30%, transparent);
-  --glass-shadow: color-mix(in oklch, black 32%, transparent);
-  --glass-ambient: color-mix(in oklch, var(--primary) 14%, transparent);
+}
+
+/* Dark appearance is independently tuned: lower edge luminance, more
+   transmitted background and a soft separation shadow, with no inner glow. */
+html.dark[data-box-style="glass"] {
+  --glass-surface: color-mix(in oklch, var(--card) 48%, transparent);
+  --glass-clear-surface: color-mix(in oklch, black 18%, transparent);
+  --glass-content-surface: color-mix(in oklch, var(--card) 90%, transparent);
+  --glass-surface-strong: color-mix(in oklch, var(--popover) 74%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 86%, var(--foreground) 14%);
+  --glass-content-border: color-mix(in oklch, var(--border) 88%, var(--foreground) 12%);
+  --glass-edge-light: color-mix(in oklch, white 8%, transparent);
+  --glass-shadow: color-mix(in oklch, black 34%, transparent);
+  --glass-ambient: color-mix(in oklch, var(--primary) 10%, transparent);
 }
 
 html.dark[data-box-style="glass"][data-background="default"] {
-  --glass-surface: color-mix(in oklch, var(--card) 74%, transparent);
-  --glass-content-surface: color-mix(in oklch, var(--card) 94%, transparent);
+  --glass-surface: color-mix(in oklch, var(--card) 66%, transparent);
+  --glass-content-surface: color-mix(in oklch, var(--card) 95%, transparent);
 }
 
 html.dark[data-box-style="glass"][data-background]:not([data-background="default"]) {
-  --glass-surface: color-mix(in oklch, var(--card) 60%, transparent);
-  --glass-content-surface: color-mix(in oklch, var(--card) 86%, transparent);
+  --glass-surface: color-mix(in oklch, var(--card) 44%, transparent);
+  --glass-content-surface: color-mix(in oklch, var(--card) 88%, transparent);
 }
 
 html[data-box-style="glass"]
@@ -1115,106 +1106,70 @@ html[data-box-style="glass"]
     [data-slot="select-content"]
   ) {
   background-color: var(--glass-surface-strong);
-  box-shadow:
-    inset 0 0.7px 0 color-mix(in oklch, var(--glass-edge-light) 64%, transparent),
-    inset 0 -0.7px 0 color-mix(in oklch, var(--glass-edge-shade) 48%, transparent),
-    0 1rem 2.8rem color-mix(in oklch, var(--foreground) 18%, transparent);
-}
-
-html[data-box-style="glass"]
-  body
-  :is(
-    #root [data-slot="button"],
-    #root [data-slot="tabs-trigger"],
-    #root [data-slot="sidebar-menu-button"],
-    [data-slot="dialog-portal"] [data-slot="button"]
-  ) {
-  background-image: linear-gradient(
-    180deg,
-    color-mix(in oklch, var(--glass-edge-light) 12%, transparent),
-    transparent 38%
-  );
-  transition:
-    color 150ms ease,
-    border-color 150ms ease,
-    background-color 150ms ease,
-    box-shadow 150ms ease,
-    transform 150ms ease;
-}
-
-html[data-box-style="glass"]
-  body
-  :is(
-    #root [data-slot="button"],
-    #root [data-slot="tabs-trigger"],
-    #root [data-slot="sidebar-menu-button"],
-    [data-slot="dialog-portal"] [data-slot="button"]
-  )[data-liquid-active="true"] {
-  box-shadow: inset 0 1px 0 color-mix(in oklch, var(--glass-edge-light) 20%, transparent);
-}
-
-html[data-box-style="glass"]
-  body
-  :is(
-    #root [data-slot="button"],
-    #root [data-slot="tabs-trigger"],
-    #root [data-slot="sidebar-menu-button"],
-    [data-slot="dialog-portal"] [data-slot="button"]
-  ):not(:disabled):active {
-  transform: scale(0.975);
+  box-shadow: 0 1rem 2.8rem color-mix(in oklch, var(--glass-shadow) 82%, transparent);
 }
 
 html[data-box-style="glass"] #root :is([data-slot="input"], [data-slot="select-trigger"]) {
-  border-color: color-mix(in oklch, var(--glass-content-border) 82%, transparent);
-  background-color: color-mix(in oklch, var(--glass-content-surface) 76%, transparent);
-  background-image: linear-gradient(
-    180deg,
-    color-mix(in oklch, var(--glass-edge-light) 18%, transparent),
-    transparent 46%
-  );
+  border-color: color-mix(in oklch, var(--glass-content-border) 86%, transparent);
+  background: color-mix(in oklch, var(--glass-content-surface) 80%, transparent);
+  box-shadow: none;
 }
 
 html[data-box-style="glass"] #root .appearance-choice {
   border-color: var(--glass-content-border);
-  background: color-mix(in oklch, var(--glass-content-surface) 82%, transparent);
-  box-shadow: 0 0.3rem 0.95rem color-mix(in oklch, var(--glass-shadow) 54%, transparent);
+  background: color-mix(in oklch, var(--glass-content-surface) 88%, transparent);
+  box-shadow: 0 0.25rem 0.85rem color-mix(in oklch, var(--glass-shadow) 42%, transparent);
 }
 
 html[data-box-style="glass"] #root .appearance-choice:hover {
   border-color: color-mix(in oklch, var(--primary) 38%, var(--glass-content-border));
-  background: color-mix(in oklch, var(--glass-content-surface) 92%, transparent);
+  background: color-mix(in oklch, var(--glass-content-surface) 96%, transparent);
 }
 
 html[data-box-style="glass"] #root .appearance-choice[data-selected="true"] {
-  border-color: color-mix(in oklch, var(--primary) 68%, var(--glass-content-border));
-  background: color-mix(in oklch, var(--primary) 7%, var(--glass-content-surface));
-  box-shadow:
-    inset 0 0 0 1px color-mix(in oklch, var(--primary) 28%, transparent),
-    0 0.4rem 1.1rem color-mix(in oklch, var(--primary) 10%, transparent);
+  border-color: color-mix(in oklch, var(--primary) 66%, var(--glass-content-border));
+  background: color-mix(in oklch, var(--primary) 8%, var(--glass-content-surface));
+  box-shadow: 0 0.35rem 1rem color-mix(in oklch, var(--primary) 10%, transparent);
 }
 
 html[data-box-style="glass"]
   #root
   .appearance-choice:has([data-slot="radio-group-item"]:focus-visible) {
   border-color: var(--ring);
-  box-shadow:
-    inset 0 0 0 2px color-mix(in oklch, var(--ring) 52%, transparent),
-    0 0.4rem 1.1rem color-mix(in oklch, var(--ring) 13%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 28%, transparent);
 }
 
 html[data-box-style="glass"] #root .appearance-choice:active {
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklch, white 20%, transparent),
-    0 0.15rem 0.55rem color-mix(in oklch, var(--glass-shadow) 48%, transparent);
+  background: color-mix(in oklch, var(--primary) 11%, var(--glass-content-surface));
+  box-shadow: 0 0.15rem 0.55rem color-mix(in oklch, var(--glass-shadow) 42%, transparent);
 }
 
 html[data-box-style="glass"] body #root [data-slot="card"] [data-slot="card"],
 html[data-box-style="glass"] body #root [data-slot="card"] [data-slot="alert"] {
-  border-color: color-mix(in oklch, var(--border) 78%, transparent);
-  background: color-mix(in oklch, var(--card) 88%, var(--background));
-  box-shadow: inset 0 1px color-mix(in oklch, white 14%, transparent);
+  border-color: color-mix(in oklch, var(--border) 84%, transparent);
+  background: color-mix(in oklch, var(--card) 92%, var(--background));
+  box-shadow: none;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+}
+
+/* Full-viewport reading pages use a real in-box border. The base Card ring is
+   painted outside its bounds and was clipped by the locked viewport shell at
+   some widths and zoom levels, which made the left and right edges disappear. */
+#root .content-frame[data-slot="card"] {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  background-clip: padding-box;
+  box-shadow: 0 0.25rem 0.9rem color-mix(in oklch, var(--foreground) 7%, transparent);
+}
+
+html[data-box-style="glass"] body #root .content-frame[data-slot="card"] {
+  border-color: var(--glass-content-border);
+  background: var(--glass-content-surface);
+  box-shadow: 0 0.4rem 1.25rem color-mix(in oklch, var(--glass-shadow) 48%, transparent);
 }
 
 .quiz-question-card {
@@ -1250,6 +1205,7 @@ html[data-box-style="glass"]
 
 .record-surface {
   --record-rest-border: var(--border);
+  border: 1px solid var(--record-rest-border);
   transition-property: background-color, border-color, box-shadow;
 }
 
@@ -1312,13 +1268,13 @@ html[data-box-style="glass"]
 
 .image-viewer-overlay {
   overscroll-behavior: contain;
-  background: color-mix(in oklch, var(--background) 22%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(0.9) brightness(0.9);
-  backdrop-filter: blur(18px) saturate(0.9) brightness(0.9);
+  background: color-mix(in oklch, var(--background) 88%, black 12%);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .dark .image-viewer-overlay {
-  background: color-mix(in oklch, var(--background) 16%, transparent);
+  background: color-mix(in oklch, var(--background) 92%, black 8%);
 }
 
 .image-viewer-viewport {
@@ -1339,10 +1295,6 @@ html[data-box-style="glass"]
   box-shadow: 0 0.45rem 1.4rem color-mix(in oklch, black 12%, transparent);
   -webkit-backdrop-filter: blur(16px) saturate(1.12);
   backdrop-filter: blur(16px) saturate(1.12);
-}
-
-html[data-box-style="glass"] .image-viewer-toolbar {
-  border: 1px solid var(--glass-border);
 }
 
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {

@@ -213,7 +213,7 @@ export function ImageViewer({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog modal="trap-focus" open={open} onOpenChange={setOpen}>
       <DialogTrigger render={trigger} />
       <ViewportDialogContent>
         <DialogHeader className="sr-only">

@@ -45,7 +45,7 @@ export function MealMapPage() {
           </Badge>
         }
       />
-      <Card className="min-h-0 flex-1 gap-0 py-0">
+      <Card className="content-frame min-h-0 flex-1 gap-0 py-0">
         <figure className="relative grid min-h-0 flex-1 place-items-center overflow-hidden">
           {src && !imageFailure.failed ? (
             <ImageViewer

@@ -312,6 +312,9 @@ const browser = await chromium.launch({ headless: true, executablePath: systemEd
 async function assertFullscreenImageViewer(page, label) {
   const trigger = page.getByRole('button', { name: '打开全视口测试图片' })
   await trigger.scrollIntoViewIfNeeded()
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  )
   const scrollBeforeOpen = await page.evaluate(() => window.scrollY)
   await trigger.click()
   const dialog = page.locator('.image-viewer-dialog[data-slot="image-viewer-content"]')
@@ -424,7 +427,10 @@ async function assertFullscreenImageViewer(page, label) {
     `${label} initial image must be fully visible: ${JSON.stringify(geometry)}`,
   )
   assert.ok(geometry.toolbarOverflow <= 1, `${label} image toolbar must not overflow: ${JSON.stringify(geometry)}`)
-  assert.ok(Math.abs(geometry.scrollY - scrollBeforeOpen) <= 1, `${label} opening the viewer must not move the page`)
+  assert.ok(
+    Math.abs(geometry.scrollY - scrollBeforeOpen) <= 1,
+    `${label} opening the viewer must not move the page: ${JSON.stringify({ scrollBeforeOpen, scrollAfterOpen: geometry.scrollY })}`,
+  )
   await page.getByRole('button', { name: '关闭大图' }).click()
   await dialog.waitFor({ state: 'hidden' })
   assert.ok(
@@ -508,9 +514,10 @@ try {
     return {
       active: target.getAttribute('data-record-jump-highlight'),
       cycle: target.getAttribute('data-record-jump-cycle'),
-      outlineStyle: style.outlineStyle,
-      outlineWidth: style.outlineWidth,
-      outlineColor: style.outlineColor,
+      borderStyle: style.borderStyle,
+      borderWidth: style.borderWidth,
+      borderColor: style.borderColor,
+      boxShadow: style.boxShadow,
     }
   })
   assert.equal(
@@ -519,18 +526,23 @@ try {
     'the located record must expose one semantic highlight state after scrolling settles',
   )
   assert.equal(
-    initialJumpHighlight.outlineStyle,
+    initialJumpHighlight.borderStyle,
     'solid',
-    'the located record highlight must not depend on a box-shadow ring',
+    'the located record highlight must retain its real material boundary',
   )
   assert.ok(
-    Number.parseFloat(initialJumpHighlight.outlineWidth) >= 2,
+    Number.parseFloat(initialJumpHighlight.borderWidth) >= 1,
     `the located record highlight must be clearly visible: ${JSON.stringify(initialJumpHighlight)}`,
   )
   assert.doesNotMatch(
-    initialJumpHighlight.outlineColor,
+    initialJumpHighlight.borderColor,
     /(?:\/ 0\)|, 0\))$/,
     `the located record highlight must retain theme color: ${JSON.stringify(initialJumpHighlight)}`,
+  )
+  assert.notEqual(
+    initialJumpHighlight.boxShadow,
+    'none',
+    'the located record highlight may reinforce, but not replace, its real border',
   )
   const recordScrollTrajectory = await page.evaluate(() => {
     window.removeEventListener('scroll', window.__recordScrollListener)
@@ -569,13 +581,15 @@ try {
     )
   }
   const scrollBeforeDialogClose = await page.evaluate(() => window.scrollY)
-  await page.getByRole('button', { name: '留在这里' }).click()
+  await page.getByRole('button', { name: '留在此处' }).click()
   await page.getByRole('alertdialog').waitFor({ state: 'hidden' })
   const dialogCloseState = await page.evaluate(() => ({
     scrollY: window.scrollY,
     focusedId: document.activeElement?.id || '',
     highlight: document.querySelector('#record-r3')?.getAttribute('data-record-jump-highlight'),
-    highlightCycle: document.querySelector('#record-r3')?.getAttribute('data-record-jump-cycle'),
+    highlightPending: document
+      .querySelector('#record-r3')
+      ?.getAttribute('data-record-jump-pending-fade'),
     highlightAnimation: document.querySelector('#record-r3')
       ? getComputedStyle(document.querySelector('#record-r3')).animationName
       : '',
@@ -594,15 +608,10 @@ try {
     'true',
     'closing the jump dialog must expose a fresh visible target highlight',
   )
-  assert.notEqual(
-    dialogCloseState.highlightCycle,
-    initialJumpHighlight.cycle,
-    'the highlight animation must restart after the modal blur is removed',
-  )
-  assert.match(
-    dialogCloseState.highlightAnimation,
-    /record-jump-highlight/u,
-    'the post-dialog record highlight must run its complete feedback cycle',
+  assert.equal(
+    dialogCloseState.highlightPending,
+    'true',
+    'the visible record highlight must hold briefly before its fade begins',
   )
   const postJumpScroll = dialogCloseState.scrollY
   const postJumpAnnotation = recordsFixture
@@ -688,7 +697,7 @@ try {
       )
     }
     const beforeClose = await page.evaluate(() => window.scrollY)
-    await page.getByRole('button', { name: '留在这里' }).click()
+    await page.getByRole('button', { name: '留在此处' }).click()
     await page.getByRole('alertdialog').waitFor({ state: 'hidden' })
     const afterClose = await page.evaluate(() => ({
       scrollY: window.scrollY,
@@ -934,7 +943,9 @@ try {
     `automatic palette control must retain a readable touch target without becoming oversized: ${JSON.stringify(autoThemeGeometry)}`,
   )
   assert.equal(autoThemeGeometry.hasPreview, false, 'automatic palette must not render a full preview card')
-  const appearanceTabsGeometry = await page.locator('.appearance-section-tabs').evaluate((list) => {
+  const appearanceTabsGeometry = await page
+    .getByRole('tablist', { name: '风格设置分区' })
+    .evaluate((list) => {
     const bounds = list.getBoundingClientRect()
     return {
       height: bounds.height,
@@ -948,10 +959,13 @@ try {
       }),
     }
   })
-  assert.ok(appearanceTabsGeometry.height >= 56, `appearance tab rail must contain its controls: ${JSON.stringify(appearanceTabsGeometry)}`)
+  assert.ok(
+    appearanceTabsGeometry.height >= 40 && appearanceTabsGeometry.height <= 54,
+    `appearance tab rail must reuse the compact standard control height: ${JSON.stringify(appearanceTabsGeometry)}`,
+  )
   appearanceTabsGeometry.triggers.forEach((trigger) => {
     assert.ok(
-      trigger.top >= -1 && trigger.bottom >= -1 && trigger.height >= 44,
+      trigger.top >= -1 && trigger.bottom >= -1 && trigger.height >= 40,
       `appearance tab controls must stay fully inside the rail: ${JSON.stringify(appearanceTabsGeometry)}`,
     )
   })
@@ -1216,20 +1230,21 @@ try {
       (id) => document.documentElement.dataset.themePreset === id,
       themeId,
     )
-    const recordMaterial = await recordsFixture.locator('#record-r3').evaluate((target) => {
+    const recordMaterial = await recordsFixture.locator('#record-r3').evaluate(async (target) => {
       target.removeAttribute('data-record-jump-highlight')
       const normal = getComputedStyle(target)
       const normalState = {
-        style: normal.outlineStyle,
-        width: normal.outlineWidth,
-        color: normal.outlineColor,
+        style: normal.borderStyle,
+        width: normal.borderWidth,
+        color: normal.borderColor,
       }
       target.setAttribute('data-record-jump-highlight', 'true')
+      await new Promise((resolve) => window.setTimeout(resolve, 180))
       const highlighted = getComputedStyle(target)
       const highlightedState = {
-        style: highlighted.outlineStyle,
-        width: highlighted.outlineWidth,
-        color: highlighted.outlineColor,
+        style: highlighted.borderStyle,
+        width: highlighted.borderWidth,
+        color: highlighted.borderColor,
       }
       target.removeAttribute('data-record-jump-highlight')
       return { normalState, highlightedState }
@@ -1251,11 +1266,11 @@ try {
     assert.equal(
       recordMaterial.highlightedState.style,
       'solid',
-      `${themeId} jump state must retain a semantic outline`,
+      `${themeId} jump state must retain a semantic boundary`,
     )
     assert.ok(
-      Number.parseFloat(recordMaterial.highlightedState.width) >= 2,
-      `${themeId} jump highlight must override the quiet material boundary: ${JSON.stringify(recordMaterial)}`,
+      Number.parseFloat(recordMaterial.highlightedState.width) >= 1,
+      `${themeId} jump highlight must retain the quiet material boundary: ${JSON.stringify(recordMaterial)}`,
     )
     assert.notEqual(
       recordMaterial.highlightedState.color,
@@ -1266,76 +1281,66 @@ try {
   await page.locator('[data-theme-preset-option="auto"]').click()
   await page.waitForFunction(() => document.documentElement.dataset.themePreset === 'auto')
   await page.getByRole('tab', { name: /^方框/ }).click()
-  const liquidTopbar = page.locator('[data-case="app-surface"] .app-topbar')
-  await liquidTopbar.scrollIntoViewIfNeeded()
-  const liquidSidebar = page.locator('[data-case="app-surface"] [data-slot="sidebar-inner"]')
-  const liquidContentCard = page.locator('[data-case="app-surface"] [data-slot="card"]')
-  const topbarBounds = await liquidTopbar.boundingBox()
-  assert.ok(topbarBounds, 'liquid-glass pointer fixture needs a visible top bar')
-  await page.mouse.move(
-    topbarBounds.x + topbarBounds.width * 0.72,
-    topbarBounds.y + topbarBounds.height * 0.38,
-  )
-  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
-  const topbarPointer = await liquidTopbar.evaluate((target) => ({
-    active: target.dataset.liquidActive,
-    x: Number.parseFloat(target.style.getPropertyValue('--liquid-pointer-x')),
-    y: Number.parseFloat(target.style.getPropertyValue('--liquid-pointer-y')),
-    count: document.querySelectorAll('[data-liquid-active="true"]').length,
-  }))
-  assert.equal(topbarPointer.active, 'true', 'the top bar must own its local pointer highlight')
-  assert.ok(Math.abs(topbarPointer.x - 72) <= 2, `top-bar highlight x must use local client coordinates: ${JSON.stringify(topbarPointer)}`)
-  assert.ok(Math.abs(topbarPointer.y - 38) <= 3, `top-bar highlight y must use local client coordinates: ${JSON.stringify(topbarPointer)}`)
-  assert.equal(topbarPointer.count, 1, 'only one liquid surface may be active at a time')
-  await page.evaluate(() => {
-    window.__liquidActiveCounts = []
-    window.__liquidObserver = new MutationObserver(() => {
-      window.__liquidActiveCounts.push(
-        document.querySelectorAll('[data-liquid-active="true"]').length,
-      )
-    })
-    window.__liquidObserver.observe(document.documentElement, {
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['data-liquid-active'],
-    })
-  })
-  const sidebarBounds = await liquidSidebar.boundingBox()
-  assert.ok(sidebarBounds, 'liquid-glass pointer fixture needs a visible sidebar')
-  await page.mouse.move(
-    sidebarBounds.x + sidebarBounds.width * 0.31,
-    sidebarBounds.y + sidebarBounds.height * 0.67,
-    { steps: 10 },
-  )
-  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
-  const sidebarPointer = await liquidSidebar.evaluate((target) => ({
-    active: target.dataset.liquidActive,
-    x: Number.parseFloat(target.style.getPropertyValue('--liquid-pointer-x')),
-    y: Number.parseFloat(target.style.getPropertyValue('--liquid-pointer-y')),
-    count: document.querySelectorAll('[data-liquid-active="true"]').length,
-    observations: window.__liquidActiveCounts || [],
-  }))
-  assert.equal(sidebarPointer.active, 'true', 'the sidebar must take ownership without retaining the top-bar highlight')
-  assert.ok(Math.abs(sidebarPointer.x - 31) <= 2, `sidebar highlight x must use local client coordinates: ${JSON.stringify(sidebarPointer)}`)
-  assert.ok(Math.abs(sidebarPointer.y - 67) <= 3, `sidebar highlight y must use local client coordinates: ${JSON.stringify(sidebarPointer)}`)
-  assert.equal(sidebarPointer.count, 1, 'switching liquid surfaces must not leave shared active state')
-  assert.ok(
-    sidebarPointer.observations.every((count) => count <= 1),
-    `crossing topbar/sidebar must never activate multiple highlights: ${JSON.stringify(sidebarPointer)}`,
-  )
-  const contentBounds = await liquidContentCard.boundingBox()
-  assert.ok(contentBounds, 'liquid-glass fixture needs a visible content card')
-  await page.mouse.move(contentBounds.x + contentBounds.width / 2, contentBounds.y + contentBounds.height / 2)
-  await page.waitForTimeout(260)
-  const pointerLeaveState = await page.evaluate(() => {
-    window.__liquidObserver?.disconnect()
+  const liquidLayers = await page.locator('[data-case="app-surface"]').evaluate((surface) => {
+    const describe = (target) => {
+      const style = getComputedStyle(target)
+      return {
+        backdrop: style.backdropFilter,
+        backgroundImage: style.backgroundImage,
+        boxShadow: style.boxShadow,
+      }
+    }
+    const topbar = surface.querySelector('.app-topbar')
+    const sidebar = surface.querySelector('[data-slot="sidebar-inner"]')
+    const card = surface.querySelector('[data-slot="card"]')
     return {
-      active: document.querySelectorAll('[data-liquid-active="true"]').length,
-      contentActive: document.querySelector('[data-case="app-surface"] [data-slot="card"]')?.getAttribute('data-liquid-active'),
+      topbar: describe(topbar),
+      sidebar: describe(sidebar),
+      card: describe(card),
+      transientAttributes: document.querySelectorAll('[data-liquid-active]').length,
+      inlinePointerStyles: [...document.querySelectorAll('[style]')].filter(
+        (target) =>
+          target.style.getPropertyValue('--liquid-pointer-x') ||
+          target.style.getPropertyValue('--liquid-ambient-local'),
+      ).length,
     }
   })
-  assert.equal(pointerLeaveState.active, 0, 'leaving functional glass must clear its active light without a corner residue')
-  assert.equal(pointerLeaveState.contentActive, null, 'content cards must remain standard material instead of sharing pointer light')
+  for (const [name, layer] of Object.entries({
+    topbar: liquidLayers.topbar,
+    sidebar: liquidLayers.sidebar,
+  })) {
+    assert.notEqual(layer.backdrop, 'none', `${name} must keep one bounded backdrop sample`)
+    assert.doesNotMatch(layer.backgroundImage, /radial-gradient/, `${name} must keep a planar edge response`)
+    assert.doesNotMatch(layer.boxShadow, /inset/, `${name} must not create a thick or convex inner rim`)
+  }
+  assert.equal(liquidLayers.card.backdrop, 'none', 'content cards must remain in the standard material layer')
+  assert.equal(liquidLayers.transientAttributes, 0, 'glass must not mutate transient active attributes during pointer movement')
+  assert.equal(liquidLayers.inlinePointerStyles, 0, 'glass must not retain pointer-dependent inline paint state')
+
+  await page.getByRole('tab', { name: /^配色/ }).click()
+  await page.locator('[data-theme-preset-option="midnight"]').click()
+  await page.waitForFunction(
+    () =>
+      document.documentElement.dataset.themePreset === 'midnight' &&
+      document.documentElement.classList.contains('dark'),
+  )
+  const darkLiquidLayers = await page.locator('[data-case="app-surface"]').evaluate((surface) => {
+    const targets = [surface.querySelector('.app-topbar'), surface.querySelector('[data-slot="sidebar-inner"]')]
+    return targets.map((target) => {
+      const style = getComputedStyle(target)
+      return { backgroundImage: style.backgroundImage, boxShadow: style.boxShadow }
+    })
+  })
+  darkLiquidLayers.forEach((layer) => {
+    assert.doesNotMatch(layer.backgroundImage, /radial-gradient/, 'dark glass must not use a convex centre highlight')
+    assert.doesNotMatch(layer.boxShadow, /inset/, 'dark glass must not use white inner glow or thick-glass shading')
+  })
+  if (process.env.CLASS_RECORD_DARK_GLASS_SCREENSHOT) {
+    await page.screenshot({ path: process.env.CLASS_RECORD_DARK_GLASS_SCREENSHOT, fullPage: true })
+  }
+  await page.locator('[data-theme-preset-option="auto"]').click()
+  await page.waitForFunction(() => document.documentElement.dataset.themePreset === 'auto')
+  await page.getByRole('tab', { name: /^方框/ }).click()
   const glassQuizGeometry = await page.locator('[data-quiz-theme-fixture]').evaluateAll((cards) =>
     cards.map((card) => ({
       type: card.getAttribute('data-question-type'),

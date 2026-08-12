@@ -56,7 +56,7 @@ export function MaterialsPage() {
       {resource.data && resource.data.length > 0 && (
         <Card
           role="region"
-          className="grid min-h-0 flex-1 grid-rows-[minmax(8rem,.3fr)_minmax(0,1fr)] gap-0 py-0 md:grid-cols-[minmax(14rem,22%)_minmax(0,1fr)] md:grid-rows-1"
+          className="content-frame grid min-h-0 flex-1 grid-rows-[minmax(8rem,.3fr)_minmax(0,1fr)] gap-0 py-0 md:grid-cols-[minmax(14rem,22%)_minmax(0,1fr)] md:grid-rows-1"
           aria-label="资料阅读区"
         >
           <aside className="flex min-h-0 flex-col overflow-hidden border-b border-border/70 md:border-b-0 md:border-r">

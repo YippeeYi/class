@@ -157,7 +157,7 @@ export const boxStyles: Array<{
   {
     id: 'glass',
     label: '液体玻璃',
-    description: '以自适应透光、边缘聚光、环境色渗透和轻量交互呈现立体材质。',
+    description: '以自适应透光、克制边缘响应和共享控件材质建立清晰的交互层。',
   },
 ]
 
@@ -272,13 +272,6 @@ export function setBoxStyle(id: BoxStyleId) {
 }
 
 type Palette = Record<(typeof THEME_PROPERTIES)[number], string>
-type AmbientSampler = {
-  width: number
-  height: number
-  sourceWidth: number
-  sourceHeight: number
-  pixels: Uint8ClampedArray
-}
 
 function readPalette(id: BackgroundId) {
   try {
@@ -365,43 +358,6 @@ async function extractPalette(src: string) {
   return weight ? buildPalette(red / weight, green / weight, blue / weight) : null
 }
 
-function createAmbientSampler(image: HTMLImageElement): AmbientSampler | null {
-  const canvas = document.createElement('canvas')
-  canvas.width = 48
-  canvas.height = 48
-  const context = canvas.getContext('2d', { willReadFrequently: true })
-  if (!context || !image.naturalWidth || !image.naturalHeight) return null
-  context.drawImage(image, 0, 0, canvas.width, canvas.height)
-  return {
-    width: canvas.width,
-    height: canvas.height,
-    sourceWidth: image.naturalWidth,
-    sourceHeight: image.naturalHeight,
-    pixels: context.getImageData(0, 0, canvas.width, canvas.height).data,
-  }
-}
-
-function sampleAmbientColor(sampler: AmbientSampler, viewportX: number, viewportY: number) {
-  const coverScale = Math.max(
-    window.innerWidth / sampler.sourceWidth,
-    window.innerHeight / sampler.sourceHeight,
-  )
-  const renderedWidth = sampler.sourceWidth * coverScale
-  const renderedHeight = sampler.sourceHeight * coverScale
-  const sourceX = (viewportX + (renderedWidth - window.innerWidth) / 2) / coverScale
-  const sourceY = (viewportY + (renderedHeight - window.innerHeight) / 2) / coverScale
-  const x = Math.min(
-    sampler.width - 1,
-    Math.max(0, Math.round((sourceX / sampler.sourceWidth) * (sampler.width - 1))),
-  )
-  const y = Math.min(
-    sampler.height - 1,
-    Math.max(0, Math.round((sourceY / sampler.sourceHeight) * (sampler.height - 1))),
-  )
-  const offset = (y * sampler.width + x) * 4
-  return `rgb(${sampler.pixels[offset] || 0} ${sampler.pixels[offset + 1] || 0} ${sampler.pixels[offset + 2] || 0} / 28%)`
-}
-
 export function readBackground(): BackgroundId {
   return readAppearance().background
 }
@@ -417,49 +373,6 @@ function applyThemePreset(id: ThemePresetId) {
 
 function applyBoxStyle(id: BoxStyleId) {
   document.documentElement.dataset.boxStyle = id
-}
-
-const LIQUID_GLASS_TARGETS = [
-  '[data-liquid-glass-group]',
-  '[data-liquid-glass-interactive]',
-  '[data-slot="tabs-list"]:not([data-variant="line"])',
-  '[data-slot="button"]',
-  '[data-slot="tabs-trigger"]',
-  '[data-slot="sidebar-menu-button"]',
-  '.app-topbar',
-  '.app-sidebar [data-slot="sidebar-inner"]',
-  '[data-slot="dialog-content"]:not(.image-viewer-dialog)',
-  '[data-slot="alert-dialog-content"]',
-  '[data-slot="popover-content"]',
-  '[data-slot="dropdown-menu-content"]',
-  '[data-slot="dropdown-menu-sub-content"]',
-  '[data-slot="context-menu-content"]',
-  '[data-slot="context-menu-sub-content"]',
-  '[data-slot="select-content"]',
-  '[data-slot="hover-card-content"]',
-  '[data-slot="sheet-content"]',
-  '[data-slot="drawer-content"]',
-].join(',')
-
-const LIQUID_GLASS_GROUPS = [
-  '[data-liquid-glass-group]',
-  '[data-slot="tabs-list"]:not([data-variant="line"])',
-  '[data-slot="button-group"]',
-  '.app-topbar',
-  '.app-sidebar [data-slot="sidebar-inner"]',
-].join(',')
-
-function liquidGlassTarget(source: EventTarget | null) {
-  if (!(source instanceof Element)) return null
-  // Apple groups nearby glass shapes in one effect container. Resolve the
-  // shared business-level surface before any child button so a toolbar or
-  // segmented control samples its environment once instead of stacking one
-  // backdrop-filter and pointer response per control.
-  const group = source.closest<HTMLElement>(LIQUID_GLASS_GROUPS)
-  if (group) return group
-  const target = source.closest<HTMLElement>(LIQUID_GLASS_TARGETS)
-  if (!target) return null
-  return target
 }
 
 function backgroundLayerStyle(id: BackgroundId): CSSProperties {
@@ -544,107 +457,6 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
     root.dataset.background = visible
     delete root.dataset.backgroundBootstrap
   }, [visible])
-
-  useEffect(() => {
-    if (
-      appearance.box !== 'glass' ||
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
-      !window.matchMedia('(hover: hover) and (pointer: fine)').matches
-    )
-      return
-    let active = true
-    let ambientSampler: AmbientSampler | null = null
-    let activeTarget: HTMLElement | null = null
-    let animationFrame = 0
-    let lastPointer: { x: number; y: number } | null = null
-    let desiredPoint: { target: HTMLElement; x: number; y: number } | null = null
-    let lastAmbientColor = ''
-    const clearTarget = () => {
-      if (!activeTarget) return
-      delete activeTarget.dataset.liquidActive
-      activeTarget.style.removeProperty('--liquid-ambient-local')
-      activeTarget = null
-      lastAmbientColor = ''
-    }
-    const targetAtPoint = (x: number, y: number) =>
-      liquidGlassTarget(document.elementFromPoint(x, y))
-    const setDesiredPoint = (x: number, y: number) => {
-      const target = targetAtPoint(x, y)
-      if (!target) {
-        desiredPoint = null
-        clearTarget()
-        return
-      }
-      desiredPoint = { target, x, y }
-      if (!animationFrame) animationFrame = window.requestAnimationFrame(renderPoint)
-    }
-    const renderPoint = () => {
-      animationFrame = 0
-      if (!desiredPoint) return
-      const { target, x, y } = desiredPoint
-      const bounds = target.getBoundingClientRect()
-      if (!target.isConnected || !bounds.width || !bounds.height) {
-        desiredPoint = null
-        clearTarget()
-        return
-      }
-      if (activeTarget !== target) {
-        clearTarget()
-        activeTarget = target
-      }
-      if (ambientSampler) {
-        const ambientColor = sampleAmbientColor(ambientSampler, x, y)
-        if (ambientColor !== lastAmbientColor) {
-          target.style.setProperty('--liquid-ambient-local', ambientColor)
-          lastAmbientColor = ambientColor
-        }
-      }
-      target.dataset.liquidActive = 'true'
-    }
-    const move = (event: PointerEvent) => {
-      lastPointer = { x: event.clientX, y: event.clientY }
-      setDesiredPoint(event.clientX, event.clientY)
-    }
-    const refreshGeometry = () => {
-      if (!lastPointer) return
-      setDesiredPoint(lastPointer.x, lastPointer.y)
-    }
-    const leaveWindow = (event: PointerEvent) => {
-      if (event.relatedTarget !== null) return
-      lastPointer = null
-      desiredPoint = null
-      clearTarget()
-    }
-    const blur = () => {
-      lastPointer = null
-      desiredPoint = null
-      clearTarget()
-    }
-    if (visibleBackground?.image)
-      void decodeBackground(visibleBackground.image).then(
-        (image) => {
-          if (!active) return
-          ambientSampler = createAmbientSampler(image)
-          refreshGeometry()
-        },
-        () => undefined,
-      )
-    document.addEventListener('pointermove', move, { passive: true })
-    document.addEventListener('scroll', refreshGeometry, { capture: true, passive: true })
-    window.addEventListener('resize', refreshGeometry, { passive: true })
-    window.addEventListener('pointerout', leaveWindow, { passive: true })
-    window.addEventListener('blur', blur)
-    return () => {
-      active = false
-      document.removeEventListener('pointermove', move)
-      document.removeEventListener('scroll', refreshGeometry, true)
-      window.removeEventListener('resize', refreshGeometry)
-      window.removeEventListener('pointerout', leaveWindow)
-      window.removeEventListener('blur', blur)
-      if (animationFrame) window.cancelAnimationFrame(animationFrame)
-      clearTarget()
-    }
-  }, [appearance.box, visibleBackground])
 
   useEffect(() => {
     let active = true

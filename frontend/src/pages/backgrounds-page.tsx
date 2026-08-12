@@ -152,7 +152,6 @@ function BoxStyleOption({ id, selected }: { id: BoxStyleId; selected: boolean })
         className={`relative grid min-h-40 place-items-center overflow-hidden border-b border-border/60 ${id === 'glass' ? 'liquid-glass-preview' : 'bg-muted/70'}`}
         aria-hidden="true"
       >
-        <span className={id === 'glass' ? 'liquid-glass-preview-orb' : 'hidden'} />
         <span
           className={
             id === 'glass'
@@ -213,7 +212,10 @@ export function BackgroundsPage() {
         description="配色、背景与方框彼此独立，共同组成全站视觉风格；所有选择都会保存在当前浏览器中。"
       />
       <Tabs value={section} onValueChange={setSection} className="gap-4">
-        <TabsList className="appearance-section-tabs grid w-full grid-cols-3 gap-1 p-1.5 group-data-horizontal/tabs:h-auto">
+        <TabsList
+          aria-label="风格设置分区"
+          className="grid w-full grid-cols-3 group-data-horizontal/tabs:h-auto"
+        >
           {(
             [
               ['palette', '配色', Palette, '界面色彩'],
@@ -224,13 +226,11 @@ export function BackgroundsPage() {
             <TabsTrigger
               key={String(value)}
               value={String(value)}
-              className="h-auto min-h-11 min-w-0 flex-col gap-0.5 px-2 py-2 sm:flex-row sm:gap-2 sm:px-4"
+              className="min-h-10 min-w-0 px-3 py-2"
             >
               <Icon className="size-4 shrink-0" />
-              <span className="font-semibold">{String(label)}</span>
-              <span className="hidden text-xs font-normal opacity-70 lg:inline">
-                {String(description)}
-              </span>
+              <span>{String(label)}</span>
+              <span className="sr-only">{String(description)}</span>
             </TabsTrigger>
           ))}
         </TabsList>

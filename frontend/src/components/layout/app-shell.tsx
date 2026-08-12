@@ -368,10 +368,10 @@ export function AppShell() {
               tabIndex={-1}
               key={location.pathname}
               className={cn(
-                'mx-auto w-full px-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-7 lg:px-10',
+                'mx-auto w-full px-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-6 lg:px-8',
                 isViewportLocked
-                  ? 'h-[calc(100dvh-4rem)] min-h-0 max-w-[96rem] overflow-hidden px-3 py-3 sm:px-5 sm:py-4 lg:px-7 lg:py-5'
-                  : 'min-h-[calc(100svh-4rem)] py-5 pb-12 sm:py-6 sm:pb-16 lg:py-7',
+                  ? 'h-[calc(100dvh-4rem)] min-h-0 max-w-[96rem] overflow-hidden py-4 sm:py-5 lg:py-6'
+                  : 'min-h-[calc(100svh-4rem)] py-6 pb-12 sm:py-7 sm:pb-16 lg:py-8',
                 !isViewportLocked && (isWideContent ? 'max-w-[90rem]' : 'max-w-6xl'),
               )}
             >
