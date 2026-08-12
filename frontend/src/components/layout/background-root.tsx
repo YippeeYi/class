@@ -420,7 +420,9 @@ function applyBoxStyle(id: BoxStyleId) {
 }
 
 const LIQUID_GLASS_TARGETS = [
+  '[data-liquid-glass-group]',
   '[data-liquid-glass-interactive]',
+  '[data-slot="tabs-list"]:not([data-variant="line"])',
   '[data-slot="button"]',
   '[data-slot="tabs-trigger"]',
   '[data-slot="sidebar-menu-button"]',
@@ -439,8 +441,22 @@ const LIQUID_GLASS_TARGETS = [
   '[data-slot="drawer-content"]',
 ].join(',')
 
+const LIQUID_GLASS_GROUPS = [
+  '[data-liquid-glass-group]',
+  '[data-slot="tabs-list"]:not([data-variant="line"])',
+  '[data-slot="button-group"]',
+  '.app-topbar',
+  '.app-sidebar [data-slot="sidebar-inner"]',
+].join(',')
+
 function liquidGlassTarget(source: EventTarget | null) {
   if (!(source instanceof Element)) return null
+  // Apple groups nearby glass shapes in one effect container. Resolve the
+  // shared business-level surface before any child button so a toolbar or
+  // segmented control samples its environment once instead of stacking one
+  // backdrop-filter and pointer response per control.
+  const group = source.closest<HTMLElement>(LIQUID_GLASS_GROUPS)
+  if (group) return group
   const target = source.closest<HTMLElement>(LIQUID_GLASS_TARGETS)
   if (!target) return null
   return target

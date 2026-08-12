@@ -909,7 +909,9 @@ html[data-box-style="glass"]
   :is(
     #root .app-topbar,
     #root .app-sidebar [data-slot="sidebar-inner"],
+    [data-liquid-glass-group],
     [data-liquid-glass-interactive],
+    [data-slot="tabs-list"]:not([data-variant="line"]),
     [data-slot="dialog-content"]:not(.image-viewer-dialog),
     [data-slot="alert-dialog-content"],
     [data-slot="popover-content"],
@@ -957,6 +959,50 @@ html[data-box-style="glass"] body [data-glass-variant="clear"] {
   backdrop-filter: blur(14px) saturate(1.2) brightness(0.9);
 }
 
+/* A nearby control set shares one material sample, matching Apple's
+   GlassEffectContainer model. Children retain shadcn's semantic variants and
+   focus rings; they don't each allocate another blur or outer shadow. */
+html[data-box-style="glass"] body [data-liquid-glass-group] {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  overflow: visible;
+}
+
+html[data-box-style="glass"] body .liquid-control-group {
+  gap: 2px;
+  padding: 2px;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in oklch, var(--liquid-ambient-local, var(--glass-ambient)) 8%, transparent),
+      transparent
+    ),
+    color-mix(in oklch, var(--glass-surface-strong) 62%, transparent);
+  box-shadow: none;
+}
+
+html[data-box-style="glass"] body .liquid-control-group > [data-slot="button"] {
+  border-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  transform: none;
+}
+
+html[data-box-style="glass"]
+  body
+  .liquid-control-group
+  > [data-slot="button"][aria-pressed="false"] {
+  background-color: transparent;
+}
+
+html[data-box-style="glass"]
+  body
+  .liquid-control-group
+  > [data-slot="button"][aria-pressed="true"] {
+  border-color: color-mix(in oklch, var(--primary) 24%, transparent);
+  box-shadow: 0 1px 3px color-mix(in oklch, var(--glass-shadow) 52%, transparent);
+}
+
 /* Dense reading surfaces stay in the content layer. They can admit a small
    amount of environmental color but remain substantially opaque and never
    use backdrop-filter. */
@@ -964,7 +1010,9 @@ html[data-box-style="glass"]
   body
   #root
   :where(
-    [data-slot="card"]:not([data-slot="card"] [data-slot="card"]),
+    [data-slot="card"]:not([data-liquid-glass-interactive]):not(
+      [data-slot="card"] [data-slot="card"]
+    ),
     [data-slot="alert"]:not([data-slot="card"] [data-slot="alert"])
   ) {
   position: relative;
@@ -1007,7 +1055,9 @@ html[data-box-style="glass"]
   :is(
     #root .app-topbar,
     #root .app-sidebar [data-slot="sidebar-inner"],
+    [data-liquid-glass-group],
     [data-liquid-glass-interactive],
+    [data-slot="tabs-list"]:not([data-variant="line"]),
     [data-slot="dialog-content"]:not(.image-viewer-dialog),
     [data-slot="alert-dialog-content"],
     [data-slot="popover-content"],
@@ -1114,13 +1164,7 @@ html[data-box-style="glass"]
   transform: scale(0.975);
 }
 
-html[data-box-style="glass"]
-  #root
-  :is(
-    [data-slot="input"],
-    [data-slot="select-trigger"],
-    [data-slot="tabs-list"]:not([data-variant="line"])
-  ) {
+html[data-box-style="glass"] #root :is([data-slot="input"], [data-slot="select-trigger"]) {
   border-color: color-mix(in oklch, var(--glass-content-border) 82%, transparent);
   background-color: color-mix(in oklch, var(--glass-content-surface) 76%, transparent);
   background-image: linear-gradient(
@@ -1306,7 +1350,9 @@ html[data-box-style="glass"] .image-viewer-toolbar {
     :is(
       #root .app-topbar,
       #root .app-sidebar [data-slot="sidebar-inner"],
+      [data-liquid-glass-group],
       [data-liquid-glass-interactive],
+      [data-slot="tabs-list"]:not([data-variant="line"]),
       [data-slot="card"],
       [data-slot="dialog-content"],
       [data-slot="alert-dialog-content"],
@@ -1330,7 +1376,9 @@ html[data-box-style="glass"] .image-viewer-toolbar {
     :is(
       #root .app-topbar,
       #root .app-sidebar [data-slot="sidebar-inner"],
+      [data-liquid-glass-group],
       [data-liquid-glass-interactive],
+      [data-slot="tabs-list"]:not([data-variant="line"]),
       [data-slot="card"],
       [data-slot="dialog-content"],
       [data-slot="alert-dialog-content"],
@@ -1356,7 +1404,9 @@ html[data-box-style="glass"] .image-viewer-toolbar {
     :is(
       #root .app-topbar,
       #root .app-sidebar [data-slot="sidebar-inner"],
+      [data-liquid-glass-group],
       [data-liquid-glass-interactive],
+      [data-slot="tabs-list"]:not([data-variant="line"]),
       [data-slot="card"],
       [data-slot="dialog-content"],
       [data-slot="alert-dialog-content"],
@@ -1387,7 +1437,9 @@ html[data-box-style="glass"] .image-viewer-toolbar {
     :is(
       #root .app-topbar,
       #root .app-sidebar [data-slot="sidebar-inner"],
+      [data-liquid-glass-group],
       [data-liquid-glass-interactive],
+      [data-slot="tabs-list"]:not([data-variant="line"]),
       [data-slot="card"],
       [data-slot="dialog-content"],
       [data-slot="alert-dialog-content"],

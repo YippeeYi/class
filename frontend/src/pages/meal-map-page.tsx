@@ -5,6 +5,7 @@ import { ImageViewer } from '@/components/archive/image-viewer'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
@@ -44,79 +45,84 @@ export function MealMapPage() {
           </Badge>
         }
       />
-      <figure className="relative grid min-h-0 flex-1 place-items-center overflow-hidden rounded-xl border border-border/75 bg-card/88 shadow-sm">
-        {src && !imageFailure.failed ? (
-          <ImageViewer
-            path={MAP_PATH}
-            initialUrl={src}
-            alt="地图"
-            trigger={
-              <Button
-                type="button"
-                variant="ghost"
-                className="group relative size-full min-h-0 overflow-hidden rounded-none p-0"
-                aria-label="查看地图大图"
-              >
-                <img
-                  key={src}
-                  src={src}
-                  width={dimensions.width}
-                  height={dimensions.height}
-                  alt="地图"
-                  decoding="async"
-                  fetchPriority="high"
-                  onLoad={(event) => {
-                    imageFailure.markLoaded()
-                    rememberImageDimensions(MAP_PATH, {
-                      width: event.currentTarget.naturalWidth,
-                      height: event.currentTarget.naturalHeight,
-                    })
-                  }}
-                  onError={imageFailure.markFailed}
-                  className="absolute inset-0 size-full object-contain p-2 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300 sm:p-3"
-                />
-                <span
-                  data-liquid-glass-interactive
-                  data-glass-variant="clear"
-                  className="absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/90 px-3 py-2 text-xs font-medium text-foreground opacity-0 shadow-sm backdrop-blur transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100"
-                >
-                  <Expand className="size-3.5" />
-                  查看大图
-                </span>
-              </Button>
-            }
-          />
-        ) : (
-          <div className="absolute inset-0 grid place-items-center bg-muted/35">
-            {(loading || imageFailure.retrying) && !failed && (
-              <div className="flex items-center gap-3 text-sm text-muted-foreground" role="status">
-                <Spinner className="size-6" />
-                正在获取地图的短时访问地址…
-              </div>
-            )}
-            {failed && (
-              <div className="grid max-w-sm gap-3 px-6 text-center">
-                <p className="text-sm leading-6 text-muted-foreground">
-                  地图加载失败。访问地址可能已过期，请检查网络后重试。
-                </p>
+      <Card className="min-h-0 flex-1 gap-0 py-0">
+        <figure className="relative grid min-h-0 flex-1 place-items-center overflow-hidden">
+          {src && !imageFailure.failed ? (
+            <ImageViewer
+              path={MAP_PATH}
+              initialUrl={src}
+              alt="地图"
+              trigger={
                 <Button
-                  variant="outline"
-                  className="mx-auto"
-                  onClick={() => {
-                    resource.retry()
-                    void imageFailure.retryManually()
-                  }}
+                  type="button"
+                  variant="ghost"
+                  className="group relative size-full min-h-0 overflow-hidden rounded-none p-0"
+                  aria-label="查看地图大图"
                 >
-                  重试
+                  <img
+                    key={src}
+                    src={src}
+                    width={dimensions.width}
+                    height={dimensions.height}
+                    alt="地图"
+                    decoding="async"
+                    fetchPriority="high"
+                    onLoad={(event) => {
+                      imageFailure.markLoaded()
+                      rememberImageDimensions(MAP_PATH, {
+                        width: event.currentTarget.naturalWidth,
+                        height: event.currentTarget.naturalHeight,
+                      })
+                    }}
+                    onError={imageFailure.markFailed}
+                    className="absolute inset-0 size-full object-contain p-2 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300 sm:p-3"
+                  />
+                  <span
+                    data-liquid-glass-interactive
+                    data-glass-variant="clear"
+                    className="absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/90 px-3 py-2 text-xs font-medium text-foreground opacity-0 shadow-sm backdrop-blur transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100"
+                  >
+                    <Expand className="size-3.5" />
+                    查看大图
+                  </span>
                 </Button>
-              </div>
-            )}
-          </div>
-        )}
-        <figcaption className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-background/82 px-2.5 py-1.5 text-xs text-muted-foreground backdrop-blur">
-          滚轮缩放 · 拖动浏览 · 工具栏复位
-        </figcaption>
-      </figure>
+              }
+            />
+          ) : (
+            <div className="absolute inset-0 grid place-items-center bg-muted/35">
+              {(loading || imageFailure.retrying) && !failed && (
+                <div
+                  className="flex items-center gap-3 text-sm text-muted-foreground"
+                  role="status"
+                >
+                  <Spinner className="size-6" />
+                  正在获取地图的短时访问地址…
+                </div>
+              )}
+              {failed && (
+                <div className="grid max-w-sm gap-3 px-6 text-center">
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    地图加载失败。访问地址可能已过期，请检查网络后重试。
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="mx-auto"
+                    onClick={() => {
+                      resource.retry()
+                      void imageFailure.retryManually()
+                    }}
+                  >
+                    重试
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+          <figcaption className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-background/82 px-2.5 py-1.5 text-xs text-muted-foreground backdrop-blur">
+            滚轮缩放 · 拖动浏览 · 工具栏复位
+          </figcaption>
+        </figure>
+      </Card>
     </div>
   )
 }

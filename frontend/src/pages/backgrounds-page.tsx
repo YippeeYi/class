@@ -213,10 +213,7 @@ export function BackgroundsPage() {
         description="配色、背景与方框彼此独立，共同组成全站视觉风格；所有选择都会保存在当前浏览器中。"
       />
       <Tabs value={section} onValueChange={setSection} className="gap-4">
-        <TabsList
-          data-liquid-glass-interactive
-          className="appearance-section-tabs grid w-full grid-cols-3 gap-1 rounded-xl bg-card/72 p-1.5 shadow-sm backdrop-blur-md group-data-horizontal/tabs:h-auto"
-        >
+        <TabsList className="appearance-section-tabs grid w-full grid-cols-3 gap-1 p-1.5 group-data-horizontal/tabs:h-auto">
           {(
             [
               ['palette', '配色', Palette, '界面色彩'],

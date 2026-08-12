@@ -15,6 +15,7 @@ import { PageHeading } from '@/components/archive/page-heading'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { ButtonGroup } from '@/components/ui/button-group'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -438,63 +439,66 @@ export function QuizPage() {
               <AlertDescription>{secretError}</AlertDescription>
             </Alert>
           )}
-          <Card
-            aria-label="答题筛选"
-            className="quiz-filter-bar mb-4 flex-row shrink-0 flex-wrap items-center gap-x-5 gap-y-3 overflow-visible px-3 py-3 shadow-sm sm:px-4"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="mr-1 text-sm font-medium text-muted-foreground">题型</span>
-              {(['choice', 'fill', 'judge'] as const).map((type) => (
+          <Card aria-label="答题筛选" className="quiz-filter-bar mb-4 shrink-0 gap-0 py-0">
+            <CardContent className="flex flex-wrap items-center gap-x-5 gap-y-3 px-3 py-3 sm:px-4">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="text-sm font-medium text-muted-foreground">题型</span>
+                <ButtonGroup data-liquid-glass-group className="liquid-control-group">
+                  {(['choice', 'fill', 'judge'] as const).map((type) => (
+                    <Button
+                      key={type}
+                      size="sm"
+                      variant={enabledTypes.has(type) ? 'default' : 'outline'}
+                      aria-pressed={enabledTypes.has(type)}
+                      disabled={typeCannotBeRemoved(type)}
+                      onClick={() => toggleType(type)}
+                    >
+                      {enabledTypes.has(type) && <Check data-icon="inline-start" />}
+                      {TYPE_LABELS[type]}
+                    </Button>
+                  ))}
+                </ButtonGroup>
+              </div>
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                <span className="text-sm font-medium text-muted-foreground">内容</span>
+                <ButtonGroup data-liquid-glass-group className="liquid-control-group">
+                  {(
+                    [
+                      'author',
+                      'date',
+                      'person',
+                      'quote',
+                      ...(secret.length ? ['secret' as const] : []),
+                    ] as const
+                  ).map((content) => (
+                    <Button
+                      key={content}
+                      size="sm"
+                      variant={enabledContent.has(content) ? 'default' : 'outline'}
+                      aria-pressed={enabledContent.has(content)}
+                      disabled={contentCannotBeRemoved(content)}
+                      onClick={() => toggleContent(content)}
+                    >
+                      {enabledContent.has(content) && <Check data-icon="inline-start" />}
+                      {CONTENT_LABELS[content]}
+                    </Button>
+                  ))}
+                </ButtonGroup>
                 <Button
-                  key={type}
+                  className="ml-auto"
                   size="sm"
-                  variant={enabledTypes.has(type) ? 'default' : 'outline'}
-                  aria-pressed={enabledTypes.has(type)}
-                  disabled={typeCannotBeRemoved(type)}
-                  onClick={() => toggleType(type)}
+                  variant="ghost"
+                  disabled={allAvailableSelected}
+                  onClick={selectAllAvailable}
                 >
-                  {enabledTypes.has(type) && <Check data-icon="inline-start" />}
-                  {TYPE_LABELS[type]}
+                  <RotateCcw data-icon="inline-start" />
+                  全选可用
                 </Button>
-              ))}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="mr-1 text-sm font-medium text-muted-foreground">内容</span>
-              {(
-                [
-                  'author',
-                  'date',
-                  'person',
-                  'quote',
-                  ...(secret.length ? ['secret' as const] : []),
-                ] as const
-              ).map((content) => (
-                <Button
-                  key={content}
-                  size="sm"
-                  variant={enabledContent.has(content) ? 'default' : 'outline'}
-                  aria-pressed={enabledContent.has(content)}
-                  disabled={contentCannotBeRemoved(content)}
-                  onClick={() => toggleContent(content)}
-                >
-                  {enabledContent.has(content) && <Check data-icon="inline-start" />}
-                  {CONTENT_LABELS[content]}
-                </Button>
-              ))}
-              <Button
-                className="ml-auto"
-                size="sm"
-                variant="ghost"
-                disabled={allAvailableSelected}
-                onClick={selectAllAvailable}
-              >
-                <RotateCcw data-icon="inline-start" />
-                全选可用
-              </Button>
-            </div>
+              </div>
+            </CardContent>
           </Card>
           <Card
-            className="quiz-question-card min-h-0 flex-1 gap-0 overflow-hidden py-0 shadow-sm"
+            className="quiz-question-card min-h-0 flex-1 gap-0 overflow-hidden py-0"
             data-question-type={current?.type || 'choice'}
           >
             <CardHeader className="quiz-question-header shrink-0 rounded-none border-b px-4 py-3.5 sm:px-5">

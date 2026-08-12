@@ -223,6 +223,7 @@ export function ImageViewer({
           </DialogDescription>
         </DialogHeader>
         <div
+          data-liquid-glass-group
           data-liquid-glass-interactive
           className="image-viewer-toolbar flex min-w-0 items-center gap-2 rounded-xl px-2.5 py-2"
         >

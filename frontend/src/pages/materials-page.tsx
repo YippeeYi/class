@@ -7,6 +7,7 @@ import { MarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { loadMaterials } from '@/services/data'
@@ -53,8 +54,9 @@ export function MaterialsPage() {
         </Alert>
       )}
       {resource.data && resource.data.length > 0 && (
-        <section
-          className="grid min-h-0 flex-1 grid-rows-[minmax(8rem,.3fr)_minmax(0,1fr)] overflow-hidden rounded-xl border border-border/75 bg-card/88 shadow-sm md:grid-cols-[minmax(14rem,22%)_minmax(0,1fr)] md:grid-rows-1"
+        <Card
+          role="region"
+          className="grid min-h-0 flex-1 grid-rows-[minmax(8rem,.3fr)_minmax(0,1fr)] gap-0 py-0 md:grid-cols-[minmax(14rem,22%)_minmax(0,1fr)] md:grid-rows-1"
           aria-label="资料阅读区"
         >
           <aside className="flex min-h-0 flex-col overflow-hidden border-b border-border/70 md:border-b-0 md:border-r">
@@ -81,7 +83,7 @@ export function MaterialsPage() {
           </aside>
           <article className="flex min-h-0 min-w-0 flex-col overflow-hidden">
             <header className="shrink-0 border-b border-border/70 px-5 py-3 sm:px-7">
-              <h2 className="font-heading text-section-title font-semibold tracking-[-0.02em]">
+              <h2 className="font-heading text-section-title font-semibold tracking-tight">
                 {active?.title || '请选择资料'}
               </h2>
             </header>
@@ -98,7 +100,7 @@ export function MaterialsPage() {
               </div>
             </ScrollArea>
           </article>
-        </section>
+        </Card>
       )}
     </div>
   )
