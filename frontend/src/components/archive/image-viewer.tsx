@@ -1,9 +1,10 @@
-import { Maximize2, Minus, Plus, RotateCcw } from 'lucide-react'
+import { Maximize2, Minus, Plus, RotateCcw, X } from 'lucide-react'
 import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -32,7 +33,7 @@ export function ImageViewer({
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [natural, setNatural] = useState({ width: 0, height: 0 })
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 })
-  const viewport = useRef<HTMLDivElement>(null)
+  const viewport = useRef<HTMLElement>(null)
   const drag = useRef<{ id: number; x: number; y: number; panX: number; panY: number } | null>(null)
   const src = asset.src || initialUrl
 
@@ -92,14 +93,20 @@ export function ImageViewer({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={trigger} />
-      <DialogContent className="image-viewer-dialog flex max-w-none flex-col gap-3 sm:max-w-none">
+      <DialogContent
+        showCloseButton={false}
+        className="image-viewer-dialog flex max-w-none flex-col gap-3 sm:max-w-none"
+      >
         <DialogHeader className="sr-only">
           <DialogTitle>{alt}</DialogTitle>
           <DialogDescription>
             滚轮缩放，按住图片拖动浏览；使用工具栏可缩放或复位。
           </DialogDescription>
         </DialogHeader>
-        <div className="flex min-w-0 items-center gap-2 pr-9">
+        <div
+          data-liquid-glass-interactive
+          className="image-viewer-toolbar flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5"
+        >
           <Maximize2 className="size-4 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate text-sm font-medium">{alt}</span>
           <div className="flex shrink-0 items-center gap-1">
@@ -127,6 +134,13 @@ export function ImageViewer({
             <Button size="icon-sm" variant="outline" aria-label="复位" title="复位" onClick={reset}>
               <RotateCcw />
             </Button>
+            <DialogClose
+              render={
+                <Button size="icon-sm" variant="ghost" aria-label="关闭大图" title="关闭大图" />
+              }
+            >
+              <X />
+            </DialogClose>
           </div>
         </div>
         <section

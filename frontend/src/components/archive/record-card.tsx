@@ -66,7 +66,7 @@ export const RecordCard = memo(function RecordCard({
       <Card
         id={anchor}
         tabIndex={-1}
-        className="group/record scroll-mt-24 gap-0 py-0 transition-[background-color,border-color,box-shadow] duration-500"
+        className="record-surface group/record scroll-mt-24 gap-0 py-0 duration-500"
       >
         <CardHeader className="border-b border-border/60 pt-3 !pb-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-meta leading-5 text-muted-foreground">

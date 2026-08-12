@@ -477,7 +477,9 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       return
     let activeTarget: HTMLElement | null = null
     let animationFrame = 0
-    let point: { target: HTMLElement; x: number; y: number } | null = null
+    let lastPointer: { x: number; y: number } | null = null
+    let desiredPoint: { target: HTMLElement; x: number; y: number } | null = null
+    let renderedPoint: { target: HTMLElement; x: number; y: number } | null = null
     const touchedTargets = new Set<HTMLElement>()
     const clearTarget = (removeCoordinates = false) => {
       if (!activeTarget) return
@@ -488,50 +490,90 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       }
       activeTarget = null
     }
+    const targetAtPoint = (x: number, y: number) =>
+      liquidGlassTarget(document.elementFromPoint(x, y))
+    const setDesiredPoint = (x: number, y: number) => {
+      const target = targetAtPoint(x, y)
+      if (!target) {
+        desiredPoint = null
+        renderedPoint = null
+        clearTarget()
+        return
+      }
+      desiredPoint = { target, x, y }
+      if (!animationFrame) animationFrame = window.requestAnimationFrame(renderPoint)
+    }
     const renderPoint = () => {
       animationFrame = 0
-      if (!point) return
-      const { target, x, y } = point
+      if (!desiredPoint) return
+      const { target, x, y } = desiredPoint
+      const bounds = target.getBoundingClientRect()
+      if (!target.isConnected || !bounds.width || !bounds.height) {
+        desiredPoint = null
+        renderedPoint = null
+        clearTarget()
+        return
+      }
       if (activeTarget !== target) {
         clearTarget()
         activeTarget = target
         touchedTargets.add(target)
-        activeTarget.dataset.liquidActive = 'true'
+        // Seed the new surface at the real local pointer before making its
+        // response visible. This prevents the default 50%/50% light from
+        // flashing at a corner while crossing adjacent glass surfaces.
+        renderedPoint = { target, x, y }
       }
-      const bounds = target.getBoundingClientRect()
-      if (!target.isConnected || !bounds.width || !bounds.height) {
-        clearTarget()
-        return
+      if (!renderedPoint || renderedPoint.target !== target) {
+        renderedPoint = { target, x, y }
+      } else {
+        const easing = 0.24
+        renderedPoint.x += (x - renderedPoint.x) * easing
+        renderedPoint.y += (y - renderedPoint.y) * easing
       }
-      const relativeX = Math.min(100, Math.max(0, ((x - bounds.left) / bounds.width) * 100))
-      const relativeY = Math.min(100, Math.max(0, ((y - bounds.top) / bounds.height) * 100))
+      const relativeX = Math.min(
+        100,
+        Math.max(0, ((renderedPoint.x - bounds.left) / bounds.width) * 100),
+      )
+      const relativeY = Math.min(
+        100,
+        Math.max(0, ((renderedPoint.y - bounds.top) / bounds.height) * 100),
+      )
       target.style.setProperty('--liquid-pointer-x', `${relativeX}%`)
       target.style.setProperty('--liquid-pointer-y', `${relativeY}%`)
+      target.dataset.liquidActive = 'true'
+      if (Math.abs(x - renderedPoint.x) > 0.35 || Math.abs(y - renderedPoint.y) > 0.35)
+        animationFrame = window.requestAnimationFrame(renderPoint)
     }
     const move = (event: PointerEvent) => {
-      const target = liquidGlassTarget(event.target)
-      if (!target) {
-        point = null
-        clearTarget()
-        return
-      }
-      point = { target, x: event.clientX, y: event.clientY }
-      if (!animationFrame) animationFrame = window.requestAnimationFrame(renderPoint)
+      lastPointer = { x: event.clientX, y: event.clientY }
+      setDesiredPoint(event.clientX, event.clientY)
+    }
+    const refreshGeometry = () => {
+      if (!lastPointer) return
+      setDesiredPoint(lastPointer.x, lastPointer.y)
     }
     const leaveWindow = (event: PointerEvent) => {
       if (event.relatedTarget !== null) return
-      point = null
+      lastPointer = null
+      desiredPoint = null
+      renderedPoint = null
       clearTarget()
     }
     const blur = () => {
-      point = null
+      lastPointer = null
+      desiredPoint = null
+      renderedPoint = null
       clearTarget()
     }
     document.addEventListener('pointermove', move, { passive: true })
+    document.addEventListener('scroll', refreshGeometry, { capture: true, passive: true })
+    window.addEventListener('resize', refreshGeometry, { passive: true })
     window.addEventListener('pointerout', leaveWindow, { passive: true })
     window.addEventListener('blur', blur)
     return () => {
       document.removeEventListener('pointermove', move)
+      document.removeEventListener('scroll', refreshGeometry, true)
+      window.removeEventListener('resize', refreshGeometry)
       window.removeEventListener('pointerout', leaveWindow)
       window.removeEventListener('blur', blur)
       if (animationFrame) window.cancelAnimationFrame(animationFrame)

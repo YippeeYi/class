@@ -642,17 +642,7 @@ export function RecordsPage() {
     const scrollCompletion = new AbortController()
     const destination = scrollTargetIntoView(target, 'smooth')
     replaceRecordJumpHash(pending.targetAnchorId)
-    target.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-background')
-    const timer = window.setTimeout(
-      () =>
-        target.classList.remove(
-          'ring-2',
-          'ring-primary',
-          'ring-offset-2',
-          'ring-offset-background',
-        ),
-      3200,
-    )
+    let highlightTimer: number | undefined
     if (pending.originHref) {
       setJumpOriginHref(pending.originHref)
     }
@@ -660,6 +650,12 @@ export function RecordsPage() {
     void waitForWindowScrollEnd(destination, scrollCompletion.signal).then((reachedDestination) => {
       if (!scrollCompletion.signal.aborted) {
         completeRecordJump()
+        if (reachedDestination) {
+          target.dataset.recordJumpHighlight = 'true'
+          highlightTimer = window.setTimeout(() => {
+            delete target.dataset.recordJumpHighlight
+          }, 3200)
+        }
         // Modal scroll locking and focus containment must start only after the
         // browser's one smooth movement has settled; otherwise they can cancel
         // the animation and create the apparent overshoot/rebound sequence.
@@ -668,7 +664,8 @@ export function RecordsPage() {
     })
     return () => {
       scrollCompletion.abort()
-      window.clearTimeout(timer)
+      if (highlightTimer !== undefined) window.clearTimeout(highlightTimer)
+      delete target.dataset.recordJumpHighlight
     }
   }, [
     extras,

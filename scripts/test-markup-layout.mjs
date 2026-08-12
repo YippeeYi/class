@@ -379,7 +379,7 @@ async function assertFullscreenImageViewer(page, label) {
   )
   assert.ok(geometry.toolbarOverflow <= 1, `${label} image toolbar must not overflow: ${JSON.stringify(geometry)}`)
   assert.ok(Math.abs(geometry.scrollY - scrollBeforeOpen) <= 1, `${label} opening the viewer must not move the page`)
-  await page.getByRole('button', { name: 'Close' }).click()
+  await page.getByRole('button', { name: '关闭大图' }).click()
   await dialog.waitFor({ state: 'hidden' })
   assert.ok(
     Math.abs((await page.evaluate(() => window.scrollY)) - scrollBeforeOpen) <= 1,
@@ -450,6 +450,34 @@ try {
     (await recordsFixture.getByText(/第 2 页/).first().textContent()) || '',
     /第 2 页/,
     'a source jump must switch to the written page that actually contains the record',
+  )
+  const initialJumpHighlight = await recordsFixture.locator('#record-r3').evaluate((target) => {
+    const style = getComputedStyle(target)
+    return {
+      active: target.getAttribute('data-record-jump-highlight'),
+      outlineStyle: style.outlineStyle,
+      outlineWidth: style.outlineWidth,
+      outlineColor: style.outlineColor,
+    }
+  })
+  assert.equal(
+    initialJumpHighlight.active,
+    'true',
+    'the located record must expose one semantic highlight state after scrolling settles',
+  )
+  assert.equal(
+    initialJumpHighlight.outlineStyle,
+    'solid',
+    'the located record highlight must not depend on a box-shadow ring',
+  )
+  assert.ok(
+    Number.parseFloat(initialJumpHighlight.outlineWidth) >= 2,
+    `the located record highlight must be clearly visible: ${JSON.stringify(initialJumpHighlight)}`,
+  )
+  assert.doesNotMatch(
+    initialJumpHighlight.outlineColor,
+    /(?:\/ 0\)|, 0\))$/,
+    `the located record highlight must retain theme color: ${JSON.stringify(initialJumpHighlight)}`,
   )
   const recordScrollTrajectory = await page.evaluate(() => {
     window.removeEventListener('scroll', window.__recordScrollListener)
@@ -1093,7 +1121,78 @@ try {
   const glassCardBackdrop = await page
     .locator('[data-case="app-surface"] [data-slot="card"]')
     .evaluate((card) => getComputedStyle(card).backdropFilter)
-  assert.notEqual(glassCardBackdrop, 'none', 'liquid-glass must apply globally to semantic card containers')
+  assert.equal(
+    glassCardBackdrop,
+    'none',
+    'dense content cards must use the quieter material without repeating an expensive backdrop pass',
+  )
+  await page.getByRole('tab', { name: /^配色/ }).click()
+  for (const themeId of [
+    'paper',
+    'mist',
+    'apricot',
+    'sage',
+    'rose',
+    'ink',
+    'midnight',
+    'pine',
+    'aurora',
+  ]) {
+    await page.locator(`[data-theme-preset-option="${themeId}"]`).click()
+    await page.waitForFunction(
+      (id) => document.documentElement.dataset.themePreset === id,
+      themeId,
+    )
+    const recordMaterial = await recordsFixture.locator('#record-r3').evaluate((target) => {
+      target.removeAttribute('data-record-jump-highlight')
+      const normal = getComputedStyle(target)
+      const normalState = {
+        style: normal.outlineStyle,
+        width: normal.outlineWidth,
+        color: normal.outlineColor,
+      }
+      target.setAttribute('data-record-jump-highlight', 'true')
+      const highlighted = getComputedStyle(target)
+      const highlightedState = {
+        style: highlighted.outlineStyle,
+        width: highlighted.outlineWidth,
+        color: highlighted.outlineColor,
+      }
+      target.removeAttribute('data-record-jump-highlight')
+      return { normalState, highlightedState }
+    })
+    assert.equal(
+      recordMaterial.normalState.style,
+      'solid',
+      `${themeId} written records must retain a material boundary`,
+    )
+    assert.ok(
+      Number.parseFloat(recordMaterial.normalState.width) >= 1,
+      `${themeId} written record boundary must remain visible: ${JSON.stringify(recordMaterial)}`,
+    )
+    assert.doesNotMatch(
+      recordMaterial.normalState.color,
+      /(?:\/ 0\)|, 0\))$/,
+      `${themeId} written record boundary must not become transparent`,
+    )
+    assert.equal(
+      recordMaterial.highlightedState.style,
+      'solid',
+      `${themeId} jump state must retain a semantic outline`,
+    )
+    assert.ok(
+      Number.parseFloat(recordMaterial.highlightedState.width) >= 2,
+      `${themeId} jump highlight must override the quiet material boundary`,
+    )
+    assert.notEqual(
+      recordMaterial.highlightedState.color,
+      recordMaterial.normalState.color,
+      `${themeId} jump highlight must remain distinguishable from the normal boundary`,
+    )
+  }
+  await page.locator('[data-theme-preset-option="auto"]').click()
+  await page.waitForFunction(() => document.documentElement.dataset.themePreset === 'auto')
+  await page.getByRole('tab', { name: /^方框/ }).click()
   const liquidTopbar = page.locator('[data-case="app-surface"] .app-topbar')
   await liquidTopbar.scrollIntoViewIfNeeded()
   const liquidSidebar = page.locator('[data-case="app-surface"] [data-slot="sidebar-inner"]')
@@ -1196,16 +1295,8 @@ try {
       card.overflowX <= 1 && card.overflowY <= 1,
       `liquid glass must not clip or enlarge ${card.type} quiz content: ${JSON.stringify(card)}`,
     )
-    assert.notEqual(
-      card.backdrop,
-      'none',
-      `liquid glass must retain the top-level material on ${card.type} quiz cards`,
-    )
-    assert.match(
-      card.contain,
-      /paint/,
-      `${card.type} quiz cards need a stable local paint boundary under liquid glass`,
-    )
+    assert.equal(card.backdrop, 'none', `liquid glass quiz cards must avoid duplicated backdrop edge sampling on ${card.type}`)
+    assert.doesNotMatch(card.contain, /paint/, `${card.type} quiz cards must not create a second clipped paint surface at their corners`)
     assert.equal(card.overflow, 'hidden', `${card.type} quiz material layers must be clipped by one outer radius`)
     assert.ok(Number.parseFloat(card.cardRadius) > 0, `${card.type} quiz card must retain its outer radius`)
     assert.equal(card.edgeContent, 'none', `${card.type} quiz card must not add a second masked rim that can fracture at corners`)
