@@ -1,11 +1,13 @@
 import { BookOpenText, CalendarDays, Clock, Paperclip, UserRound } from 'lucide-react'
 import { memo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { Button, textLinkClassName } from '@/components/archive/interaction'
+import { textLinkClassName } from '@/components/archive/interaction'
 import { MarkupContent } from '@/components/archive/markup-content'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { recordAnchor } from '@/lib/markup'
 import { recordDisplayNumber, recordWrittenHref } from '@/lib/record-identity'
@@ -31,9 +33,15 @@ function AttachmentLink({ attachment }: { attachment: Attachment }) {
   }
   return (
     <span className="inline-grid gap-1">
-      <Button variant="outline" size="sm" loading={loading} loadingLabel="正在打开…" onClick={open}>
-        <Paperclip data-icon="inline-start" />
-        {attachment.name || attachment.file}
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={loading}
+        aria-busy={loading || undefined}
+        onClick={open}
+      >
+        {loading ? <Spinner /> : <Paperclip data-icon="inline-start" />}
+        {loading ? '正在打开…' : attachment.name || attachment.file}
       </Button>
       {error && (
         <span className="text-sm text-destructive" role="status">

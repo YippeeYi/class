@@ -10,11 +10,11 @@ import {
 } from 'react'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
-import { Button } from '@/components/archive/interaction'
 import { QuizMarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Field, FieldLabel } from '@/components/ui/field'
@@ -159,14 +159,21 @@ function SecretImage({ path }: { path: string }) {
           <Button
             size="sm"
             variant="outline"
-            loading={resource.loading}
-            loadingLabel="正在重试…"
+            disabled={resource.loading}
+            aria-busy={resource.loading || undefined}
             onClick={() => {
               setDecodeFailed(false)
               void resource.retry()
             }}
           >
-            重试
+            {resource.loading ? (
+              <>
+                <Spinner />
+                正在重试…
+              </>
+            ) : (
+              '重试'
+            )}
           </Button>
         </div>
       )}
@@ -189,7 +196,7 @@ function SecretImage({ path }: { path: string }) {
             setReady(false)
             setDecodeFailed(true)
           }}
-          className={`absolute inset-0 size-full object-contain transition-opacity duration-200 ${ready ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute inset-0 size-full object-contain transition-opacity duration-(--interaction-duration-slow) ${ready ? 'opacity-100' : 'opacity-0'}`}
         />
       )}
     </div>
@@ -448,7 +455,7 @@ export function QuizPage() {
             <CardContent className="flex flex-wrap items-center gap-x-5 gap-y-3 px-3 py-3 sm:px-4">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="text-sm font-medium text-muted-foreground">题型</span>
-                <ButtonGroup data-liquid-glass-group className="liquid-control-group">
+                <ButtonGroup>
                   {(['choice', 'fill', 'judge'] as const).map((type) => (
                     <Button
                       key={type}
@@ -466,7 +473,7 @@ export function QuizPage() {
               </div>
               <div className="flex min-w-0 basis-full flex-wrap items-center gap-2 xl:basis-auto">
                 <span className="text-sm font-medium text-muted-foreground">内容</span>
-                <ButtonGroup data-liquid-glass-group className="liquid-control-group">
+                <ButtonGroup>
                   {(
                     [
                       'author',
@@ -541,7 +548,7 @@ export function QuizPage() {
                   <div
                     ref={questionAnchorRef}
                     key={current.id}
-                    className="min-h-full px-4 py-5 pr-7 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-6 sm:py-6 sm:pr-9"
+                    className="min-h-full px-4 py-5 pr-7 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow) sm:px-6 sm:py-6 sm:pr-9"
                   >
                     <h2 className="quiz-question-prompt font-heading text-section-title font-semibold text-foreground">
                       {current.prompt}

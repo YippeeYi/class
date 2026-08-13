@@ -3,11 +3,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
-import { Button, interactiveSurfaceVariants } from '@/components/archive/interaction'
+import { interactiveSurfaceVariants } from '@/components/archive/interaction'
 import { MarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
@@ -74,7 +75,7 @@ export function QuotesPage() {
         <EmptyState title="暂无名言" description="记录中还没有可展示的名言标记。" />
       )}
       {resource.data && (
-        <div className="grid items-start gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:grid-cols-2">
+        <div className="grid items-start gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow) sm:grid-cols-2">
           {quotes.map((quote) => {
             const { anchor, source, sources } = quoteRecordTarget(
               quote,

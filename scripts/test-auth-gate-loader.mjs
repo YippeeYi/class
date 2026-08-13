@@ -18,6 +18,8 @@ assert.match(
   /function rememberTarget[\s\S]*try[\s\S]*sessionStorage\.setItem/,
   'redirect state must degrade safely when session storage is unavailable',
 )
-assert.match(authPage, /disabled=\{submitting \|\| auth\.state === 'loading'\}/, 'the invite input must be locked while verification is running')
+assert.match(authPage, /const pending = submitting \|\| auth\.state === 'loading'/, 'invite verification must expose one shared pending state')
+assert.ok((authPage.match(/disabled=\{pending\}/g) || []).length >= 2, 'the invite input and submit button must be locked while verification is running')
+assert.match(authPage, /aria-busy=\{pending \|\| undefined\}/, 'the shadcn submit button must expose its async state')
 assert.doesNotMatch(auth, /\.html/, 'auth target handling must not include legacy HTML compatibility')
 console.log('React access gate checks passed.')

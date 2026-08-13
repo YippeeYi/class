@@ -3,11 +3,11 @@ import { useEffect } from 'react'
 
 import { ImageViewer } from '@/components/archive/image-viewer'
 import {
-  Button,
   interactiveSurfaceVariants,
   mediaAffordanceClassName,
 } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { useAsyncData } from '@/hooks/use-async-data'
@@ -72,11 +72,9 @@ export function MealMapPage() {
                       })
                     }}
                     onError={imageFailure.markFailed}
-                    className="absolute inset-0 size-full object-contain p-2 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:p-3"
+                    className="absolute inset-0 size-full object-contain p-2 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow) sm:p-3"
                   />
                   <span
-                    data-liquid-glass-interactive
-                    data-glass-variant="clear"
                     className={`${mediaAffordanceClassName} absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/90 px-3 py-2 text-xs font-medium text-foreground shadow-sm backdrop-blur`}
                   >
                     <Expand className="size-3.5" />
@@ -104,14 +102,21 @@ export function MealMapPage() {
                   <Button
                     variant="outline"
                     className="mx-auto"
-                    loading={imageFailure.retrying}
-                    loadingLabel="正在重试…"
+                    disabled={imageFailure.retrying}
+                    aria-busy={imageFailure.retrying || undefined}
                     onClick={() => {
                       resource.retry()
                       void imageFailure.retryManually()
                     }}
                   >
-                    重试
+                    {imageFailure.retrying ? (
+                      <>
+                        <Spinner />
+                        正在重试…
+                      </>
+                    ) : (
+                      '重试'
+                    )}
                   </Button>
                 </div>
               )}

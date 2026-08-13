@@ -1,5 +1,4 @@
 // biome-ignore-all lint/a11y/noNoninteractiveTabindex: The image canvas is a gesture surface with documented zoom and pan keyboard controls; toolbar buttons remain the simpler alternative.
-import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { Maximize2, Minus, Plus, RotateCcw, X } from 'lucide-react'
 import {
   type ReactElement,
@@ -11,14 +10,13 @@ import {
   useState,
 } from 'react'
 
-import { Button } from '@/components/archive/interaction'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogClose,
+  DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogOverlay,
-  DialogPortal,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
@@ -63,27 +61,6 @@ function ViewerToolButton({
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
-  )
-}
-
-/**
- * The shared shadcn DialogContent intentionally describes a centred, bounded
- * dialog. A full-screen image canvas has different geometry, so compose the
- * same Dialog portal and overlay with a viewport-native Base UI popup instead
- * of trying to cancel the centred popup's 50% position, translations and zoom
- * animation later in CSS.
- */
-function ViewportDialogContent({ children }: { children: ReactNode }) {
-  return (
-    <DialogPortal>
-      <DialogOverlay className="image-viewer-overlay" />
-      <DialogPrimitive.Popup
-        data-slot="image-viewer-content"
-        className="image-viewer-dialog fixed inset-0 z-50 flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden bg-transparent p-[max(0.75rem,env(safe-area-inset-top))_max(0.75rem,env(safe-area-inset-right))_max(0.75rem,env(safe-area-inset-bottom))_max(0.75rem,env(safe-area-inset-left))] text-sm text-foreground outline-none"
-      >
-        {children}
-      </DialogPrimitive.Popup>
-    </DialogPortal>
   )
 }
 
@@ -216,18 +193,17 @@ export function ImageViewer({
   return (
     <Dialog modal="trap-focus" open={open} onOpenChange={setOpen}>
       <DialogTrigger render={trigger} />
-      <ViewportDialogContent>
+      <DialogContent
+        showCloseButton={false}
+        className="image-viewer-dialog inset-0! top-0! left-0! z-50! flex! h-dvh! min-h-0! w-screen! min-w-0 max-w-none! translate-x-0! translate-y-0! flex-col gap-3 overflow-hidden rounded-none! bg-transparent! p-[max(0.75rem,env(safe-area-inset-top))_max(0.75rem,env(safe-area-inset-right))_max(0.75rem,env(safe-area-inset-bottom))_max(0.75rem,env(safe-area-inset-left))] text-sm text-foreground ring-0! outline-none sm:max-w-none!"
+      >
         <DialogHeader className="sr-only">
           <DialogTitle>{alt}</DialogTitle>
           <DialogDescription>
             滚轮缩放，按住图片拖动浏览；使用工具栏可缩放或复位。
           </DialogDescription>
         </DialogHeader>
-        <div
-          data-liquid-glass-group
-          data-liquid-glass-interactive
-          className="image-viewer-toolbar flex min-w-0 items-center gap-2 rounded-xl px-2.5 py-2"
-        >
+        <div className="image-viewer-toolbar flex min-w-0 items-center gap-2 rounded-xl px-2.5 py-2">
           <Maximize2 className="size-4 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate text-sm font-medium">{alt}</span>
           <div className="flex shrink-0 items-center gap-1">
@@ -412,11 +388,18 @@ export function ImageViewer({
                 <p className="mb-3 text-sm text-muted-foreground">图片加载失败。</p>
                 <Button
                   variant="outline"
-                  loading={imageFailure.retrying}
-                  loadingLabel="正在重试…"
+                  disabled={imageFailure.retrying}
+                  aria-busy={imageFailure.retrying || undefined}
                   onClick={() => void imageFailure.retryManually()}
                 >
-                  重试
+                  {imageFailure.retrying ? (
+                    <>
+                      <Spinner />
+                      正在重试…
+                    </>
+                  ) : (
+                    '重试'
+                  )}
                 </Button>
               </div>
             </div>
@@ -453,17 +436,24 @@ export function ImageViewer({
                 <p className="mb-3 text-sm text-muted-foreground">图片加载失败。</p>
                 <Button
                   variant="outline"
-                  loading={imageFailure.retrying}
-                  loadingLabel="正在重试…"
+                  disabled={imageFailure.retrying}
+                  aria-busy={imageFailure.retrying || undefined}
                   onClick={() => void imageFailure.retryManually()}
                 >
-                  重试
+                  {imageFailure.retrying ? (
+                    <>
+                      <Spinner />
+                      正在重试…
+                    </>
+                  ) : (
+                    '重试'
+                  )}
                 </Button>
               </div>
             </div>
           )}
         </section>
-      </ViewportDialogContent>
+      </DialogContent>
     </Dialog>
   )
 }

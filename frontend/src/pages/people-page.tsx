@@ -3,8 +3,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
-import { Button, textLinkClassName } from '@/components/archive/interaction'
+import { textLinkClassName } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
@@ -115,7 +116,7 @@ function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; 
         </div>
       </CardHeader>
       <CardContent className="overflow-x-auto px-0">
-        <div className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+        <div className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow)">
           <Table className="text-data leading-6">
             <TableHeader>
               <TableRow>

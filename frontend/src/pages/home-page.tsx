@@ -17,9 +17,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import { ErrorState } from '@/components/archive/async-state'
-import { Button, interactiveSurfaceVariants } from '@/components/archive/interaction'
+import { interactiveSurfaceVariants } from '@/components/archive/interaction'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Item,
@@ -177,7 +178,7 @@ export function HomePage() {
               >
                 <span
                   key={tipIndex}
-                  className="inline-block motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+                  className="inline-block motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow)"
                 >
                   {(tips[tipIndex] || '').replace(/^小提示：/, '')}
                 </span>

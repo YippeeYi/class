@@ -1,5 +1,4 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react'
-import { LiquidGlassDefinitions } from '@/components/archive/liquid-glass-definitions'
 
 export const BACKGROUND_KEY = 'classRecord:background'
 export const APPEARANCE_KEY = 'classRecord:appearance:v1'
@@ -36,7 +35,7 @@ function decodeBackground(src: string) {
 }
 
 export type BackgroundId = 'default' | 'mountain' | 'cloud'
-export type BoxStyleId = 'compact' | 'default' | 'glass'
+export type BoxStyleId = 'compact' | 'default' | 'rounded'
 export type ThemePresetId =
   | 'auto'
   | 'paper'
@@ -161,9 +160,9 @@ export const boxStyles: Array<{
     description: '沿用清晰、稳重的 shadcn 比例，适合大多数界面。',
   },
   {
-    id: 'glass',
-    label: '液体玻璃',
-    description: '以大圆角、自适应透光与连续塑形建立柔和、清晰的交互层。',
+    id: 'rounded',
+    label: '圆角方框',
+    description: '采用更舒展的普通圆角，保持清晰边界与稳定的交互反馈。',
   },
 ]
 
@@ -506,7 +505,6 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       data-theme-preset={appearance.theme}
       data-box-style={appearance.box}
     >
-      <LiquidGlassDefinitions />
       {previous && (
         <div
           aria-hidden="true"

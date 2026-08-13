@@ -106,20 +106,6 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --glass-surface: color-mix(in oklch, var(--card) 64%, transparent);
-  --glass-clear-surface: color-mix(in oklch, black 10%, transparent);
-  --glass-content-surface: color-mix(in oklch, var(--card) 92%, transparent);
-  --glass-surface-strong: color-mix(in oklch, var(--popover) 84%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 70%, white 30%);
-  --glass-content-border: color-mix(in oklch, var(--border) 88%, var(--foreground) 12%);
-  --glass-edge-light: color-mix(in oklch, white 34%, transparent);
-  --glass-ambient: color-mix(in oklch, var(--primary) 5%, transparent);
-  --glass-radius-group: calc(var(--radius) * 1.44);
-  --glass-radius-control: max(var(--radius-md), calc(var(--glass-radius-group) - 3px));
-  --glass-radius-control-tight: max(var(--radius-md), calc(var(--glass-radius-group) - 4px));
-  --glass-radius-panel: calc(var(--glass-radius-group) + var(--radius) * 0.48);
-  --glass-blur: 18px;
-  --glass-saturation: 1.12;
   --elevation-subtle: 0 1px 2px oklch(0.22 0.016 55 / 7%);
   --elevation-raised: 0 2px 5px -3px oklch(0.22 0.016 55 / 12%);
   --elevation-overlay: 0 4px 10px -5px oklch(0.18 0.012 55 / 16%);
@@ -128,10 +114,8 @@
   --interaction-duration-release: 210ms;
   --interaction-duration-standard: 160ms;
   --interaction-duration-slow: 200ms;
-  --interaction-duration-liquid: 360ms;
   --interaction-duration-scene: 500ms;
   --interaction-ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --interaction-ease-liquid: cubic-bezier(0.22, 0.72, 0.18, 1);
   --interaction-surface-hover: color-mix(in oklch, var(--accent) 62%, var(--background));
   --interaction-surface-pressed: color-mix(in oklch, var(--accent) 82%, var(--background));
   --interaction-surface-selected: color-mix(in oklch, var(--primary) 11%, var(--background));
@@ -157,7 +141,7 @@ html[data-box-style="default"] {
   --scrollbar-edge-inset: 4px;
 }
 
-html[data-box-style="glass"] {
+html[data-box-style="rounded"] {
   --radius: 1.12rem;
   --scrollbar-edge-inset: 7px;
   --scrollbar-thumb-radius: var(--radius-md);
@@ -340,16 +324,9 @@ body
   cursor: pointer;
 }
 
-body :where(button, [role="button"], [data-slot="toggle"], [data-slot="tabs-trigger"]) {
-  translate: 0 0;
-  scale: 1;
-  transition-property:
-    color, background-color, border-color, border-radius, box-shadow, opacity, translate, scale;
-  transition-duration:
-    var(--interaction-duration-standard), var(--interaction-duration-standard),
-    var(--interaction-duration-standard), var(--interaction-duration-standard),
-    var(--interaction-duration-standard), var(--interaction-duration-standard),
-    var(--interaction-duration-release), var(--interaction-duration-release);
+body :where([data-slot="button"], [data-slot="toggle"], [data-slot="tabs-trigger"]) {
+  transition-property: color, background-color, border-color, border-radius, box-shadow, opacity;
+  transition-duration: var(--interaction-duration-standard);
   transition-timing-function: var(--interaction-ease-standard);
 }
 
@@ -374,65 +351,21 @@ body
   transition-timing-function: var(--interaction-ease-standard);
 }
 
-body .app-button[data-app-size^="icon"] {
-  min-width: 2rem;
-  min-height: 2rem;
-}
-
-body .app-button[aria-busy="true"] {
+body [data-slot="button"][aria-busy="true"] {
   cursor: progress;
-}
-
-body .app-button {
-  --app-button-press-x: 0.985;
-  --app-button-press-y: 0.965;
-  --app-button-press-shift: 1px;
-  position: relative;
-  isolation: isolate;
-  transform-origin: center;
-  -webkit-tap-highlight-color: transparent;
-}
-
-body .app-button[data-app-size^="icon"] {
-  --app-button-press-x: 0.972;
-  --app-button-press-y: 0.952;
-  --app-button-press-shift: 0.5px;
-}
-
-body .app-button[data-app-size="xs"],
-body .app-button[data-app-size="sm"] {
-  --app-button-press-x: 0.98;
-  --app-button-press-y: 0.96;
-  --app-button-press-shift: 0.75px;
-}
-
-body
-  :where(
-    .app-button,
-    [data-slot="button"],
-    [data-slot="alert-dialog-action"],
-    [data-slot="alert-dialog-cancel"],
-    [data-slot="sidebar-menu-button"],
-    [data-slot="sidebar-rail"]
-  ):not(:disabled, [aria-disabled="true"]):active {
-  translate: 0 var(--app-button-press-shift, 1px);
-  scale: var(--app-button-press-x, 0.985) var(--app-button-press-y, 0.965);
-  transition-duration: var(--interaction-duration-press-in);
-  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
-  will-change: scale, translate;
 }
 
 /* Composite shadcn controls can contain their own raw Button (for example a
    dialog close affordance). Give those touch presses a project-level response
    without restyling their variant at rest. */
-body [data-slot="button"]:not(.app-button, :disabled):active,
+body [data-slot="button"]:not(:disabled):active,
 body [data-slot="select-trigger"]:not(:disabled):active {
   background-color: var(--interaction-surface-pressed);
 }
 
 body
   :where(
-    .app-button,
+    [data-slot="button"],
     [data-slot="alert-dialog-action"],
     [data-slot="alert-dialog-cancel"],
     [data-slot="input"],
@@ -459,8 +392,13 @@ body
   box-shadow: 0 0 0 3px color-mix(in oklch, var(--destructive) 24%, transparent);
 }
 
-body :where(.app-button, [data-slot="toggle"], [data-slot="tabs-trigger"]):disabled,
-body :where(.app-button, [data-slot="toggle"], [data-slot="tabs-trigger"])[aria-disabled="true"],
+body :where([data-slot="button"], [data-slot="toggle"], [data-slot="tabs-trigger"]):disabled,
+body
+  :where(
+    [data-slot="button"],
+    [data-slot="toggle"],
+    [data-slot="tabs-trigger"]
+  )[aria-disabled="true"],
 body
   :where(
     [data-slot="input"],
@@ -476,29 +414,6 @@ body [data-slot="switch"][data-disabled] {
 
 @media (hover: hover) and (pointer: fine) {
   body
-    :is(.app-button--default, [data-slot="alert-dialog-action"]:not(.app-button)):not(
-      :disabled
-    ):hover {
-    background-color: color-mix(in oklch, var(--primary) 92%, var(--foreground));
-  }
-  body .app-button--secondary:not(:disabled):hover {
-    background-color: color-mix(in oklch, var(--secondary) 90%, var(--foreground));
-  }
-  body :is(.app-button--outline, [data-slot="alert-dialog-cancel"]):not(:disabled):hover {
-    border-color: var(--interaction-border-hover);
-    background-color: var(--interaction-surface-hover);
-  }
-  body .app-button--ghost:not(:disabled):hover {
-    background-color: color-mix(in oklch, var(--muted) 78%, transparent);
-  }
-  body .app-button--destructive:not(:disabled):hover {
-    background-color: color-mix(in oklch, var(--destructive) 18%, transparent);
-  }
-  body .app-button--link:not(:disabled):hover {
-    color: color-mix(in oklch, var(--primary) 86%, var(--foreground));
-    text-decoration-thickness: 0.09em;
-  }
-  body
     :where([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]):not(
       :disabled,
       :focus-visible,
@@ -508,74 +423,12 @@ body [data-slot="switch"][data-disabled] {
   }
 }
 
-/* Neutralize shadcn utility hover paint on coarse/no-hover pointers after a
-   tap. Pressed and selected semantics remain intact through :active and ARIA. */
 @media (hover: none), (pointer: coarse) {
-  body .app-button--default:not(:active, :disabled) {
-    background-color: var(--primary);
-  }
-
-  body .app-button--secondary:not(:active, :disabled) {
-    background-color: var(--secondary);
-  }
-
-  body .app-button--outline:not(:active, :disabled, [aria-pressed="true"]) {
-    background-color: var(--background);
-  }
-
-  body .app-button--ghost:not(:active, :disabled, [aria-pressed="true"]) {
-    background-color: transparent;
-  }
-
-  body .app-button--destructive:not(:active, :disabled) {
-    background-color: color-mix(in oklch, var(--destructive) 10%, transparent);
-  }
-
-  body .app-button--link:not(:active, :disabled) {
-    text-decoration-line: none;
-  }
-
-  body
-    .app-segmented-control[data-segmented-control="true"]
-    > .app-segmented-trigger[data-slot="tabs-trigger"]:not([data-active], :active) {
-    background: transparent;
-    color: color-mix(in oklch, var(--foreground) 60%, transparent);
-  }
-
   body [data-slot="toggle"]:not([aria-pressed="true"], [data-state="on"], :active) {
     background-color: transparent;
   }
-
-  .dark body .app-button--outline:not(:active, :disabled, [aria-pressed="true"]) {
-    background-color: color-mix(in oklch, var(--input) 30%, transparent);
-  }
-
-  .dark body .app-button--destructive:not(:active, :disabled) {
-    background-color: color-mix(in oklch, var(--destructive) 20%, transparent);
-  }
 }
 
-body
-  :is(.app-button--default, [data-slot="alert-dialog-action"]:not(.app-button)):not(
-    :disabled
-  ):active {
-  background-color: color-mix(in oklch, var(--primary) 86%, var(--foreground));
-}
-body .app-button--secondary:not(:disabled):active {
-  background-color: color-mix(in oklch, var(--secondary) 82%, var(--foreground));
-}
-body :is(.app-button--outline, [data-slot="alert-dialog-cancel"]):not(:disabled):active,
-body .app-button--ghost:not(:disabled):active {
-  background-color: var(--interaction-surface-pressed);
-}
-body .app-button--destructive:not(:disabled):active {
-  background-color: color-mix(in oklch, var(--destructive) 25%, transparent);
-}
-body .app-button--link:not(:disabled):active {
-  color: color-mix(in oklch, var(--primary) 76%, var(--foreground));
-}
-
-body :where(.app-button--outline, .app-button--ghost)[aria-pressed="true"],
 body [data-slot="toggle"][aria-pressed="true"] {
   border-color: var(--interaction-border-selected);
   background-color: var(--interaction-surface-selected);
@@ -591,237 +444,9 @@ body [data-slot="tabs-trigger"]:not(:disabled):active {
   background-color: var(--interaction-surface-pressed);
 }
 
-/* Shared segmented control: one selected surface moves between modes while
-   every trigger keeps stable geometry and immediate state updates. */
-body .app-segmented-control[data-segmented-control="true"] {
-  position: relative;
-  isolation: isolate;
-  contain: paint;
-  display: grid;
-  grid-template-columns: repeat(var(--selection-count), minmax(0, 1fr));
-  height: auto;
-  gap: 0;
-  padding: 3px;
-  overflow: hidden;
-}
-
-:where(body .app-segmented-control[data-segmented-control="true"] > .app-selection-indicator) {
-  position: absolute;
-  z-index: 1;
-  top: 0;
-  left: 0;
-  width: var(--selection-width, 0px);
-  height: var(--selection-height, 0px);
-  overflow: hidden;
-  border: 1px solid color-mix(in oklch, var(--interaction-border-selected) 64%, transparent);
-  border-radius: var(--radius-concentric-inset);
-  background: var(--background);
-  transform: translate3d(var(--selection-x, 0px), var(--selection-y, 0px), 0) scale3d(1, 1, 1);
-  transform-origin: top left;
-  transition:
-    background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
-    border-color var(--interaction-duration-standard) var(--interaction-ease-standard);
-  pointer-events: none;
-}
-
-.app-selection-indicator,
-.app-selection-bridge,
-.app-selection-refraction,
-.app-selection-lens {
-  pointer-events: none;
-}
-
-.app-selection-refraction,
-.app-selection-lens {
-  position: absolute;
-  inset: 0;
-}
-
-.app-selection-refraction {
-  display: none;
-  border-radius: inherit;
-}
-
-.app-selection-bridge {
-  display: none;
-}
-
-body
-  .app-segmented-control[data-segmented-control="true"]
-  > .app-segmented-trigger[data-slot="tabs-trigger"] {
-  z-index: 2;
-  min-width: 0;
-  border-color: transparent;
-  background: transparent;
-  box-shadow: none;
-  border-radius: var(--radius-concentric-inset);
-}
-
-body
-  .app-segmented-control[data-segmented-control="true"]
-  > .app-segmented-trigger[data-slot="tabs-trigger"][data-active] {
-  border-color: transparent;
-  background: transparent;
-  box-shadow: none;
-}
-
-body
-  .app-segmented-control[data-segmented-control="true"]
-  > .app-segmented-trigger[data-slot="tabs-trigger"]:active {
-  background: color-mix(in oklch, var(--interaction-surface-pressed) 54%, transparent);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  body
-    .app-segmented-control[data-segmented-control="true"]
-    > .app-segmented-trigger[data-slot="tabs-trigger"]:not([data-active], :disabled):hover {
-    background: color-mix(in oklch, var(--interaction-surface-hover) 58%, transparent);
-  }
-}
-
 .app-tabs-content {
   animation: app-tabs-content-in var(--interaction-duration-standard)
     var(--interaction-ease-standard);
-}
-
-/* Sidebar navigation uses the same shared selected surface on the vertical
-   axis. There is no leading marker; selection is communicated by one stable
-   full-row background, icon and text treatment. */
-.app-sidebar-navigation {
-  position: relative;
-  isolation: isolate;
-  contain: paint;
-  overflow: hidden;
-}
-
-.app-sidebar-navigation > [data-slot="sidebar-menu-item"] {
-  position: relative;
-  z-index: 2;
-}
-
-.app-sidebar-navigation > .app-selection-indicator {
-  position: absolute;
-  z-index: 1;
-  top: 0;
-  left: 0;
-  width: var(--selection-width, 0px);
-  height: var(--selection-height, 0px);
-  margin: 0;
-  overflow: hidden;
-  border: 1px solid color-mix(in oklch, var(--sidebar-primary) 78%, var(--sidebar-border));
-  border-radius: var(--radius-md);
-  background: var(--sidebar-primary);
-  list-style: none;
-  transform: translate3d(var(--selection-x, 0px), var(--selection-y, 0px), 0) scale3d(1, 1, 1);
-  transform-origin: top left;
-  transition:
-    background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
-    border-color var(--interaction-duration-standard) var(--interaction-ease-standard);
-}
-
-:is(
-    .app-segmented-control[data-segmented-control="true"],
-    .app-sidebar-navigation
-  )[data-selection-switching]
-  > .app-selection-indicator {
-  will-change: transform;
-}
-
-/* Appearance radio grids use the same stable entity across rows and columns.
-   The frame is paint-only and follows the real option bounds, so responsive
-   wrapping never changes selection semantics or introduces layout animation. */
-.app-spatial-selection {
-  position: relative;
-  isolation: isolate;
-}
-
-.app-spatial-selection > .app-selection-indicator {
-  position: absolute;
-  z-index: 4;
-  top: 0;
-  left: 0;
-  width: var(--selection-width, 0px);
-  height: var(--selection-height, 0px);
-  overflow: hidden;
-  border: 1px solid var(--interaction-border-selected);
-  border-radius: var(--radius-panel);
-  background: color-mix(in oklch, var(--primary) 5%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--background) 48%, transparent);
-  transform: translate3d(var(--selection-x, 0px), var(--selection-y, 0px), 0) scale3d(1, 1, 1);
-  transform-origin: top left;
-}
-
-.app-spatial-selection > .app-selection-bridge {
-  display: none;
-}
-
-.app-spatial-selection[data-selection-switching] > .app-selection-indicator {
-  will-change: transform;
-}
-
-/* The project keeps the shadcn sidebar rail's toggle semantics but replaces
-   its resize cursor and generated vertical rule with a compact button cue. */
-#root .app-sidebar [data-slot="sidebar-rail"].app-sidebar-rail {
-  width: 1.125rem;
-  cursor: pointer;
-  background: transparent;
-  outline: none;
-}
-
-#root .app-sidebar [data-slot="sidebar-rail"].app-sidebar-rail::after {
-  content: none;
-}
-
-.app-sidebar-rail-affordance {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  display: grid;
-  width: 1.5rem;
-  height: 1.5rem;
-  place-items: center;
-  border: 1px solid color-mix(in oklch, var(--sidebar-border) 84%, transparent);
-  border-radius: 999px;
-  background: color-mix(in oklch, var(--sidebar) 88%, transparent);
-  color: var(--sidebar-foreground);
-  box-shadow: var(--elevation-subtle);
-  opacity: 0;
-  transform: translate3d(-50%, -50%, 0) scale(0.92);
-  transition:
-    opacity var(--interaction-duration-fast) var(--interaction-ease-standard),
-    transform var(--interaction-duration-fast) var(--interaction-ease-standard),
-    background-color var(--interaction-duration-fast) var(--interaction-ease-standard);
-  pointer-events: none;
-}
-
-.app-sidebar-rail-affordance > svg {
-  width: 0.875rem;
-  height: 0.875rem;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  #root
-    .app-sidebar
-    [data-slot="sidebar-rail"].app-sidebar-rail:hover
-    .app-sidebar-rail-affordance {
-    opacity: 1;
-    transform: translate3d(-50%, -50%, 0) scale(1);
-  }
-}
-
-#root
-  .app-sidebar
-  [data-slot="sidebar-rail"].app-sidebar-rail:focus-visible
-  .app-sidebar-rail-affordance {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--interaction-focus);
-  opacity: 1;
-  transform: translate3d(-50%, -50%, 0) scale(1);
-}
-
-#root .app-sidebar [data-slot="sidebar-rail"].app-sidebar-rail:active .app-sidebar-rail-affordance {
-  background: var(--interaction-surface-pressed);
-  transform: translate3d(-50%, -50%, 0) scale(0.96);
 }
 
 /* Project-owned ScrollArea treatment. The read-only shadcn primitive keeps its
@@ -858,53 +483,6 @@ body
   [data-slot="scroll-area-scrollbar"][data-orientation="horizontal"]
   > [data-slot="scroll-area-thumb"] {
   min-width: 2rem;
-}
-
-html[data-box-style="glass"] body [data-slot="scroll-area"] {
-  isolation: isolate;
-  background-clip: padding-box;
-}
-
-html[data-box-style="glass"] body [data-slot="scroll-area-thumb"] {
-  border-color: color-mix(in oklch, white 20%, var(--glass-border));
-  background:
-    linear-gradient(180deg, color-mix(in oklch, white 24%, transparent), transparent 42%),
-    color-mix(in oklch, var(--foreground) 23%, var(--glass-surface-strong));
-}
-
-html[data-box-style="glass"]::-webkit-scrollbar-thumb,
-html[data-box-style="glass"] :where(body, #root, body *)::-webkit-scrollbar-thumb {
-  border-color: transparent;
-  background:
-    linear-gradient(180deg, color-mix(in oklch, white 22%, transparent), transparent 44%),
-    color-mix(in oklch, var(--foreground) 24%, var(--border));
-  background-clip: padding-box;
-}
-
-body
-  .app-sidebar-navigation
-  > [data-slot="sidebar-menu-item"]
-  > .app-sidebar-navigation-item[data-active] {
-  border-color: transparent;
-  background: transparent;
-  color: var(--sidebar-primary-foreground);
-  box-shadow: none;
-}
-
-body
-  .app-sidebar-navigation
-  > [data-slot="sidebar-menu-item"]
-  > .app-sidebar-navigation-item[data-active]:active {
-  background: color-mix(in oklch, var(--sidebar-primary-foreground) 10%, transparent);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  body
-    .app-sidebar-navigation
-    > [data-slot="sidebar-menu-item"]
-    > .app-sidebar-navigation-item[data-active]:hover {
-    background: color-mix(in oklch, var(--sidebar-primary-foreground) 8%, transparent);
-  }
 }
 
 @keyframes app-tabs-content-in {
@@ -1087,14 +665,6 @@ body .app-interactive-media:not(:disabled):active {
     contain: strict;
     transform: translateZ(0);
     backface-visibility: hidden;
-  }
-
-  .app-liquid-filter-definitions {
-    position: absolute;
-    width: 0;
-    height: 0;
-    overflow: hidden;
-    pointer-events: none;
   }
 
   .record-markup {
@@ -1792,10 +1362,6 @@ body [data-slot="switch-thumb"] {
   background: color-mix(in oklch, var(--primary) 7%, var(--background));
   box-shadow: var(--elevation-subtle);
 }
-.app-spatial-selection .appearance-choice[data-selected="true"] {
-  border-color: transparent;
-  background: color-mix(in oklch, var(--background) 62%, transparent);
-}
 .appearance-choice:active {
   background: color-mix(in oklch, var(--primary) 10%, var(--background));
   box-shadow: var(--elevation-subtle);
@@ -1815,15 +1381,7 @@ body [data-slot="switch-thumb"] {
 }
 
 .background-choice-preview {
-  transition:
-    opacity var(--interaction-duration-slow) var(--interaction-ease-standard),
-    scale var(--interaction-duration-slow) var(--interaction-ease-standard);
-}
-
-@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  [data-background-id]:hover .background-choice-preview {
-    scale: 1.012;
-  }
+  transition: opacity var(--interaction-duration-slow) var(--interaction-ease-standard);
 }
 
 .box-style-preview-surface,
@@ -1839,858 +1397,13 @@ body [data-slot="switch-thumb"] {
   border-radius: 0.78rem;
 }
 
-/* This preview mirrors the production material: planar geometry, transmitted
-   colour, a restrained top-edge response, and no radial centre highlight. */
-.liquid-glass-preview {
-  background:
-    linear-gradient(115deg, color-mix(in oklch, var(--primary) 34%, transparent), transparent 42%),
-    linear-gradient(300deg, color-mix(in oklch, var(--chart-2) 28%, transparent), transparent 46%),
-    color-mix(in oklch, var(--muted) 78%, var(--background));
-}
-.liquid-glass-preview-surface,
-.liquid-glass-preview-control {
-  border: 1px solid var(--glass-border);
-  background:
-    linear-gradient(180deg, var(--glass-edge-light) 0, transparent 1.5px),
-    linear-gradient(90deg, var(--glass-ambient), transparent 72%), var(--glass-surface);
-  background-clip: padding-box;
-  box-shadow: var(--elevation-raised);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
-}
-.liquid-glass-preview-surface {
-  position: absolute;
-  top: 19%;
-  left: 13%;
-  width: 62%;
-  min-height: 5.5rem;
-  border-radius: var(--glass-radius-panel);
-  padding: 0.9rem;
-}
-.liquid-glass-preview-control {
-  position: absolute;
-  right: 11%;
-  bottom: 14%;
-  width: 3.8rem;
-  height: 3.8rem;
-  border-radius: var(--glass-radius-group);
-}
-.liquid-glass-preview-control::after {
-  position: absolute;
-  inset: 38%;
-  border-radius: 999px;
-  background: var(--primary);
-  content: "";
-}
-
-/* Liquid Glass stays in the floating functional layer. These elements each
-   allocate one backdrop sample; dense cards below remain standard content
-   material so the hierarchy stays legible and glass is never stacked. */
-html[data-box-style="glass"]
-  body
-  :is(
-    #root .app-topbar,
-    #root .app-sidebar [data-slot="sidebar-inner"],
-    [data-liquid-glass-group],
-    [data-liquid-glass-interactive],
-    [data-slot="tabs-list"]:not([data-variant="line"]),
-    [data-slot="dialog-content"]:not(.image-viewer-dialog),
-    [data-slot="alert-dialog-content"],
-    [data-slot="popover-content"],
-    [data-slot="dropdown-menu-content"],
-    [data-slot="dropdown-menu-sub-content"],
-    [data-slot="context-menu-content"],
-    [data-slot="context-menu-sub-content"],
-    [data-slot="hover-card-content"],
-    [data-slot="sheet-content"],
-    [data-slot="drawer-content"],
-    [data-slot="select-content"],
-    [data-slot="toast"]
-  ) {
-  isolation: isolate;
-  border-color: var(--glass-border);
-  background:
-    linear-gradient(180deg, var(--glass-edge-light) 0, transparent 1.5px),
-    linear-gradient(90deg, var(--glass-ambient), transparent 74%), var(--glass-surface);
-  background-clip: padding-box;
-  box-shadow: var(--elevation-raised);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
-  transition:
-    border-color var(--interaction-duration-standard) var(--interaction-ease-standard),
-    background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
-    box-shadow var(--interaction-duration-standard) var(--interaction-ease-standard);
-}
-
-html[data-box-style="glass"] body [data-glass-variant="clear"] {
-  background:
-    linear-gradient(rgb(0 0 0 / 32%), rgb(0 0 0 / 32%)),
-    linear-gradient(180deg, rgb(255 255 255 / 12%), transparent 1.5px), var(--glass-clear-surface);
-  color: oklch(0.97 0.005 250);
-  -webkit-backdrop-filter: blur(12px) saturate(1.12);
-  backdrop-filter: blur(12px) saturate(1.12);
-}
-
-html[data-box-style="glass"] body [data-liquid-glass-group] {
-  overflow: visible;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--glass-radius-group);
-}
-
-html[data-box-style="glass"] body [data-liquid-glass-interactive]:not([data-liquid-glass-group]) {
-  border-radius: var(--glass-radius-control);
-}
-
-html[data-box-style="glass"]
-  body
-  :is([data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="toast"]) {
-  border-radius: var(--glass-radius-panel);
-}
-
-html[data-box-style="glass"]
-  body
-  :is(
-    [data-slot="popover-content"],
-    [data-slot="dropdown-menu-content"],
-    [data-slot="dropdown-menu-sub-content"],
-    [data-slot="context-menu-content"],
-    [data-slot="context-menu-sub-content"],
-    [data-slot="hover-card-content"],
-    [data-slot="select-content"]
-  ) {
-  border-radius: var(--glass-radius-group);
-}
-
-/* Project buttons use one paint-only optical stack. A pointer press records
-   its origin once, then CSS handles compression, illumination, edge tension,
-   depth loss, and release without React state or per-frame layout reads. */
-html[data-box-style="glass"] body .app-button:not(.app-button--link) {
-  overflow: clip;
-  border-color: color-mix(in oklch, var(--glass-border) 84%, transparent);
-  border-radius: var(--glass-radius-control);
-  background:
-    linear-gradient(180deg, color-mix(in oklch, white 28%, transparent) 0, transparent 1.5px),
-    linear-gradient(112deg, color-mix(in oklch, white 8%, transparent), transparent 54%),
-    var(--app-button-glass-fill, color-mix(in oklch, var(--glass-surface-strong) 90%, transparent));
-  background-clip: padding-box;
-  box-shadow:
-    0 1px 2px color-mix(in oklch, var(--foreground) 10%, transparent),
-    inset 0 1px color-mix(in oklch, white 16%, transparent);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  transition-duration:
-    var(--interaction-duration-standard), var(--interaction-duration-standard),
-    var(--interaction-duration-standard), var(--interaction-duration-standard),
-    var(--interaction-duration-release), var(--interaction-duration-standard),
-    var(--interaction-duration-release), var(--interaction-duration-release);
-  transition-timing-function: var(--interaction-ease-liquid);
-}
-
-html[data-box-style="glass"] body .app-button--default {
-  --app-button-glass-fill: color-mix(in oklch, var(--primary) 84%, var(--glass-surface-strong));
-}
-
-html[data-box-style="glass"] body .app-button--secondary {
-  --app-button-glass-fill: color-mix(in oklch, var(--secondary) 76%, var(--glass-surface-strong));
-}
-
-html[data-box-style="glass"] body .app-button--outline {
-  --app-button-glass-fill: color-mix(in oklch, var(--glass-content-surface) 76%, transparent);
-}
-
-html[data-box-style="glass"] body .app-button--ghost {
-  --app-button-glass-fill: color-mix(in oklch, var(--glass-surface) 48%, transparent);
-  border-color: transparent;
-  box-shadow: none;
-}
-
-html[data-box-style="glass"] body .app-button--destructive {
-  --app-button-glass-fill: color-mix(in oklch, var(--destructive) 18%, var(--glass-surface-strong));
-  border-color: color-mix(in oklch, var(--destructive) 34%, var(--glass-border));
-}
-
-html[data-box-style="glass"] body .app-button:not(.app-button--link)::before {
-  position: absolute;
-  z-index: -1;
-  inset: -55%;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle at var(--app-press-x, 50%) var(--app-press-y, 50%),
-    color-mix(in oklch, white 54%, transparent) 0,
-    color-mix(in oklch, var(--primary) 18%, transparent) 20%,
-    transparent 52%
-  );
-  content: "";
-  opacity: 0.1;
-  transform: scale3d(0.58, 0.46, 1);
-  transform-origin: var(--app-press-x, 50%) var(--app-press-y, 50%);
-  transition:
-    opacity var(--interaction-duration-release) var(--interaction-ease-liquid),
-    transform var(--interaction-duration-release) var(--interaction-ease-liquid);
-  pointer-events: none;
-}
-
-html[data-box-style="glass"] body .app-button:not(.app-button--link)::after {
-  position: absolute;
-  z-index: 2;
-  inset: 1px;
-  border-radius: inherit;
-  box-shadow:
-    inset 0 1px color-mix(in oklch, white 24%, transparent),
-    inset 0 -1px color-mix(in oklch, var(--foreground) 7%, transparent);
-  content: "";
-  opacity: 0.62;
-  transform: scale3d(1, 1, 1);
-  transition:
-    opacity var(--interaction-duration-release) var(--interaction-ease-liquid),
-    transform var(--interaction-duration-release) var(--interaction-ease-liquid);
-  pointer-events: none;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  html[data-box-style="glass"] body .app-button:not(.app-button--link, :disabled):hover {
-    border-color: color-mix(in oklch, var(--primary) 31%, var(--glass-border));
-    box-shadow:
-      0 2px 4px -2px color-mix(in oklch, var(--foreground) 18%, transparent),
-      inset 0 1px color-mix(in oklch, white 22%, transparent);
-  }
-
-  html[data-box-style="glass"] body .app-button:not(.app-button--link, :disabled):hover::before {
-    opacity: 0.2;
-  }
-}
-
-html[data-box-style="glass"] body .app-button:not(.app-button--link, :disabled):active {
-  border-color: color-mix(in oklch, var(--primary) 42%, var(--glass-border));
-  background:
-    linear-gradient(180deg, color-mix(in oklch, white 18%, transparent) 0, transparent 1px),
-    linear-gradient(112deg, color-mix(in oklch, white 12%, transparent), transparent 58%),
-    color-mix(in oklch, var(--app-button-glass-fill) 88%, var(--foreground) 4%);
-  box-shadow:
-    0 0.5px 1px color-mix(in oklch, var(--foreground) 8%, transparent),
-    inset 0 1.5px 3px color-mix(in oklch, var(--foreground) 14%, transparent),
-    inset 0 -1px color-mix(in oklch, white 13%, transparent);
-  transition-duration: var(--interaction-duration-press-in);
-}
-
-html[data-box-style="glass"] body .app-button:not(.app-button--link, :disabled):active::before {
-  opacity: 0.78;
-  transform: scale3d(1.08, 0.92, 1);
-  transition-duration: var(--interaction-duration-press-in);
-}
-
-html[data-box-style="glass"] body .app-button:not(.app-button--link, :disabled):active::after {
-  opacity: 0.9;
-  transform: scale3d(0.992, 0.958, 1);
-  transition-duration: var(--interaction-duration-press-in);
-}
-
-html[data-box-style="glass"]
-  body
-  :where(
-    [data-slot="button"]:not(.app-button),
-    [data-slot="alert-dialog-action"],
-    [data-slot="alert-dialog-cancel"],
-    [data-slot="sidebar-menu-button"]
-  ):not(:disabled, [aria-disabled="true"]):active {
-  border-color: color-mix(in oklch, var(--primary) 34%, var(--glass-border));
-  box-shadow:
-    inset 0 1.5px 3px color-mix(in oklch, var(--foreground) 12%, transparent),
-    inset 0 -1px color-mix(in oklch, white 12%, transparent);
-}
-
-/* Neighbouring controls share the parent sample. Hover, press, selection and
-   focus alter only thin overlay fills, so geometry and edges never jump. */
-html[data-box-style="glass"] body .liquid-control-group {
-  gap: 2px;
-  padding: 2px;
-}
-
-html[data-box-style="glass"] body .liquid-control-group > [data-slot="button"] {
-  border-color: transparent;
-  border-radius: var(--glass-radius-control);
-  background: transparent;
-  box-shadow: none;
-  transform: none;
-  translate: none;
-  transition:
-    color var(--interaction-duration-standard) var(--interaction-ease-standard),
-    background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
-    box-shadow var(--interaction-duration-standard) var(--interaction-ease-standard);
-}
-
-html[data-box-style="glass"] body .liquid-control-group:focus-within {
-  border-color: color-mix(in oklch, var(--primary) 24%, var(--glass-border));
-}
-
-@media (hover: hover) and (pointer: fine) {
-  html[data-box-style="glass"] body .liquid-control-group:is(:hover, :focus-within) {
-    border-color: color-mix(in oklch, var(--primary) 24%, var(--glass-border));
-  }
-
-  html[data-box-style="glass"]
-    body
-    .liquid-control-group
-    > [data-slot="button"]:not(:disabled):hover {
-    background: color-mix(in oklch, var(--foreground) 7%, transparent);
-  }
-}
-
-html[data-box-style="glass"]
-  body
-  .liquid-control-group
-  > [data-slot="button"][aria-pressed="true"] {
-  background: color-mix(in oklch, var(--primary) 16%, var(--glass-surface-strong));
-  color: var(--foreground);
-  box-shadow: none;
-}
-
-html[data-box-style="glass"]
-  body
-  .liquid-control-group
-  > [data-slot="button"]:not(:disabled):active {
-  background: color-mix(in oklch, var(--primary) 21%, var(--glass-surface-strong));
-  transform: none;
-}
-
-html[data-box-style="glass"] body .liquid-control-group > [data-slot="button"]:focus-visible {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--interaction-focus);
-}
-
-html[data-box-style="glass"] body [data-slot="tabs-list"]:not([data-variant="line"]) {
-  border: 1px solid var(--glass-border);
-  border-radius: var(--glass-radius-group);
-}
-
-html[data-box-style="glass"]
-  body
-  [data-slot="tabs-list"]:not([data-variant="line"])
-  > [data-slot="tabs-trigger"] {
-  border-radius: var(--glass-radius-control-tight);
-  background: transparent;
-  box-shadow: none;
-  transform: none;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  html[data-box-style="glass"]
-    body
-    [data-slot="tabs-list"]:not([data-variant="line"])
-    > [data-slot="tabs-trigger"]:not([data-active]):hover {
-    background: color-mix(in oklch, var(--foreground) 6%, transparent);
-  }
-}
-
-html[data-box-style="glass"]
-  body
-  [data-slot="tabs-list"]:not([data-variant="line"])
-  > [data-slot="tabs-trigger"][data-active] {
-  background: color-mix(in oklch, var(--primary) 18%, var(--glass-surface-strong));
-  box-shadow: none;
-}
-
-html[data-box-style="glass"]
-  body
-  [data-slot="tabs-list"]:not([data-variant="line"])
-  > [data-slot="tabs-trigger"]:focus-visible {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--interaction-focus);
-}
-
-/* A single sampled group owns the backdrop pass. The stable selected node is
-   moved by WAAPI; only its small material layer reshapes, so rapid switching
-   can continue from the current composited transform without React remounts. */
-html[data-box-style="glass"]
-  body
-  :is(
-    .app-segmented-control[data-segmented-control="true"],
-    .app-sidebar-navigation,
-    .app-spatial-selection
-  )
-  > .app-selection-indicator {
-  overflow: visible;
-  border-color: transparent;
-  background: transparent;
-  box-shadow: none;
-  backface-visibility: hidden;
-  border-radius: var(--glass-radius-control);
-}
-
-html[data-box-style="glass"]
-  body
-  :is(
-    .app-segmented-control[data-segmented-control="true"],
-    .app-sidebar-navigation,
-    .app-spatial-selection
-  )
-  > .app-selection-indicator
-  > .app-selection-refraction {
-  display: block;
-  overflow: hidden;
-  border: 1px solid color-mix(in oklch, var(--primary) 34%, var(--glass-border));
-  background:
-    linear-gradient(180deg, color-mix(in oklch, white 38%, transparent) 0, transparent 2px),
-    linear-gradient(
-      108deg,
-      color-mix(in oklch, white 14%, transparent) 0%,
-      transparent 31%,
-      color-mix(in oklch, var(--primary) 18%, transparent) 72%,
-      color-mix(in oklch, white 9%, transparent) 100%
-    ),
-    color-mix(in oklch, var(--primary) 15%, var(--glass-surface-strong));
-  background-clip: padding-box;
-  box-shadow: var(--elevation-subtle);
-  backface-visibility: hidden;
-  transform-origin: center;
-}
-
-html[data-box-style="glass"]
-  body
-  :is(
-    .app-segmented-control[data-segmented-control="true"],
-    .app-sidebar-navigation,
-    .app-spatial-selection
-  )
-  > .app-selection-indicator
-  > .app-selection-refraction::before {
-  position: absolute;
-  z-index: 2;
-  inset: 0;
-  border: 1px solid transparent;
-  border-radius: inherit;
-  background: conic-gradient(
-      from 205deg,
-      color-mix(in oklch, white 58%, transparent),
-      transparent 20%,
-      color-mix(in oklch, var(--primary) 25%, transparent) 48%,
-      transparent 69%,
-      color-mix(in oklch, white 45%, transparent)
-    )
-    border-box;
-  mask:
-    linear-gradient(#000 0 0) padding-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  content: "";
-}
-
-html[data-box-style="glass"]
-  body
-  :is(
-    .app-segmented-control[data-segmented-control="true"],
-    .app-sidebar-navigation,
-    .app-spatial-selection
-  )
-  > .app-selection-indicator
-  > .app-selection-refraction::after {
-  position: absolute;
-  z-index: 1;
-  inset: 1px;
-  border-radius: inherit;
-  background:
-    radial-gradient(circle at 18% 14%, rgb(255 255 255 / 33%), transparent 22%),
-    radial-gradient(
-      circle at 78% 82%,
-      color-mix(in oklch, var(--primary) 22%, transparent),
-      transparent 32%
-    ),
-    linear-gradient(102deg, transparent 18%, rgb(255 255 255 / 18%) 45%, transparent 69%);
-  filter: url("#app-liquid-glass-refraction");
-  opacity: 0.62;
-  content: "";
-}
-
-html[data-box-style="glass"]
-  body
-  :is(
-    .app-segmented-control[data-segmented-control="true"],
-    .app-sidebar-navigation,
-    .app-spatial-selection
-  )
-  > .app-selection-indicator
-  > .app-selection-lens {
-  z-index: 3;
-  border-radius: inherit;
-  background: linear-gradient(
-    104deg,
-    transparent 10%,
-    color-mix(in oklch, white 38%, transparent) 43%,
-    color-mix(in oklch, var(--primary) 14%, transparent) 57%,
-    transparent 84%
-  );
-  background-size: 210% 100%;
-  opacity: 0.46;
-}
-
-html[data-box-style="glass"]
-  body
-  :is(
-    .app-segmented-control[data-segmented-control="true"],
-    .app-sidebar-navigation,
-    .app-spatial-selection
-  )[data-selection-axis="vertical"]
-  > .app-selection-indicator
-  > .app-selection-lens {
-  background: linear-gradient(
-    14deg,
-    transparent 10%,
-    color-mix(in oklch, white 38%, transparent) 43%,
-    color-mix(in oklch, var(--primary) 14%, transparent) 57%,
-    transparent 84%
-  );
-  background-size: 100% 210%;
-}
-
-html[data-box-style="glass"]
-  body
-  :is(
-    .app-segmented-control[data-segmented-control="true"],
-    .app-sidebar-navigation,
-    .app-spatial-selection
-  )[data-selection-axis="vertical"]
-  > .app-selection-indicator
-  > .app-selection-refraction::after {
-  background:
-    radial-gradient(circle at 14% 18%, rgb(255 255 255 / 33%), transparent 22%),
-    radial-gradient(
-      circle at 82% 78%,
-      color-mix(in oklch, var(--primary) 22%, transparent),
-      transparent 32%
-    ),
-    linear-gradient(12deg, transparent 18%, rgb(255 255 255 / 18%) 45%, transparent 69%);
-}
-
-html[data-box-style="glass"]
-  body
-  [data-selection-axis="horizontal"][data-selection-direction="forward"]
-  > .app-selection-indicator
-  > .app-selection-refraction {
-  transform-origin: left center;
-}
-
-html[data-box-style="glass"]
-  body
-  [data-selection-axis="horizontal"][data-selection-direction="backward"]
-  > .app-selection-indicator
-  > .app-selection-refraction {
-  transform-origin: right center;
-}
-
-html[data-box-style="glass"]
-  body
-  [data-selection-axis="vertical"][data-selection-direction="forward"]
-  > .app-selection-indicator
-  > .app-selection-refraction {
-  transform-origin: center top;
-}
-
-html[data-box-style="glass"]
-  body
-  [data-selection-axis="vertical"][data-selection-direction="backward"]
-  > .app-selection-indicator
-  > .app-selection-refraction {
-  transform-origin: center bottom;
-}
-
-html[data-box-style="glass"]
-  body
-  :is(
-    .app-segmented-control[data-segmented-control="true"],
-    .app-sidebar-navigation,
-    .app-spatial-selection
-  )[data-selection-switching]
-  > :is(.app-selection-indicator, .app-selection-bridge),
-html[data-box-style="glass"]
-  body
-  :is(
-    .app-segmented-control[data-segmented-control="true"],
-    .app-sidebar-navigation,
-    .app-spatial-selection
-  )[data-selection-switching]
-  > .app-selection-indicator
-  > :is(.app-selection-refraction, .app-selection-lens) {
-  will-change: transform, opacity;
-}
-
-html[data-box-style="glass"]
-  body
-  :is(
-    .app-segmented-control[data-segmented-control="true"],
-    .app-sidebar-navigation,
-    .app-spatial-selection
-  )[data-selection-switching]
-  > .app-selection-bridge {
-  position: absolute;
-  z-index: 0;
-  top: 0;
-  left: 0;
-  display: block;
-  width: var(--selection-bridge-width, 0px);
-  height: var(--selection-bridge-height, 0px);
-  margin: 0;
-  border: 1px solid color-mix(in oklch, white 18%, var(--glass-border));
-  border-radius: var(--glass-radius-control);
-  background: color-mix(in oklch, var(--primary) 10%, var(--glass-surface-strong));
-  list-style: none;
-  transform: translate3d(var(--selection-bridge-x, 0px), var(--selection-bridge-y, 0px), 0)
-    scale3d(1, 1, 1);
-  transform-origin: top left;
-  opacity: 0;
-}
-
-html[data-box-style="glass"] body .app-spatial-selection > .app-selection-indicator {
-  z-index: 4;
-  border-radius: var(--glass-radius-panel);
-}
-
-html[data-box-style="glass"]
-  body
-  .app-spatial-selection
-  > .app-selection-indicator
-  > .app-selection-refraction {
-  border-color: color-mix(in oklch, var(--primary) 62%, var(--glass-border));
-  background: color-mix(in oklch, var(--primary) 3.5%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in oklch, white 18%, transparent);
-}
-
-html[data-box-style="glass"]
-  body
-  .app-spatial-selection[data-selection-axis]
-  > .app-selection-indicator
-  > .app-selection-refraction::after {
-  opacity: 0.16;
-}
-
-html[data-box-style="glass"]
-  body
-  .app-spatial-selection
-  > .app-selection-indicator
-  > .app-selection-lens {
-  opacity: 0.14;
-}
-
-html[data-box-style="glass"]
-  body
-  .app-spatial-selection[data-selection-switching]
-  > .app-selection-bridge {
-  z-index: 3;
-  border-radius: var(--glass-radius-panel);
-  background: color-mix(in oklch, var(--primary) 5%, transparent);
-}
-
-html[data-box-style="glass"]
-  body
-  .app-segmented-control[data-segmented-control="true"][data-selection-axis]
-  > :is(.app-selection-indicator, .app-selection-bridge),
-html[data-box-style="glass"]
-  body
-  .app-segmented-control[data-segmented-control="true"][data-selection-axis]
-  > .app-segmented-trigger[data-slot="tabs-trigger"] {
-  border-radius: var(--glass-radius-control-tight);
-}
-
-html[data-box-style="glass"] body .app-sidebar-navigation > .app-selection-indicator {
-  border-radius: var(--glass-radius-control);
-}
-
-html[data-box-style="glass"]
-  body
-  .app-sidebar-navigation
-  > [data-slot="sidebar-menu-item"]
-  > .app-sidebar-navigation-item[data-active] {
-  color: var(--sidebar-foreground);
-}
-
-html[data-box-style="glass"]
-  body
-  .app-segmented-control[data-segmented-control="true"]
-  > .app-segmented-trigger[data-slot="tabs-trigger"][data-active] {
-  background: transparent;
+[data-box-style-id="rounded"] :is(.box-style-preview-surface, .box-style-preview-control) {
+  border-radius: 1.12rem;
 }
 
 .quiz-filter-bar [data-slot="button"]:disabled {
   opacity: 0.72;
 }
-
-html[data-box-style="glass"] body [data-liquid-glass-interactive]:focus-visible {
-  border-color: color-mix(in oklch, var(--primary) 30%, var(--glass-border));
-  box-shadow: var(--elevation-raised);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  html[data-box-style="glass"] body [data-liquid-glass-interactive]:hover {
-    border-color: color-mix(in oklch, var(--primary) 30%, var(--glass-border));
-    box-shadow: var(--elevation-raised);
-  }
-}
-
-/* Structural navigation already has a real divider. Keeping it shadowless
-   prevents a parent viewport clip from truncating a decorative edge. */
-html[data-box-style="glass"]
-  body
-  :is(#root .app-topbar, #root .app-sidebar [data-slot="sidebar-inner"]) {
-  box-shadow: none;
-}
-
-/* Dense reading surfaces use actual borders and a quiet standard material.
-   They never run backdrop-filter, including in the glass appearance. */
-html[data-box-style="glass"]
-  body
-  #root
-  :where(
-    [data-slot="card"]:not([data-liquid-glass-interactive]):not(
-      [data-slot="card"] [data-slot="card"]
-    ),
-    [data-slot="alert"]:not([data-slot="card"] [data-slot="alert"])
-  ) {
-  position: relative;
-  border: 1px solid var(--glass-content-border);
-  outline: none;
-  background: var(--glass-content-surface);
-  background-clip: padding-box;
-  box-shadow: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-
-html[data-box-style="glass"] .app-main-surface {
-  background: linear-gradient(
-    to bottom,
-    color-mix(in oklch, var(--background) 48%, transparent),
-    color-mix(in oklch, var(--background) 38%, transparent)
-  );
-}
-
-html[data-box-style="glass"][data-background="default"] {
-  --glass-surface: color-mix(in oklch, var(--card) 72%, transparent);
-  --glass-content-surface: color-mix(in oklch, var(--card) 96%, transparent);
-}
-
-html[data-box-style="glass"][data-background="default"] .app-main-surface {
-  background: linear-gradient(
-    to bottom,
-    color-mix(in oklch, var(--background) 68%, transparent),
-    color-mix(in oklch, var(--background) 56%, transparent)
-  );
-}
-
-html[data-box-style="glass"][data-background]:not([data-background="default"]) {
-  --glass-surface: color-mix(in oklch, var(--card) 54%, transparent);
-  --glass-content-surface: color-mix(in oklch, var(--card) 88%, transparent);
-}
-
-/* Dark appearance is independently tuned: lower edge luminance, more
-   transmitted background and no inner glow or elevated-looking halo. */
-html.dark[data-box-style="glass"] {
-  --glass-surface: color-mix(in oklch, var(--card) 56%, transparent);
-  --glass-clear-surface: color-mix(in oklch, black 18%, transparent);
-  --glass-content-surface: color-mix(in oklch, var(--card) 92%, transparent);
-  --glass-surface-strong: color-mix(in oklch, var(--popover) 80%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 82%, var(--foreground) 18%);
-  --glass-content-border: color-mix(in oklch, var(--border) 88%, var(--foreground) 12%);
-  --glass-edge-light: color-mix(in oklch, white 10%, transparent);
-  --glass-ambient: color-mix(in oklch, var(--primary) 4%, transparent);
-  --glass-saturation: 1.06;
-}
-
-html.dark[data-box-style="glass"][data-background="default"] {
-  --glass-surface: color-mix(in oklch, var(--card) 66%, transparent);
-  --glass-content-surface: color-mix(in oklch, var(--card) 95%, transparent);
-}
-
-html.dark[data-box-style="glass"][data-background]:not([data-background="default"]) {
-  --glass-surface: color-mix(in oklch, var(--card) 52%, transparent);
-  --glass-content-surface: color-mix(in oklch, var(--card) 90%, transparent);
-}
-
-html[data-box-style="glass"]
-  :is(
-    [data-slot="dialog-content"]:not(.image-viewer-dialog),
-    [data-slot="alert-dialog-content"],
-    [data-slot="popover-content"],
-    [data-slot="dropdown-menu-content"],
-    [data-slot="dropdown-menu-sub-content"],
-    [data-slot="context-menu-content"],
-    [data-slot="context-menu-sub-content"],
-    [data-slot="hover-card-content"],
-    [data-slot="sheet-content"],
-    [data-slot="drawer-content"],
-    [data-slot="select-content"],
-    [data-slot="toast"]
-  ) {
-  background-color: var(--glass-surface-strong);
-  box-shadow: var(--elevation-overlay);
-}
-
-html[data-box-style="glass"] #root :is([data-slot="input"], [data-slot="select-trigger"]) {
-  border-color: color-mix(in oklch, var(--glass-content-border) 86%, transparent);
-  background: color-mix(in oklch, var(--glass-content-surface) 80%, transparent);
-  box-shadow: none;
-}
-
-html[data-box-style="glass"]
-  #root
-  :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]):focus-visible {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--interaction-focus);
-}
-
-html[data-box-style="glass"]
-  #root
-  :is(
-    [data-slot="input"],
-    [data-slot="textarea"],
-    [data-slot="select-trigger"]
-  )[aria-invalid="true"]:focus-visible {
-  border-color: var(--destructive);
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--destructive) 24%, transparent);
-}
-
-html[data-box-style="glass"] #root .appearance-choice {
-  border-color: var(--glass-content-border);
-  background: color-mix(in oklch, var(--glass-content-surface) 88%, transparent);
-  box-shadow: var(--elevation-subtle);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  html[data-box-style="glass"] #root .appearance-choice:hover {
-    border-color: color-mix(in oklch, var(--primary) 38%, var(--glass-content-border));
-    background: color-mix(in oklch, var(--glass-content-surface) 96%, transparent);
-  }
-}
-
-html[data-box-style="glass"] #root .appearance-choice[data-selected="true"] {
-  border-color: color-mix(in oklch, var(--primary) 66%, var(--glass-content-border));
-  background: color-mix(in oklch, var(--primary) 8%, var(--glass-content-surface));
-  box-shadow: var(--elevation-subtle);
-}
-
-html[data-box-style="glass"] #root .app-spatial-selection .appearance-choice[data-selected="true"] {
-  border-color: transparent;
-  background: color-mix(in oklch, var(--glass-content-surface) 88%, transparent);
-}
-
-html[data-box-style="glass"] #root .appearance-choice:has([data-slot="radio-group-item"]:focus) {
-  border-color: var(--ring);
-  outline-color: color-mix(in oklch, var(--ring) 58%, transparent);
-  box-shadow: var(--elevation-subtle);
-}
-
-html[data-box-style="glass"] #root .appearance-choice:active {
-  background: color-mix(in oklch, var(--primary) 11%, var(--glass-content-surface));
-  box-shadow: var(--elevation-subtle);
-}
-
-html[data-box-style="glass"] body #root [data-slot="card"] [data-slot="card"],
-html[data-box-style="glass"] body #root [data-slot="card"] [data-slot="alert"] {
-  border-color: color-mix(in oklch, var(--border) 84%, transparent);
-  background: color-mix(in oklch, var(--card) 92%, var(--background));
-  box-shadow: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-
 /* Full-viewport reading pages use a real in-box border. The base Card ring is
    painted outside its bounds and was clipped by the locked viewport shell at
    some widths and zoom levels, which made the left and right edges disappear. */
@@ -2701,12 +1414,6 @@ html[data-box-style="glass"] body #root [data-slot="card"] [data-slot="alert"] {
   max-width: 100%;
   border: 1px solid var(--border);
   background-clip: padding-box;
-  box-shadow: none;
-}
-
-html[data-box-style="glass"] body #root .content-frame[data-slot="card"] {
-  border-color: var(--glass-content-border);
-  background: var(--glass-content-surface);
   box-shadow: none;
 }
 
@@ -2729,28 +1436,10 @@ html[data-box-style="glass"] body #root .content-frame[data-slot="card"] {
   background: transparent;
   background-clip: padding-box;
 }
-html[data-box-style="glass"]
-  .quiz-question-card
-  :is(
-    .quiz-question-header,
-    .quiz-question-source,
-    .quiz-question-side,
-    [data-slot="card-footer"]
-  ) {
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-
 .record-surface {
   --record-rest-border: var(--border);
   border: 1px solid var(--record-rest-border);
   transition-property: background-color, border-color;
-}
-
-html[data-box-style="glass"] #root .record-surface[data-slot="card"] {
-  --record-rest-border: var(--glass-content-border);
-  border-color: var(--record-rest-border);
-  outline: none;
 }
 
 #root .record-surface[data-record-jump-highlight="true"] {
@@ -2760,17 +1449,9 @@ html[data-box-style="glass"] #root .record-surface[data-slot="card"] {
   box-shadow: none;
 }
 
-html[data-box-style="glass"]
-  body
-  #root
-  .record-surface[data-slot="card"][data-record-jump-highlight="true"] {
-  border-color: color-mix(in oklch, var(--primary) 82%, var(--glass-content-border));
-  background-color: color-mix(in oklch, var(--primary) 7%, var(--glass-content-surface));
-  box-shadow: none;
-}
-
 #root .record-surface[data-record-jump-highlight="true"][data-record-jump-fading="true"] {
-  animation: record-jump-highlight-fade 680ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: record-jump-highlight-fade var(--interaction-duration-scene)
+    var(--interaction-ease-standard) both;
 }
 
 @keyframes record-jump-highlight-fade {
@@ -2784,10 +1465,9 @@ html[data-box-style="glass"]
   }
 }
 
-/* ImageViewer composes a viewport-native popup inside the shadcn dialog portal,
-   so this rule only owns paint. Geometry no longer has to override the shared
-   centred DialogContent contract. */
-.image-viewer-dialog[data-slot="image-viewer-content"] {
+/* The viewer directly composes shadcn DialogContent and only overrides the
+   bounded dialog geometry needed by a full-viewport image canvas. */
+.image-viewer-dialog[data-slot="dialog-content"] {
   box-sizing: border-box;
   margin: 0;
   border-radius: 0;
@@ -2800,14 +1480,11 @@ html[data-box-style="glass"]
   transition: opacity var(--interaction-duration-standard) var(--interaction-ease-standard);
 }
 
-.image-viewer-dialog[data-slot="image-viewer-content"]:is(
-  [data-starting-style],
-  [data-ending-style]
-) {
+.image-viewer-dialog[data-slot="dialog-content"]:is([data-starting-style], [data-ending-style]) {
   opacity: 0;
 }
 
-.image-viewer-overlay {
+[data-slot="dialog-portal"]:has(> .image-viewer-dialog) > [data-slot="dialog-overlay"] {
   overscroll-behavior: contain;
   background: rgb(8 10 13 / 52%);
   -webkit-backdrop-filter: blur(14px) saturate(0.74);
@@ -2817,7 +1494,8 @@ html[data-box-style="glass"]
   transition: opacity var(--interaction-duration-standard) var(--interaction-ease-standard);
 }
 
-.image-viewer-overlay:is([data-starting-style], [data-ending-style]) {
+[data-slot="dialog-portal"]:has(> .image-viewer-dialog)
+  > [data-slot="dialog-overlay"]:is([data-starting-style], [data-ending-style]) {
   opacity: 0;
 }
 
@@ -2844,7 +1522,7 @@ html[data-box-style="glass"]
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .image-viewer-overlay {
+  [data-slot="dialog-portal"]:has(> .image-viewer-dialog) > [data-slot="dialog-overlay"] {
     background: rgb(8 10 13 / 76%);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
@@ -2852,93 +1530,8 @@ html[data-box-style="glass"]
 }
 
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  .image-viewer-overlay {
+  [data-slot="dialog-portal"]:has(> .image-viewer-dialog) > [data-slot="dialog-overlay"] {
     background: rgb(8 10 13 / 78%);
-  }
-}
-
-@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  html[data-box-style="glass"]
-    :is(
-      #root .app-topbar,
-      #root .app-sidebar [data-slot="sidebar-inner"],
-      [data-liquid-glass-group],
-      [data-liquid-glass-interactive],
-      [data-slot="tabs-list"]:not([data-variant="line"]),
-      [data-slot="card"],
-      [data-slot="dialog-content"],
-      [data-slot="alert-dialog-content"],
-      [data-slot="popover-content"],
-      [data-slot="dropdown-menu-content"],
-      [data-slot="dropdown-menu-sub-content"],
-      [data-slot="context-menu-content"],
-      [data-slot="context-menu-sub-content"],
-      [data-slot="hover-card-content"],
-      [data-slot="sheet-content"],
-      [data-slot="drawer-content"],
-      [data-slot="select-content"],
-      [data-slot="toast"],
-      [data-slot="alert"]
-    ) {
-    background: color-mix(in oklch, var(--card) 96%, var(--background));
-  }
-}
-
-@media (prefers-reduced-transparency: reduce) {
-  html[data-box-style="glass"]
-    :is(
-      #root .app-topbar,
-      #root .app-sidebar [data-slot="sidebar-inner"],
-      [data-liquid-glass-group],
-      [data-liquid-glass-interactive],
-      [data-slot="tabs-list"]:not([data-variant="line"]),
-      [data-slot="card"],
-      [data-slot="dialog-content"],
-      [data-slot="alert-dialog-content"],
-      [data-slot="popover-content"],
-      [data-slot="dropdown-menu-content"],
-      [data-slot="dropdown-menu-sub-content"],
-      [data-slot="context-menu-content"],
-      [data-slot="context-menu-sub-content"],
-      [data-slot="hover-card-content"],
-      [data-slot="sheet-content"],
-      [data-slot="drawer-content"],
-      [data-slot="select-content"],
-      [data-slot="toast"],
-      [data-slot="alert"]
-    ) {
-    background: color-mix(in oklch, var(--card) 94%, var(--background));
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-}
-
-@media (prefers-contrast: more) {
-  html[data-box-style="glass"]
-    :is(
-      #root .app-topbar,
-      #root .app-sidebar [data-slot="sidebar-inner"],
-      [data-liquid-glass-group],
-      [data-liquid-glass-interactive],
-      [data-slot="tabs-list"]:not([data-variant="line"]),
-      [data-slot="card"],
-      [data-slot="dialog-content"],
-      [data-slot="alert-dialog-content"],
-      [data-slot="popover-content"],
-      [data-slot="dropdown-menu-content"],
-      [data-slot="dropdown-menu-sub-content"],
-      [data-slot="context-menu-content"],
-      [data-slot="context-menu-sub-content"],
-      [data-slot="hover-card-content"],
-      [data-slot="sheet-content"],
-      [data-slot="drawer-content"],
-      [data-slot="select-content"],
-      [data-slot="toast"],
-      [data-slot="alert"]
-    ) {
-    border-color: color-mix(in oklch, var(--foreground) 52%, var(--border));
-    outline-color: color-mix(in oklch, var(--foreground) 52%, var(--border));
-    background: color-mix(in oklch, var(--card) 90%, var(--background));
   }
 }
 
@@ -2947,29 +1540,7 @@ html[data-box-style="glass"]
     animation: none;
   }
 
-  .appearance-choice,
-  html[data-box-style="glass"]
-    :is(
-      #root .app-topbar,
-      #root .app-sidebar [data-slot="sidebar-inner"],
-      [data-liquid-glass-group],
-      [data-liquid-glass-interactive],
-      [data-slot="tabs-list"]:not([data-variant="line"]),
-      [data-slot="card"],
-      [data-slot="dialog-content"],
-      [data-slot="alert-dialog-content"],
-      [data-slot="popover-content"],
-      [data-slot="dropdown-menu-content"],
-      [data-slot="dropdown-menu-sub-content"],
-      [data-slot="context-menu-content"],
-      [data-slot="context-menu-sub-content"],
-      [data-slot="hover-card-content"],
-      [data-slot="sheet-content"],
-      [data-slot="drawer-content"],
-      [data-slot="select-content"],
-      [data-slot="toast"],
-      [data-slot="alert"]
-    ) {
+  .appearance-choice {
     transition: none;
   }
 }

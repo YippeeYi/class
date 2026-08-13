@@ -4,7 +4,6 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { ImageViewer } from '@/components/archive/image-viewer'
-import { Button } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
 import { RecordCard } from '@/components/archive/record-card'
 import {
@@ -13,7 +12,6 @@ import {
   type RecordCriteria,
   RecordFilters,
 } from '@/components/archive/record-filters'
-import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -25,6 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
@@ -34,7 +33,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { Tabs } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
@@ -215,7 +214,7 @@ function WrittenRecordPages({
         </div>
         <div
           key={page.imagePath}
-          className="grid items-start gap-5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 lg:grid-cols-[minmax(20rem,42%)_minmax(0,1fr)]"
+          className="grid items-start gap-5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow) lg:grid-cols-[minmax(20rem,42%)_minmax(0,1fr)]"
         >
           <div className="min-h-0 self-start lg:sticky lg:top-20">
             <ImageViewer
@@ -328,7 +327,7 @@ function SignedPageImage({ path, page }: { path: string; page: string }) {
             setReady(false)
             imageFailure.markFailed()
           }}
-          className={`absolute inset-0 size-full object-contain transition-opacity duration-200 ${ready && !imageFailure.failed ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute inset-0 size-full object-contain transition-opacity duration-(--interaction-duration-slow) ${ready && !imageFailure.failed ? 'opacity-100' : 'opacity-0'}`}
         />
       )}
     </div>
@@ -820,7 +819,14 @@ export function RecordsPage() {
               setPageIndex(0)
             }}
           >
-            <SegmentedTabsList value={view} items={recordViewItems} ariaLabel="记录显示模式" />
+            <TabsList aria-label="记录显示模式" className="grid grid-cols-2">
+              {recordViewItems.map(({ value, label, icon: Icon }) => (
+                <TabsTrigger key={value} value={value}>
+                  <Icon className="size-4 shrink-0" />
+                  <span>{label}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
           </Tabs>
         }
       />
@@ -864,7 +870,7 @@ export function RecordsPage() {
         <ErrorState title="记录加载失败" onRetry={recordsResource.retry} />
       )}
       {!loading && (!recordsResource.error || hidden) && view === 'list' && (
-        <div className="grid gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+        <div className="grid gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow)">
           {filtered.length ? (
             filtered.map((record) => (
               <RecordCard

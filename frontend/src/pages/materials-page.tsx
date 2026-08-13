@@ -3,10 +3,10 @@ import { useEffect } from 'react'
 import { useSearchParams } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
-import { Button } from '@/components/archive/interaction'
 import { MarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAsyncData } from '@/hooks/use-async-data'
@@ -90,7 +90,7 @@ export function MaterialsPage() {
             <ScrollArea className="min-h-0 flex-1">
               <div
                 key={activeId}
-                className="material-reading mx-auto w-full max-w-[68rem] px-5 py-5 pr-7 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-7 sm:py-7 sm:pr-9 lg:px-8 lg:py-8 lg:pr-10"
+                className="material-reading mx-auto w-full max-w-[68rem] px-5 py-5 pr-7 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow) sm:px-7 sm:py-7 sm:pr-9 lg:px-8 lg:py-8 lg:pr-10"
               >
                 {active ? (
                   <MarkupContent content={active.content} />

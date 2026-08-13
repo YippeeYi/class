@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
-import { Button, buttonVariants } from '@/components/archive/interaction'
 import { MarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { RecordCard } from '@/components/archive/record-card'
@@ -13,12 +12,12 @@ import {
   type RecordCriteria,
   RecordFilters,
 } from '@/components/archive/record-filters'
-import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
@@ -205,11 +204,13 @@ export function PersonPage() {
               setCriteria(EMPTY_RECORD_CRITERIA)
             }}
           >
-            <SegmentedTabsList
-              value={mode as (typeof personRecordModes)[number]['value']}
-              items={personRecordModes}
-              ariaLabel="人物相关记录模式"
-            />
+            <TabsList aria-label="人物相关记录模式" className="grid grid-cols-2">
+              {personRecordModes.map(({ value, label }) => (
+                <TabsTrigger key={value} value={value}>
+                  {label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
           </Tabs>
         )}
       </div>
@@ -230,7 +231,7 @@ export function PersonPage() {
           </AlertDescription>
         </Alert>
       )}
-      <div className="grid gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+      <div className="grid gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow)">
         {related.length ? (
           related.map((record) => <RecordCard record={record} key={recordStableKey(record)} />)
         ) : (

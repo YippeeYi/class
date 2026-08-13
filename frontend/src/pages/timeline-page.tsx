@@ -5,11 +5,10 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from 'recharts'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
-import { Button } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
-import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   type ChartConfig,
@@ -17,7 +16,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart'
-import { Tabs } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
 import {
   countTextCharacters,
@@ -507,9 +506,7 @@ function AuthorDistributionChart({
               cy="50%"
               paddingAngle={2}
               strokeWidth={2}
-              isAnimationActive
-              animationDuration={320}
-              animationEasing="ease-out"
+              isAnimationActive={false}
             >
               {data.map((item) => {
                 const subdued = activeId !== null && activeId !== item.id
@@ -869,7 +866,13 @@ export function TimelinePage() {
         description="从全局、年度、月度和每日四个层级查看记录密度、作者与关联人物。"
         actions={
           <Tabs value={metric} onValueChange={(value) => setMetric(value as Metric)}>
-            <SegmentedTabsList value={metric} items={metricItems} ariaLabel="统计指标" />
+            <TabsList aria-label="统计指标" className="grid grid-cols-2">
+              {metricItems.map(({ value, label }) => (
+                <TabsTrigger key={value} value={value}>
+                  {label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
           </Tabs>
         }
       />
@@ -883,7 +886,7 @@ export function TimelinePage() {
       )}
       {resource.data && !records.length && <EmptyState title="暂无可统计的记录" />}
       {resource.data && records.length > 0 && (
-        <div className="min-w-0 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+        <div className="min-w-0 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow)">
           <section className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
             {summaryStats.map(({ label, value, icon: Icon }) => (
               <Card key={label} className="gap-0 bg-card/78 py-0">

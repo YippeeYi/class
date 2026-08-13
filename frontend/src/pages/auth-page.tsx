@@ -2,10 +2,11 @@ import { KeyRound } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
 import { Navigate } from 'react-router'
 
-import { Button } from '@/components/archive/interaction'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/features/auth/auth-context'
 
 export function AuthPage() {
@@ -18,6 +19,7 @@ export function AuthPage() {
     (auth.state === 'error'
       ? '无法确认本机已有的访问凭证。你可以检查网络，或输入新的邀请码重试。'
       : '')
+  const pending = submitting || auth.state === 'loading'
 
   useEffect(() => {
     document.title = '邀请码 · 编日史'
@@ -60,7 +62,7 @@ export function AuthPage() {
                   autoComplete="one-time-code"
                   required
                   autoFocus
-                  disabled={submitting || auth.state === 'loading'}
+                  disabled={pending}
                   aria-invalid={Boolean(displayedError)}
                   aria-describedby={displayedError ? 'invite-code-error' : undefined}
                 />
@@ -73,10 +75,17 @@ export function AuthPage() {
                 type="submit"
                 size="lg"
                 className="h-11 w-full"
-                loading={submitting || auth.state === 'loading'}
-                loadingLabel="正在验证…"
+                disabled={pending}
+                aria-busy={pending || undefined}
               >
-                进入档案
+                {pending ? (
+                  <>
+                    <Spinner />
+                    正在验证…
+                  </>
+                ) : (
+                  '进入档案'
+                )}
               </Button>
             </FieldGroup>
           </form>

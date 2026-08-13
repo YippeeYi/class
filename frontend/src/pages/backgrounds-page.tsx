@@ -1,9 +1,7 @@
 import { Check, Image as ImageIcon, Moon, Palette, Sparkles, Square, Sun } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Button, textLinkClassName } from '@/components/archive/interaction'
+import { textLinkClassName } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
-import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
-import { SelectionMotionLayers, useSelectionMotion } from '@/components/archive/selection-motion'
 import {
   type AppearancePreference,
   type BackgroundId,
@@ -19,10 +17,12 @@ import {
 } from '@/components/layout/background-root'
 import { AspectRatio } from '@/components/ui/aspect-ratio'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
-import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 type ThemePreset = (typeof themePresets)[number]
 
@@ -49,13 +49,12 @@ const appearanceSections = [
 
 function ThemePresetOption({ preset, selected }: { preset: ThemePreset; selected: boolean }) {
   return (
-    <label
+    <Label
       htmlFor={`theme-preset-${preset.id}`}
       data-theme-preset-option={preset.id}
       data-theme-mode={preset.mode}
-      data-selection-option
       data-selected={selected ? 'true' : 'false'}
-      className="appearance-choice group/preset grid min-w-0 gap-2 p-2"
+      className="appearance-choice group/preset grid min-w-0 gap-2 p-2 font-normal leading-normal"
     >
       <span
         data-theme-preview={preset.id}
@@ -77,25 +76,24 @@ function ThemePresetOption({ preset, selected }: { preset: ThemePreset; selected
       <span className="line-clamp-2 px-0.5 text-meta leading-5 text-muted-foreground">
         {preset.description}
       </span>
-    </label>
+    </Label>
   )
 }
 
 function AutomaticThemeOption({ selected }: { selected: boolean }) {
   return (
-    <label
+    <Label
       htmlFor="theme-preset-auto"
       data-theme-preset-option="auto"
       data-theme-mode="auto"
-      data-selection-option
       data-selected={selected ? 'true' : 'false'}
-      className="appearance-choice inline-flex min-h-11 min-w-44 items-center gap-2.5 px-3 py-2"
+      className="appearance-choice inline-flex min-h-11 min-w-44 items-center gap-2.5 px-3 py-2 font-normal leading-normal"
     >
       <RadioGroupItem id="theme-preset-auto" value="auto" />
       <Sparkles className="size-4 text-primary" />
       <span className="font-semibold">随背景</span>
       {selected && <Check className="ml-auto size-4 text-primary" aria-hidden="true" />}
-    </label>
+    </Label>
   )
 }
 
@@ -151,35 +149,22 @@ function BoxStyleOption({ id, selected }: { id: BoxStyleId; selected: boolean })
   const option = boxStyles.find((item) => item.id === id)
   if (!option) return null
   return (
-    <label
+    <Label
       htmlFor={`box-style-${id}`}
       data-box-style-id={id}
-      data-selection-option
       data-selected={selected ? 'true' : 'false'}
-      className="appearance-choice group/box overflow-hidden"
+      className="appearance-choice group/box overflow-hidden font-normal leading-normal"
     >
       <span
-        className={`box-style-preview relative grid min-h-40 place-items-center overflow-hidden border-b border-border/60 ${id === 'glass' ? 'liquid-glass-preview' : 'bg-muted/70'}`}
+        className="box-style-preview relative grid min-h-40 place-items-center overflow-hidden border-b border-border/60 bg-muted/70"
         aria-hidden="true"
       >
-        <span
-          className={
-            id === 'glass'
-              ? 'liquid-glass-preview-surface'
-              : 'box-style-preview-surface absolute left-[15%] top-[22%] h-20 w-[58%] border border-border bg-card p-3 shadow-sm'
-          }
-        >
+        <span className="box-style-preview-surface absolute left-[15%] top-[22%] h-20 w-[58%] border border-border bg-card p-3 shadow-sm">
           <span className="mb-2 block h-2 w-2/3 rounded-full bg-foreground/70" />
           <span className="block h-1.5 w-full rounded-full bg-muted-foreground/35" />
           <span className="mt-1.5 block h-1.5 w-4/5 rounded-full bg-muted-foreground/25" />
         </span>
-        <span
-          className={
-            id === 'glass'
-              ? 'liquid-glass-preview-control'
-              : 'box-style-preview-control absolute bottom-[18%] right-[13%] size-16 border border-border bg-card shadow-sm'
-          }
-        />
+        <span className="box-style-preview-control absolute bottom-[18%] right-[13%] size-16 border border-border bg-card shadow-sm" />
       </span>
       <span className="flex items-start gap-3 p-4">
         <RadioGroupItem id={`box-style-${id}`} value={id} className="mt-0.5" />
@@ -193,7 +178,7 @@ function BoxStyleOption({ id, selected }: { id: BoxStyleId; selected: boolean })
           </span>
         </span>
       </span>
-    </label>
+    </Label>
   )
 }
 
@@ -201,31 +186,6 @@ export function BackgroundsPage() {
   const [appearance, setAppearance] = useState<AppearancePreference>(readAppearance)
   const [section, setSection] = useState('palette')
   const current = appearance.background
-  const themeOptionIds: ThemePresetId[] = ['auto', ...themePresets.map((preset) => preset.id)]
-  const themeMotion = useSelectionMotion<HTMLDivElement>(
-    Math.max(0, themeOptionIds.indexOf(appearance.theme)),
-    themeOptionIds.length,
-    'auto',
-    '[data-selection-option]',
-  )
-  const backgroundMotion = useSelectionMotion<HTMLDivElement>(
-    Math.max(
-      0,
-      backgrounds.findIndex((item) => item.id === current),
-    ),
-    backgrounds.length,
-    'auto',
-    '[data-selection-option]',
-  )
-  const boxMotion = useSelectionMotion<HTMLDivElement>(
-    Math.max(
-      0,
-      boxStyles.findIndex((item) => item.id === appearance.box),
-    ),
-    boxStyles.length,
-    'auto',
-    '[data-selection-option]',
-  )
   useEffect(() => {
     document.title = '风格 · 编日史'
   }, [])
@@ -247,13 +207,15 @@ export function BackgroundsPage() {
         description="配色、背景与方框彼此独立，共同组成全站视觉风格；所有选择都会保存在当前浏览器中。"
       />
       <Tabs value={section} onValueChange={setSection} className="gap-4">
-        <SegmentedTabsList
-          value={section as (typeof appearanceSections)[number]['value']}
-          items={appearanceSections}
-          ariaLabel="风格设置分区"
-          className="w-full"
-          triggerClassName="min-h-10 min-w-0 px-3 py-2"
-        />
+        <TabsList aria-label="风格设置分区" className="grid h-auto min-h-12 w-full grid-cols-3">
+          {appearanceSections.map(({ value, label, icon: Icon, description }) => (
+            <TabsTrigger key={value} value={value} className="min-h-10 min-w-0 px-3 py-2">
+              <Icon className="size-4 shrink-0" />
+              <span>{label}</span>
+              <span className="sr-only">{description}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
         <TabsContent value="palette" className="app-tabs-content">
           <Card className="appearance-preset-panel gap-0 overflow-hidden border-border/70 bg-card/88 py-0">
@@ -270,13 +232,11 @@ export function BackgroundsPage() {
             </div>
             <CardContent className="p-3 sm:p-4">
               <RadioGroup
-                ref={themeMotion.ref}
                 aria-label="选择全站配色方案"
                 value={appearance.theme}
                 onValueChange={(value) => chooseTheme(value as ThemePresetId)}
-                className="app-spatial-selection grid gap-4"
+                className="grid gap-4"
               >
-                <SelectionMotionLayers />
                 <section
                   data-theme-mode-group="auto"
                   className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/60 pb-3"
@@ -338,21 +298,18 @@ export function BackgroundsPage() {
             </div>
             <CardContent className="p-3 sm:p-4">
               <RadioGroup
-                ref={backgroundMotion.ref}
                 aria-label="选择全站背景"
                 value={current}
                 onValueChange={(value) => choose(value as BackgroundId)}
-                className="app-spatial-selection grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+                className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
               >
-                <SelectionMotionLayers />
                 {backgrounds.map((item) => (
                   <div key={item.id} className="grid min-w-0 content-start gap-2">
-                    <label
+                    <Label
                       htmlFor={`background-${item.id}`}
                       data-background-id={item.id}
-                      data-selection-option
                       data-selected={current === item.id ? 'true' : 'false'}
-                      className="appearance-choice group/background-choice relative block min-w-0 overflow-hidden"
+                      className="appearance-choice group/background-choice relative block min-w-0 overflow-hidden font-normal leading-normal"
                     >
                       <AspectRatio
                         ratio={4 / 3}
@@ -399,7 +356,7 @@ export function BackgroundsPage() {
                           className="absolute right-3 top-3 z-20 size-5 border-background/80 bg-background/90 shadow-sm after:-inset-2 sm:right-4 sm:top-4"
                         />
                       </AspectRatio>
-                    </label>
+                    </Label>
                     <div className="min-w-0 px-1">
                       <p className="truncate text-meta leading-5 text-muted-foreground">
                         {item.credit.href ? (
@@ -438,13 +395,11 @@ export function BackgroundsPage() {
             </div>
             <CardContent className="p-3 sm:p-4">
               <RadioGroup
-                ref={boxMotion.ref}
                 aria-label="选择全站方框风格"
                 value={appearance.box}
                 onValueChange={(value) => chooseBox(value as BoxStyleId)}
-                className="app-spatial-selection grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+                className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
               >
-                <SelectionMotionLayers />
                 {boxStyles.map((style) => (
                   <BoxStyleOption
                     key={style.id}

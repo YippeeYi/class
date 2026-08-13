@@ -11,7 +11,7 @@ import {
 import { Link, useNavigate } from 'react-router'
 
 import { ImageViewer } from '@/components/archive/image-viewer'
-import { Button } from '@/components/archive/interaction'
+import { Button } from '@/components/ui/button'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { Spinner } from '@/components/ui/spinner'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
@@ -324,7 +324,7 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
               width={lockedDimensions?.width || dimensions?.width}
               height={lockedDimensions?.height || dimensions?.height}
               decoding="async"
-              className="size-full object-contain motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+              className="size-full object-contain motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow)"
             />
           )}
         </div>
