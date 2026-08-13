@@ -65,7 +65,7 @@ export const RecordCard = memo(function RecordCard({
       <Card
         id={anchor}
         tabIndex={-1}
-        className="record-surface group/record scroll-mt-24 gap-0 py-0 duration-500"
+        className="record-surface group/record scroll-mt-24 gap-0 py-0"
       >
         <CardHeader className="border-b border-border/60 pt-3 !pb-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-meta leading-5 text-muted-foreground">
@@ -152,7 +152,7 @@ export const RecordCard = memo(function RecordCard({
         </CardHeader>
         <CardContent className="py-3">
           <MarkupContent content={record.content} onRecordReference={onRecordReference} />
-          <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden opacity-100 transition-[height,opacity] duration-200 ease-out data-ending-style:h-0 data-ending-style:opacity-0 data-starting-style:h-0 data-starting-style:opacity-0">
+          <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden opacity-100 transition-[height,opacity] duration-(--interaction-duration-slow) ease-(--interaction-ease-standard) data-ending-style:h-0 data-ending-style:opacity-0 data-starting-style:h-0 data-starting-style:opacity-0">
             <div className="mt-3 flex flex-wrap gap-2 border-t border-border/60 pt-3">
               {record.attachments.map((attachment) => (
                 <AttachmentLink key={attachment.file} attachment={attachment} />

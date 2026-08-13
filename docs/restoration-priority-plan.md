@@ -93,7 +93,7 @@
 39. 将插图 HoverCard 改为尺寸门控和单次打开 frame 锁定，禁止 loading → ready 改变 tooltip 大小。
 40. 为手写页和蹭饭图建立固定比例加载容器，保留 sticky、相邻预载、私有签名、大图查看和失败恢复。
 41. 删除导览页重复致谢 Item，保留 Sidebar 入口，并以 shadcn Button 添加全站右下固定入口。
-42. 继续使用官方 SidebarMenuButton/Select；业务 Shell 不挂载 SidebarRail，选中、hover、open ring 和一致宽度由项目层公共样式承担。
+42. 继续使用官方 SidebarMenuButton/Select；业务 Shell 保留 SidebarRail 的展开/收起能力与键盘语义，项目层移除原竖线和 resize 光标，以圆形箭头反馈 18px 右缘热区；选中、hover、open ring 和一致宽度由公共样式承担。
 43. 重构背景为独立渐变遮罩层，统一 16:9 预览、Spinner、错误重试、选中反馈和 reduced-motion-safe 切换动画。
 44. 统一全站基础排版，并为筛选、排序、资料切换、搜索、时间线、答题反馈和页面内容添加克制过渡。
 

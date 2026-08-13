@@ -65,8 +65,10 @@
 - 单选模式切换统一使用项目 `SegmentedTabsList`（内部组合 shadcn Tabs）。普通风格的
   选中背景是单一共享层，以 200ms 标准 easing 在选项间移动；业务状态在点击时立即更新，不等待动画结束。
 - 液体玻璃沿用同一语义组件，但选中材质在 360ms 内经历“旧位置—临时融合桥—新位置”。
-  主材质轻微拉伸并重新稳定，边缘高光同步穿过；不使用果冻弹跳、波纹或叠加的
-  `backdrop-filter`。整组只有一次背景采样，内部形变只使用 transform/opacity/渐变位置。
+  主材质轻微拉伸并重新稳定，边缘高光同步迁移，局部焦散通过一份文档级 SVG
+  displacement filter 产生；不使用果冻弹跳、波纹或叠加的 `backdrop-filter`。整组只有一次背景采样。
+- 选中层及高光层保持稳定 DOM。切换动效使用 Web Animations API 直接更新合成层；快速中断时读取当前
+  `transform` 并从屏幕上的真实位置继续，不把纯视觉进度镜像到 React state，也不以 `key` 重建装饰节点。
 - 多选 Toggle/Button Group 不使用移动指示器；各项通过 `aria-pressed`、边框、背景和文字色平滑
   过渡，避免让多选语义看起来像单选。
 - 打开中的 Select、选中 Tabs 和 `aria-pressed=true` 控件必须有持续可见的 Selected 反馈。
@@ -81,7 +83,9 @@
 ### 方框与大图层级
 
 - 全站圆角只由 `--radius` 及其 Tailwind 派生 token 控制；方框风格只提供“利落小角”、
-  “标准圆角”、“液体玻璃”三档。容器、组、控件分别使用同一基准的比例 token；内层圆角不超过父层可用轮廓。
+  “标准圆角”、“液体玻璃”三档。容器、组、控件使用 `--radius-panel`、`--radius-group`、
+  `--radius-control`；3px 内缩选中层使用 `--radius-concentric-inset = group radius - inset`。
+  液体玻璃组与内层控件同样通过 `--glass-radius-group - 3px` 保持平行圆弧，内层不得复制外层半径。
 - 圆角切换只过渡 `border-radius`，不得改变盒模型尺寸、间距或内容位置。
 - 原生 scrollbar 与 shadcn `ScrollArea` 共用 `--scrollbar-edge-inset` 和
   `--scrollbar-thumb-radius`；大圆角增加上下缩进，滚动根容器裁切越界边缘。玻璃 thumb 仅使用稳定高光，不单独采样背景。
@@ -101,8 +105,11 @@
   公共 class 或 variant 中。
 - 页面不得新增 `transition-all`、Hover 位移/缩放、独立阴影尺度或与本规范冲突的时长。
 - 只有具备独立语义的业务控件可以增加局部状态色，例如答题正确/错误、表单错误和成功提示。
-- 侧边栏选中态使用整行共享背景和图标/文字颜色，不使用左侧竖条；业务 Shell 不挂载
-  `SidebarRail`，因此右缘没有额外的 hover 命中区、光标或竖线。
+- 侧边栏选中态使用整行共享背景和图标/文字颜色，不使用左侧竖条。右缘保留 shadcn
+  `SidebarRail` 的展开/收起语义和 18px 热区，但项目样式必须移除其竖线与 resize 光标，只在
+  Hover/Focus 时显示圆形箭头提示，且不可遮挡更深处的主体点击。
+- 记录标记产生的注释和插图 HoverCard 在打开时监听捕获阶段的 `scroll`。任一包含触发器的滚动祖先
+  发生纵向位移即执行一次标准 120ms 退出并关闭；滚动未结束时不得因静止指针自动重新打开。
 
 ## 5. 液体玻璃参考边界
 

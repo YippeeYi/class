@@ -2,6 +2,8 @@ import {
   BookOpenText,
   BrainCircuit,
   ChartNoAxesCombined,
+  ChevronLeft,
+  ChevronRight,
   FileText,
   Home,
   Image,
@@ -52,6 +54,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
   useSidebar,
@@ -127,13 +130,18 @@ function CloseMobileSidebar() {
 
 function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
   const location = useLocation()
+  const { state } = useSidebar()
   const activePath = navigationPath(location.pathname)
   const [clearing, setClearing] = useState(false)
   const activeIndex = Math.max(
     0,
     navigation.findIndex(({ to }) => isNavigationActive(activePath, to)),
   )
-  const navigationMotion = useSelectionMotion(activeIndex, navigation.length)
+  const navigationMotion = useSelectionMotion<HTMLUListElement>(
+    activeIndex,
+    navigation.length,
+    'vertical',
+  )
 
   const clearAccess = async () => {
     if (clearing) return
@@ -174,13 +182,8 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
         <SidebarGroup>
           <SidebarGroupLabel>主要导航</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu
-              data-selection-direction={navigationMotion.direction}
-              data-selection-switching={navigationMotion.switching || undefined}
-              className="app-sidebar-navigation"
-              style={navigationMotion.style}
-            >
-              <SelectionMotionLayers motion={navigationMotion} listItems />
+            <SidebarMenu ref={navigationMotion.ref} className="app-sidebar-navigation">
+              <SelectionMotionLayers listItems />
               {navigation.map(({ to, label, icon: Icon }) => {
                 const isActive = isNavigationActive(activePath, to)
                 const destination =
@@ -252,6 +255,16 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+      <SidebarRail
+        className="app-sidebar-rail"
+        tabIndex={0}
+        aria-label={state === 'expanded' ? '收起侧边栏' : '展开侧边栏'}
+        title={state === 'expanded' ? '收起侧边栏' : '展开侧边栏'}
+      >
+        <span className="app-sidebar-rail-affordance" aria-hidden="true">
+          {state === 'expanded' ? <ChevronLeft /> : <ChevronRight />}
+        </span>
+      </SidebarRail>
     </Sidebar>
   )
 }

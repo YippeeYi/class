@@ -142,7 +142,7 @@
 | 手写页加载稳定 | 签名阶段展示通用 Skeleton，图片出现时整列高度变化 | 根据共享 intrinsic geometry 预留比例容器；默认沿用旧版 `2856×4282`，Spinner、错误文案和最终图片共用容器，相邻页继续预载 | A/D |
 | 蹭饭图加载稳定 | 整张 Card 在数据和 URL 返回后才出现 | 尺寸元数据与短期 URL 分离缓存；使用官方 AspectRatio，默认 `4838×2721`，加载、重试和图片共用稳定区域 | A/D |
 | 致谢入口层级 | 导览“继续探索”重复显示独立致谢 Item，底部入口只在正常文档流末尾 | 移除导览重复项；Sidebar 原入口保留；AppShell 右下角使用 shadcn Button 固定显示且当前页有明确状态 | A |
-| Sidebar 接缝 | 右缘 rail 会产生额外 hover 竖线和命中区 | 业务 Shell 不再挂载 SidebarRail；MenuButton 继续使用官方 `isActive`，选中态改为项目层共享背景 | D |
+| Sidebar 接缝 | 右缘 rail 的默认竖线和 resize 光标会误导，但边缘展开/收起能力仍有价值 | 保留 SidebarRail 的 18px 热区和键盘语义；项目层彻底移除竖线与 resize 表达，改用 Hover/Focus 圆形箭头；MenuButton 继续使用官方 `isActive`，选中态使用共享背景 | D |
 | 背景层级与切换 | 根元素直接替换 background-image，主面板遮罩偏重，切换突兀 | 独立 fixed 背景层、渐变遮罩、透明内容表面和 500ms reduced-motion-safe 淡入；预览用官方 AspectRatio/Spinner | D |
 | 全站排版 | body 缺统一行高/字距，PageHeading eyebrow 偏小，说明文字部分仅 14px | 统一 1.6 行高、轻微字距、balanced heading、pretty paragraph、selection token；页说明统一 16px/28px | A/D |
 | Select/Dropdown | 记录筛选触发器宽度随文字变化，几个页面的排序下拉视觉密度不一致 | 直接使用 shadcn Select 组合，统一 128/144px 业务宽度、背景/hover/open ring、`align=start`，弹层动画继续由官方组件提供 | A/D |

@@ -629,12 +629,6 @@ export function QuizPage() {
                         })}
                       </div>
                     )}
-                    {secretHint && (
-                      <Alert className="mt-5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
-                        <AlertTitle>继续尝试</AlertTitle>
-                        <AlertDescription>{secretHint}</AlertDescription>
-                      </Alert>
-                    )}
                   </div>
                 </ScrollArea>
               ) : (
@@ -663,6 +657,10 @@ export function QuizPage() {
                       <strong>{result === 'correct' ? '回答正确' : '回答错误'}</strong>
                       {result === 'wrong' && <> · 正确答案：{current.answer}。</>}
                       {current.explanation && ` ${current.explanation}`}
+                    </>
+                  ) : current.content === 'secret' && secretHint ? (
+                    <>
+                      <strong>继续作答</strong> · {secretHint}
                     </>
                   ) : (
                     '选择答案或填写完整内容后提交。'

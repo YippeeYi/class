@@ -1,4 +1,5 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react'
+import { LiquidGlassDefinitions } from '@/components/archive/liquid-glass-definitions'
 
 export const BACKGROUND_KEY = 'classRecord:background'
 export const APPEARANCE_KEY = 'classRecord:appearance:v1'
@@ -505,6 +506,7 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       data-theme-preset={appearance.theme}
       data-box-style={appearance.box}
     >
+      <LiquidGlassDefinitions />
       {previous && (
         <div
           aria-hidden="true"

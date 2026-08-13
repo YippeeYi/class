@@ -1444,13 +1444,34 @@ try {
   )
   await page.locator('[data-box-style-id="default"]').click()
   await page.waitForFunction(() => document.documentElement.dataset.boxStyle === 'default')
+  await page.getByRole('tab', { name: /^背景/ }).click()
+  const standardSelectionAnimations = await page.locator('.app-segmented-control').evaluate((list) =>
+    list
+      .getAnimations({ subtree: true })
+      .map((animation) => animation.id)
+      .filter(Boolean),
+  )
+  assert.deepEqual(
+    standardSelectionAnimations,
+    ['app-selection-move'],
+    'ordinary segmented controls must use one lightweight shared-surface movement',
+  )
+  await page.getByRole('tab', { name: /^方框/ }).click()
   const glassChoice = page.locator('[data-box-style-id="glass"]')
   await glassChoice.scrollIntoViewIfNeeded()
   const glassChoiceBoundsBefore = await glassChoice.boundingBox()
   await glassChoice.hover()
   await page.waitForTimeout(220)
   const glassChoiceBoundsAfter = await glassChoice.boundingBox()
-  assert.deepEqual(glassChoiceBoundsAfter, glassChoiceBoundsBefore, 'box-style hover must preserve the exact selectable-card geometry')
+  assert.ok(
+    glassChoiceBoundsBefore &&
+      glassChoiceBoundsAfter &&
+      glassChoiceBoundsAfter.width === glassChoiceBoundsBefore.width &&
+      glassChoiceBoundsAfter.height === glassChoiceBoundsBefore.height &&
+      Math.abs(glassChoiceBoundsAfter.x - glassChoiceBoundsBefore.x) <= 1 &&
+      Math.abs(glassChoiceBoundsAfter.y - glassChoiceBoundsBefore.y) <= 1,
+    `box-style hover must preserve selectable-card geometry: ${JSON.stringify({ glassChoiceBoundsBefore, glassChoiceBoundsAfter })}`,
+  )
   const defaultQuizSizes = await page.locator('[data-quiz-theme-fixture]').evaluateAll((cards) =>
     cards.map((card) => ({
       type: card.getAttribute('data-question-type'),
@@ -1475,26 +1496,39 @@ try {
   const liquidSelectionMotion = await page.locator('.app-segmented-control').evaluate((list) => {
     const indicator = list.querySelector('.app-selection-indicator')
     const bridge = list.querySelector('.app-selection-bridge')
+    const refraction = list.querySelector('.app-selection-refraction')
     return {
       switching: list.hasAttribute('data-selection-switching'),
-      indicatorAnimation: indicator ? getComputedStyle(indicator).animationName : '',
-      bridgeAnimation: bridge ? getComputedStyle(bridge).animationName : '',
+      material: list.getAttribute('data-selection-material'),
+      animations: list
+        .getAnimations({ subtree: true })
+        .map((animation) => animation.id)
+        .filter(Boolean)
+        .sort(),
       bridgeDisplay: bridge ? getComputedStyle(bridge).display : '',
       backdrop: getComputedStyle(list).backdropFilter,
+      indicatorBackdrop: indicator ? getComputedStyle(indicator).backdropFilter : '',
+      refractionBackdrop: refraction ? getComputedStyle(refraction).backdropFilter : '',
+      refractionFilter: refraction ? getComputedStyle(refraction, '::after').filter : '',
     }
   })
+  assert.equal(liquidSelectionMotion.switching, true)
+  assert.equal(liquidSelectionMotion.material, 'liquid')
   assert.deepEqual(
-    liquidSelectionMotion,
-    {
-      switching: true,
-      indicatorAnimation: 'app-liquid-selection-horizontal',
-      bridgeAnimation: 'app-liquid-bridge',
-      bridgeDisplay: 'block',
-      backdrop: liquidSelectionMotion.backdrop,
-    },
+    liquidSelectionMotion.animations,
+    [
+      'app-liquid-selection-bridge',
+      'app-liquid-selection-lens',
+      'app-liquid-selection-move',
+      'app-liquid-selection-reshape',
+    ],
     `liquid tabs must reshape through one moving surface and a temporary bridge: ${JSON.stringify(liquidSelectionMotion)}`,
   )
+  assert.equal(liquidSelectionMotion.bridgeDisplay, 'block')
   assert.notEqual(liquidSelectionMotion.backdrop, 'none', 'the segmented group must own exactly one bounded backdrop sample')
+  assert.equal(liquidSelectionMotion.indicatorBackdrop, 'none', 'the moving selection must not resample the backdrop')
+  assert.equal(liquidSelectionMotion.refractionBackdrop, 'none', 'the refracted highlight must not resample the backdrop')
+  assert.match(liquidSelectionMotion.refractionFilter, /app-liquid-glass-refraction/, 'liquid highlights must use the bounded shared refraction filter')
   await page.waitForTimeout(440)
   assert.equal(
     await page.locator('.app-segmented-control').getAttribute('data-selection-switching'),
@@ -1503,15 +1537,44 @@ try {
   )
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.getByRole('tab', { name: /^背景/ }).click()
-  const reducedLiquidDuration = await page
-    .locator('.app-segmented-control .app-selection-indicator')
-    .evaluate((indicator) => getComputedStyle(indicator).animationDuration)
-  assert.ok(
-    Number.parseFloat(reducedLiquidDuration) <= 0.00001,
-    `reduced motion must override the higher-specificity liquid reshape duration: ${reducedLiquidDuration}`,
+  const reducedLiquidMotion = await page.locator('.app-segmented-control').evaluate((list) => ({
+    switching: list.hasAttribute('data-selection-switching'),
+    animations: list.getAnimations({ subtree: true }).filter((animation) => animation.id).length,
+  }))
+  assert.deepEqual(
+    reducedLiquidMotion,
+    { switching: false, animations: 0 },
+    `reduced motion must bypass liquid selection animation: ${JSON.stringify(reducedLiquidMotion)}`,
   )
   await page.waitForTimeout(440)
   await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.getByRole('tab', { name: /^配色/ }).click()
+  await page.getByRole('tab', { name: /^背景/ }).click()
+  await page.getByRole('tab', { name: /^方框/ }).click()
+  const rapidLiquidSwitch = await page.locator('.app-segmented-control').evaluate((list) => {
+    const indicator = list.querySelector('.app-selection-indicator')?.getBoundingClientRect()
+    const selected = list.querySelector('[data-slot="tabs-trigger"][data-active]')?.getBoundingClientRect()
+    return {
+      active: list.querySelector('[data-slot="tabs-trigger"][data-active]')?.textContent?.trim(),
+      animationCount: list.getAnimations({ subtree: true }).filter((animation) => animation.id).length,
+      centerDelta:
+        indicator && selected
+          ? Math.abs(indicator.left + indicator.width / 2 - (selected.left + selected.width / 2))
+          : Number.POSITIVE_INFINITY,
+    }
+  })
+  assert.match(rapidLiquidSwitch.active || '', /^方框/)
+  assert.ok(rapidLiquidSwitch.animationCount <= 4, `rapid switching must keep a bounded animation set: ${JSON.stringify(rapidLiquidSwitch)}`)
+  assert.ok(Number.isFinite(rapidLiquidSwitch.centerDelta), 'rapid switching must retain one measurable selected surface')
+  await page.waitForTimeout(410)
+  const settledSelectionDelta = await page.locator('.app-segmented-control').evaluate((list) => {
+    const indicator = list.querySelector('.app-selection-indicator')?.getBoundingClientRect()
+    const selected = list.querySelector('[data-slot="tabs-trigger"][data-active]')?.getBoundingClientRect()
+    return indicator && selected
+      ? Math.abs(indicator.left + indicator.width / 2 - (selected.left + selected.width / 2))
+      : Number.POSITIVE_INFINITY
+  })
+  assert.ok(settledSelectionDelta <= 1, `liquid selection must settle exactly on the active option: ${settledSelectionDelta}`)
   await page.getByRole('tab', { name: /^配色/ }).click()
   for (const themeId of [
     'paper',
@@ -1812,6 +1875,31 @@ try {
   const movedAnnotationPopup = await annotationPopup.boundingBox()
   assert.ok(movedAnnotationPopup)
   assert.ok(Math.abs(movedAnnotationPopup.x - firstAnnotationPopup.x) <= 1, 'an open annotation popup must not follow later pointer movement')
+  await page.locator('.record-annotation-popup').evaluate((element) => {
+    window.__annotationScrollCloseCount = 0
+    const observer = new MutationObserver(() => {
+      if (element.hasAttribute('data-closed')) window.__annotationScrollCloseCount += 1
+    })
+    observer.observe(element, { attributes: true, attributeFilter: ['data-closed'] })
+    window.setTimeout(() => observer.disconnect(), 800)
+  })
+  await page.evaluate(() => window.scrollBy(0, 2))
+  await page.locator('.record-annotation-popup[data-closed]').waitFor({ state: 'visible' })
+  await annotationPopup.waitFor({ state: 'hidden' })
+  await page.waitForTimeout(180)
+  assert.equal(
+    await page.evaluate(() => window.__annotationScrollCloseCount),
+    1,
+    'one vertical scroll must start exactly one annotation exit lifecycle',
+  )
+  assert.equal(
+    await page.locator('.record-annotation-popup[data-open]').count(),
+    0,
+    'a stationary pointer must not reopen an annotation after scrolling',
+  )
+  await page.mouse.move(4, 4)
+  await shortTrigger.hover()
+  await annotationPopup.waitFor({ state: 'visible' })
   const shortWidth = await annotationPopup.evaluate((element) => element.getBoundingClientRect().width)
   const annotationExitOrigin = await annotationPopup.evaluate((element) => {
     const bounds = element.parentElement?.getBoundingClientRect()
@@ -1874,6 +1962,8 @@ try {
   await page.waitForFunction(() => window.__memoryLocation === '/person?id=p01')
   await page.evaluate(() => window.__memoryNavigate('/'))
   await page.waitForFunction(() => window.__memoryLocation === '/')
+  await longTrigger.scrollIntoViewIfNeeded()
+  await page.waitForTimeout(50)
   await longTrigger.focus()
   await page.keyboard.press('Enter')
   await page.waitForFunction(() => document.activeElement?.matches('a.person-link'))
@@ -1881,6 +1971,7 @@ try {
   await page.waitForFunction(() => window.__memoryLocation === '/person?id=p01')
 
   await page.setViewportSize({ width: 320, height: 1000 })
+  await page.mouse.move(4, 4)
   await longTrigger.hover()
   await annotationPopup.waitFor({ state: 'visible' })
   const mobileAnnotation = await annotationPopup.evaluate((element) => ({
@@ -1920,6 +2011,31 @@ try {
   const movedPopup = await illustrationPopup.boundingBox()
   assert.ok(movedPopup)
   assert.ok(Math.abs(movedPopup.x - firstPopup.x) <= 1, 'an open illustration popup must not follow later pointer movement')
+  await page.locator('.record-illustration-popup').evaluate((element) => {
+    window.__illustrationScrollCloseCount = 0
+    const observer = new MutationObserver(() => {
+      if (element.hasAttribute('data-closed')) window.__illustrationScrollCloseCount += 1
+    })
+    observer.observe(element, { attributes: true, attributeFilter: ['data-closed'] })
+    window.setTimeout(() => observer.disconnect(), 800)
+  })
+  await page.evaluate(() => window.scrollBy(0, 2))
+  await page.locator('.record-illustration-popup[data-closed]').waitFor({ state: 'visible' })
+  await illustrationPopup.waitFor({ state: 'hidden' })
+  await page.waitForTimeout(180)
+  assert.equal(
+    await page.evaluate(() => window.__illustrationScrollCloseCount),
+    1,
+    'one vertical scroll must start exactly one illustration exit lifecycle',
+  )
+  assert.equal(
+    await page.locator('.record-illustration-popup[data-open]').count(),
+    0,
+    'a stationary pointer must not reopen an illustration after scrolling',
+  )
+  await page.mouse.move(4, 4)
+  await illustration.hover()
+  await illustrationPopup.waitFor({ state: 'visible' })
   const illustrationExitOrigin = await illustrationPopup.evaluate((element) => {
     const bounds = element.parentElement?.getBoundingClientRect()
     return { left: bounds?.left || 0, top: bounds?.top || 0 }
@@ -2004,9 +2120,13 @@ try {
   touchPage.on('pageerror', (error) => touchErrors.push(error.message))
   await touchPage.goto(origin, { waitUntil: 'networkidle' })
   await touchPage.waitForFunction(() => window.__markupLayoutReady === true)
-  await touchPage.getByRole('button', { name: '长注触发' }).tap()
+  const touchLongTrigger = touchPage.getByRole('button', { name: '长注触发' })
+  await touchLongTrigger.scrollIntoViewIfNeeded()
+  await touchPage.waitForTimeout(80)
+  await touchLongTrigger.tap()
   const touchAnnotation = touchPage.locator('.record-annotation-popup[data-open]')
   await touchAnnotation.waitFor({ state: 'visible' })
+  await touchPage.waitForTimeout(160)
   const touchPerson = touchAnnotation.locator('a.person-link', { hasText: '人物标记' })
   await touchPerson.tap()
   await touchPage.waitForFunction(() => window.__memoryLocation === '/person?id=p01')

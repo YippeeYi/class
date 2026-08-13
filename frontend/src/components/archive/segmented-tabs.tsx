@@ -35,18 +35,16 @@ export function SegmentedTabsList<T extends string>({
     0,
     items.findIndex((item) => item.value === value),
   )
-  const motion = useSelectionMotion(activeIndex, items.length)
+  const motion = useSelectionMotion<HTMLDivElement>(activeIndex, items.length)
 
   return (
     <TabsList
+      ref={motion.ref}
       aria-label={ariaLabel}
       data-segmented-control="true"
-      data-selection-direction={motion.direction}
-      data-selection-switching={motion.switching || undefined}
       className={cn('app-segmented-control', className)}
-      style={motion.style}
     >
-      <SelectionMotionLayers motion={motion} />
+      <SelectionMotionLayers />
       {items.map((item) => {
         const Icon = item.icon
         return (

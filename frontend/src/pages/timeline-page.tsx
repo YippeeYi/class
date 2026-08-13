@@ -37,7 +37,7 @@ const metricItems = [
 ] as const
 const chartConfig = { value: { label: '数量', color: 'var(--chart-1)' } } satisfies ChartConfig
 const chartTooltipClassName =
-  'w-40 min-w-40 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-100'
+  'w-40 min-w-40 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-fast)'
 const pieColors = [
   'var(--chart-1)',
   'var(--chart-2)',
@@ -391,7 +391,7 @@ function MiniAuthorPie({
               strokeDashoffset={dashOffset}
               transform="rotate(-90 20 20)"
               opacity={activeId && activeId !== id ? 0.18 : 1}
-              className="transition-opacity duration-150"
+              className="transition-opacity duration-(--interaction-duration-standard)"
             />
           )
         })}
@@ -523,7 +523,7 @@ function AuthorDistributionChart({
                     tabIndex={0}
                     role="img"
                     aria-label={`${item.name}：${item.value.toLocaleString()} ${unit}`}
-                    className="cursor-default outline-none transition-[opacity,stroke-width] duration-150 focus-visible:opacity-100"
+                    className="cursor-default outline-none transition-[opacity,stroke-width] duration-(--interaction-duration-standard) focus-visible:opacity-100"
                     onPointerEnter={() => {
                       setActiveId(item.id)
                       setHoveredSectorId(item.id)

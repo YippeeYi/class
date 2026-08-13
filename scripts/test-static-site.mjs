@@ -36,6 +36,10 @@ const pageHeading = await readFrontend('src/components/archive/page-heading.tsx'
 const pageHeader = await readFrontend('src/components/layout/page-header.tsx')
 const shell = await readFrontend('src/components/layout/app-shell.tsx')
 const selectionMotion = await readFrontend('src/components/archive/selection-motion.tsx')
+const liquidGlassDefinitions = await readFrontend(
+  'src/components/archive/liquid-glass-definitions.tsx',
+)
+const dismissOnScroll = await readFrontend('src/hooks/use-dismiss-on-vertical-scroll.ts')
 const archiveContext = await readFrontend('src/features/archive/archive-context.tsx')
 const markup = await readFrontend('src/lib/markup.ts')
 const redirects = await readFrontend('public/_redirects')
@@ -341,6 +345,16 @@ assert.match(markup, /type: 'blank'; answer: string/, 'quiz blanks must be repre
 assert.match(markup, /node\.id === redaction\.id[\s\S]*visibleLabel === redaction\.normalizedLabel/, 'quiz redaction must match both entity identity and exact visible label')
 assert.doesNotMatch(markupContent, /\.split\(/, 'quiz prompts must not globally replace matching display text')
 assert.match(quiz, /quiz-result-correct[\s\S]*quiz-result-wrong/, 'quiz feedback must use theme-aware semantic state colors')
+assert.match(
+  quiz,
+  /current\.content === 'secret' && secretHint[\s\S]*<strong>继续作答<\/strong>[\s\S]*选择答案或填写完整内容后提交。/,
+  'secret-question retries must reuse the persistent footer status region',
+)
+assert.doesNotMatch(
+  quiz,
+  /secretHint && \([\s\S]{0,240}<Alert/,
+  'secret-question retries must not create a standalone feedback box',
+)
 assert.doesNotMatch(quiz, /result === 'correct' && 'text-\[oklch/, 'quiz feedback must not hard-code a light-theme success color')
 assert.match(styles, /\.dark \.quiz-question-card[\s\S]*--quiz-type-ink:[\s\S]*--quiz-success-foreground:[\s\S]*--quiz-error-foreground:/, 'dark quiz surfaces and state text need dedicated semantic contrast tokens')
 assert.match(styles, /--quiz-option-surface:[\s\S]*--quiz-option-disabled-foreground:/, 'quiz options need shared readable surface and foreground tokens')
@@ -384,6 +398,21 @@ assert.match(markupContent, /record-annotation-popup/, 'annotation content needs
 assert.match(markupContent, /function Annotation[\s\S]*alignOffset=\{lockedAlignOffset\}/, 'annotations must lock one pointer-centered horizontal anchor per open lifecycle')
 assert.doesNotMatch(markupContent, /setLockedAlignOffset\(0\)/, 'closing a hover card must not reset its position before the exit animation finishes')
 assert.doesNotMatch(markupContent, /setLockedDimensions\(null\)/, 'illustration exit animation must retain its measured frame')
+assert.equal(
+  (markupContent.match(/useDismissOnVerticalScroll\(open, triggerRef/g) || []).length,
+  2,
+  'annotation and illustration surfaces must share the vertical-scroll dismissal contract',
+)
+assert.match(
+  dismissOnScroll,
+  /window\.addEventListener\('scroll',[\s\S]*capture: true[\s\S]*passive: true/,
+  'scroll dismissal must capture element and document scrolling without blocking it',
+)
+assert.match(
+  dismissOnScroll,
+  /let dismissed = false[\s\S]*dismissed = true[\s\S]*onDismissRef\.current\(\)/,
+  'one open surface must start its exit path only once per scroll lifecycle',
+)
 assert.match(markupContent, /interactionMode="references"/, 'annotation content must retain clickable person and record references')
 assert.match(markupContent, /interactionMode !== 'full'/, 'nested annotation markup must not recursively create popup triggers')
 assert.match(markupContent, /quiz-answer-blank-text[\s\S]*\{answer\}/, 'quiz blanks must keep the real answer glyphs in normal layout')
@@ -398,11 +427,22 @@ assert.match(styles, /\.record-markup \{[\s\S]*contain: inline-size/, 'long tabl
 assert.match(styles, /\.app-main-surface \{[\s\S]*color-mix\(in oklch, var\(--background\) 68%, transparent\)/, 'the application surface must reveal the selected fixed background')
 assert.match(styles, /\.app-sidebar \[data-slot="sidebar-inner"\][\s\S]*backdrop-filter: blur/, 'the desktop sidebar must use a restrained readable glass surface')
 assert.match(shell, /<Sidebar collapsible="icon" className="app-sidebar">/, 'the business shell must opt the shadcn sidebar into background-aware styling')
-assert.doesNotMatch(shell, /SidebarRail/, 'the sidebar must not mount a right-edge hover rail or resize hit area')
+assert.match(shell, /<SidebarRail[\s\S]*app-sidebar-rail[\s\S]*app-sidebar-rail-affordance/, 'the sidebar edge must retain one accessible expand-collapse hit area')
+assert.match(styles, /\.app-sidebar-rail::after \{[\s\S]*content: none;/, 'the sidebar edge hit area must remove the generated vertical rule')
 assert.doesNotMatch(styles, /\.app-navigation-item::before|\.app-selection-item::before/, 'selection must not return to a leading vertical marker')
 assert.match(shell, /className="app-sidebar-navigation"[\s\S]*<SelectionMotionLayers/, 'sidebar selection must use the shared full-row moving surface')
-assert.match(selectionMotion, /--selection-from[\s\S]*--selection-to[\s\S]*--selection-distance/, 'shared selection motion must retain both endpoints and travel distance')
-assert.match(styles, /app-liquid-selection-horizontal[\s\S]*app-liquid-bridge[\s\S]*app-liquid-lens/, 'liquid selection must combine reshape, merging bridge, and travelling edge light')
+for (const selectionVariable of ['--selection-from', '--selection-to', '--selection-distance']) {
+  assert.match(
+    selectionMotion,
+    new RegExp(selectionVariable),
+    `shared selection motion must retain ${selectionVariable}`,
+  )
+}
+assert.doesNotMatch(selectionMotion, /useState|key=\{`selection-|key=\{`bridge-/, 'selection paint state must not cause React rerenders or decorative remounts')
+assert.match(selectionMotion, /getComputedStyle\(indicator\)\.transform[\s\S]*indicator\.animate/, 'rapid selection changes must continue from the current composited transform')
+assert.match(selectionMotion, /app-liquid-selection-reshape[\s\S]*app-liquid-selection-bridge[\s\S]*app-liquid-selection-lens/, 'liquid selection must combine material reshape, merging bridge, and travelling edge light')
+assert.match(styles, /\.app-selection-refraction::before[\s\S]*conic-gradient[\s\S]*\.app-selection-refraction::after[\s\S]*app-liquid-glass-refraction/, 'liquid selection must expose a continuous edge highlight and refracted caustic layer')
+assert.match(liquidGlassDefinitions, /feTurbulence[\s\S]*feDisplacementMap/, 'the shared liquid highlight must use bounded refraction instead of another backdrop pass')
 assert.match(styles, /--scrollbar-edge-inset[\s\S]*\[data-slot="scroll-area-thumb"\]/, 'scroll areas must derive edge insets and thumb geometry from shared tokens')
 assert.match(styles, /\.record-table-scroll table[\s\S]*table-layout: fixed/, 'markup tables must remain within their available width')
 const recordTableStyles = styles.slice(

@@ -15,6 +15,7 @@ import { Button } from '@/components/archive/interaction'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { Spinner } from '@/components/ui/spinner'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
+import { useDismissOnVerticalScroll } from '@/hooks/use-dismiss-on-vertical-scroll'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import type { ImageDimensions } from '@/lib/image-metadata'
 import {
@@ -46,6 +47,16 @@ function previewFrame(dimensions: ImageDimensions | null) {
   }
 }
 
+function pointerMoved(
+  previous: { x: number; y: number } | null,
+  event: ReactPointerEvent<HTMLElement>,
+) {
+  return Boolean(
+    previous &&
+      (Math.abs(event.clientX - previous.x) > 0.5 || Math.abs(event.clientY - previous.y) > 0.5),
+  )
+}
+
 function Annotation({ note, children }: { note: string; children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [lockedAlignOffset, setLockedAlignOffset] = useState(0)
@@ -53,21 +64,30 @@ function Annotation({ note, children }: { note: string; children: ReactNode }) {
   const popupRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const pointerClientX = useRef<number | null>(null)
+  const lastPointerPosition = useRef<{ x: number; y: number } | null>(null)
   const openRef = useRef(false)
+  const dismissedByScroll = useRef(false)
 
   const focusFirstReference = () => {
     requestAnimationFrame(() => {
-      popupRef.current?.querySelector<HTMLElement>('.markup-link')?.focus()
+      popupRef.current?.querySelector<HTMLElement>('.markup-link')?.focus({ preventScroll: true })
     })
   }
 
   const rememberPointerPosition = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const previousPointer = lastPointerPosition.current
+    const moved = pointerMoved(previousPointer, event)
+    const resumedAfterScroll = dismissedByScroll.current && moved
+    if (moved) dismissedByScroll.current = false
+    lastPointerPosition.current = { x: event.clientX, y: event.clientY }
     if (event.pointerType === 'touch' || openRef.current) return
     pointerClientX.current = event.clientX
+    if (resumedAfterScroll) changeOpen(true)
   }
 
   const changeOpen = (nextOpen: boolean) => {
     if (nextOpen) {
+      if (dismissedByScroll.current) return
       if (!openRef.current) {
         const bounds = triggerRef.current?.getBoundingClientRect()
         const pointerX = pointerClientX.current
@@ -83,6 +103,11 @@ function Annotation({ note, children }: { note: string; children: ReactNode }) {
     setOpen(false)
   }
 
+  useDismissOnVerticalScroll(open, triggerRef, () => {
+    dismissedByScroll.current = true
+    changeOpen(false)
+  })
+
   return (
     <HoverCard open={open} onOpenChange={changeOpen}>
       <HoverCardTrigger
@@ -94,16 +119,26 @@ function Annotation({ note, children }: { note: string; children: ReactNode }) {
             size="xs"
             className="record-annotation inline h-auto min-h-0 whitespace-normal rounded-[0.15em] border-0 px-0 py-0 align-baseline text-[1em] leading-[inherit] font-[inherit] text-foreground/90 underline decoration-primary/55 decoration-dotted decoration-[1.5px] underline-offset-[0.18em] select-text focus-visible:border-transparent"
             onPointerDown={(event) => {
+              dismissedByScroll.current = false
               pointerType.current = event.pointerType
               if (event.pointerType === 'touch') pointerClientX.current = null
             }}
             onPointerEnter={rememberPointerPosition}
             onPointerMove={rememberPointerPosition}
             onFocus={(event) => {
-              if (event.currentTarget.matches(':focus-visible')) pointerClientX.current = null
+              if (event.currentTarget.matches(':focus-visible')) {
+                dismissedByScroll.current = false
+                pointerClientX.current = null
+              }
+            }}
+            onKeyDown={(event) => {
+              if (!event.altKey && !event.ctrlKey && !event.metaKey) {
+                dismissedByScroll.current = false
+              }
             }}
             onClick={(event) => {
               if (event.detail === 0) {
+                dismissedByScroll.current = false
                 changeOpen(true)
                 focusFirstReference()
               } else if (pointerType.current === 'touch') changeOpen(true)
@@ -137,8 +172,10 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
   const [lockedAlignOffset, setLockedAlignOffset] = useState(0)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const pointerClientX = useRef<number | null>(null)
+  const lastPointerPosition = useRef<{ x: number; y: number } | null>(null)
   const openRef = useRef(false)
   const openRequest = useRef(0)
+  const dismissedByScroll = useRef(false)
   const preview = useSignedAsset(requested ? path : '')
   const frame = previewFrame(lockedDimensions || dimensions)
 
@@ -170,8 +207,14 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
     void preloadImageDimensions(path)
   }
   const rememberPointerPosition = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const previousPointer = lastPointerPosition.current
+    const moved = pointerMoved(previousPointer, event)
+    const resumedAfterScroll = dismissedByScroll.current && moved
+    if (moved) dismissedByScroll.current = false
+    lastPointerPosition.current = { x: event.clientX, y: event.clientY }
     if (event.pointerType === 'touch' || openRef.current) return
     pointerClientX.current = event.clientX
+    if (resumedAfterScroll) changeOpen(true)
   }
   const showAtLockedPointer = (nextDimensions: ImageDimensions) => {
     const bounds = triggerRef.current?.getBoundingClientRect()
@@ -190,6 +233,7 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
       setOpen(false)
       return
     }
+    if (dismissedByScroll.current) return
     requestPreview()
     const request = ++openRequest.current
     const known = getImageDimensions(path)
@@ -202,6 +246,11 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
       showAtLockedPointer(loaded || { width: 240, height: 180 })
     })
   }
+
+  useDismissOnVerticalScroll(open, triggerRef, () => {
+    dismissedByScroll.current = true
+    changeOpen(false)
+  })
   return (
     <HoverCard open={open} onOpenChange={changeOpen}>
       <HoverCardTrigger
@@ -224,10 +273,14 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
                   }}
                   onPointerMove={rememberPointerPosition}
                   onPointerDown={(event) => {
+                    dismissedByScroll.current = false
                     if (event.pointerType === 'touch') pointerClientX.current = null
                   }}
                   onFocus={(event) => {
-                    if (event.currentTarget.matches(':focus-visible')) pointerClientX.current = null
+                    if (event.currentTarget.matches(':focus-visible')) {
+                      dismissedByScroll.current = false
+                      pointerClientX.current = null
+                    }
                     requestPreview()
                   }}
                   onTouchStart={requestPreview}
