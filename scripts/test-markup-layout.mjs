@@ -29,6 +29,7 @@ const harness = String.raw`<!doctype html>
       import { Badge } from '/src/components/ui/badge.tsx'
       import { Button } from '/src/components/ui/button.tsx'
       import { Input } from '/src/components/ui/input.tsx'
+      import { ScrollArea } from '/src/components/ui/scroll-area.tsx'
       import { ArchiveProvider } from '/src/features/archive/archive-context.tsx'
       import { rememberImageDimensions } from '/src/services/image-metadata.ts'
       import { installRecordJumpGuard } from '/src/lib/record-navigation.ts'
@@ -195,6 +196,22 @@ const harness = String.raw`<!doctype html>
         }))
       }
 
+      function ScrollAreaFixture() {
+        return e(ScrollArea, {
+          'data-scroll-area-fixture': '',
+          style: {
+            width: '20rem',
+            maxWidth: '100%',
+            height: '11rem',
+            margin: '24px auto',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-xl)',
+          },
+        }, e('div', { style: { display: 'grid', gap: '8px', padding: '12px 24px 12px 12px' } },
+          Array.from({ length: 24 }, (_, index) => e('p', { key: index }, '滚动边缘回归行 ' + (index + 1))),
+        ))
+      }
+
       function LocationProbe() {
         const location = useLocation()
         const navigate = useNavigate()
@@ -237,6 +254,7 @@ const harness = String.raw`<!doctype html>
                   e(QuizThemeFixture, { type: 'judge' }),
                 ),
                 e(QuizIdentityBlankFixture),
+                e(ScrollAreaFixture),
                 e('section', { 'data-case': 'app-surface', className: 'app-main-surface bg-background', style: { width: '68rem', maxWidth: '100%', minHeight: '220px', margin: '24px auto', padding: '20px' } },
                   e('header', { className: 'app-topbar rounded-xl border p-4' }, '全局背景表面'),
                   e('aside', { className: 'app-sidebar mt-4 w-48' },
@@ -1372,7 +1390,60 @@ try {
 
   await page.getByRole('tab', { name: /^方框/ }).click()
   const boxStyleCards = page.locator('[data-box-style-id]')
-  assert.equal(await boxStyleCards.count(), 5, 'four radius levels and liquid glass must remain available')
+  assert.equal(await boxStyleCards.count(), 3, 'compact, standard, and liquid glass must be the only box styles')
+  const radiusFamilies = []
+  for (const [id, expectedInset] of [
+    ['compact', 2],
+    ['default', 4],
+    ['glass', 7],
+  ]) {
+    await page.locator(`[data-box-style-id="${id}"]`).click()
+    await page.waitForFunction(
+      (boxStyle) => document.documentElement.dataset.boxStyle === boxStyle,
+      id,
+    )
+    await page.waitForTimeout(220)
+    const geometry = await page.locator('[data-scroll-area-fixture]').evaluate((root) => {
+      const scrollbar = root.querySelector(
+        '[data-slot="scroll-area-scrollbar"][data-orientation="vertical"]',
+      )
+      const thumb = scrollbar?.querySelector('[data-slot="scroll-area-thumb"]')
+      const rootBounds = root.getBoundingClientRect()
+      const scrollbarBounds = scrollbar?.getBoundingClientRect()
+      const thumbBounds = thumb?.getBoundingClientRect()
+      const rootStyles = getComputedStyle(root)
+      return {
+        edgeInset: Number.parseFloat(rootStyles.getPropertyValue('--scrollbar-edge-inset')),
+        rootRadius: Number.parseFloat(rootStyles.borderTopLeftRadius),
+        rootOverflow: rootStyles.overflow,
+        scrollbarTopInset: scrollbarBounds ? scrollbarBounds.top - rootBounds.top : -1,
+        scrollbarBottomInset: scrollbarBounds ? rootBounds.bottom - scrollbarBounds.bottom : -1,
+        scrollbarWidth: scrollbarBounds?.width || 0,
+        thumbWidth: thumbBounds?.width || 0,
+        thumbRadius: thumb ? Number.parseFloat(getComputedStyle(thumb).borderTopLeftRadius) : 0,
+      }
+    })
+    assert.equal(geometry.edgeInset, expectedInset, `${id} scrollbars must use their radius-family edge inset`)
+    assert.equal(geometry.rootOverflow, 'clip', `${id} rounded scroll areas must clip edge leakage`)
+    assert.ok(
+      Math.abs(geometry.scrollbarTopInset - expectedInset) <= 1 &&
+        Math.abs(geometry.scrollbarBottomInset - expectedInset) <= 1,
+      `${id} scrollbar must stay clear of both rounded ends: ${JSON.stringify(geometry)}`,
+    )
+    assert.ok(
+      geometry.thumbWidth <= geometry.scrollbarWidth + 1,
+      `${id} vertical thumb must not widen beyond its track: ${JSON.stringify(geometry)}`,
+    )
+    assert.ok(geometry.thumbRadius > 0, `${id} scrollbar thumb must inherit a visible radius`)
+    radiusFamilies.push({ id, ...geometry })
+  }
+  assert.ok(
+    radiusFamilies[0].rootRadius < radiusFamilies[1].rootRadius &&
+      radiusFamilies[1].rootRadius < radiusFamilies[2].rootRadius,
+    `the three product radius families must remain visually distinct: ${JSON.stringify(radiusFamilies)}`,
+  )
+  await page.locator('[data-box-style-id="default"]').click()
+  await page.waitForFunction(() => document.documentElement.dataset.boxStyle === 'default')
   const glassChoice = page.locator('[data-box-style-id="glass"]')
   await glassChoice.scrollIntoViewIfNeeded()
   const glassChoiceBoundsBefore = await glassChoice.boundingBox()
@@ -1400,6 +1471,47 @@ try {
     'none',
     'dense content cards must use the quieter material without repeating an expensive backdrop pass',
   )
+  await page.getByRole('tab', { name: /^配色/ }).click()
+  const liquidSelectionMotion = await page.locator('.app-segmented-control').evaluate((list) => {
+    const indicator = list.querySelector('.app-selection-indicator')
+    const bridge = list.querySelector('.app-selection-bridge')
+    return {
+      switching: list.hasAttribute('data-selection-switching'),
+      indicatorAnimation: indicator ? getComputedStyle(indicator).animationName : '',
+      bridgeAnimation: bridge ? getComputedStyle(bridge).animationName : '',
+      bridgeDisplay: bridge ? getComputedStyle(bridge).display : '',
+      backdrop: getComputedStyle(list).backdropFilter,
+    }
+  })
+  assert.deepEqual(
+    liquidSelectionMotion,
+    {
+      switching: true,
+      indicatorAnimation: 'app-liquid-selection-horizontal',
+      bridgeAnimation: 'app-liquid-bridge',
+      bridgeDisplay: 'block',
+      backdrop: liquidSelectionMotion.backdrop,
+    },
+    `liquid tabs must reshape through one moving surface and a temporary bridge: ${JSON.stringify(liquidSelectionMotion)}`,
+  )
+  assert.notEqual(liquidSelectionMotion.backdrop, 'none', 'the segmented group must own exactly one bounded backdrop sample')
+  await page.waitForTimeout(440)
+  assert.equal(
+    await page.locator('.app-segmented-control').getAttribute('data-selection-switching'),
+    null,
+    'paint-only liquid switching state must settle and release after the animation',
+  )
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.getByRole('tab', { name: /^背景/ }).click()
+  const reducedLiquidDuration = await page
+    .locator('.app-segmented-control .app-selection-indicator')
+    .evaluate((indicator) => getComputedStyle(indicator).animationDuration)
+  assert.ok(
+    Number.parseFloat(reducedLiquidDuration) <= 0.00001,
+    `reduced motion must override the higher-specificity liquid reshape duration: ${reducedLiquidDuration}`,
+  )
+  await page.waitForTimeout(440)
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.getByRole('tab', { name: /^配色/ }).click()
   for (const themeId of [
     'paper',

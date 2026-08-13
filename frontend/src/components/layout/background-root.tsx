@@ -35,7 +35,7 @@ function decodeBackground(src: string) {
 }
 
 export type BackgroundId = 'default' | 'mountain' | 'cloud'
-export type BoxStyleId = 'compact' | 'default' | 'soft' | 'round' | 'glass'
+export type BoxStyleId = 'compact' | 'default' | 'glass'
 export type ThemePresetId =
   | 'auto'
   | 'paper'
@@ -160,19 +160,9 @@ export const boxStyles: Array<{
     description: '沿用清晰、稳重的 shadcn 比例，适合大多数界面。',
   },
   {
-    id: 'soft',
-    label: '柔和圆角',
-    description: '更舒展的转角，让卡片与配置区域显得轻松柔和。',
-  },
-  {
-    id: 'round',
-    label: '圆润大角',
-    description: '明显但不过度的圆润轮廓，适合偏轻盈的视觉风格。',
-  },
-  {
     id: 'glass',
     label: '液体玻璃',
-    description: '以自适应透光、克制边缘响应和共享控件材质建立清晰的交互层。',
+    description: '以大圆角、自适应透光与连续塑形建立柔和、清晰的交互层。',
   },
 ]
 

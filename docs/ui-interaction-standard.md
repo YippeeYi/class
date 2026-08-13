@@ -20,8 +20,10 @@
 | `--interaction-duration-fast` | 120ms | 菜单项、轻量提示 |
 | `--interaction-duration-standard` | 160ms | 按钮、输入、卡片等常规反馈 |
 | `--interaction-duration-slow` | 200ms | 内容进出与较大区域反馈 |
+| `--interaction-duration-liquid` | 360ms | 仅用于液体玻璃选中材质的连续塑形 |
 | `--interaction-duration-scene` | 500ms | 仅用于全页背景图交叉淡入 |
 | `--interaction-ease-standard` | `cubic-bezier(0.2, 0, 0, 1)` | 全站交互缓动 |
+| `--interaction-ease-liquid` | `cubic-bezier(0.22, 0.72, 0.18, 1)` | 快响应、无弹跳的材质重新稳定 |
 | `--interaction-surface-hover` | 主题混合色 | 浅层 Hover 背景 |
 | `--interaction-surface-pressed` | 主题混合色 | Pressed 背景 |
 | `--interaction-surface-selected` | Primary 轻染色 | Selected 背景 |
@@ -60,8 +62,11 @@
   destructive 边框与对应焦点环。
 - Checkbox、Radio、Switch、Toggle、Tabs 保留 shadcn 的语义状态，通过统一时长、
   Focus、Disabled 和 Selected token 协调视觉。
-- 单选模式切换统一使用项目 `SegmentedTabsList`（内部组合 shadcn Tabs）。选中背景是单一共享层，
-  以 200ms 标准 easing 在选项间移动；业务状态在点击时立即更新，不等待动画结束。
+- 单选模式切换统一使用项目 `SegmentedTabsList`（内部组合 shadcn Tabs）。普通风格的
+  选中背景是单一共享层，以 200ms 标准 easing 在选项间移动；业务状态在点击时立即更新，不等待动画结束。
+- 液体玻璃沿用同一语义组件，但选中材质在 360ms 内经历“旧位置—临时融合桥—新位置”。
+  主材质轻微拉伸并重新稳定，边缘高光同步穿过；不使用果冻弹跳、波纹或叠加的
+  `backdrop-filter`。整组只有一次背景采样，内部形变只使用 transform/opacity/渐变位置。
 - 多选 Toggle/Button Group 不使用移动指示器；各项通过 `aria-pressed`、边框、背景和文字色平滑
   过渡，避免让多选语义看起来像单选。
 - 打开中的 Select、选中 Tabs 和 `aria-pressed=true` 控件必须有持续可见的 Selected 反馈。
@@ -75,9 +80,11 @@
 
 ### 方框与大图层级
 
-- 全站圆角只由 `--radius` 及其 Tailwind 派生 token 控制；方框风格提供利落、标准、柔和、
-  圆润四档轮廓，液体玻璃在相同 token 体系上增加材质，不在页面硬编码另一套圆角。
+- 全站圆角只由 `--radius` 及其 Tailwind 派生 token 控制；方框风格只提供“利落小角”、
+  “标准圆角”、“液体玻璃”三档。容器、组、控件分别使用同一基准的比例 token；内层圆角不超过父层可用轮廓。
 - 圆角切换只过渡 `border-radius`，不得改变盒模型尺寸、间距或内容位置。
+- 原生 scrollbar 与 shadcn `ScrollArea` 共用 `--scrollbar-edge-inset` 和
+  `--scrollbar-thumb-radius`；大圆角增加上下缩进，滚动根容器裁切越界边缘。玻璃 thumb 仅使用稳定高光，不单独采样背景。
 - 大图模式必须保留真实当前页面为底层；全屏 overlay 使用半透明压暗与一次
   `backdrop-filter`，查看器视口保持透明。不得用打开的图片副本、纯色画布或截图伪造背景。
 - 大图 overlay 与内容均以 160ms 透明度进出；模态层沿用 Base UI 的焦点陷阱与滚动锁定，关闭后
@@ -94,3 +101,13 @@
   公共 class 或 variant 中。
 - 页面不得新增 `transition-all`、Hover 位移/缩放、独立阴影尺度或与本规范冲突的时长。
 - 只有具备独立语义的业务控件可以增加局部状态色，例如答题正确/错误、表单错误和成功提示。
+- 侧边栏选中态使用整行共享背景和图标/文字颜色，不使用左侧竖条；业务 Shell 不挂载
+  `SidebarRail`，因此右缘没有额外的 hover 命中区、光标或竖线。
+
+## 5. 液体玻璃参考边界
+
+实现依据 Apple 公开的 Liquid Glass 原则：玻璃是控件和导航所在的功能层，背后内容仍应可感知；
+连续形变应通过共享容器内的形状融合完成，而不是两块独立材质各自淡入淡出；同时保持可读性、性能与减少动效/透明度适配。
+参考：Apple 的 [Meet Liquid Glass](https://developer.apple.com/videos/play/wwdc2025/219/)、
+[Materials HIG](https://developer.apple.com/design/human-interface-guidelines/materials) 与
+[Applying Liquid Glass to custom views](https://developer.apple.com/documentation/SwiftUI/Applying-Liquid-Glass-to-custom-views)。

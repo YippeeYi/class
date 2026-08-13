@@ -17,6 +17,7 @@ import {
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
 import { Button } from '@/components/archive/interaction'
+import { SelectionMotionLayers, useSelectionMotion } from '@/components/archive/selection-motion'
 import { PAGE_HEADER_ACTIONS_ID, PageHeaderProvider } from '@/components/layout/page-header'
 import {
   AlertDialog,
@@ -51,7 +52,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
   useSidebar,
@@ -82,6 +82,12 @@ const wideContentPaths = new Set(['/timeline'])
 
 function navigationPath(pathname: string) {
   return pathname === '/person' ? '/people' : pathname
+}
+
+function isNavigationActive(activePath: string, destination: string) {
+  return destination === '/'
+    ? activePath === '/'
+    : activePath === destination || activePath.startsWith(`${destination}/`)
 }
 
 function RouteScrollManager() {
@@ -123,6 +129,11 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
   const location = useLocation()
   const activePath = navigationPath(location.pathname)
   const [clearing, setClearing] = useState(false)
+  const activeIndex = Math.max(
+    0,
+    navigation.findIndex(({ to }) => isNavigationActive(activePath, to)),
+  )
+  const navigationMotion = useSelectionMotion(activeIndex, navigation.length)
 
   const clearAccess = async () => {
     if (clearing) return
@@ -163,12 +174,15 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
         <SidebarGroup>
           <SidebarGroupLabel>主要导航</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu
+              data-selection-direction={navigationMotion.direction}
+              data-selection-switching={navigationMotion.switching || undefined}
+              className="app-sidebar-navigation"
+              style={navigationMotion.style}
+            >
+              <SelectionMotionLayers motion={navigationMotion} listItems />
               {navigation.map(({ to, label, icon: Icon }) => {
-                const isActive =
-                  to === '/'
-                    ? activePath === '/'
-                    : activePath === to || activePath.startsWith(`${to}/`)
+                const isActive = isNavigationActive(activePath, to)
                 const destination =
                   location.pathname === to
                     ? {
@@ -183,7 +197,7 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
                     <SidebarMenuButton
                       isActive={isActive}
                       tooltip={label}
-                      className="app-navigation-item data-active:bg-sidebar-primary data-active:text-sidebar-primary-foreground data-active:hover:bg-sidebar-primary/90 data-active:hover:text-sidebar-primary-foreground"
+                      className="app-sidebar-navigation-item"
                       onPointerEnter={() => void preloadRoute(to)}
                       onFocus={() => void preloadRoute(to)}
                       render={<NavLink to={destination} />}
@@ -238,7 +252,6 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
-      <SidebarRail className="after:rounded-full after:transition-colors after:duration-200 hover:after:bg-sidebar-primary/55 active:after:bg-sidebar-primary" />
     </Sidebar>
   )
 }

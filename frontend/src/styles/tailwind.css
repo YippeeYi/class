@@ -125,8 +125,10 @@
   --interaction-duration-fast: 120ms;
   --interaction-duration-standard: 160ms;
   --interaction-duration-slow: 200ms;
+  --interaction-duration-liquid: 360ms;
   --interaction-duration-scene: 500ms;
   --interaction-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --interaction-ease-liquid: cubic-bezier(0.22, 0.72, 0.18, 1);
   --interaction-surface-hover: color-mix(in oklch, var(--accent) 62%, var(--background));
   --interaction-surface-pressed: color-mix(in oklch, var(--accent) 82%, var(--background));
   --interaction-surface-selected: color-mix(in oklch, var(--primary) 11%, var(--background));
@@ -134,26 +136,24 @@
   --interaction-border-selected: color-mix(in oklch, var(--primary) 66%, var(--border));
   --interaction-focus: color-mix(in oklch, var(--ring) 42%, transparent);
   --interaction-disabled-opacity: 0.5;
+  --scrollbar-edge-inset: 3px;
+  --scrollbar-thumb-radius: var(--radius-sm);
 }
 
 html[data-box-style="compact"] {
   --radius: 0.42rem;
+  --scrollbar-edge-inset: 2px;
 }
 
 html[data-box-style="default"] {
   --radius: 0.78rem;
-}
-
-html[data-box-style="soft"] {
-  --radius: 1rem;
-}
-
-html[data-box-style="round"] {
-  --radius: 1.24rem;
+  --scrollbar-edge-inset: 4px;
 }
 
 html[data-box-style="glass"] {
-  --radius: 0.94rem;
+  --radius: 1.12rem;
+  --scrollbar-edge-inset: 7px;
+  --scrollbar-thumb-radius: var(--radius-md);
 }
 
 .dark {
@@ -229,6 +229,38 @@ html[data-box-style="glass"] {
   #root {
     min-height: 100svh;
     overflow-x: clip;
+  }
+
+  :where(html, body, #root, body *) {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--foreground) 28%, var(--border)) transparent;
+  }
+
+  :where(html, body, #root, body *)::-webkit-scrollbar {
+    width: 0.625rem;
+    height: 0.625rem;
+  }
+
+  :where(html, body, #root, body *)::-webkit-scrollbar-track {
+    border-radius: var(--scrollbar-thumb-radius);
+    background: transparent;
+  }
+
+  :where(html, body, #root, body *)::-webkit-scrollbar-track:vertical {
+    margin-block: var(--scrollbar-edge-inset);
+  }
+
+  :where(html, body, #root, body *)::-webkit-scrollbar-track:horizontal {
+    margin-inline: var(--scrollbar-edge-inset);
+  }
+
+  :where(html, body, #root, body *)::-webkit-scrollbar-thumb {
+    min-width: 2rem;
+    min-height: 2rem;
+    border: 2px solid transparent;
+    border-radius: var(--scrollbar-thumb-radius);
+    background: color-mix(in oklch, var(--foreground) 28%, var(--border));
+    background-clip: padding-box;
   }
   html[data-viewport-locked="true"],
   body[data-viewport-locked="true"],
@@ -513,37 +545,57 @@ body .app-segmented-control[data-segmented-control="true"] {
   position: relative;
   isolation: isolate;
   display: grid;
-  grid-template-columns: repeat(var(--segment-count), minmax(0, 1fr));
+  grid-template-columns: repeat(var(--selection-count), minmax(0, 1fr));
   height: auto;
   gap: 0;
   padding: 3px;
   overflow: hidden;
 }
 
-body .app-segmented-control[data-segmented-control="true"]::before {
+:where(body .app-segmented-control[data-segmented-control="true"] > .app-selection-indicator) {
   position: absolute;
-  z-index: 0;
+  z-index: 1;
   top: 3px;
   bottom: 3px;
   left: 3px;
-  width: calc((100% - 6px) / var(--segment-count));
+  width: calc((100% - 6px) / var(--selection-count));
+  overflow: hidden;
   border: 1px solid color-mix(in oklch, var(--interaction-border-selected) 64%, transparent);
   border-radius: calc(var(--radius-md) - 2px);
   background: var(--background);
-  box-shadow: var(--elevation-subtle);
-  content: "";
-  transform: translate3d(calc(var(--segment-index) * 100%), 0, 0);
+  transform: translate3d(calc(var(--selection-to) * 100%), 0, 0);
   transition:
-    transform var(--interaction-duration-slow) var(--interaction-ease-standard),
     background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
     border-color var(--interaction-duration-standard) var(--interaction-ease-standard);
   pointer-events: none;
 }
 
+.app-selection-indicator,
+.app-selection-bridge,
+.app-selection-lens {
+  pointer-events: none;
+}
+
+.app-selection-lens {
+  position: absolute;
+  inset: 0;
+}
+
+.app-selection-bridge {
+  display: none;
+}
+
+body
+  .app-segmented-control[data-segmented-control="true"][data-selection-switching]
+  > .app-selection-indicator {
+  animation: app-selection-horizontal var(--interaction-duration-slow)
+    var(--interaction-ease-standard) both;
+}
+
 body
   .app-segmented-control[data-segmented-control="true"]
   > .app-segmented-trigger[data-slot="tabs-trigger"] {
-  z-index: 1;
+  z-index: 2;
   min-width: 0;
   border-color: transparent;
   background: transparent;
@@ -577,35 +629,143 @@ body
     var(--interaction-ease-standard);
 }
 
-/* Persistent navigation and list selection uses a restrained leading marker.
-   It fades within the existing hit area, so active routes never change size. */
-.app-navigation-item,
-.app-selection-item {
+/* Sidebar navigation uses the same shared selected surface on the vertical
+   axis. There is no leading marker or resize rail; selection is communicated
+   by one stable full-row background, icon and text treatment. */
+.app-sidebar-navigation {
   position: relative;
+  isolation: isolate;
+  overflow: hidden;
 }
 
-.app-navigation-item::before,
-.app-selection-item::before {
+.app-sidebar-navigation > [data-slot="sidebar-menu-item"] {
+  position: relative;
+  z-index: 2;
+}
+
+.app-sidebar-navigation > .app-selection-indicator {
   position: absolute;
-  top: 25%;
-  bottom: 25%;
-  left: 0.2rem;
-  width: 2px;
-  border-radius: 999px;
-  background: currentColor;
-  content: "";
-  opacity: 0;
-  transform: scaleY(0.5);
+  z-index: 1;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2rem;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, var(--sidebar-primary) 78%, var(--sidebar-border));
+  border-radius: var(--radius-md);
+  background: var(--sidebar-primary);
+  list-style: none;
+  transform: translate3d(0, calc(var(--selection-to) * 100%), 0);
   transition:
-    opacity var(--interaction-duration-standard) var(--interaction-ease-standard),
-    transform var(--interaction-duration-standard) var(--interaction-ease-standard);
-  pointer-events: none;
+    background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
+    border-color var(--interaction-duration-standard) var(--interaction-ease-standard);
 }
 
-.app-navigation-item[data-active]::before,
-.app-selection-item:is([data-active="true"], [aria-current="true"])::before {
-  opacity: 0.78;
-  transform: scaleY(1);
+.app-sidebar-navigation[data-selection-switching] > .app-selection-indicator {
+  animation: app-selection-vertical var(--interaction-duration-slow)
+    var(--interaction-ease-standard) both;
+}
+
+/* Project-owned ScrollArea treatment. The read-only shadcn primitive keeps its
+   behaviour; these rules align its thumb, track insets and clipped corners
+   with the current radius family without changing viewport measurements. */
+body [data-slot="scroll-area"] {
+  overflow: clip;
+}
+
+body [data-slot="scroll-area-scrollbar"][data-orientation="vertical"] {
+  height: calc(100% - var(--scrollbar-edge-inset) * 2);
+  margin-block: var(--scrollbar-edge-inset);
+}
+
+body [data-slot="scroll-area-scrollbar"][data-orientation="horizontal"] {
+  width: calc(100% - var(--scrollbar-edge-inset) * 2);
+  margin-inline: var(--scrollbar-edge-inset);
+}
+
+body [data-slot="scroll-area-thumb"] {
+  border: 1px solid transparent;
+  border-radius: var(--scrollbar-thumb-radius);
+  background: color-mix(in oklch, var(--foreground) 28%, var(--border));
+  background-clip: padding-box;
+}
+
+body
+  [data-slot="scroll-area-scrollbar"][data-orientation="vertical"]
+  > [data-slot="scroll-area-thumb"] {
+  min-height: 2rem;
+}
+
+body
+  [data-slot="scroll-area-scrollbar"][data-orientation="horizontal"]
+  > [data-slot="scroll-area-thumb"] {
+  min-width: 2rem;
+}
+
+html[data-box-style="glass"] body [data-slot="scroll-area"] {
+  isolation: isolate;
+  background-clip: padding-box;
+}
+
+html[data-box-style="glass"] body [data-slot="scroll-area-thumb"] {
+  border-color: color-mix(in oklch, white 20%, var(--glass-border));
+  background:
+    linear-gradient(180deg, color-mix(in oklch, white 24%, transparent), transparent 42%),
+    color-mix(in oklch, var(--foreground) 23%, var(--glass-surface-strong));
+}
+
+html[data-box-style="glass"]::-webkit-scrollbar-thumb,
+html[data-box-style="glass"] :where(body, #root, body *)::-webkit-scrollbar-thumb {
+  border-color: transparent;
+  background:
+    linear-gradient(180deg, color-mix(in oklch, white 22%, transparent), transparent 44%),
+    color-mix(in oklch, var(--foreground) 24%, var(--border));
+  background-clip: padding-box;
+}
+
+body
+  .app-sidebar-navigation
+  > [data-slot="sidebar-menu-item"]
+  > .app-sidebar-navigation-item[data-active] {
+  border-color: transparent;
+  background: transparent;
+  color: var(--sidebar-primary-foreground);
+  box-shadow: none;
+}
+
+body
+  .app-sidebar-navigation
+  > [data-slot="sidebar-menu-item"]
+  > .app-sidebar-navigation-item[data-active]:active {
+  background: color-mix(in oklch, var(--sidebar-primary-foreground) 10%, transparent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  body
+    .app-sidebar-navigation
+    > [data-slot="sidebar-menu-item"]
+    > .app-sidebar-navigation-item[data-active]:hover {
+    background: color-mix(in oklch, var(--sidebar-primary-foreground) 8%, transparent);
+  }
+}
+
+@keyframes app-selection-horizontal {
+  from {
+    transform: translate3d(calc(var(--selection-from) * 100%), 0, 0);
+  }
+  to {
+    transform: translate3d(calc(var(--selection-to) * 100%), 0, 0);
+  }
+}
+
+@keyframes app-selection-vertical {
+  from {
+    transform: translate3d(0, calc(var(--selection-from) * 100%), 0);
+  }
+  to {
+    transform: translate3d(0, calc(var(--selection-to) * 100%), 0);
+  }
 }
 
 @keyframes app-tabs-content-in {
@@ -886,9 +1046,9 @@ body .app-interactive-media:not(:disabled):active {
     background: transparent;
     cursor: help;
     transition:
-      color 150ms ease,
-      background-color 150ms ease,
-      text-decoration-color 150ms ease;
+      color var(--interaction-duration-fast) var(--interaction-ease-standard),
+      background-color var(--interaction-duration-fast) var(--interaction-ease-standard),
+      text-decoration-color var(--interaction-duration-fast) var(--interaction-ease-standard);
   }
   .record-annotation:focus-visible {
     background: color-mix(in oklch, var(--primary) 8%, transparent);
@@ -1120,8 +1280,8 @@ body .app-interactive-media:not(:disabled):active {
   .quiz-question-header {
     background: transparent;
     transition:
-      background-color 180ms ease,
-      border-color 180ms ease;
+      background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
+      border-color var(--interaction-duration-standard) var(--interaction-ease-standard);
   }
   .quiz-question-type-icon {
     background: color-mix(in oklch, var(--quiz-type-accent) 14%, transparent);
@@ -1184,8 +1344,8 @@ body .app-interactive-media:not(:disabled):active {
     box-decoration-break: clone;
     -webkit-box-decoration-break: clone;
     transition:
-      color 220ms ease,
-      background-color 220ms ease;
+      color var(--interaction-duration-slow) var(--interaction-ease-standard),
+      background-color var(--interaction-duration-slow) var(--interaction-ease-standard);
   }
   .quiz-answer-blank-text {
     color: transparent;
@@ -1235,7 +1395,8 @@ body .app-interactive-media:not(:disabled):active {
   .quiz-judge-answer {
     color: var(--quiz-success-foreground);
     font: inherit;
-    animation: quiz-answer-reveal 260ms ease both;
+    animation: quiz-answer-reveal var(--interaction-duration-slow) var(--interaction-ease-standard)
+      both;
   }
   .quiz-secret-answer-box {
     border-color: color-mix(in oklch, var(--quiz-type-accent) 45%, var(--border));
@@ -1527,14 +1688,6 @@ body [data-slot="switch-thumb"] {
   border-radius: 0.78rem;
 }
 
-[data-box-style-id="soft"] :is(.box-style-preview-surface, .box-style-preview-control) {
-  border-radius: 1rem;
-}
-
-[data-box-style-id="round"] :is(.box-style-preview-surface, .box-style-preview-control) {
-  border-radius: 1.28rem;
-}
-
 /* This preview mirrors the production material: planar geometry, transmitted
    colour, a restrained top-edge response, and no radial centre highlight. */
 .liquid-glass-preview {
@@ -1613,9 +1766,9 @@ html[data-box-style="glass"]
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
   transition:
-    border-color 180ms ease,
-    background-color 180ms ease,
-    box-shadow 180ms ease;
+    border-color var(--interaction-duration-standard) var(--interaction-ease-standard),
+    background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
+    box-shadow var(--interaction-duration-standard) var(--interaction-ease-standard);
 }
 
 html[data-box-style="glass"] body [data-glass-variant="clear"] {
@@ -1672,9 +1825,9 @@ html[data-box-style="glass"] body .liquid-control-group > [data-slot="button"] {
   transform: none;
   translate: none;
   transition:
-    color 150ms ease,
-    background-color 150ms ease,
-    box-shadow 150ms ease;
+    color var(--interaction-duration-standard) var(--interaction-ease-standard),
+    background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
+    box-shadow var(--interaction-duration-standard) var(--interaction-ease-standard);
 }
 
 html[data-box-style="glass"] body .liquid-control-group:focus-within {
@@ -1756,10 +1909,153 @@ html[data-box-style="glass"]
   box-shadow: 0 0 0 3px var(--interaction-focus);
 }
 
-html[data-box-style="glass"] body .app-segmented-control[data-segmented-control="true"]::before {
-  border-color: color-mix(in oklch, var(--primary) 32%, var(--glass-border));
-  background: color-mix(in oklch, var(--primary) 18%, var(--glass-surface-strong));
-  box-shadow: none;
+/* A single sampled glass group owns the backdrop pass. Its selected material
+   then reshapes inside that group: the temporary bridge joins both endpoints,
+   the lens travels across the edge, and the main surface lengthens before it
+   stabilises. This keeps the effect continuous without stacking blur filters. */
+html[data-box-style="glass"]
+  body
+  :is(.app-segmented-control[data-segmented-control="true"], .app-sidebar-navigation)
+  > .app-selection-indicator {
+  border-color: color-mix(in oklch, var(--primary) 34%, var(--glass-border));
+  background:
+    linear-gradient(180deg, color-mix(in oklch, white 42%, transparent) 0, transparent 2px),
+    linear-gradient(
+      112deg,
+      color-mix(in oklch, white 13%, transparent),
+      transparent 34%,
+      color-mix(in oklch, var(--primary) 20%, transparent) 76%,
+      color-mix(in oklch, white 8%, transparent)
+    ),
+    color-mix(in oklch, var(--primary) 17%, var(--glass-surface-strong));
+}
+
+html[data-box-style="glass"]
+  body
+  :is(.app-segmented-control[data-segmented-control="true"], .app-sidebar-navigation)
+  > .app-selection-indicator
+  > .app-selection-lens {
+  background: linear-gradient(
+    104deg,
+    transparent 12%,
+    color-mix(in oklch, white 30%, transparent) 43%,
+    color-mix(in oklch, var(--primary) 13%, transparent) 56%,
+    transparent 82%
+  );
+  background-position: 80% 50%;
+  background-size: 210% 100%;
+  opacity: 0.48;
+}
+
+html[data-box-style="glass"]
+  body
+  .app-segmented-control[data-segmented-control="true"][data-selection-direction="forward"]
+  > .app-selection-indicator {
+  transform-origin: left center;
+}
+
+html[data-box-style="glass"]
+  body
+  .app-segmented-control[data-segmented-control="true"][data-selection-direction="backward"]
+  > .app-selection-indicator {
+  transform-origin: right center;
+}
+
+html[data-box-style="glass"]
+  body
+  .app-sidebar-navigation[data-selection-direction="forward"]
+  > .app-selection-indicator {
+  transform-origin: center top;
+}
+
+html[data-box-style="glass"]
+  body
+  .app-sidebar-navigation[data-selection-direction="backward"]
+  > .app-selection-indicator {
+  transform-origin: center bottom;
+}
+
+html[data-box-style="glass"]
+  body
+  .app-segmented-control[data-segmented-control="true"][data-selection-switching]
+  > .app-selection-indicator {
+  animation: app-liquid-selection-horizontal var(--interaction-duration-liquid)
+    var(--interaction-ease-liquid) both;
+}
+
+html[data-box-style="glass"]
+  body
+  .app-sidebar-navigation[data-selection-switching]
+  > .app-selection-indicator {
+  animation: app-liquid-selection-vertical var(--interaction-duration-liquid)
+    var(--interaction-ease-liquid) both;
+}
+
+html[data-box-style="glass"]
+  body
+  :is(
+    .app-segmented-control[data-segmented-control="true"],
+    .app-sidebar-navigation
+  )[data-selection-switching]
+  > .app-selection-indicator
+  > .app-selection-lens {
+  animation: app-liquid-lens var(--interaction-duration-liquid) var(--interaction-ease-liquid) both;
+}
+
+html[data-box-style="glass"]
+  body
+  .app-segmented-control[data-segmented-control="true"][data-selection-switching]
+  > .app-selection-bridge {
+  position: absolute;
+  z-index: 0;
+  top: 4px;
+  bottom: 4px;
+  left: 3px;
+  display: block;
+  width: calc((100% - 6px) / var(--selection-count));
+  border-block: 1px solid color-mix(in oklch, var(--primary) 22%, var(--glass-border));
+  border-radius: calc(var(--glass-radius-group) - 3px);
+  background: color-mix(in oklch, var(--primary) 12%, var(--glass-surface-strong));
+  transform: translate3d(calc(var(--selection-min) * 100%), 0, 0)
+    scaleX(calc(var(--selection-distance) + 1));
+  transform-origin: left center;
+  animation: app-liquid-bridge var(--interaction-duration-liquid) var(--interaction-ease-liquid)
+    both;
+}
+
+html[data-box-style="glass"]
+  body
+  .app-sidebar-navigation[data-selection-switching]
+  > .app-selection-bridge {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  right: 1px;
+  left: 1px;
+  display: block;
+  height: 2rem;
+  margin: 0;
+  border-inline: 1px solid color-mix(in oklch, var(--primary) 22%, var(--glass-border));
+  border-radius: var(--glass-radius-group);
+  background: color-mix(in oklch, var(--primary) 12%, var(--glass-surface-strong));
+  list-style: none;
+  transform: translate3d(0, calc(var(--selection-min) * 100%), 0)
+    scaleY(calc(var(--selection-distance) + 1));
+  transform-origin: center top;
+  animation: app-liquid-bridge var(--interaction-duration-liquid) var(--interaction-ease-liquid)
+    both;
+}
+
+html[data-box-style="glass"] body .app-sidebar-navigation > .app-selection-indicator {
+  border-radius: var(--glass-radius-control);
+}
+
+html[data-box-style="glass"]
+  body
+  .app-sidebar-navigation
+  > [data-slot="sidebar-menu-item"]
+  > .app-sidebar-navigation-item[data-active] {
+  color: var(--sidebar-foreground);
 }
 
 html[data-box-style="glass"]
@@ -1767,6 +2063,67 @@ html[data-box-style="glass"]
   .app-segmented-control[data-segmented-control="true"]
   > .app-segmented-trigger[data-slot="tabs-trigger"][data-active] {
   background: transparent;
+}
+
+@keyframes app-liquid-selection-horizontal {
+  0% {
+    transform: translate3d(calc(var(--selection-from) * 100%), 0, 0) scaleX(1);
+  }
+  34% {
+    transform: translate3d(calc(var(--selection-from) * 100%), 0, 0) scaleX(1.18);
+  }
+  68% {
+    transform: translate3d(calc(var(--selection-to) * 100%), 0, 0) scaleX(1.07);
+  }
+  100% {
+    transform: translate3d(calc(var(--selection-to) * 100%), 0, 0) scaleX(1);
+  }
+}
+
+@keyframes app-liquid-selection-vertical {
+  0% {
+    transform: translate3d(0, calc(var(--selection-from) * 100%), 0) scaleY(1);
+  }
+  34% {
+    transform: translate3d(0, calc(var(--selection-from) * 100%), 0) scaleY(1.13);
+  }
+  68% {
+    transform: translate3d(0, calc(var(--selection-to) * 100%), 0) scaleY(1.05);
+  }
+  100% {
+    transform: translate3d(0, calc(var(--selection-to) * 100%), 0) scaleY(1);
+  }
+}
+
+@keyframes app-liquid-bridge {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  28% {
+    opacity: 0.24;
+  }
+  58% {
+    opacity: 0.5;
+  }
+  76% {
+    opacity: 0.16;
+  }
+}
+
+@keyframes app-liquid-lens {
+  0% {
+    background-position: 88% 50%;
+    opacity: 0.28;
+  }
+  52% {
+    background-position: 12% 50%;
+    opacity: 0.82;
+  }
+  100% {
+    background-position: 50% 50%;
+    opacity: 0.48;
+  }
 }
 
 .quiz-filter-bar [data-slot="button"]:disabled {
@@ -2644,9 +3001,10 @@ html[data-box-style="glass"]
 /* Keep this final so no page, component or theme rule declared later can
    accidentally restore motion for users who explicitly reduced it. */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  html,
+  html body :is(#root, *),
+  html body :is(#root, *)::before,
+  html body :is(#root, *)::after {
     scroll-behavior: auto;
     animation-duration: 0.01ms;
     animation-iteration-count: 1;

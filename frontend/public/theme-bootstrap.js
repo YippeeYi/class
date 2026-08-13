@@ -16,7 +16,7 @@
     'aurora',
   ])
   const darkThemes = new Set(['ink', 'midnight', 'pine', 'aurora'])
-  const boxStyles = new Set(['compact', 'default', 'soft', 'round', 'glass'])
+  const boxStyles = new Set(['compact', 'default', 'glass'])
   const themeColors = {
     auto: '#f5f0e8',
     paper: '#f8f5ef',

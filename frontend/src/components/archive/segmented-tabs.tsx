@@ -1,6 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import type { CSSProperties } from 'react'
-
+import { SelectionMotionLayers, useSelectionMotion } from '@/components/archive/selection-motion'
 import { TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
@@ -17,11 +16,6 @@ type SegmentedTabsListProps<T extends string> = {
   ariaLabel: string
   className?: string
   triggerClassName?: string
-}
-
-type SegmentedStyle = CSSProperties & {
-  '--segment-count': number
-  '--segment-index': number
 }
 
 /**
@@ -41,18 +35,18 @@ export function SegmentedTabsList<T extends string>({
     0,
     items.findIndex((item) => item.value === value),
   )
-  const style: SegmentedStyle = {
-    '--segment-count': Math.max(1, items.length),
-    '--segment-index': activeIndex,
-  }
+  const motion = useSelectionMotion(activeIndex, items.length)
 
   return (
     <TabsList
       aria-label={ariaLabel}
       data-segmented-control="true"
+      data-selection-direction={motion.direction}
+      data-selection-switching={motion.switching || undefined}
       className={cn('app-segmented-control', className)}
-      style={style}
+      style={motion.style}
     >
+      <SelectionMotionLayers motion={motion} />
       {items.map((item) => {
         const Icon = item.icon
         return (

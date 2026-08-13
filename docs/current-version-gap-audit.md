@@ -118,7 +118,7 @@
 
 | 专项 | 修改前差异与根因 | 当前处理 | 分类 |
 | --- | --- | --- | --- |
-| 左侧选择栏 | `isActive` 已传入，但默认 accent 与页面底色接近 | 继续使用官方 `SidebarMenuButton isActive`，仅以公开 `className` 将 active 映射到 `sidebar-primary/foreground`，并保持 hover 反色 | A |
+| 左侧选择栏 | `isActive` 已传入，但默认 accent 与页面底色接近 | 继续使用官方 `SidebarMenuButton isActive`，项目层以整行共享背景、图标和文字颜色表达路由转移，不再使用左侧竖条 | A |
 | 超链接文字 | 正文引用使用 Button link 时叠加 padding、圆角和浅色填充，形成占位按钮感 | 保留 shadcn Button 的语义与焦点管理，改为行内、字体继承、无框、透明背景、点状下划线提示 | D |
 | 记录条目框 | Card/Header/Content 默认纵向间距叠加，正文 `0.95rem` 且离分隔线偏远 | 记录 Card 使用紧凑 spacing，正文恢复 `1rem/1.85`，正文和附件分隔区分别收紧 | A |
 | 背景显示/选择页 | 背景路径正确，但不透明 `SidebarInset` 覆盖根背景；预览比例与选中反馈偏弱 | 主内容改为 token 透明层；预览统一 16:9，选中 ring、`aria-pressed`、失败重试、署名和轻微预览反馈齐全 | A/D |
@@ -142,13 +142,13 @@
 | 手写页加载稳定 | 签名阶段展示通用 Skeleton，图片出现时整列高度变化 | 根据共享 intrinsic geometry 预留比例容器；默认沿用旧版 `2856×4282`，Spinner、错误文案和最终图片共用容器，相邻页继续预载 | A/D |
 | 蹭饭图加载稳定 | 整张 Card 在数据和 URL 返回后才出现 | 尺寸元数据与短期 URL 分离缓存；使用官方 AspectRatio，默认 `4838×2721`，加载、重试和图片共用稳定区域 | A/D |
 | 致谢入口层级 | 导览“继续探索”重复显示独立致谢 Item，底部入口只在正常文档流末尾 | 移除导览重复项；Sidebar 原入口保留；AppShell 右下角使用 shadcn Button 固定显示且当前页有明确状态 | A |
-| Sidebar 接缝 | 已使用 SidebarRail，但默认 2px rail 在当前主题中反馈过弱 | 不改 rail 源码，只给官方 SidebarRail 增加 token 化 hover/active 过渡；MenuButton 继续使用官方 `isActive` | D |
+| Sidebar 接缝 | 右缘 rail 会产生额外 hover 竖线和命中区 | 业务 Shell 不再挂载 SidebarRail；MenuButton 继续使用官方 `isActive`，选中态改为项目层共享背景 | D |
 | 背景层级与切换 | 根元素直接替换 background-image，主面板遮罩偏重，切换突兀 | 独立 fixed 背景层、渐变遮罩、透明内容表面和 500ms reduced-motion-safe 淡入；预览用官方 AspectRatio/Spinner | D |
 | 全站排版 | body 缺统一行高/字距，PageHeading eyebrow 偏小，说明文字部分仅 14px | 统一 1.6 行高、轻微字距、balanced heading、pretty paragraph、selection token；页说明统一 16px/28px | A/D |
 | Select/Dropdown | 记录筛选触发器宽度随文字变化，几个页面的排序下拉视觉密度不一致 | 直接使用 shadcn Select 组合，统一 128/144px 业务宽度、背景/hover/open ring、`align=start`，弹层动画继续由官方组件提供 | A/D |
 | 状态过渡 | 部分筛选、资料切换、搜索结果、答题反馈直接替换 | 页面内容、记录筛选、资料、人物、名言、搜索、时间线、答题反馈和背景使用 150–500ms 克制过渡，并由全局 reduced-motion 规则关闭 | A/D |
 
-shadcn 复核：本轮调用的 SidebarRail、SidebarMenuButton、Select、HoverCard、AspectRatio、Spinner、Button、Card、Collapsible、Tabs、Alert/Dialog 均来自 CLI 下载的原生组件。`frontend/src/components/ui` 与 `node_modules` 没有任何修改；尺寸解析、图片预载和 zoom/pan 属于档案领域逻辑，放在 `lib`、`services`、`features/archive` 与业务 wrapper 中。
+shadcn 复核：本轮调用的 SidebarMenuButton、Select、HoverCard、AspectRatio、Spinner、Button、Card、Collapsible、Tabs、Alert/Dialog 均来自 CLI 下载的原生组件。`frontend/src/components/ui` 与 `node_modules` 没有任何修改；尺寸解析、图片预载和 zoom/pan 属于档案领域逻辑，放在 `lib`、`services`、`features/archive` 与业务 wrapper 中。
 
 ## 9. 第五次专项差异审查：答题、资料、表格与切页性能
 
