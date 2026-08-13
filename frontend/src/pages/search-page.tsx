@@ -312,7 +312,9 @@ export function SearchPage() {
           </div>
         </CardContent>
       </Card>
-      <div>{body}</div>
+      <div className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+        {body}
+      </div>
     </div>
   )
 }

@@ -223,7 +223,11 @@ export function ImageViewer({
             滚轮缩放，按住图片拖动浏览；使用工具栏可缩放或复位。
           </DialogDescription>
         </DialogHeader>
-        <div className="image-viewer-toolbar flex min-w-0 items-center gap-2 rounded-xl px-2.5 py-2">
+        <div
+          data-liquid-glass-group
+          data-liquid-glass-interactive
+          className="image-viewer-toolbar flex min-w-0 items-center gap-2 rounded-xl px-2.5 py-2"
+        >
           <Maximize2 className="size-4 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate text-sm font-medium">{alt}</span>
           <div className="flex shrink-0 items-center gap-1">

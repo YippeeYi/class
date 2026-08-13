@@ -175,7 +175,10 @@ export function HomePage() {
                 className="guide-tip min-h-6 text-sm leading-6 text-muted-foreground"
                 aria-live="polite"
               >
-                <span key={tipIndex} className="inline-block">
+                <span
+                  key={tipIndex}
+                  className="inline-block motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+                >
                   {(tips[tipIndex] || '').replace(/^小提示：/, '')}
                 </span>
               </p>

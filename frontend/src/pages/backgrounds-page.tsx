@@ -1,14 +1,18 @@
-import { Check, Image as ImageIcon, Moon, Palette, Sparkles, Sun } from 'lucide-react'
+import { Check, Image as ImageIcon, Moon, Palette, Sparkles, Square, Sun } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button, textLinkClassName } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
 import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
+import { SelectionMotionLayers, useSelectionMotion } from '@/components/archive/selection-motion'
 import {
   type AppearancePreference,
   type BackgroundId,
+  type BoxStyleId,
   backgrounds,
+  boxStyles,
   readAppearance,
   setBackground,
+  setBoxStyle,
   setThemePreset,
   type ThemePresetId,
   themePresets,
@@ -40,6 +44,7 @@ const themeModeGroups = [
 const appearanceSections = [
   { value: 'palette', label: '配色', icon: Palette, description: '界面色彩' },
   { value: 'background', label: '背景', icon: ImageIcon, description: '底层画面' },
+  { value: 'box', label: '方框', icon: Square, description: '容器质感' },
 ] as const
 
 function ThemePresetOption({ preset, selected }: { preset: ThemePreset; selected: boolean }) {
@@ -48,6 +53,7 @@ function ThemePresetOption({ preset, selected }: { preset: ThemePreset; selected
       htmlFor={`theme-preset-${preset.id}`}
       data-theme-preset-option={preset.id}
       data-theme-mode={preset.mode}
+      data-selection-option
       data-selected={selected ? 'true' : 'false'}
       className="appearance-choice group/preset grid min-w-0 gap-2 p-2"
     >
@@ -81,6 +87,7 @@ function AutomaticThemeOption({ selected }: { selected: boolean }) {
       htmlFor="theme-preset-auto"
       data-theme-preset-option="auto"
       data-theme-mode="auto"
+      data-selection-option
       data-selected={selected ? 'true' : 'false'}
       className="appearance-choice inline-flex min-h-11 min-w-44 items-center gap-2.5 px-3 py-2"
     >
@@ -98,7 +105,7 @@ function BackgroundPreview({ src, active }: { src: string; active: boolean }) {
   const [ready, setReady] = useState(false)
   if (failed)
     return (
-      <div className="absolute inset-0 grid place-items-center bg-background/90 text-center text-sm text-muted-foreground">
+      <div className="absolute inset-0 grid place-items-center bg-background/58 text-center text-sm text-muted-foreground backdrop-blur-sm">
         <div>
           <ImageIcon className="mx-auto mb-2 size-5" />
           <p className="mb-2">预览加载失败</p>
@@ -140,10 +147,85 @@ function BackgroundPreview({ src, active }: { src: string; active: boolean }) {
   )
 }
 
+function BoxStyleOption({ id, selected }: { id: BoxStyleId; selected: boolean }) {
+  const option = boxStyles.find((item) => item.id === id)
+  if (!option) return null
+  return (
+    <label
+      htmlFor={`box-style-${id}`}
+      data-box-style-id={id}
+      data-selection-option
+      data-selected={selected ? 'true' : 'false'}
+      className="appearance-choice group/box overflow-hidden"
+    >
+      <span
+        className={`box-style-preview relative grid min-h-40 place-items-center overflow-hidden border-b border-border/60 ${id === 'glass' ? 'liquid-glass-preview' : 'bg-muted/70'}`}
+        aria-hidden="true"
+      >
+        <span
+          className={
+            id === 'glass'
+              ? 'liquid-glass-preview-surface'
+              : 'box-style-preview-surface absolute left-[15%] top-[22%] h-20 w-[58%] border border-border bg-card p-3 shadow-sm'
+          }
+        >
+          <span className="mb-2 block h-2 w-2/3 rounded-full bg-foreground/70" />
+          <span className="block h-1.5 w-full rounded-full bg-muted-foreground/35" />
+          <span className="mt-1.5 block h-1.5 w-4/5 rounded-full bg-muted-foreground/25" />
+        </span>
+        <span
+          className={
+            id === 'glass'
+              ? 'liquid-glass-preview-control'
+              : 'box-style-preview-control absolute bottom-[18%] right-[13%] size-16 border border-border bg-card shadow-sm'
+          }
+        />
+      </span>
+      <span className="flex items-start gap-3 p-4">
+        <RadioGroupItem id={`box-style-${id}`} value={id} className="mt-0.5" />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center justify-between gap-2 font-semibold">
+            {option.label}
+            {selected && <Check className="size-4 text-primary" />}
+          </span>
+          <span className="mt-1 block text-sm leading-5 text-muted-foreground">
+            {option.description}
+          </span>
+        </span>
+      </span>
+    </label>
+  )
+}
+
 export function BackgroundsPage() {
   const [appearance, setAppearance] = useState<AppearancePreference>(readAppearance)
   const [section, setSection] = useState('palette')
   const current = appearance.background
+  const themeOptionIds: ThemePresetId[] = ['auto', ...themePresets.map((preset) => preset.id)]
+  const themeMotion = useSelectionMotion<HTMLDivElement>(
+    Math.max(0, themeOptionIds.indexOf(appearance.theme)),
+    themeOptionIds.length,
+    'auto',
+    '[data-selection-option]',
+  )
+  const backgroundMotion = useSelectionMotion<HTMLDivElement>(
+    Math.max(
+      0,
+      backgrounds.findIndex((item) => item.id === current),
+    ),
+    backgrounds.length,
+    'auto',
+    '[data-selection-option]',
+  )
+  const boxMotion = useSelectionMotion<HTMLDivElement>(
+    Math.max(
+      0,
+      boxStyles.findIndex((item) => item.id === appearance.box),
+    ),
+    boxStyles.length,
+    'auto',
+    '[data-selection-option]',
+  )
   useEffect(() => {
     document.title = '风格 · 编日史'
   }, [])
@@ -157,17 +239,24 @@ export function BackgroundsPage() {
     setBackground(id)
   }
   const chooseTheme = (id: ThemePresetId) => setThemePreset(id)
+  const chooseBox = (id: BoxStyleId) => setBoxStyle(id)
   return (
     <div>
       <PageHeading
         title="风格"
-        description="选择全站配色与页面背景；所有选择都会保存在当前浏览器中。"
+        description="配色、背景与方框彼此独立，共同组成全站视觉风格；所有选择都会保存在当前浏览器中。"
       />
       <Tabs value={section} onValueChange={setSection} className="gap-4">
-        <SegmentedTabsList items={appearanceSections} ariaLabel="风格设置分区" className="w-full" />
+        <SegmentedTabsList
+          value={section as (typeof appearanceSections)[number]['value']}
+          items={appearanceSections}
+          ariaLabel="风格设置分区"
+          className="w-full"
+          triggerClassName="min-h-10 min-w-0 px-3 py-2"
+        />
 
-        <TabsContent value="palette">
-          <Card className="gap-0 overflow-hidden border-border/70 bg-card/88 py-0">
+        <TabsContent value="palette" className="app-tabs-content">
+          <Card className="appearance-preset-panel gap-0 overflow-hidden border-border/70 bg-card/88 py-0">
             <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                 <Palette className="size-4" />
@@ -181,11 +270,13 @@ export function BackgroundsPage() {
             </div>
             <CardContent className="p-3 sm:p-4">
               <RadioGroup
+                ref={themeMotion.ref}
                 aria-label="选择全站配色方案"
                 value={appearance.theme}
                 onValueChange={(value) => chooseTheme(value as ThemePresetId)}
-                className="grid gap-4"
+                className="app-spatial-selection grid gap-4"
               >
+                <SelectionMotionLayers />
                 <section
                   data-theme-mode-group="auto"
                   className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/60 pb-3"
@@ -232,7 +323,7 @@ export function BackgroundsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="background">
+        <TabsContent value="background" className="app-tabs-content">
           <Card className="gap-0 overflow-hidden border-border/70 bg-card/88 py-0">
             <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
@@ -241,22 +332,25 @@ export function BackgroundsPage() {
               <div className="min-w-0">
                 <CardTitle className="text-base">背景</CardTitle>
                 <p className="mt-0.5 text-sm leading-5 text-muted-foreground">
-                  选择页面底层画面；它会与配色方案自然组合。
+                  选择页面底层画面；它会与配色及方框风格独立组合。
                 </p>
               </div>
             </div>
             <CardContent className="p-3 sm:p-4">
               <RadioGroup
+                ref={backgroundMotion.ref}
                 aria-label="选择全站背景"
                 value={current}
                 onValueChange={(value) => choose(value as BackgroundId)}
-                className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+                className="app-spatial-selection grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
               >
+                <SelectionMotionLayers />
                 {backgrounds.map((item) => (
                   <div key={item.id} className="grid min-w-0 content-start gap-2">
                     <label
                       htmlFor={`background-${item.id}`}
                       data-background-id={item.id}
+                      data-selection-option
                       data-selected={current === item.id ? 'true' : 'false'}
                       className="appearance-choice group/background-choice relative block min-w-0 overflow-hidden"
                     >
@@ -271,7 +365,7 @@ export function BackgroundsPage() {
                           <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_12%,color-mix(in_oklch,var(--primary)_20%,transparent),transparent_34%),repeating-linear-gradient(0deg,transparent_0_31px,color-mix(in_oklch,var(--primary)_7%,transparent)_32px),linear-gradient(145deg,var(--background),color-mix(in_oklch,var(--secondary)_62%,var(--background)))]" />
                         )}
                         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,transparent_42%,rgb(18_16_14/.18)_100%)]" />
-                        <div className="absolute inset-x-3 bottom-3 rounded-xl border border-border/75 bg-background/90 p-3 shadow-sm sm:inset-x-4 sm:bottom-4">
+                        <div className="absolute inset-x-3 bottom-3 rounded-xl border border-border/75 bg-background/70 p-3 shadow-md backdrop-blur-md sm:inset-x-4 sm:bottom-4">
                           <div className="mb-1.5 flex min-w-0 items-center justify-between gap-3">
                             <div className="flex min-w-0 items-center gap-2">
                               <strong className="truncate font-heading text-base sm:text-lg">
@@ -323,6 +417,40 @@ export function BackgroundsPage() {
                       </p>
                     </div>
                   </div>
+                ))}
+              </RadioGroup>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="box" className="app-tabs-content">
+          <Card className="gap-0 overflow-hidden border-border/70 bg-card/88 py-0">
+            <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                <Square className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <CardTitle className="text-base">方框</CardTitle>
+                <p className="mt-0.5 text-sm leading-5 text-muted-foreground">
+                  统一控制记录卡片、统计卡片、筛选区与弹窗等视觉容器。
+                </p>
+              </div>
+            </div>
+            <CardContent className="p-3 sm:p-4">
+              <RadioGroup
+                ref={boxMotion.ref}
+                aria-label="选择全站方框风格"
+                value={appearance.box}
+                onValueChange={(value) => chooseBox(value as BoxStyleId)}
+                className="app-spatial-selection grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+              >
+                <SelectionMotionLayers />
+                {boxStyles.map((style) => (
+                  <BoxStyleOption
+                    key={style.id}
+                    id={style.id}
+                    selected={appearance.box === style.id}
+                  />
                 ))}
               </RadioGroup>
             </CardContent>
