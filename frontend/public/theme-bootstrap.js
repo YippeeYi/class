@@ -16,6 +16,7 @@
     'aurora',
   ])
   const darkThemes = new Set(['ink', 'midnight', 'pine', 'aurora'])
+  const boxStyles = new Set(['compact', 'default', 'soft', 'round', 'glass'])
   const themeColors = {
     auto: '#f5f0e8',
     paper: '#f8f5ef',
@@ -47,7 +48,7 @@
     const stored = appearance?.background || localStorage.getItem(backgroundKey)
     const id = stored === 'mountain' || stored === 'cloud' ? stored : 'default'
     const theme = themes.has(appearance?.theme) ? appearance.theme : 'auto'
-    const box = appearance?.box === 'glass' ? 'glass' : 'default'
+    const box = boxStyles.has(appearance?.box) ? appearance.box : 'default'
     const root = document.documentElement
     root.dataset.backgroundBootstrap = id
     root.dataset.themePreset = theme

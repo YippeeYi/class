@@ -20,6 +20,7 @@
 | `--interaction-duration-fast` | 120ms | 菜单项、轻量提示 |
 | `--interaction-duration-standard` | 160ms | 按钮、输入、卡片等常规反馈 |
 | `--interaction-duration-slow` | 200ms | 内容进出与较大区域反馈 |
+| `--interaction-duration-scene` | 500ms | 仅用于全页背景图交叉淡入 |
 | `--interaction-ease-standard` | `cubic-bezier(0.2, 0, 0, 1)` | 全站交互缓动 |
 | `--interaction-surface-hover` | 主题混合色 | 浅层 Hover 背景 |
 | `--interaction-surface-pressed` | 主题混合色 | Pressed 背景 |
@@ -28,6 +29,8 @@
 | `--interaction-border-selected` | Primary/Border 强混合色 | Selected 边框 |
 | `--interaction-focus` | Ring 半透明色 | 3px 键盘焦点环 |
 | `--interaction-disabled-opacity` | 0.5 | Disabled/Loading 透明度 |
+
+场景时长不用于按钮、卡片、弹窗或任何需要即时响应的控件。
 
 ## 3. 控件类别
 
@@ -57,6 +60,10 @@
   destructive 边框与对应焦点环。
 - Checkbox、Radio、Switch、Toggle、Tabs 保留 shadcn 的语义状态，通过统一时长、
   Focus、Disabled 和 Selected token 协调视觉。
+- 单选模式切换统一使用项目 `SegmentedTabsList`（内部组合 shadcn Tabs）。选中背景是单一共享层，
+  以 200ms 标准 easing 在选项间移动；业务状态在点击时立即更新，不等待动画结束。
+- 多选 Toggle/Button Group 不使用移动指示器；各项通过 `aria-pressed`、边框、背景和文字色平滑
+  过渡，避免让多选语义看起来像单选。
 - 打开中的 Select、选中 Tabs 和 `aria-pressed=true` 控件必须有持续可见的 Selected 反馈。
 - 菜单与下拉项使用 120ms 背景/颜色过渡，并保持不少于 32px 的行高。
 
@@ -66,12 +73,24 @@
 - 卡片内辅助动作使用 `app-inline-action`，由父级 Hover/Focus 协同强调。
 - 不可点击文本、图表扇区和纯展示卡片不得使用 pointer 光标。
 
+### 方框与大图层级
+
+- 全站圆角只由 `--radius` 及其 Tailwind 派生 token 控制；方框风格提供利落、标准、柔和、
+  圆润四档轮廓，液体玻璃在相同 token 体系上增加材质，不在页面硬编码另一套圆角。
+- 圆角切换只过渡 `border-radius`，不得改变盒模型尺寸、间距或内容位置。
+- 大图模式必须保留真实当前页面为底层；全屏 overlay 使用半透明压暗与一次
+  `backdrop-filter`，查看器视口保持透明。不得用打开的图片副本、纯色画布或截图伪造背景。
+- 大图 overlay 与内容均以 160ms 透明度进出；模态层沿用 Base UI 的焦点陷阱与滚动锁定，关闭后
+  恢复原焦点和滚动位置。`prefers-reduced-transparency` 与不支持 backdrop-filter 的浏览器使用
+  更深但仍稳定的降级蒙版。
+
 ## 4. 实现约束
 
 - 业务代码从 `@/components/archive/interaction` 引入 `Button`、`buttonVariants`、
   `interactiveSurfaceVariants`、`textLinkClassName` 等项目级契约。
+- 单选模式切换从 `@/components/archive/segmented-tabs` 引入 `SegmentedTabsList`；页面不得再次
+  为同语义 Tabs 独立拼装选中背景和过渡。
 - 不直接修改 `frontend/src/components/ui`；新增视觉规则应放在项目封装、CSS variable、
   公共 class 或 variant 中。
 - 页面不得新增 `transition-all`、Hover 位移/缩放、独立阴影尺度或与本规范冲突的时长。
 - 只有具备独立语义的业务控件可以增加局部状态色，例如答题正确/错误、表单错误和成功提示。
-

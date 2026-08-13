@@ -183,7 +183,7 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
                     <SidebarMenuButton
                       isActive={isActive}
                       tooltip={label}
-                      className="transition-colors duration-150 data-active:bg-sidebar-primary data-active:text-sidebar-primary-foreground data-active:hover:bg-sidebar-primary/90 data-active:hover:text-sidebar-primary-foreground"
+                      className="app-navigation-item data-active:bg-sidebar-primary data-active:text-sidebar-primary-foreground data-active:hover:bg-sidebar-primary/90 data-active:hover:text-sidebar-primary-foreground"
                       onPointerEnter={() => void preloadRoute(to)}
                       onFocus={() => void preloadRoute(to)}
                       render={<NavLink to={destination} />}
@@ -382,6 +382,7 @@ export function AppShell() {
                   variant="ghost"
                   size="icon-sm"
                   loading={fullscreenPending}
+                  aria-pressed={fullscreen}
                   aria-label={fullscreen ? '退出全屏' : '进入全屏'}
                   title={fullscreen ? '退出全屏' : '进入全屏'}
                   onClick={() => void toggleFullscreen()}

@@ -13,11 +13,12 @@ import {
   type RecordCriteria,
   RecordFilters,
 } from '@/components/archive/record-filters'
+import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
@@ -28,6 +29,10 @@ import type { Person, RecordItem } from '@/types/domain'
 
 const participantCache = new WeakMap<RecordItem, string[]>()
 const authorCache = new WeakMap<RecordItem, string[]>()
+const personRecordModes = [
+  { value: 'participated', label: '参与的事件' },
+  { value: 'authored', label: '记录的事件' },
+] as const
 
 function participantIds(record: RecordItem) {
   const cached = participantCache.get(record)
@@ -200,10 +205,11 @@ export function PersonPage() {
               setCriteria(EMPTY_RECORD_CRITERIA)
             }}
           >
-            <TabsList>
-              <TabsTrigger value="participated">参与的事件</TabsTrigger>
-              <TabsTrigger value="authored">记录的事件</TabsTrigger>
-            </TabsList>
+            <SegmentedTabsList
+              value={mode as (typeof personRecordModes)[number]['value']}
+              items={personRecordModes}
+              ariaLabel="人物相关记录模式"
+            />
           </Tabs>
         )}
       </div>

@@ -2,6 +2,7 @@ import { Check, Image as ImageIcon, Moon, Palette, Sparkles, Square, Sun } from 
 import { useEffect, useState } from 'react'
 import { Button, textLinkClassName } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
+import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
 import {
   type AppearancePreference,
   type BackgroundId,
@@ -20,7 +21,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 
 type ThemePreset = (typeof themePresets)[number]
 
@@ -38,6 +39,12 @@ const themeModeGroups = [
     icon: Moon,
   },
 ]
+
+const appearanceSections = [
+  { value: 'palette', label: '配色', icon: Palette, description: '界面色彩' },
+  { value: 'background', label: '背景', icon: ImageIcon, description: '底层画面' },
+  { value: 'box', label: '方框', icon: Square, description: '容器质感' },
+] as const
 
 function ThemePresetOption({ preset, selected }: { preset: ThemePreset; selected: boolean }) {
   return (
@@ -148,14 +155,14 @@ function BoxStyleOption({ id, selected }: { id: BoxStyleId; selected: boolean })
       className="appearance-choice group/box overflow-hidden"
     >
       <span
-        className={`relative grid min-h-40 place-items-center overflow-hidden border-b border-border/60 ${id === 'glass' ? 'liquid-glass-preview' : 'bg-muted/70'}`}
+        className={`box-style-preview relative grid min-h-40 place-items-center overflow-hidden border-b border-border/60 ${id === 'glass' ? 'liquid-glass-preview' : 'bg-muted/70'}`}
         aria-hidden="true"
       >
         <span
           className={
             id === 'glass'
               ? 'liquid-glass-preview-surface'
-              : 'absolute left-[15%] top-[22%] h-20 w-[58%] rounded-xl border border-border bg-card p-3 shadow-sm'
+              : 'box-style-preview-surface absolute left-[15%] top-[22%] h-20 w-[58%] border border-border bg-card p-3 shadow-sm'
           }
         >
           <span className="mb-2 block h-2 w-2/3 rounded-full bg-foreground/70" />
@@ -166,7 +173,7 @@ function BoxStyleOption({ id, selected }: { id: BoxStyleId; selected: boolean })
           className={
             id === 'glass'
               ? 'liquid-glass-preview-control'
-              : 'absolute bottom-[18%] right-[13%] size-16 rounded-xl border border-border bg-card shadow-sm'
+              : 'box-style-preview-control absolute bottom-[18%] right-[13%] size-16 border border-border bg-card shadow-sm'
           }
         />
       </span>
@@ -211,30 +218,15 @@ export function BackgroundsPage() {
         description="配色、背景与方框彼此独立，共同组成全站视觉风格；所有选择都会保存在当前浏览器中。"
       />
       <Tabs value={section} onValueChange={setSection} className="gap-4">
-        <TabsList
-          aria-label="风格设置分区"
-          className="grid w-full grid-cols-3 group-data-horizontal/tabs:h-auto"
-        >
-          {(
-            [
-              ['palette', '配色', Palette, '界面色彩'],
-              ['background', '背景', ImageIcon, '底层画面'],
-              ['box', '方框', Square, '容器质感'],
-            ] as const
-          ).map(([value, label, Icon, description]) => (
-            <TabsTrigger
-              key={String(value)}
-              value={String(value)}
-              className="min-h-10 min-w-0 px-3 py-2"
-            >
-              <Icon className="size-4 shrink-0" />
-              <span>{String(label)}</span>
-              <span className="sr-only">{String(description)}</span>
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <SegmentedTabsList
+          value={section as (typeof appearanceSections)[number]['value']}
+          items={appearanceSections}
+          ariaLabel="风格设置分区"
+          className="w-full"
+          triggerClassName="min-h-10 min-w-0 px-3 py-2"
+        />
 
-        <TabsContent value="palette">
+        <TabsContent value="palette" className="app-tabs-content">
           <Card className="appearance-preset-panel gap-0 overflow-hidden border-border/70 bg-card/88 py-0">
             <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
@@ -300,7 +292,7 @@ export function BackgroundsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="background">
+        <TabsContent value="background" className="app-tabs-content">
           <Card className="gap-0 overflow-hidden border-border/70 bg-card/88 py-0">
             <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
@@ -397,7 +389,7 @@ export function BackgroundsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="box">
+        <TabsContent value="box" className="app-tabs-content">
           <Card className="gap-0 overflow-hidden border-border/70 bg-card/88 py-0">
             <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
@@ -415,10 +407,15 @@ export function BackgroundsPage() {
                 aria-label="选择全站方框风格"
                 value={appearance.box}
                 onValueChange={(value) => chooseBox(value as BoxStyleId)}
-                className="grid gap-3 md:grid-cols-2"
+                className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
               >
-                <BoxStyleOption id="default" selected={appearance.box === 'default'} />
-                <BoxStyleOption id="glass" selected={appearance.box === 'glass'} />
+                {boxStyles.map((style) => (
+                  <BoxStyleOption
+                    key={style.id}
+                    id={style.id}
+                    selected={appearance.box === style.id}
+                  />
+                ))}
               </RadioGroup>
             </CardContent>
           </Card>

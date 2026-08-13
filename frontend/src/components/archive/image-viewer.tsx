@@ -422,44 +422,30 @@ export function ImageViewer({
             </div>
           )}
           {src && !imageFailure.failed && (
-            <>
-              <img
-                src={src}
-                alt=""
-                aria-hidden="true"
-                draggable={false}
-                decoding="async"
-                className="image-viewer-ambient pointer-events-none absolute inset-0 size-full select-none object-cover"
-              />
-              <span
-                aria-hidden="true"
-                className="image-viewer-ambient-scrim pointer-events-none absolute inset-0"
-              />
-              <img
-                key={src}
-                src={src}
-                alt={alt}
-                draggable={false}
-                decoding="async"
-                onLoad={(event) => {
-                  imageFailure.markLoaded()
-                  reset()
-                  setNatural({
-                    width: event.currentTarget.naturalWidth,
-                    height: event.currentTarget.naturalHeight,
-                  })
-                }}
-                onError={imageFailure.markFailed}
-                className="image-viewer-image absolute left-1/2 top-1/2 max-w-none select-none"
-                style={{
-                  width: base.width ? `${base.width}px` : '100%',
-                  height: base.height ? `${base.height}px` : '100%',
-                  objectFit: base.width ? undefined : 'contain',
-                  transform: `translate3d(calc(-50% + ${viewTransform.x}px), calc(-50% + ${viewTransform.y}px), 0) scale(${viewTransform.scale})`,
-                  transformOrigin: 'center',
-                }}
-              />
-            </>
+            <img
+              key={src}
+              src={src}
+              alt={alt}
+              draggable={false}
+              decoding="async"
+              onLoad={(event) => {
+                imageFailure.markLoaded()
+                reset()
+                setNatural({
+                  width: event.currentTarget.naturalWidth,
+                  height: event.currentTarget.naturalHeight,
+                })
+              }}
+              onError={imageFailure.markFailed}
+              className="image-viewer-image absolute left-1/2 top-1/2 max-w-none select-none"
+              style={{
+                width: base.width ? `${base.width}px` : '100%',
+                height: base.height ? `${base.height}px` : '100%',
+                objectFit: base.width ? undefined : 'contain',
+                transform: `translate3d(calc(-50% + ${viewTransform.x}px), calc(-50% + ${viewTransform.y}px), 0) scale(${viewTransform.scale})`,
+                transformOrigin: 'center',
+              }}
+            />
           )}
           {imageFailure.failed && src && (
             <div className="grid size-full place-items-center text-center">

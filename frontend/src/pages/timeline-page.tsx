@@ -7,6 +7,7 @@ import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { Button } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
+import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,7 +17,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
 import {
   countTextCharacters,
@@ -30,6 +31,10 @@ import { fixedTimelineChartScale } from '@/lib/timeline'
 import type { RecordItem } from '@/types/domain'
 
 type Metric = 'count' | 'characters'
+const metricItems = [
+  { value: 'count', label: '记录条数' },
+  { value: 'characters', label: '记录字数' },
+] as const
 const chartConfig = { value: { label: '数量', color: 'var(--chart-1)' } } satisfies ChartConfig
 const chartTooltipClassName =
   'w-40 min-w-40 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-100'
@@ -864,10 +869,7 @@ export function TimelinePage() {
         description="从全局、年度、月度和每日四个层级查看记录密度、作者与关联人物。"
         actions={
           <Tabs value={metric} onValueChange={(value) => setMetric(value as Metric)}>
-            <TabsList>
-              <TabsTrigger value="count">记录条数</TabsTrigger>
-              <TabsTrigger value="characters">记录字数</TabsTrigger>
-            </TabsList>
+            <SegmentedTabsList value={metric} items={metricItems} ariaLabel="统计指标" />
           </Tabs>
         }
       />

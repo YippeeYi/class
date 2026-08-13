@@ -114,9 +114,9 @@
   --glass-content-border: color-mix(in oklch, var(--border) 88%, var(--foreground) 12%);
   --glass-edge-light: color-mix(in oklch, white 34%, transparent);
   --glass-ambient: color-mix(in oklch, var(--primary) 5%, transparent);
-  --glass-radius-control: 0.875rem;
-  --glass-radius-group: 1.125rem;
-  --glass-radius-panel: 1.5rem;
+  --glass-radius-control: calc(var(--radius) * 1.12);
+  --glass-radius-group: calc(var(--radius) * 1.44);
+  --glass-radius-panel: calc(var(--radius) * 1.92);
   --glass-blur: 18px;
   --glass-saturation: 1.12;
   --elevation-subtle: 0 1px 2px oklch(0.22 0.016 55 / 7%);
@@ -125,6 +125,7 @@
   --interaction-duration-fast: 120ms;
   --interaction-duration-standard: 160ms;
   --interaction-duration-slow: 200ms;
+  --interaction-duration-scene: 500ms;
   --interaction-ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --interaction-surface-hover: color-mix(in oklch, var(--accent) 62%, var(--background));
   --interaction-surface-pressed: color-mix(in oklch, var(--accent) 82%, var(--background));
@@ -133,6 +134,26 @@
   --interaction-border-selected: color-mix(in oklch, var(--primary) 66%, var(--border));
   --interaction-focus: color-mix(in oklch, var(--ring) 42%, transparent);
   --interaction-disabled-opacity: 0.5;
+}
+
+html[data-box-style="compact"] {
+  --radius: 0.42rem;
+}
+
+html[data-box-style="default"] {
+  --radius: 0.78rem;
+}
+
+html[data-box-style="soft"] {
+  --radius: 1rem;
+}
+
+html[data-box-style="round"] {
+  --radius: 1.24rem;
+}
+
+html[data-box-style="glass"] {
+  --radius: 0.94rem;
 }
 
 .dark {
@@ -282,7 +303,13 @@ body
 
 body :where(button, [role="button"], [data-slot="toggle"], [data-slot="tabs-trigger"]) {
   translate: none;
-  transition-property: color, background-color, border-color, box-shadow, opacity;
+  transition-property: color, background-color, border-color, border-radius, box-shadow, opacity;
+  transition-duration: var(--interaction-duration-standard);
+  transition-timing-function: var(--interaction-ease-standard);
+}
+
+body [data-slot="card"] {
+  transition-property: color, background-color, border-color, border-radius, box-shadow, opacity;
   transition-duration: var(--interaction-duration-standard);
   transition-timing-function: var(--interaction-ease-standard);
 }
@@ -297,7 +324,7 @@ body
     [data-slot="radio-group-item"],
     [data-slot="switch"]
   ) {
-  transition-property: color, background-color, border-color, box-shadow, opacity;
+  transition-property: color, background-color, border-color, border-radius, box-shadow, opacity;
   transition-duration: var(--interaction-duration-standard);
   transition-timing-function: var(--interaction-ease-standard);
 }
@@ -397,6 +424,53 @@ body [data-slot="switch"][data-disabled] {
   }
 }
 
+/* Neutralize shadcn utility hover paint on coarse/no-hover pointers after a
+   tap. Pressed and selected semantics remain intact through :active and ARIA. */
+@media (hover: none), (pointer: coarse) {
+  body .app-button--default:not(:active, :disabled) {
+    background-color: var(--primary);
+  }
+
+  body .app-button--secondary:not(:active, :disabled) {
+    background-color: var(--secondary);
+  }
+
+  body .app-button--outline:not(:active, :disabled, [aria-pressed="true"]) {
+    background-color: var(--background);
+  }
+
+  body .app-button--ghost:not(:active, :disabled, [aria-pressed="true"]) {
+    background-color: transparent;
+  }
+
+  body .app-button--destructive:not(:active, :disabled) {
+    background-color: color-mix(in oklch, var(--destructive) 10%, transparent);
+  }
+
+  body .app-button--link:not(:active, :disabled) {
+    text-decoration-line: none;
+  }
+
+  body
+    .app-segmented-control[data-segmented-control="true"]
+    > .app-segmented-trigger[data-slot="tabs-trigger"]:not([data-active], :active) {
+    background: transparent;
+    color: color-mix(in oklch, var(--foreground) 60%, transparent);
+  }
+
+  body [data-slot="toggle"]:not([aria-pressed="true"], [data-state="on"], :active) {
+    background-color: transparent;
+  }
+
+  .dark body .app-button--outline:not(:active, :disabled, [aria-pressed="true"]) {
+    background-color: color-mix(in oklch, var(--input) 30%, transparent);
+  }
+
+  .dark body .app-button--destructive:not(:active, :disabled) {
+    background-color: color-mix(in oklch, var(--destructive) 20%, transparent);
+  }
+}
+
 body
   :is(.app-button--default, [data-slot="alert-dialog-action"]:not(.app-button)):not(
     :disabled
@@ -431,6 +505,116 @@ body [data-slot="tabs-trigger"][data-active] {
 
 body [data-slot="tabs-trigger"]:not(:disabled):active {
   background-color: var(--interaction-surface-pressed);
+}
+
+/* Shared segmented control: one selected surface moves between modes while
+   every trigger keeps stable geometry and immediate state updates. */
+body .app-segmented-control[data-segmented-control="true"] {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(var(--segment-count), minmax(0, 1fr));
+  height: auto;
+  gap: 0;
+  padding: 3px;
+  overflow: hidden;
+}
+
+body .app-segmented-control[data-segmented-control="true"]::before {
+  position: absolute;
+  z-index: 0;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / var(--segment-count));
+  border: 1px solid color-mix(in oklch, var(--interaction-border-selected) 64%, transparent);
+  border-radius: calc(var(--radius-md) - 2px);
+  background: var(--background);
+  box-shadow: var(--elevation-subtle);
+  content: "";
+  transform: translate3d(calc(var(--segment-index) * 100%), 0, 0);
+  transition:
+    transform var(--interaction-duration-slow) var(--interaction-ease-standard),
+    background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
+    border-color var(--interaction-duration-standard) var(--interaction-ease-standard);
+  pointer-events: none;
+}
+
+body
+  .app-segmented-control[data-segmented-control="true"]
+  > .app-segmented-trigger[data-slot="tabs-trigger"] {
+  z-index: 1;
+  min-width: 0;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+body
+  .app-segmented-control[data-segmented-control="true"]
+  > .app-segmented-trigger[data-slot="tabs-trigger"][data-active] {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+body
+  .app-segmented-control[data-segmented-control="true"]
+  > .app-segmented-trigger[data-slot="tabs-trigger"]:active {
+  background: color-mix(in oklch, var(--interaction-surface-pressed) 54%, transparent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  body
+    .app-segmented-control[data-segmented-control="true"]
+    > .app-segmented-trigger[data-slot="tabs-trigger"]:not([data-active], :disabled):hover {
+    background: color-mix(in oklch, var(--interaction-surface-hover) 58%, transparent);
+  }
+}
+
+.app-tabs-content {
+  animation: app-tabs-content-in var(--interaction-duration-standard)
+    var(--interaction-ease-standard);
+}
+
+/* Persistent navigation and list selection uses a restrained leading marker.
+   It fades within the existing hit area, so active routes never change size. */
+.app-navigation-item,
+.app-selection-item {
+  position: relative;
+}
+
+.app-navigation-item::before,
+.app-selection-item::before {
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  left: 0.2rem;
+  width: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  content: "";
+  opacity: 0;
+  transform: scaleY(0.5);
+  transition:
+    opacity var(--interaction-duration-standard) var(--interaction-ease-standard),
+    transform var(--interaction-duration-standard) var(--interaction-ease-standard);
+  pointer-events: none;
+}
+
+.app-navigation-item[data-active]::before,
+.app-selection-item:is([data-active="true"], [aria-current="true"])::before {
+  opacity: 0.78;
+  transform: scaleY(1);
+}
+
+@keyframes app-tabs-content-in {
+  from {
+    opacity: 0.68;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 body
@@ -483,7 +667,7 @@ body
 
 .app-interactive-card > [data-slot="card"],
 .app-interactive-item {
-  transition-property: color, background-color, border-color, box-shadow;
+  transition-property: color, background-color, border-color, border-radius, box-shadow;
   transition-duration: var(--interaction-duration-standard);
   transition-timing-function: var(--interaction-ease-standard);
 }
@@ -1151,21 +1335,38 @@ body .app-interactive-media:not(:disabled):active {
   }
 }
 
+/* The quote source action already owns layout space. Only paint changes during
+   hover/focus, keeping the card and text perfectly still while the footer and
+   destination cue respond as one continuous surface. */
+.quote-card-footer {
+  transition: border-color var(--interaction-duration-standard) var(--interaction-ease-standard);
+}
+
+.quote-source-action {
+  transition:
+    color var(--interaction-duration-standard) var(--interaction-ease-standard),
+    opacity var(--interaction-duration-standard) var(--interaction-ease-standard),
+    text-decoration-color var(--interaction-duration-standard) var(--interaction-ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .quote-record-link .quote-source-action {
+    opacity: 0;
+  }
+
+  .quote-record-link:is(:hover, :focus-visible, :focus-within) .quote-source-action {
+    opacity: 1;
+  }
+
+  .quote-record-link:is(:hover, :focus-visible, :focus-within) .quote-card-footer {
+    border-color: color-mix(in oklch, var(--primary) 34%, var(--border));
+  }
+}
+
 @keyframes quiz-answer-reveal {
   from {
     opacity: 0;
     transform: translateX(-0.35rem);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto;
-    animation-duration: 0.01ms;
-    animation-iteration-count: 1;
-    transition-duration: 0.01ms;
   }
 }
 
@@ -1229,9 +1430,47 @@ body .app-interactive-media:not(:disabled):active {
   color: var(--foreground);
   box-shadow: var(--elevation-subtle);
   transition:
-    border-color 180ms ease,
-    background-color 180ms ease,
-    box-shadow 180ms ease;
+    border-radius var(--interaction-duration-slow) var(--interaction-ease-standard),
+    border-color var(--interaction-duration-standard) var(--interaction-ease-standard),
+    background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
+    box-shadow var(--interaction-duration-standard) var(--interaction-ease-standard);
+}
+
+/* Keep the motion cadence of shadcn/Base UI overlays, popups and stateful
+   controls on the same fast/standard/slow scale without replacing their
+   focus management, placement or open/close mechanics. */
+body
+:is(
+  [data-slot="tooltip-content"],
+  [data-slot="popover-content"],
+  [data-slot="dropdown-menu-content"],
+  [data-slot="dropdown-menu-sub-content"],
+  [data-slot="hover-card-content"],
+  [data-slot="select-content"]
+) {
+  animation-duration: var(--interaction-duration-fast);
+  animation-timing-function: var(--interaction-ease-standard);
+}
+
+body
+  :is(
+    [data-slot="dialog-overlay"],
+    [data-slot="alert-dialog-overlay"],
+    [data-slot="dialog-content"],
+    [data-slot="alert-dialog-content"]
+  ) {
+  animation-duration: var(--interaction-duration-standard);
+  animation-timing-function: var(--interaction-ease-standard);
+}
+
+body :is([data-slot="sheet-overlay"], [data-slot="sheet-content"]) {
+  transition-duration: var(--interaction-duration-slow);
+  transition-timing-function: var(--interaction-ease-standard);
+}
+
+body [data-slot="switch-thumb"] {
+  transition-duration: var(--interaction-duration-standard);
+  transition-timing-function: var(--interaction-ease-standard);
 }
 @media (hover: hover) and (pointer: fine) {
   .appearance-choice:hover {
@@ -1273,6 +1512,27 @@ body .app-interactive-media:not(:disabled):active {
   [data-background-id]:hover .background-choice-preview {
     scale: 1.012;
   }
+}
+
+.box-style-preview-surface,
+.box-style-preview-control {
+  transition: border-radius var(--interaction-duration-slow) var(--interaction-ease-standard);
+}
+
+[data-box-style-id="compact"] :is(.box-style-preview-surface, .box-style-preview-control) {
+  border-radius: 0.36rem;
+}
+
+[data-box-style-id="default"] :is(.box-style-preview-surface, .box-style-preview-control) {
+  border-radius: 0.78rem;
+}
+
+[data-box-style-id="soft"] :is(.box-style-preview-surface, .box-style-preview-control) {
+  border-radius: 1rem;
+}
+
+[data-box-style-id="round"] :is(.box-style-preview-surface, .box-style-preview-control) {
+  border-radius: 1.28rem;
 }
 
 /* This preview mirrors the production material: planar geometry, transmitted
@@ -1494,6 +1754,19 @@ html[data-box-style="glass"]
   > [data-slot="tabs-trigger"]:focus-visible {
   border-color: var(--ring);
   box-shadow: 0 0 0 3px var(--interaction-focus);
+}
+
+html[data-box-style="glass"] body .app-segmented-control[data-segmented-control="true"]::before {
+  border-color: color-mix(in oklch, var(--primary) 32%, var(--glass-border));
+  background: color-mix(in oklch, var(--primary) 18%, var(--glass-surface-strong));
+  box-shadow: none;
+}
+
+html[data-box-style="glass"]
+  body
+  .app-segmented-control[data-segmented-control="true"]
+  > .app-segmented-trigger[data-slot="tabs-trigger"][data-active] {
+  background: transparent;
 }
 
 .quiz-filter-bar [data-slot="button"]:disabled {
@@ -1778,42 +2051,35 @@ html[data-box-style="glass"]
   backdrop-filter: none;
   box-shadow: none;
   animation: none;
+  opacity: 1;
+  transition: opacity var(--interaction-duration-standard) var(--interaction-ease-standard);
+}
+
+.image-viewer-dialog[data-slot="image-viewer-content"]:is(
+  [data-starting-style],
+  [data-ending-style]
+) {
+  opacity: 0;
 }
 
 .image-viewer-overlay {
   overscroll-behavior: contain;
-  background: var(--background);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  background: rgb(8 10 13 / 52%);
+  -webkit-backdrop-filter: blur(14px) saturate(0.74);
+  backdrop-filter: blur(14px) saturate(0.74);
+  animation: none;
+  opacity: 1;
+  transition: opacity var(--interaction-duration-standard) var(--interaction-ease-standard);
 }
 
-.dark .image-viewer-overlay {
-  background: var(--background);
+.image-viewer-overlay:is([data-starting-style], [data-ending-style]) {
+  opacity: 0;
 }
 
 .image-viewer-viewport {
   isolation: isolate;
   overscroll-behavior: contain;
-  background: var(--background);
-}
-
-.image-viewer-ambient {
-  z-index: -2;
-  transform: scale(1.09);
-  filter: blur(32px) saturate(0.72) brightness(0.72);
-}
-
-.image-viewer-ambient-scrim {
-  z-index: -1;
-  background: color-mix(in oklch, var(--background) 24%, transparent);
-}
-
-.dark .image-viewer-ambient {
-  filter: blur(32px) saturate(0.68) brightness(0.58);
-}
-
-.dark .image-viewer-ambient-scrim {
-  background: rgb(0 0 0 / 18%);
+  background: transparent;
 }
 
 .image-viewer-image {
@@ -1833,12 +2099,16 @@ html[data-box-style="glass"]
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .image-viewer-ambient {
-    filter: blur(24px) saturate(0.62) brightness(0.62);
+  .image-viewer-overlay {
+    background: rgb(8 10 13 / 76%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
+}
 
-  .image-viewer-ambient-scrim {
-    background: color-mix(in oklch, var(--background) 44%, transparent);
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .image-viewer-overlay {
+    background: rgb(8 10 13 / 78%);
   }
 }
 
@@ -2369,4 +2639,17 @@ html[data-box-style="glass"]
 .appearance-preset-preview-accent {
   border-color: color-mix(in oklch, var(--appearance-preview-bg) 82%, transparent);
   background: var(--appearance-preview-accent);
+}
+
+/* Keep this final so no page, component or theme rule declared later can
+   accidentally restore motion for users who explicitly reduced it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
+  }
 }

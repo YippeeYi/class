@@ -13,6 +13,7 @@ import {
   type RecordCriteria,
   RecordFilters,
 } from '@/components/archive/record-filters'
+import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -33,7 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs } from '@/components/ui/tabs'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
@@ -59,12 +60,18 @@ import {
   loadRecordPages,
   loadRecords,
 } from '@/services/data'
+
 import {
   preloadImageDimensionList,
   rememberImageDimensions,
   useImageDimensions,
 } from '@/services/image-metadata'
 import type { PageMessage, PageSupplement, RecordItem, RecordPage } from '@/types/domain'
+
+const recordViewItems = [
+  { value: 'list', label: '按条记录', icon: List },
+  { value: 'written', label: '书面记录', icon: FileImage },
+] as const
 
 const JUMP_HIGHLIGHT_HOLD_MS = 520
 const JUMP_HIGHLIGHT_FADE_MS = 680
@@ -321,7 +328,7 @@ function SignedPageImage({ path, page }: { path: string; page: string }) {
             setReady(false)
             imageFailure.markFailed()
           }}
-          className={`absolute inset-0 size-full object-contain transition-opacity duration-300 ${ready && !imageFailure.failed ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute inset-0 size-full object-contain transition-opacity duration-200 ${ready && !imageFailure.failed ? 'opacity-100' : 'opacity-0'}`}
         />
       )}
     </div>
@@ -813,16 +820,7 @@ export function RecordsPage() {
               setPageIndex(0)
             }}
           >
-            <TabsList>
-              <TabsTrigger value="list">
-                <List data-icon="inline-start" />
-                按条记录
-              </TabsTrigger>
-              <TabsTrigger value="written">
-                <FileImage data-icon="inline-start" />
-                书面记录
-              </TabsTrigger>
-            </TabsList>
+            <SegmentedTabsList value={view} items={recordViewItems} ariaLabel="记录显示模式" />
           </Tabs>
         }
       />

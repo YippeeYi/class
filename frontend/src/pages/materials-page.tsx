@@ -70,7 +70,7 @@ export function MaterialsPage() {
                   <Button
                     key={item.id}
                     variant={activeId === item.id ? 'secondary' : 'ghost'}
-                    className="h-auto min-h-10 justify-start whitespace-normal px-3 py-2 text-left leading-6 data-[active=true]:font-semibold data-[active=true]:text-foreground"
+                    className="app-selection-item h-auto min-h-10 justify-start whitespace-normal px-3 py-2 text-left leading-6 data-[active=true]:font-semibold data-[active=true]:text-foreground"
                     data-active={activeId === item.id}
                     aria-current={activeId === item.id ? 'true' : undefined}
                     onClick={() => select(item.id)}

@@ -35,7 +35,7 @@ function decodeBackground(src: string) {
 }
 
 export type BackgroundId = 'default' | 'mountain' | 'cloud'
-export type BoxStyleId = 'default' | 'glass'
+export type BoxStyleId = 'compact' | 'default' | 'soft' | 'round' | 'glass'
 export type ThemePresetId =
   | 'auto'
   | 'paper'
@@ -150,9 +150,24 @@ export const boxStyles: Array<{
   description: string
 }> = [
   {
+    id: 'compact',
+    label: '利落小角',
+    description: '接近直角的克制倒角，信息密度高、边界最清晰。',
+  },
+  {
     id: 'default',
-    label: '默认风格',
-    description: '沿用清晰、稳重的 shadcn 表面、边框与阴影。',
+    label: '标准圆角',
+    description: '沿用清晰、稳重的 shadcn 比例，适合大多数界面。',
+  },
+  {
+    id: 'soft',
+    label: '柔和圆角',
+    description: '更舒展的转角，让卡片与配置区域显得轻松柔和。',
+  },
+  {
+    id: 'round',
+    label: '圆润大角',
+    description: '明显但不过度的圆润轮廓，适合偏轻盈的视觉风格。',
   },
   {
     id: 'glass',
@@ -510,7 +525,7 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       <div
         key={visible}
         aria-hidden="true"
-        className="background-layer pointer-events-none fixed inset-0 z-0 bg-cover bg-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-500"
+        className="background-layer pointer-events-none fixed inset-0 z-0 bg-cover bg-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-scene)"
         style={backgroundLayerStyle(visible)}
       />
       <div className="relative z-10 min-h-svh">{children}</div>

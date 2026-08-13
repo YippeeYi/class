@@ -85,7 +85,7 @@ export function QuotesPage() {
               <Link
                 id={`quote-${quote.id}`}
                 key={quote.id}
-                className={`${interactiveSurfaceVariants({ kind: 'card' })} block h-fit scroll-mt-24 focus-visible:ring-2`}
+                className={`${interactiveSurfaceVariants({ kind: 'card' })} quote-record-link block h-fit scroll-mt-24 focus-visible:ring-2`}
                 to={target}
                 onClick={(event) => {
                   if (!source || !anchor) {
@@ -115,9 +115,9 @@ export function QuotesPage() {
                     <blockquote className="border-l-2 border-primary/30 pl-4">
                       <MarkupContent content={quote.quote} className="text-reading" />
                     </blockquote>
-                    <div className="mt-4 flex min-h-8 items-center justify-between gap-3 border-t border-border/60 pt-3 text-sm text-muted-foreground">
+                    <div className="quote-card-footer mt-4 flex min-h-8 items-center justify-between gap-3 border-t border-border/60 pt-3 text-sm text-muted-foreground">
                       <span>{quote.sourceDate || '来源记录'}</span>
-                      <span className="record-source-action app-inline-action inline-flex items-center gap-1.5">
+                      <span className="record-source-action quote-source-action app-inline-action inline-flex items-center gap-1.5">
                         <BookOpenText data-icon="inline-start" />
                         跳转到原记录
                       </span>

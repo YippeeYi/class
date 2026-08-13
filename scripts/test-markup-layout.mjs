@@ -352,6 +352,7 @@ async function assertFullscreenImageViewer(page, label) {
         right: overlayBounds.right,
         bottom: overlayBounds.bottom,
         backdrop: getComputedStyle(overlay).backdropFilter,
+        background: getComputedStyle(overlay).backgroundColor,
       },
       image: imageBounds && {
         top: imageBounds.top,
@@ -409,10 +410,15 @@ async function assertFullscreenImageViewer(page, label) {
       Math.abs(geometry.content.bottom - geometry.viewportHeight) <= 1,
     `${label} image viewer must cover the exact viewport: ${JSON.stringify(geometry)}`,
   )
-  assert.equal(
+  assert.notEqual(
     geometry.overlay?.backdrop,
     'none',
-    `${label} image overlay must not spend a full-viewport backdrop blur behind an opaque canvas`,
+    `${label} image overlay must blur the actual page that remains beneath the portal`,
+  )
+  assert.match(
+    geometry.overlay?.background || '',
+    /rgba\([^)]*,\s*0\.(?:5[0-9]|6[0-9]|7[0-9])\)/,
+    `${label} image overlay must stay translucent instead of replacing the current page`,
   )
   assert.ok(
     geometry.overlay &&
@@ -1366,8 +1372,9 @@ try {
 
   await page.getByRole('tab', { name: /^方框/ }).click()
   const boxStyleCards = page.locator('[data-box-style-id]')
-  assert.equal(await boxStyleCards.count(), 2, 'default and liquid-glass box styles must remain available')
+  assert.equal(await boxStyleCards.count(), 5, 'four radius levels and liquid glass must remain available')
   const glassChoice = page.locator('[data-box-style-id="glass"]')
+  await glassChoice.scrollIntoViewIfNeeded()
   const glassChoiceBoundsBefore = await glassChoice.boundingBox()
   await glassChoice.hover()
   await page.waitForTimeout(220)

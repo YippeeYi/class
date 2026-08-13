@@ -1,4 +1,4 @@
-import { Expand, LockKeyhole } from 'lucide-react'
+import { Expand } from 'lucide-react'
 import { useEffect } from 'react'
 
 import { ImageViewer } from '@/components/archive/image-viewer'
@@ -8,7 +8,6 @@ import {
   mediaAffordanceClassName,
 } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
-import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { useAsyncData } from '@/hooks/use-async-data'
@@ -42,12 +41,6 @@ export function MealMapPage() {
         description="点击图片可缩放、拖动并查看原始细节。图片始终在当前视口内完整显示。"
         className="shrink-0"
         compact
-        actions={
-          <Badge variant="outline" className="bg-background/65">
-            <LockKeyhole data-icon="inline-start" />
-            班级私有资源
-          </Badge>
-        }
       />
       <Card className="content-frame min-h-0 flex-1 gap-0 py-0">
         <figure className="relative grid min-h-0 flex-1 place-items-center overflow-hidden">
@@ -79,7 +72,7 @@ export function MealMapPage() {
                       })
                     }}
                     onError={imageFailure.markFailed}
-                    className="absolute inset-0 size-full object-contain p-2 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300 sm:p-3"
+                    className="absolute inset-0 size-full object-contain p-2 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:p-3"
                   />
                   <span
                     data-liquid-glass-interactive
