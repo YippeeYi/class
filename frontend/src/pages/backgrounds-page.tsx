@@ -2,6 +2,7 @@ import { Check, Image as ImageIcon, Moon, Palette, Sparkles, Square, Sun } from 
 import { useEffect, useState } from 'react'
 import { textLinkClassName } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
+import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
 import {
   type AppearancePreference,
   type BackgroundId,
@@ -22,7 +23,7 @@ import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 
 type ThemePreset = (typeof themePresets)[number]
 
@@ -153,30 +154,81 @@ function BoxStyleOption({ id, selected }: { id: BoxStyleId; selected: boolean })
       htmlFor={`box-style-${id}`}
       data-box-style-id={id}
       data-selected={selected ? 'true' : 'false'}
-      className="appearance-choice group/box overflow-hidden font-normal leading-normal"
+      className="appearance-choice group/box flex-col items-stretch gap-0 overflow-hidden font-normal leading-normal"
     >
       <span
-        className="box-style-preview relative grid min-h-40 place-items-center overflow-hidden border-b border-border/60"
+        className="box-style-preview relative grid min-h-36 place-items-center overflow-hidden border-b border-border/60 sm:min-h-40"
         aria-hidden="true"
       >
-        <Card className="box-style-preview-surface absolute left-[12%] top-[16%] z-10 h-24 w-[64%] gap-0 border border-border bg-card py-0 ring-0">
+        <Card
+          className={`box-style-preview-surface box-style-preview-surface--${id} absolute z-10 gap-0 border border-border bg-card py-0 ring-0`}
+        >
           <CardContent className="grid h-full content-between p-3">
-            <span className="grid gap-2">
-              <span className="block h-2 w-2/3 rounded-full bg-foreground/72" />
-              <span className="block h-1.5 w-full rounded-full bg-muted-foreground/35" />
-              <span className="block h-1.5 w-4/5 rounded-full bg-muted-foreground/24" />
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="box-style-preview-inset block h-5 w-14 border border-primary/35 bg-primary/12" />
-              <span className="box-style-preview-inset block h-5 w-9 border border-border bg-muted/72" />
-            </span>
+            {id === 'compact' && (
+              <span className="grid gap-1.5">
+                {[72, 88, 64].map((width, index) => (
+                  <span
+                    key={width}
+                    className="box-style-preview-inset flex h-5 items-center gap-2 border border-border/72 bg-muted/48 px-1.5"
+                  >
+                    <span className="block size-2 shrink-0 bg-primary/45" />
+                    <span
+                      className="block h-1 rounded-full bg-muted-foreground/38"
+                      style={{ width: `${width}%` }}
+                    />
+                    <span className="ml-auto text-[0.42rem] font-semibold text-muted-foreground/68">
+                      {index + 1}
+                    </span>
+                  </span>
+                ))}
+              </span>
+            )}
+            {id === 'default' && (
+              <>
+                <span className="grid gap-2">
+                  <span className="block h-2 w-2/3 rounded-full bg-foreground/72" />
+                  <span className="block h-1.5 w-full rounded-full bg-muted-foreground/35" />
+                  <span className="block h-1.5 w-4/5 rounded-full bg-muted-foreground/24" />
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="box-style-preview-inset block h-5 w-14 border border-primary/35 bg-primary/12" />
+                  <span className="box-style-preview-inset block h-5 w-9 border border-border bg-muted/72" />
+                </span>
+              </>
+            )}
+            {id === 'rounded' && (
+              <>
+                <span className="box-style-preview-inset block h-10 border border-primary/18 bg-primary/10" />
+                <span className="grid gap-1.5">
+                  <span className="block h-2 w-3/5 rounded-full bg-foreground/68" />
+                  <span className="block h-1.5 w-5/6 rounded-full bg-muted-foreground/30" />
+                </span>
+              </>
+            )}
           </CardContent>
         </Card>
-        <Card className="box-style-preview-control absolute bottom-[12%] right-[10%] z-20 size-[4.5rem] gap-0 border border-border bg-card py-0 ring-0">
+        <Card
+          className={`box-style-preview-control box-style-preview-control--${id} absolute z-20 gap-0 border border-border bg-card py-0 ring-0`}
+        >
           <CardContent className="grid size-full place-items-center p-2.5">
-            <span className="box-style-preview-inset grid size-9 place-items-center border border-primary/25 bg-primary/10">
-              <Square className="size-4 text-primary" strokeWidth={1.75} />
-            </span>
+            {id === 'compact' ? (
+              <span className="grid grid-cols-2 gap-1">
+                {['top-start', 'top-end', 'bottom-start', 'bottom-end'].map((position) => (
+                  <span
+                    key={position}
+                    className="box-style-preview-inset block size-3 border border-primary/30 bg-primary/10"
+                  />
+                ))}
+              </span>
+            ) : id === 'default' ? (
+              <span className="box-style-preview-inset grid size-9 place-items-center border border-primary/25 bg-primary/10">
+                <Square className="size-4 text-primary" strokeWidth={1.75} />
+              </span>
+            ) : (
+              <span className="box-style-preview-inset grid size-11 place-items-center border border-primary/22 bg-primary/10">
+                <span className="block size-4 rounded-full bg-primary/48 ring-4 ring-primary/10" />
+              </span>
+            )}
           </CardContent>
         </Card>
       </span>
@@ -221,15 +273,13 @@ export function BackgroundsPage() {
         description="配色、背景与方框彼此独立，共同组成全站视觉风格；所有选择都会保存在当前浏览器中。"
       />
       <Tabs value={section} onValueChange={setSection} className="gap-4">
-        <TabsList aria-label="风格设置分区" className="grid h-auto min-h-12 w-full grid-cols-3">
-          {appearanceSections.map(({ value, label, icon: Icon, description }) => (
-            <TabsTrigger key={value} value={value} className="min-h-10 min-w-0 px-3 py-2">
-              <Icon className="size-4 shrink-0" />
-              <span>{label}</span>
-              <span className="sr-only">{description}</span>
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <SegmentedTabsList
+          value={section as (typeof appearanceSections)[number]['value']}
+          items={appearanceSections}
+          ariaLabel="风格设置分区"
+          className="w-full"
+          triggerClassName="min-h-10 min-w-0 px-3 py-2"
+        />
 
         <TabsContent value="palette" className="app-tabs-content">
           <Card className="appearance-preset-panel gap-0 overflow-hidden border-border/70 bg-card/88 py-0">

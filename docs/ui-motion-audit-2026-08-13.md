@@ -20,7 +20,7 @@
   不改变布局或命中区，Disabled 与 Loading 自动排除。
 - 记录显示模式、人物记录模式和统计指标恢复原有单一移动选中层；动画基于真实 shadcn TabsTrigger
   边界，并在快速切换时从当前可见位置继续。
-- 风格页配色、背景与方框选择只在目标自身即时更新，不存在共享选中框、位移、滑块或跨选项动画。
+- 风格页顶层“配色 / 背景 / 方框”恢复单一共享选中框；分区内部的长距离卡片选择仍在目标自身即时更新。
 - 移除了背景预览 Hover 缩放与图表入场动画；记录跳转提示使用统一场景 token。
 - Reduced Motion 继续关闭非必要动效。
 
@@ -28,15 +28,17 @@
 
 - 第三种方框已替换为普通“圆角方框”，内部 id 为 `rounded`。
 - 方框选项只保留 `compact`、`default`、`rounded`，仅调整圆角体系与滚动条边缘缩进。
+- 三种预览使用不同的微型界面图案，并精确复用对应的 Card、Control 与 inset 圆角比例。
 - 圆角方框不使用特殊材质、额外图层、SVG 过滤器、指针跟随状态或独立动画。
 - 与旧第三种方框专用的组件、条件、变量、样式和运行时代码已删除。
 
 ## Sidebar
 
 - 应用侧边栏直接使用 shadcn Sidebar 全组件族及 `collapsible="icon"` 标准 API。
-- 导航 active 状态由 `SidebarMenuButton isActive` 负责；展开、收起、Rail、移动端 Sheet、Tooltip、
-  focus 与 hover 保持官方行为。
-- 删除了自定义垂直选中层、指示器和 Rail 图标模拟，没有新增并行折叠状态机。
+- 导航 active 状态继续由 `SidebarMenuButton isActive` 负责；一个共享选中面只读取真实按钮边界并在
+  目标间移动，不接管路由、键盘或折叠状态。
+- 展开、收起、Rail、移动端 Sheet、Tooltip、focus 与 hover 保持官方行为；未新增并行折叠状态机或
+  自定义 Rail。主内容不再重复绘制 Sidebar 相邻边线。
 
 ## 回归范围
 

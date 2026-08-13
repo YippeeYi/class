@@ -329,20 +329,22 @@ body
   cursor: pointer;
 }
 
+/* SidebarRail uses the CSS translate longhand to center its official hit area
+   on the boundary, so it must not inherit the visible-control press geometry. */
 body
-  :where(
-    button,
-    [role="button"],
-    [data-slot="button"],
-    [data-slot="alert-dialog-action"],
-    [data-slot="alert-dialog-cancel"],
-    [data-slot="sidebar-menu-button"],
-    [data-slot="sidebar-rail"],
-    [data-slot="tabs-trigger"],
-    [data-slot="toggle"],
-    [data-slot="select-trigger"],
-    [data-slot="dialog-close"]
-  ) {
+:where(
+  button:not([data-slot="sidebar-rail"]),
+  [role="button"]:not([data-slot="sidebar-rail"]),
+  [data-slot="button"],
+  [data-slot="alert-dialog-action"],
+  [data-slot="alert-dialog-cancel"],
+  [data-slot="sidebar-menu-button"],
+  [data-slot="sidebar-trigger"],
+  [data-slot="tabs-trigger"],
+  [data-slot="toggle"],
+  [data-slot="select-trigger"],
+  [data-slot="dialog-close"]
+) {
   transform-origin: center;
   translate: 0 0;
   scale: 1;
@@ -358,13 +360,13 @@ body
 
 body
   :where(
-    button,
-    [role="button"],
+    button:not([data-slot="sidebar-rail"]),
+    [role="button"]:not([data-slot="sidebar-rail"]),
     [data-slot="button"],
     [data-slot="alert-dialog-action"],
     [data-slot="alert-dialog-cancel"],
     [data-slot="sidebar-menu-button"],
-    [data-slot="sidebar-rail"],
+    [data-slot="sidebar-trigger"],
     [data-slot="tabs-trigger"],
     [data-slot="toggle"],
     [data-slot="select-trigger"],
@@ -1410,7 +1412,6 @@ body .app-interactive-media:not(:disabled):active {
     color-mix(in oklch, var(--background) 68%, transparent),
     color-mix(in oklch, var(--background) 56%, transparent)
   );
-  border-inline-start: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
 }
 
 .app-topbar {
@@ -1420,11 +1421,57 @@ body .app-interactive-media:not(:disabled):active {
   box-shadow: none;
 }
 
-.app-sidebar [data-slot="sidebar-inner"],
+.app-sidebar[data-slot="sidebar-container"],
 [data-sidebar="sidebar"][data-mobile="true"] {
   background: color-mix(in oklch, var(--sidebar) 94%, transparent);
   -webkit-backdrop-filter: blur(10px) saturate(1.04);
   backdrop-filter: blur(10px) saturate(1.04);
+}
+
+.app-sidebar [data-slot="sidebar-inner"] {
+  background: transparent;
+}
+
+/* SidebarMenuButton keeps the official active, focus, tooltip and collapsed
+   semantics. One paint-only surface moves behind those buttons so navigation
+   changes share the same spatial language as compact Tabs. */
+.app-sidebar-navigation {
+  position: relative;
+  isolation: isolate;
+}
+
+body .app-sidebar-navigation[data-slot="sidebar-menu"] > .app-selection-indicator {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  width: var(--selection-width, 0px);
+  height: var(--selection-height, 0px);
+  margin: 0;
+  padding: 0;
+  border: 1px solid color-mix(in oklch, var(--sidebar-primary) 18%, var(--sidebar-border));
+  border-radius: var(--radius-md);
+  background: var(--sidebar-accent);
+  list-style: none;
+  transform: translate3d(var(--selection-x, 0px), var(--selection-y, 0px), 0);
+  transform-origin: top left;
+  pointer-events: none;
+}
+
+.app-sidebar-navigation > [data-slot="sidebar-menu-item"] {
+  z-index: 1;
+}
+
+body
+  .app-sidebar-navigation
+  .app-sidebar-navigation-item[data-slot="sidebar-menu-button"][data-active] {
+  background: transparent;
+}
+
+body
+  .app-sidebar-navigation[data-slot="sidebar-menu"][data-selection-switching]
+  > .app-selection-indicator {
+  will-change: transform;
 }
 
 [data-background]:not([data-background="default"])
@@ -1564,6 +1611,48 @@ body [data-slot="switch-thumb"] {
     background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
     border-color var(--interaction-duration-standard) var(--interaction-ease-standard),
     box-shadow var(--interaction-duration-standard) var(--interaction-ease-standard);
+}
+
+.box-style-preview-surface--compact {
+  top: 10%;
+  left: 8%;
+  width: 72%;
+  height: 7rem;
+}
+
+.box-style-preview-control--compact {
+  right: 8%;
+  bottom: 9%;
+  width: 4rem;
+  height: 4rem;
+}
+
+.box-style-preview-surface--default {
+  top: 16%;
+  left: 12%;
+  width: 64%;
+  height: 6rem;
+}
+
+.box-style-preview-control--default {
+  right: 10%;
+  bottom: 12%;
+  width: 4.5rem;
+  height: 4.5rem;
+}
+
+.box-style-preview-surface--rounded {
+  top: 9%;
+  left: 10%;
+  width: 68%;
+  height: 7rem;
+}
+
+.box-style-preview-control--rounded {
+  right: 7%;
+  bottom: 7%;
+  width: 5rem;
+  height: 5rem;
 }
 
 [data-box-style-id="compact"] {

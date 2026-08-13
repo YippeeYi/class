@@ -20,7 +20,7 @@
   平滑恢复；不得改变盒模型、命中区或周围布局。Disabled、Loading 不执行正常按压反馈。
 - Focus：保留 shadcn 的 `focus-visible` ring，键盘操作不得依赖 Hover 才可见。
 - Selected：由组件自身的 `data-state`、`data-active`、`aria-selected`、`aria-pressed` 或业务语义类表达；
-  只有原本具备移动反馈的紧凑分段模式切换可以增加一个共享选中层。
+  紧凑分段模式切换与全局 Sidebar 导航可以增加一个不接管状态的共享选中层。
 - Disabled/Loading：同时阻止重复操作并保持可读；异步按钮设置 `disabled` 与 `aria-busy`，使用 shadcn Spinner。
 - Invalid/Success：只使用对应语义色，不借用普通 Hover 或 Selected 状态。
 
@@ -47,8 +47,8 @@
 - RadioGroup、Checkbox、Switch、Toggle 和 ButtonGroup 直接使用对应 shadcn 组件。
 - 分段模式选中层读取真实 TabsTrigger 布局边界，以 200ms 标准缓动移动；快速连续选择从当前可见位置
   继续且始终只保留一个动画，Reduced Motion 下即时落位。
-- 风格页的配色、背景与方框选择在目标自身更新颜色、边框、透明度和选中标记；不得使用 shared layout、
-  translate、滑块平移、桥接层或从旧选项移动到新选项的选中实体。
+- 风格页顶层“配色 / 背景 / 方框”使用与其他分段模式一致的共享选中层；各分区内部的配色卡、背景卡
+  与方框卡仍在目标自身更新颜色、边框和选中标记，不跨长距离移动选择框。
 - 快速连续选择应立即更新业务状态，不等待动画结束。
 
 ## 5. 方框风格
@@ -65,8 +65,10 @@
   `SidebarGroup`、`SidebarGroupContent`、`SidebarGroupLabel`、`SidebarMenu`、`SidebarMenuItem`、
   `SidebarMenuButton`、`SidebarFooter`、`SidebarTrigger`、`SidebarRail` 与 `SidebarInset`。
 - 展开、icon collapse、移动端 Sheet、快捷键、Tooltip、active、focus、hover 与 Rail 交互由官方组件负责。
-- 业务层只提供现有导航数据、路由 active 判断、预加载和登出逻辑；不得另建折叠状态机、宽度动画、
-  自定义 Rail 或移动选中层。
+- 业务层只提供导航数据、路由 active 判断、预加载、登出逻辑，以及位于官方 `SidebarMenuButton`
+  背后的单一共享选中层；不得另建折叠状态机、宽度动画或自定义 Rail。
+- Sidebar 右边界只由官方 Sidebar 容器绘制；`SidebarInset` 不得重复绘制相邻边线，Rail 保留命中区但
+  不产生第二条错位边界。
 
 ## 7. 业务交互补充
 

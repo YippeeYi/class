@@ -11,6 +11,10 @@ export type SelectionMotion<T extends HTMLElement> = {
   ref: RefObject<T | null>
 }
 
+type SelectionMotionOptions = {
+  targetSelector?: string
+}
+
 function durationInMilliseconds(value: string, fallback: number) {
   const normalized = value.trim()
   const parsed = Number.parseFloat(normalized)
@@ -20,12 +24,14 @@ function durationInMilliseconds(value: string, fallback: number) {
   return fallback
 }
 
-function selectionRect(target: HTMLElement): SelectionRect {
+function selectionRect(container: HTMLElement, target: HTMLElement): SelectionRect {
+  const containerBounds = container.getBoundingClientRect()
+  const targetBounds = target.getBoundingClientRect()
   return {
-    x: target.offsetLeft,
-    y: target.offsetTop,
-    width: target.offsetWidth,
-    height: target.offsetHeight,
+    x: targetBounds.left - containerBounds.left - container.clientLeft + container.scrollLeft,
+    y: targetBounds.top - containerBounds.top - container.clientTop + container.scrollTop,
+    width: targetBounds.width,
+    height: targetBounds.height,
   }
 }
 
@@ -53,12 +59,13 @@ function setRestingGeometry(container: HTMLElement, rect: SelectionRect) {
 
 /**
  * Restores the project's original shared selection surface for compact mode
- * switches. It measures the real shadcn TabsTrigger bounds and keeps visual
- * progress outside React, so rapid changes continue from the visible position.
+ * switches. It measures the real shadcn control bounds and keeps visual progress
+ * outside React, so rapid changes continue from the visible position.
  */
 export function useSelectionMotion<T extends HTMLElement>(
   activeIndex: number,
   itemCount: number,
+  { targetSelector = ':scope > [data-slot="tabs-trigger"]' }: SelectionMotionOptions = {},
 ): SelectionMotion<T> {
   const ref = useRef<T>(null)
   const previousIndex = useRef<number | null>(null)
@@ -68,16 +75,14 @@ export function useSelectionMotion<T extends HTMLElement>(
   useLayoutEffect(() => {
     const container = ref.current
     if (!container) return
-    const targets = Array.from(
-      container.querySelectorAll<HTMLElement>(':scope > [data-slot="tabs-trigger"]'),
-    )
+    const targets = Array.from(container.querySelectorAll<HTMLElement>(targetSelector))
     const safeCount = Math.max(1, Math.min(itemCount, targets.length || itemCount))
     const safeIndex = Math.max(0, Math.min(activeIndex, safeCount - 1))
     const target = targets[safeIndex]
     const indicator = container.querySelector<HTMLElement>(':scope > .app-selection-indicator')
     if (!target || !indicator) return
 
-    const targetRect = selectionRect(target)
+    const targetRect = selectionRect(container, target)
     const fromIndex = previousIndex.current ?? safeIndex
     const previousRect =
       previousIndex.current === null ? targetRect : visibleSelectionRect(container, indicator)
@@ -121,12 +126,12 @@ export function useSelectionMotion<T extends HTMLElement>(
     moving.id = 'app-selection-move'
     animation.current = moving
     settleTimer.current = window.setTimeout(() => {
-      if (target.isConnected) setRestingGeometry(container, selectionRect(target))
+      if (target.isConnected) setRestingGeometry(container, selectionRect(container, target))
       delete container.dataset.selectionSwitching
       animation.current = null
       settleTimer.current = null
     }, duration + 34)
-  }, [activeIndex, itemCount])
+  }, [activeIndex, itemCount, targetSelector])
 
   useLayoutEffect(() => {
     const container = ref.current
@@ -136,25 +141,21 @@ export function useSelectionMotion<T extends HTMLElement>(
       if (container.dataset.selectionSwitching) return
       window.cancelAnimationFrame(resizeFrame)
       resizeFrame = window.requestAnimationFrame(() => {
-        const targets = Array.from(
-          container.querySelectorAll<HTMLElement>(':scope > [data-slot="tabs-trigger"]'),
-        )
+        const targets = Array.from(container.querySelectorAll<HTMLElement>(targetSelector))
         const target = targets[Math.max(0, Math.min(activeIndex, targets.length - 1))]
-        if (target) setRestingGeometry(container, selectionRect(target))
+        if (target) setRestingGeometry(container, selectionRect(container, target))
       })
     }
     const resizeObserver = new ResizeObserver(updateGeometry)
     resizeObserver.observe(container)
-    container
-      .querySelectorAll<HTMLElement>(':scope > [data-slot="tabs-trigger"]')
-      .forEach((target) => {
-        resizeObserver.observe(target)
-      })
+    container.querySelectorAll<HTMLElement>(targetSelector).forEach((target) => {
+      resizeObserver.observe(target)
+    })
     return () => {
       resizeObserver.disconnect()
       window.cancelAnimationFrame(resizeFrame)
     }
-  }, [activeIndex])
+  }, [activeIndex, targetSelector])
 
   useEffect(
     () => () => {
@@ -167,6 +168,10 @@ export function useSelectionMotion<T extends HTMLElement>(
   return { ref }
 }
 
-export function SelectionMotionLayer() {
-  return <span aria-hidden="true" className="app-selection-indicator" />
+export function SelectionMotionLayer({ listItem = false }: { listItem?: boolean }) {
+  return listItem ? (
+    <li aria-hidden="true" className="app-selection-indicator" />
+  ) : (
+    <span aria-hidden="true" className="app-selection-indicator" />
+  )
 }

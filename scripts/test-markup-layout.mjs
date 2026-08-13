@@ -20,6 +20,7 @@ const harness = String.raw`<!doctype html>
       import { MarkupContent, QuizMarkupContent } from '/src/components/archive/markup-content.tsx'
       import { ImageViewer } from '/src/components/archive/image-viewer.tsx'
       import { SegmentedTabsList } from '/src/components/archive/segmented-tabs.tsx'
+      import { SelectionMotionLayer, useSelectionMotion } from '/src/components/archive/selection-motion.tsx'
       import { TooltipProvider } from '/src/components/ui/tooltip.tsx'
       import { DailyDistributionCell } from '/src/pages/timeline-page.tsx'
       import { BackgroundsPage } from '/src/pages/backgrounds-page.tsx'
@@ -218,10 +219,15 @@ const harness = String.raw`<!doctype html>
       function SidebarFixtureNavigation() {
         const [active, setActive] = React.useState(0)
         const labels = ['侧栏项目一', '侧栏项目二', '侧栏项目三']
-        return e(SidebarMenu, null,
+        const motion = useSelectionMotion(active, labels.length, {
+          targetSelector: ':scope > [data-slot="sidebar-menu-item"] > [data-slot="sidebar-menu-button"]',
+        })
+        return e(SidebarMenu, { ref: motion.ref, className: 'app-sidebar-navigation' },
+          e(SelectionMotionLayer, { listItem: true }),
           labels.map((label, index) => e(SidebarMenuItem, { key: label },
             e(SidebarMenuButton, {
               isActive: active === index,
+              className: 'app-sidebar-navigation-item',
               onClick: () => setActive(index),
             }, e('span', null, String(index + 1)), e('span', null, label)),
           )),
@@ -231,11 +237,11 @@ const harness = String.raw`<!doctype html>
       function SidebarFixture() {
         return e('section', { 'data-sidebar-fixture': '', hidden: true, style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } },
           e(SidebarProvider, { defaultOpen: true, className: 'relative overflow-hidden rounded-xl border', style: { minHeight: '18rem' } },
-            e(Sidebar, { collapsible: 'icon', className: '!absolute !inset-y-0 !h-full' },
+            e(Sidebar, { collapsible: 'icon', className: 'app-sidebar !absolute !inset-y-0 !h-full' },
               e(SidebarContent, null, e(SidebarFixtureNavigation)),
               e(SidebarRail, { 'aria-label': '侧栏边缘折叠测试' }),
             ),
-            e(SidebarInset, { className: 'min-h-[18rem]' },
+            e(SidebarInset, { className: 'app-main-surface min-h-[18rem]' },
               e('header', { className: 'flex h-14 items-center gap-3 border-b px-4' },
                 e(SidebarTrigger, { 'aria-label': '侧栏折叠测试' }),
                 e('strong', null, 'shadcn Sidebar 折叠回归'),
@@ -307,7 +313,7 @@ const harness = String.raw`<!doctype html>
                 e(SidebarFixture),
                 e('section', { 'data-case': 'app-surface', className: 'app-main-surface bg-background', style: { width: '68rem', maxWidth: '100%', minHeight: '220px', margin: '24px auto', padding: '20px' } },
                   e('header', { className: 'app-topbar rounded-xl border p-4' }, '全局背景表面'),
-                  e('aside', { className: 'app-sidebar mt-4 w-48' },
+                  e('aside', { 'data-slot': 'sidebar-container', className: 'app-sidebar mt-4 w-48' },
                     e('div', { 'data-slot': 'sidebar-inner', className: 'rounded-xl bg-sidebar p-4' }, '侧栏磨砂层'),
                   ),
                   e('div', { 'data-slot': 'card', className: 'mt-4 rounded-xl bg-card p-4' }, '内容卡片'),
@@ -1494,7 +1500,7 @@ try {
     const layers = document.querySelectorAll('[data-background-visible="cloud"] > .background-layer')
     const layer = layers[layers.length - 1]
     const topbar = surface.querySelector('.app-topbar')
-    const sidebar = surface.querySelector('[data-slot="sidebar-inner"]')
+    const sidebar = surface.querySelector('[data-slot="sidebar-container"]')
     const card = surface.querySelector('[data-slot="card"]')
     return {
       layerImage: layer ? getComputedStyle(layer).backgroundImage : '',
@@ -1524,12 +1530,17 @@ try {
   assert.equal(await boxStyleCards.count(), 3, 'compact, standard, and rounded must be the only box styles')
   const boxPreviewStyles = await boxStyleCards.evaluateAll((cards) =>
     cards.map((card) => {
+      const preview = card.querySelector('.box-style-preview')
       const surface = card.querySelector('.box-style-preview-surface')
       const control = card.querySelector('.box-style-preview-control')
       const inset = card.querySelector('.box-style-preview-inset')
+      const previewBounds = preview.getBoundingClientRect()
       const surfaceStyle = getComputedStyle(surface)
       return {
         id: card.getAttribute('data-box-style-id'),
+        previewWidth: previewBounds.width,
+        previewHeight: previewBounds.height,
+        pattern: [...surface.classList].find((name) => name.startsWith('box-style-preview-surface--')),
         surfaceRadius: Number.parseFloat(surfaceStyle.borderTopLeftRadius),
         controlRadius: Number.parseFloat(getComputedStyle(control).borderTopLeftRadius),
         insetRadius: Number.parseFloat(getComputedStyle(inset).borderTopLeftRadius),
@@ -1545,12 +1556,21 @@ try {
     `box previews must show the three real radius families: ${JSON.stringify(boxPreviewStyles)}`,
   )
   boxPreviewStyles.forEach((preview) => {
+    assert.ok(
+      preview.previewWidth >= 240 && preview.previewHeight >= 140,
+      preview.id + ' preview must remain visibly sized inside the shadcn Label: ' + JSON.stringify(preview),
+    )
     assert.equal(preview.surfaceRadius, preview.controlRadius, `${preview.id} preview surfaces must share one radius family`)
     assert.ok(preview.insetRadius < preview.surfaceRadius, `${preview.id} preview controls must use the corresponding smaller control radius`)
     assert.ok(preview.borderWidth >= 1, `${preview.id} preview must retain a visible ordinary border`)
     assert.notEqual(preview.background, 'rgba(0, 0, 0, 0)', `${preview.id} preview must retain its card background`)
     assert.notEqual(preview.shadow, 'none', `${preview.id} preview must retain its restrained card elevation`)
   })
+  assert.equal(
+    new Set(boxPreviewStyles.map((preview) => preview.pattern)).size,
+    3,
+    'every box style must expose a distinct real preview pattern: ' + JSON.stringify(boxPreviewStyles),
+  )
   const radiusFamilies = []
   for (const [id, expectedInset] of [
     ['compact', 2],
@@ -1619,14 +1639,21 @@ try {
   await page.getByRole('tab', { name: /^方框/ }).click()
   const roundedChoice = page.locator('[data-box-style-id="rounded"]')
   await roundedChoice.scrollIntoViewIfNeeded()
-  const roundedChoiceBoundsBefore = await roundedChoice.boundingBox()
+  const readRoundedChoiceDocumentBounds = () => roundedChoice.evaluate((choice) => {
+    const bounds = choice.getBoundingClientRect()
+    return {
+      x: bounds.x + window.scrollX,
+      y: bounds.y + window.scrollY,
+      width: bounds.width,
+      height: bounds.height,
+    }
+  })
+  const roundedChoiceBoundsBefore = await readRoundedChoiceDocumentBounds()
   await roundedChoice.hover()
   await page.waitForTimeout(220)
-  const roundedChoiceBoundsAfter = await roundedChoice.boundingBox()
+  const roundedChoiceBoundsAfter = await readRoundedChoiceDocumentBounds()
   assert.ok(
-    roundedChoiceBoundsBefore &&
-      roundedChoiceBoundsAfter &&
-      roundedChoiceBoundsAfter.width === roundedChoiceBoundsBefore.width &&
+    roundedChoiceBoundsAfter.width === roundedChoiceBoundsBefore.width &&
       roundedChoiceBoundsAfter.height === roundedChoiceBoundsBefore.height &&
       Math.abs(roundedChoiceBoundsAfter.x - roundedChoiceBoundsBefore.x) <= 1 &&
       Math.abs(roundedChoiceBoundsAfter.y - roundedChoiceBoundsBefore.y) <= 1,
@@ -1669,9 +1696,13 @@ try {
   const reducedSelectionMotion = await page.getByRole('tablist', { name: '风格设置分区' }).evaluate((list) => ({
     transforms: [...list.querySelectorAll('[data-slot="tabs-trigger"]')].map((trigger) => getComputedStyle(trigger).transform),
     movingLayers: list.querySelectorAll('.app-selection-indicator').length,
+    switching: list.hasAttribute('data-selection-switching'),
+    animationIds: list.getAnimations({ subtree: true }).map((animation) => animation.id).filter(Boolean),
   }))
   assert.ok(reducedSelectionMotion.transforms.every((transform) => transform === 'none'))
-  assert.equal(reducedSelectionMotion.movingLayers, 0, 'reduced motion must retain the same direct-state selection model')
+  assert.equal(reducedSelectionMotion.movingLayers, 1, 'reduced motion must retain one stable selected surface')
+  assert.equal(reducedSelectionMotion.switching, false)
+  assert.deepEqual(reducedSelectionMotion.animationIds, [])
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.getByRole('tab', { name: /^配色/ }).click()
   await page.getByRole('tab', { name: /^背景/ }).click()
@@ -1680,11 +1711,35 @@ try {
     active: [...list.querySelectorAll('[data-slot="tabs-trigger"][data-active]')].map((trigger) => trigger.textContent?.trim()),
     transforms: [...list.querySelectorAll('[data-slot="tabs-trigger"]')].map((trigger) => getComputedStyle(trigger).transform),
     movingLayers: list.querySelectorAll('.app-selection-indicator').length,
+    switching: list.hasAttribute('data-selection-switching'),
+    animationIds: list.getAnimations({ subtree: true }).map((animation) => animation.id).filter(Boolean),
   }))
   assert.equal(rapidSelectionState.active.length, 1)
   assert.match(rapidSelectionState.active[0] || '', /^方框/)
   assert.ok(rapidSelectionState.transforms.every((transform) => transform === 'none'))
-  assert.equal(rapidSelectionState.movingLayers, 0, 'rapid tab switching must not create a moving selected frame')
+  assert.equal(rapidSelectionState.movingLayers, 1, 'rapid tab switching must retain one shared selected frame')
+  assert.equal(rapidSelectionState.switching, true)
+  assert.ok(
+    rapidSelectionState.animationIds.length <= 1,
+    'rapid appearance switching must retain one interruptible animation: ' + JSON.stringify(rapidSelectionState),
+  )
+  await page.waitForTimeout(260)
+  const settledAppearanceSelection = await page.getByRole('tablist', { name: '风格设置分区' }).evaluate((list) => {
+    const indicator = list.querySelector('.app-selection-indicator')?.getBoundingClientRect()
+    const active = list.querySelector('[data-slot="tabs-trigger"][data-active]')?.getBoundingClientRect()
+    return {
+      centerDelta: indicator && active
+        ? Math.abs(indicator.left + indicator.width / 2 - (active.left + active.width / 2))
+        : Number.POSITIVE_INFINITY,
+      sizeDelta: indicator && active
+        ? Math.max(Math.abs(indicator.width - active.width), Math.abs(indicator.height - active.height))
+        : Number.POSITIVE_INFINITY,
+    }
+  })
+  assert.ok(
+    settledAppearanceSelection.centerDelta <= 1 && settledAppearanceSelection.sizeDelta <= 1,
+    'appearance selection must settle exactly on its shadcn trigger: ' + JSON.stringify(settledAppearanceSelection),
+  )
 
   const sidebarFixture = page.locator('[data-sidebar-fixture]')
   await sidebarFixture.evaluate((fixture) => {
@@ -1707,6 +1762,24 @@ try {
       const content = container.querySelector('[data-slot="sidebar-inner"]')
       return content ? content.scrollWidth - content.clientWidth : Number.POSITIVE_INFINITY
     })(),
+    overflowingNodes: (() => {
+      const content = container.querySelector('[data-slot="sidebar-inner"]')
+      if (!content) return []
+      const bounds = content.getBoundingClientRect()
+      return [...content.querySelectorAll('*')]
+        .map((node) => {
+          const nodeBounds = node.getBoundingClientRect()
+          return {
+            slot: node.getAttribute('data-slot'),
+            className: node.className?.baseVal || node.className || '',
+            left: Math.round((nodeBounds.left - bounds.left) * 10) / 10,
+            right: Math.round((nodeBounds.right - bounds.right) * 10) / 10,
+            width: Math.round(nodeBounds.width * 10) / 10,
+            position: getComputedStyle(node).position,
+          }
+        })
+        .filter((node) => node.left < -1 || node.right > 1)
+    })(),
   }))
   assert.ok(
     collapsedSidebar.width <= 52 && collapsedSidebar.contentOverflow <= 1,
@@ -1714,18 +1787,61 @@ try {
   )
   await sidebarTrigger.click()
   await page.waitForTimeout(240)
+  const sidebarBoundary = await sidebarFixture.evaluate((fixture) => {
+    const container = fixture.querySelector('[data-slot="sidebar-container"]')
+    const inset = fixture.querySelector('[data-slot="sidebar-inset"]')
+    const rail = fixture.querySelector('[data-slot="sidebar-rail"]')
+    const containerBounds = container?.getBoundingClientRect()
+    const railBounds = rail?.getBoundingClientRect()
+    return {
+      sidebarBorder: container ? Number.parseFloat(getComputedStyle(container).borderRightWidth) : -1,
+      insetBorder: inset ? Number.parseFloat(getComputedStyle(inset).borderLeftWidth) : -1,
+      railCenterDelta: containerBounds && railBounds
+        ? Math.abs(containerBounds.right - (railBounds.left + railBounds.width / 2))
+        : Number.POSITIVE_INFINITY,
+    }
+  })
+  assert.equal(sidebarBoundary.sidebarBorder, 1, 'the official Sidebar container must own the single right boundary')
+  assert.equal(sidebarBoundary.insetBorder, 0, 'SidebarInset must not draw a duplicate adjacent boundary')
+  assert.ok(
+    sidebarBoundary.railCenterDelta <= 1,
+    'SidebarRail must stay centered on the official boundary: ' + JSON.stringify(sidebarBoundary),
+  )
   await sidebarFixture.getByRole('button', { name: /侧栏项目一/ }).click()
   await sidebarFixture.getByRole('button', { name: /侧栏项目三/ }).click()
   await sidebarFixture.getByRole('button', { name: /侧栏项目二/ }).click()
   const sidebarMenuState = await sidebarFixture.locator('[data-slot="sidebar-menu"]').evaluate((list) => ({
     active: [...list.querySelectorAll('[data-slot="sidebar-menu-button"][data-active]')].map((button) => button.textContent?.trim()),
     movingLayers: list.querySelectorAll('.app-selection-indicator').length,
-    customSelectionAttributes: [...list.attributes].filter((attribute) => attribute.name.startsWith('data-selection-')).length,
+    switching: list.hasAttribute('data-selection-switching'),
+    animationIds: list.getAnimations({ subtree: true }).map((animation) => animation.id).filter(Boolean),
   }))
-  assert.deepEqual(
-    sidebarMenuState,
-    { active: ['2侧栏项目二'], movingLayers: 0, customSelectionAttributes: 0 },
-    'shadcn SidebarMenuButton must own the single active state without a parallel selection system',
+  assert.deepEqual(sidebarMenuState.active, ['2侧栏项目二'])
+  assert.equal(sidebarMenuState.movingLayers, 1)
+  assert.equal(sidebarMenuState.switching, true)
+  assert.ok(
+    sidebarMenuState.animationIds.length <= 1,
+    'rapid sidebar switching must retain one interruptible animation: ' + JSON.stringify(sidebarMenuState),
+  )
+  await page.waitForTimeout(260)
+  const settledSidebarSelection = await sidebarFixture.locator('[data-slot="sidebar-menu"]').evaluate((list) => {
+    const indicator = list.querySelector('.app-selection-indicator')?.getBoundingClientRect()
+    const active = list.querySelector('[data-slot="sidebar-menu-button"][data-active]')?.getBoundingClientRect()
+    return {
+      centerDelta: indicator && active
+        ? Math.max(
+            Math.abs(indicator.left + indicator.width / 2 - (active.left + active.width / 2)),
+            Math.abs(indicator.top + indicator.height / 2 - (active.top + active.height / 2)),
+          )
+        : Number.POSITIVE_INFINITY,
+      sizeDelta: indicator && active
+        ? Math.max(Math.abs(indicator.width - active.width), Math.abs(indicator.height - active.height))
+        : Number.POSITIVE_INFINITY,
+    }
+  })
+  assert.ok(
+    settledSidebarSelection.centerDelta <= 1 && settledSidebarSelection.sizeDelta <= 1,
+    'sidebar selection must settle exactly on its shadcn button: ' + JSON.stringify(settledSidebarSelection),
   )
   await sidebarFixture.evaluate((fixture) => {
     fixture.hidden = true

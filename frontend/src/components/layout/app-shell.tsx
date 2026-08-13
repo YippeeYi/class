@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
+import { SelectionMotionLayer, useSelectionMotion } from '@/components/archive/selection-motion'
 import { PAGE_HEADER_ACTIONS_ID, PageHeaderProvider } from '@/components/layout/page-header'
 import {
   AlertDialog,
@@ -129,6 +130,13 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
   const location = useLocation()
   const activePath = navigationPath(location.pathname)
   const [clearing, setClearing] = useState(false)
+  const activeIndex = Math.max(
+    0,
+    navigation.findIndex(({ to }) => isNavigationActive(activePath, to)),
+  )
+  const navigationMotion = useSelectionMotion<HTMLUListElement>(activeIndex, navigation.length, {
+    targetSelector: ':scope > [data-slot="sidebar-menu-item"] > [data-slot="sidebar-menu-button"]',
+  })
 
   const clearAccess = async () => {
     if (clearing) return
@@ -169,7 +177,8 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
         <SidebarGroup>
           <SidebarGroupLabel>主要导航</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu ref={navigationMotion.ref} className="app-sidebar-navigation">
+              <SelectionMotionLayer listItem />
               {navigation.map(({ to, label, icon: Icon }) => {
                 const isActive = isNavigationActive(activePath, to)
                 const destination =
@@ -186,6 +195,7 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
                     <SidebarMenuButton
                       isActive={isActive}
                       tooltip={label}
+                      className="app-sidebar-navigation-item"
                       onPointerEnter={() => void preloadRoute(to)}
                       onFocus={() => void preloadRoute(to)}
                       render={<NavLink to={destination} />}
