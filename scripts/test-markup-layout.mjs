@@ -19,6 +19,7 @@ const harness = String.raw`<!doctype html>
       import { MemoryRouter, useLocation, useNavigate } from 'react-router'
       import { MarkupContent, QuizMarkupContent } from '/src/components/archive/markup-content.tsx'
       import { ImageViewer } from '/src/components/archive/image-viewer.tsx'
+      import { SegmentedTabsList } from '/src/components/archive/segmented-tabs.tsx'
       import { TooltipProvider } from '/src/components/ui/tooltip.tsx'
       import { DailyDistributionCell } from '/src/pages/timeline-page.tsx'
       import { BackgroundsPage } from '/src/pages/backgrounds-page.tsx'
@@ -31,6 +32,7 @@ const harness = String.raw`<!doctype html>
       import { Input } from '/src/components/ui/input.tsx'
       import { ScrollArea } from '/src/components/ui/scroll-area.tsx'
       import { Sidebar, SidebarContent, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger } from '/src/components/ui/sidebar.tsx'
+      import { Tabs } from '/src/components/ui/tabs.tsx'
       import { ArchiveProvider } from '/src/features/archive/archive-context.tsx'
       import { rememberImageDimensions } from '/src/services/image-metadata.ts'
       import { installRecordJumpGuard } from '/src/lib/record-navigation.ts'
@@ -244,6 +246,20 @@ const harness = String.raw`<!doctype html>
         )
       }
 
+      const segmentedMotionItems = [
+        { value: 'first', label: '第一个模式' },
+        { value: 'second', label: '第二个模式' },
+      ]
+
+      function SegmentedMotionFixture() {
+        const [value, setValue] = React.useState('first')
+        return e('section', { 'data-segmented-motion-fixture': '', style: { width: '24rem', maxWidth: '100%', margin: '24px auto' } },
+          e(Tabs, { value, onValueChange: setValue },
+            e(SegmentedTabsList, { value, items: segmentedMotionItems, ariaLabel: '分段切换动画测试' }),
+          ),
+        )
+      }
+
       function LocationProbe() {
         const location = useLocation()
         const navigate = useNavigate()
@@ -287,6 +303,7 @@ const harness = String.raw`<!doctype html>
                 ),
                 e(QuizIdentityBlankFixture),
                 e(ScrollAreaFixture),
+                e(SegmentedMotionFixture),
                 e(SidebarFixture),
                 e('section', { 'data-case': 'app-surface', className: 'app-main-surface bg-background', style: { width: '68rem', maxWidth: '100%', minHeight: '220px', margin: '24px auto', padding: '20px' } },
                   e('header', { className: 'app-topbar rounded-xl border p-4' }, '全局背景表面'),
@@ -520,6 +537,53 @@ try {
   await page.goto(origin, { waitUntil: 'networkidle' })
   await page.waitForFunction(() => window.__markupLayoutReady === true)
   assert.deepEqual(pageErrors, [], `browser page errors during initial render: ${pageErrors.join('; ')}`)
+
+  const segmentedMotionFixture = page.getByRole('tablist', { name: '分段切换动画测试' })
+  const firstSegment = segmentedMotionFixture.getByRole('tab', { name: '第一个模式' })
+  const secondSegment = segmentedMotionFixture.getByRole('tab', { name: '第二个模式' })
+  const readSegmentedAlignment = () => segmentedMotionFixture.evaluate((list) => {
+    const indicator = list.querySelector('.app-selection-indicator')?.getBoundingClientRect()
+    const active = list.querySelector('[data-slot="tabs-trigger"][data-active]')?.getBoundingClientRect()
+    return {
+      activeLabel: list.querySelector('[data-slot="tabs-trigger"][data-active]')?.textContent?.trim(),
+      centerDelta: indicator && active
+        ? Math.abs(indicator.left + indicator.width / 2 - (active.left + active.width / 2))
+        : Number.POSITIVE_INFINITY,
+      sizeDelta: indicator && active
+        ? Math.max(Math.abs(indicator.width - active.width), Math.abs(indicator.height - active.height))
+        : Number.POSITIVE_INFINITY,
+      switching: list.hasAttribute('data-selection-switching'),
+      animationIds: list.getAnimations({ subtree: true }).map((animation) => animation.id).filter(Boolean),
+    }
+  })
+  const initialSegmentedAlignment = await readSegmentedAlignment()
+  assert.equal(initialSegmentedAlignment.activeLabel, '第一个模式')
+  assert.ok(initialSegmentedAlignment.centerDelta <= 1 && initialSegmentedAlignment.sizeDelta <= 1)
+  await secondSegment.click()
+  const movingSegmentedState = await readSegmentedAlignment()
+  assert.equal(movingSegmentedState.switching, true)
+  assert.deepEqual(movingSegmentedState.animationIds, ['app-selection-move'])
+  await firstSegment.click()
+  await secondSegment.click()
+  await firstSegment.click()
+  const interruptedSegmentedState = await readSegmentedAlignment()
+  assert.equal(interruptedSegmentedState.activeLabel, '第一个模式')
+  assert.ok(
+    interruptedSegmentedState.animationIds.length <= 1,
+    `rapid segmented switching must retain one interruptible animation: ${JSON.stringify(interruptedSegmentedState)}`,
+  )
+  await page.waitForTimeout(260)
+  const settledSegmentedAlignment = await readSegmentedAlignment()
+  assert.ok(
+    settledSegmentedAlignment.centerDelta <= 1 && settledSegmentedAlignment.sizeDelta <= 1,
+    `the moving selected surface must settle exactly on its shadcn trigger: ${JSON.stringify(settledSegmentedAlignment)}`,
+  )
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await secondSegment.click()
+  const reducedSegmentedState = await readSegmentedAlignment()
+  assert.equal(reducedSegmentedState.switching, false)
+  assert.deepEqual(reducedSegmentedState.animationIds, [])
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
 
   const recordsFixture = page.locator('[data-case="records"]')
   const sourceJump = recordsFixture.getByRole('button', {
@@ -1253,11 +1317,22 @@ try {
     assert.ok(pressed.contrast >= 4.5, `${themeId} pressed quiz option contrast is too low`)
     assert.notEqual(pressed.background, hovered.background, `${themeId} quiz option press must keep a visible shadcn state change`)
     assert.ok(
-      Math.abs(pressed.bounds.width - normal.bounds.width) <= 0.5 &&
-        Math.abs(pressed.bounds.height - normal.bounds.height) <= 0.5 &&
-        Math.abs(pressed.bounds.left - normal.bounds.left) <= 0.5 &&
-        Math.abs(pressed.bounds.top - normal.bounds.top) <= 1.5,
-      `${themeId} quiz option press must retain stable shadcn button geometry: ${JSON.stringify({ normal: normal.bounds, pressed: pressed.bounds })}`,
+      pressed.bounds.width < normal.bounds.width &&
+        pressed.bounds.width >= normal.bounds.width * 0.97 &&
+        pressed.bounds.height < normal.bounds.height &&
+        pressed.bounds.height >= normal.bounds.height * 0.96,
+      `${themeId} quiz option press must use the shared restrained compression: ${JSON.stringify({ normal: normal.bounds, pressed: pressed.bounds })}`,
+    )
+    assert.ok(
+      Math.abs(
+        pressed.bounds.left + pressed.bounds.width / 2 -
+          (normal.bounds.left + normal.bounds.width / 2),
+      ) <= 1 &&
+        Math.abs(
+          pressed.bounds.top + pressed.bounds.height / 2 -
+            (normal.bounds.top + normal.bounds.height / 2),
+        ) <= 1.5,
+      `${themeId} button press must preserve its perceived centre without layout movement`,
     )
     await page.waitForTimeout(240)
     const released = await readState()
@@ -1491,10 +1566,13 @@ try {
   await page.getByRole('tab', { name: /^背景/ }).click()
   await page.locator('[data-background-id="mountain"]').click()
   await page.locator('[data-background-id="cloud"]').click()
-  const backgroundSelectionState = await page.locator('[data-background-id]').evaluateAll((cards) => ({
-    selected: cards.filter((card) => card.getAttribute('data-selected') === 'true').map((card) => card.getAttribute('data-background-id')),
-    movingLayers: document.querySelectorAll('.app-selection-indicator, .app-selection-bridge, .app-selection-refraction, [data-selection-option]').length,
-  }))
+  const backgroundSelectionState = await page.locator('[data-background-id]').evaluateAll((cards) => {
+    const panel = cards[0]?.closest('[data-slot="tabs-content"]')
+    return {
+      selected: cards.filter((card) => card.getAttribute('data-selected') === 'true').map((card) => card.getAttribute('data-background-id')),
+      movingLayers: panel?.querySelectorAll('.app-selection-indicator, [data-selection-option]').length || 0,
+    }
+  })
   assert.deepEqual(backgroundSelectionState.selected, ['cloud'], 'background selection must update directly on the chosen label')
   assert.equal(backgroundSelectionState.movingLayers, 0, 'background selection must not mount a moving shared frame')
   await page.getByRole('tab', { name: /^方框/ }).click()
@@ -1536,10 +1614,13 @@ try {
   await page.getByRole('tab', { name: /^配色/ }).click()
   await page.locator('[data-theme-preset-option="mist"]').click()
   await page.locator('[data-theme-preset-option="paper"]').click()
-  const paletteSelectionState = await page.locator('[data-theme-preset-option]').evaluateAll((cards) => ({
-    selected: cards.filter((card) => card.getAttribute('data-selected') === 'true').map((card) => card.getAttribute('data-theme-preset-option')),
-    movingLayers: document.querySelectorAll('.app-selection-indicator, .app-selection-bridge, .app-selection-refraction, [data-selection-option]').length,
-  }))
+  const paletteSelectionState = await page.locator('[data-theme-preset-option]').evaluateAll((cards) => {
+    const panel = cards[0]?.closest('[data-slot="tabs-content"]')
+    return {
+      selected: cards.filter((card) => card.getAttribute('data-selected') === 'true').map((card) => card.getAttribute('data-theme-preset-option')),
+      movingLayers: panel?.querySelectorAll('.app-selection-indicator, [data-selection-option]').length || 0,
+    }
+  })
   assert.deepEqual(paletteSelectionState.selected, ['paper'], 'palette selection must update directly on the chosen label')
   assert.equal(paletteSelectionState.movingLayers, 0, 'palette selection must not mount a moving shared frame')
   await page.emulateMedia({ reducedMotion: 'reduce' })
@@ -1685,13 +1766,12 @@ try {
       backdrop: style.backdropFilter,
       backgroundImage: style.backgroundImage,
       boxShadow: style.boxShadow,
-      selectionLayers: document.querySelectorAll('.app-selection-indicator, .app-selection-bridge, .app-selection-refraction').length,
     }
   })
   assert.deepEqual(
     roundedSurfaceState,
-    { backdrop: 'none', backgroundImage: 'none', boxShadow: 'none', selectionLayers: 0 },
-    'rounded mode must remain an ordinary card surface with no special material or moving selection layer',
+    { backdrop: 'none', backgroundImage: 'none', boxShadow: 'none' },
+    'rounded mode must remain an ordinary card surface with no special material layer',
   )
   const roundedQuizGeometry = await page.locator('[data-quiz-theme-fixture]').evaluateAll((cards) =>
     cards.map((card) => ({
@@ -1754,9 +1834,8 @@ try {
   await page.waitForFunction(() => document.documentElement.dataset.boxStyle === 'default')
   const resetRoundedState = await page.locator('[data-case="app-surface"] [data-slot="card"]').evaluate((card) => ({
     backdrop: getComputedStyle(card).backdropFilter,
-    selectionLayers: document.querySelectorAll('.app-selection-indicator, .app-selection-bridge, .app-selection-refraction').length,
   }))
-  assert.deepEqual(resetRoundedState, { backdrop: 'none', selectionLayers: 0 }, 'default box mode must retain the same ordinary card material')
+  assert.deepEqual(resetRoundedState, { backdrop: 'none' }, 'default box mode must retain the same ordinary card material')
 
   await page.evaluate(() => window.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: 'auto' }))
   const bottomBoundary = await page.evaluate(() => {

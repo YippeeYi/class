@@ -36,6 +36,8 @@ const pageHeading = await readFrontend('src/components/archive/page-heading.tsx'
 const pageHeader = await readFrontend('src/components/layout/page-header.tsx')
 const shell = await readFrontend('src/components/layout/app-shell.tsx')
 const interaction = await readFrontend('src/components/archive/interaction.tsx')
+const segmentedTabs = await readFrontend('src/components/archive/segmented-tabs.tsx')
+const selectionMotion = await readFrontend('src/components/archive/selection-motion.tsx')
 const dismissOnScroll = await readFrontend('src/hooks/use-dismiss-on-vertical-scroll.ts')
 const archiveContext = await readFrontend('src/features/archive/archive-context.tsx')
 const markup = await readFrontend('src/lib/markup.ts')
@@ -426,7 +428,18 @@ for (const component of ['SidebarProvider', 'SidebarContent', 'SidebarGroup', 'S
 assert.doesNotMatch(styles, /\.app-navigation-item::before|\.app-selection-item::before/, 'selection must not return to a leading vertical marker')
 assert.doesNotMatch(shell, /SelectionMotion|app-sidebar-navigation|app-sidebar-rail/, 'the sidebar must not layer a custom selection or rail system over shadcn')
 assert.doesNotMatch(backgroundsPage, /SelectionMotion|app-spatial-selection|data-selection-option/, 'appearance choices must not move a shared frame between options')
-assert.doesNotMatch(styles, /app-selection|selection-bridge|selection-indicator/, 'moving selection layers must not remain in CSS')
+assert.match(segmentedTabs, /<TabsList[\s\S]*<SelectionMotionLayer \/>[\s\S]*<TabsTrigger/, 'mode switches must compose the moving layer from shadcn Tabs primitives')
+assert.match(selectionMotion, /visibleSelectionRect[\s\S]*indicator\.animate[\s\S]*app-selection-move/, 'rapid mode switching must continue from the visible shared selection position')
+assert.doesNotMatch(selectionMotion, /bridge|refraction|lens|axis|data-box-style/i, 'selection motion must remain a single restrained horizontal surface')
+for (const [name, source] of [
+  ['records', records],
+  ['person', person],
+  ['timeline', timeline],
+]) {
+  assert.match(source, /<SegmentedTabsList/, `${name} mode buttons must restore the shared moving selection`)
+}
+assert.match(styles, /--app-press-scale-x: 0\.985[\s\S]*--app-press-scale-y: 0\.97[\s\S]*--interaction-duration-press-in/, 'buttons must share one restrained press geometry and timing')
+assert.match(styles, /app-segmented-control[\s\S]*app-selection-indicator[\s\S]*data-selection-switching/, 'segmented controls must keep one bounded moving selected surface')
 assert.doesNotMatch(interaction, /function Button|buttonVariants/, 'business interaction helpers must not wrap an existing shadcn Button')
 assert.match(styles, /--scrollbar-edge-inset[\s\S]*\[data-slot="scroll-area-thumb"\]/, 'scroll areas must derive edge insets and thumb geometry from shared tokens')
 assert.match(styles, /\.record-table-scroll table[\s\S]*table-layout: fixed/, 'markup tables must remain within their available width')

@@ -12,12 +12,13 @@ import {
   type RecordCriteria,
   RecordFilters,
 } from '@/components/archive/record-filters'
+import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
@@ -204,13 +205,11 @@ export function PersonPage() {
               setCriteria(EMPTY_RECORD_CRITERIA)
             }}
           >
-            <TabsList aria-label="人物相关记录模式" className="grid grid-cols-2">
-              {personRecordModes.map(({ value, label }) => (
-                <TabsTrigger key={value} value={value}>
-                  {label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+            <SegmentedTabsList
+              value={mode as (typeof personRecordModes)[number]['value']}
+              items={personRecordModes}
+              ariaLabel="人物相关记录模式"
+            />
           </Tabs>
         )}
       </div>

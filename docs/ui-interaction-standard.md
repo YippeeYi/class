@@ -16,10 +16,11 @@
 
 - Default：使用主题 token，不额外改变布局或创建装饰层。
 - Hover：仅在精细指针设备生效；使用轻微背景、边框或文字色变化，不移动、抬升或缩放真实命中区。
-- Pressed：反馈即时、克制；不改变盒模型尺寸，释放后恢复原状态。
+- Pressed：按钮在 82ms 内以合成层缩放至约 `0.985 × 0.97` 并下移 `0.75px`，210ms
+  平滑恢复；不得改变盒模型、命中区或周围布局。Disabled、Loading 不执行正常按压反馈。
 - Focus：保留 shadcn 的 `focus-visible` ring，键盘操作不得依赖 Hover 才可见。
 - Selected：由组件自身的 `data-state`、`data-active`、`aria-selected`、`aria-pressed` 或业务语义类表达；
-  不叠加共享移动选中框。
+  只有原本具备移动反馈的紧凑分段模式切换可以增加一个共享选中层。
 - Disabled/Loading：同时阻止重复操作并保持可读；异步按钮设置 `disabled` 与 `aria-busy`，使用 shadcn Spinner。
 - Invalid/Success：只使用对应语义色，不借用普通 Hover 或 Selected 状态。
 
@@ -41,8 +42,11 @@
 
 ## 4. 选择控件
 
-- Tabs 直接使用 shadcn `Tabs`、`TabsList`、`TabsTrigger`、`TabsContent`。
+- Tabs 直接使用 shadcn `Tabs`、`TabsList`、`TabsTrigger`、`TabsContent`。记录模式、人物记录模式和
+  统计指标通过 `SegmentedTabsList` 组合这些原语，只扩展原有的共享选中层移动，不复制 Tabs 状态机。
 - RadioGroup、Checkbox、Switch、Toggle 和 ButtonGroup 直接使用对应 shadcn 组件。
+- 分段模式选中层读取真实 TabsTrigger 布局边界，以 200ms 标准缓动移动；快速连续选择从当前可见位置
+  继续且始终只保留一个动画，Reduced Motion 下即时落位。
 - 风格页的配色、背景与方框选择在目标自身更新颜色、边框、透明度和选中标记；不得使用 shared layout、
   translate、滑块平移、桥接层或从旧选项移动到新选项的选中实体。
 - 快速连续选择应立即更新业务状态，不等待动画结束。

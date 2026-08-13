@@ -12,6 +12,7 @@ import {
   type RecordCriteria,
   RecordFilters,
 } from '@/components/archive/record-filters'
+import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -33,7 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs } from '@/components/ui/tabs'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
@@ -819,14 +820,7 @@ export function RecordsPage() {
               setPageIndex(0)
             }}
           >
-            <TabsList aria-label="记录显示模式" className="grid grid-cols-2">
-              {recordViewItems.map(({ value, label, icon: Icon }) => (
-                <TabsTrigger key={value} value={value}>
-                  <Icon className="size-4 shrink-0" />
-                  <span>{label}</span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
+            <SegmentedTabsList value={view} items={recordViewItems} ariaLabel="记录显示模式" />
           </Tabs>
         }
       />

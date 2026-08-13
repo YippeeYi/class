@@ -324,10 +324,55 @@ body
   cursor: pointer;
 }
 
-body :where([data-slot="button"], [data-slot="toggle"], [data-slot="tabs-trigger"]) {
-  transition-property: color, background-color, border-color, border-radius, box-shadow, opacity;
-  transition-duration: var(--interaction-duration-standard);
+body
+  :where(
+    button,
+    [role="button"],
+    [data-slot="button"],
+    [data-slot="alert-dialog-action"],
+    [data-slot="alert-dialog-cancel"],
+    [data-slot="sidebar-menu-button"],
+    [data-slot="sidebar-rail"],
+    [data-slot="tabs-trigger"],
+    [data-slot="toggle"],
+    [data-slot="select-trigger"],
+    [data-slot="dialog-close"]
+  ) {
+  --app-press-scale-x: 0.985;
+  --app-press-scale-y: 0.97;
+  --app-press-shift: 0.75px;
+  transform-origin: center;
+  translate: 0 0;
+  scale: 1;
+  transition-property:
+    color, background-color, border-color, border-radius, box-shadow, opacity, translate, scale;
+  transition-duration:
+    var(--interaction-duration-standard), var(--interaction-duration-standard),
+    var(--interaction-duration-standard), var(--interaction-duration-standard),
+    var(--interaction-duration-standard), var(--interaction-duration-standard),
+    var(--interaction-duration-release), var(--interaction-duration-release);
   transition-timing-function: var(--interaction-ease-standard);
+}
+
+body
+  :where(
+    button,
+    [role="button"],
+    [data-slot="button"],
+    [data-slot="alert-dialog-action"],
+    [data-slot="alert-dialog-cancel"],
+    [data-slot="sidebar-menu-button"],
+    [data-slot="sidebar-rail"],
+    [data-slot="tabs-trigger"],
+    [data-slot="toggle"],
+    [data-slot="select-trigger"],
+    [data-slot="dialog-close"]
+  ):not(:disabled, [aria-disabled="true"], [data-disabled], [aria-busy="true"]):active {
+  translate: 0 var(--app-press-shift);
+  scale: var(--app-press-scale-x) var(--app-press-scale-y);
+  transition-duration: var(--interaction-duration-press-in);
+  transition-timing-function: var(--interaction-ease-standard);
+  will-change: translate, scale;
 }
 
 body [data-slot="card"] {
@@ -351,14 +396,14 @@ body
   transition-timing-function: var(--interaction-ease-standard);
 }
 
-body [data-slot="button"][aria-busy="true"] {
+body :where([data-slot="button"], [data-slot="sidebar-menu-button"])[aria-busy="true"] {
   cursor: progress;
 }
 
 /* Composite shadcn controls can contain their own raw Button (for example a
    dialog close affordance). Give those touch presses a project-level response
    without restyling their variant at rest. */
-body [data-slot="button"]:not(:disabled):active,
+body [data-slot="button"]:not(:disabled, [aria-disabled="true"], [aria-busy="true"]):active,
 body [data-slot="select-trigger"]:not(:disabled):active {
   background-color: var(--interaction-surface-pressed);
 }
@@ -442,6 +487,78 @@ body [data-slot="tabs-trigger"][data-active] {
 
 body [data-slot="tabs-trigger"]:not(:disabled):active {
   background-color: var(--interaction-surface-pressed);
+}
+
+/* Compact mode switches restore the project's original shared selected
+   surface. The shadcn Tabs root still owns value, keyboard and focus state;
+   this layer only moves between measured trigger bounds. */
+body .app-segmented-control[data-segmented-control="true"] {
+  position: relative;
+  isolation: isolate;
+  contain: paint;
+  display: grid;
+  grid-template-columns: repeat(var(--selection-count), minmax(0, 1fr));
+  height: auto;
+  gap: 0;
+  overflow: hidden;
+  padding: 3px;
+}
+
+body .app-segmented-control[data-segmented-control="true"] > .app-selection-indicator {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  width: var(--selection-width, 0px);
+  height: var(--selection-height, 0px);
+  border: 1px solid color-mix(in oklch, var(--interaction-border-selected) 64%, transparent);
+  border-radius: var(--radius-concentric-inset);
+  background: var(--background);
+  transform: translate3d(var(--selection-x, 0px), var(--selection-y, 0px), 0);
+  transform-origin: top left;
+  transition:
+    background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
+    border-color var(--interaction-duration-standard) var(--interaction-ease-standard);
+  pointer-events: none;
+}
+
+body
+  .app-segmented-control[data-segmented-control="true"]
+  > .app-segmented-trigger[data-slot="tabs-trigger"] {
+  z-index: 2;
+  min-width: 0;
+  border-color: transparent;
+  border-radius: var(--radius-concentric-inset);
+  background: transparent;
+  box-shadow: none;
+}
+
+body
+  .app-segmented-control[data-segmented-control="true"]
+  > .app-segmented-trigger[data-slot="tabs-trigger"][data-active] {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+body
+  .app-segmented-control[data-segmented-control="true"]
+  > .app-segmented-trigger[data-slot="tabs-trigger"]:active {
+  background: color-mix(in oklch, var(--interaction-surface-pressed) 54%, transparent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  body
+    .app-segmented-control[data-segmented-control="true"]
+    > .app-segmented-trigger[data-slot="tabs-trigger"]:not([data-active], :disabled):hover {
+    background: color-mix(in oklch, var(--interaction-surface-hover) 58%, transparent);
+  }
+}
+
+body
+  .app-segmented-control[data-segmented-control="true"][data-selection-switching]
+  > .app-selection-indicator {
+  will-change: transform;
 }
 
 .app-tabs-content {
