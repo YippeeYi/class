@@ -1,6 +1,6 @@
 import { Check, Image as ImageIcon, Moon, Palette, Sparkles, Square, Sun } from 'lucide-react'
 import { useEffect, useState } from 'react'
-
+import { Button, textLinkClassName } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
 import {
   type AppearancePreference,
@@ -17,7 +17,6 @@ import {
 } from '@/components/layout/background-root'
 import { AspectRatio } from '@/components/ui/aspect-ratio'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
@@ -132,7 +131,7 @@ function BackgroundPreview({ src, active }: { src: string; active: boolean }) {
         decoding="async"
         onLoad={() => setReady(true)}
         onError={() => setFailed(true)}
-        className={`absolute inset-0 size-full object-cover transition-[opacity,transform] duration-300 group-hover/background-choice:scale-[1.012] ${ready ? 'opacity-100' : 'opacity-0'}`}
+        className={`background-choice-preview absolute inset-0 size-full object-cover ${ready ? 'opacity-100' : 'opacity-0'}`}
       />
     </>
   )
@@ -382,7 +381,7 @@ export function BackgroundsPage() {
                             href={item.credit.href}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="underline decoration-foreground/30 underline-offset-4 hover:text-foreground"
+                            className={textLinkClassName}
                           >
                             {item.credit.label}
                           </a>

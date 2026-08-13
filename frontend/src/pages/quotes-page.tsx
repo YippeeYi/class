@@ -3,11 +3,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { Button, interactiveSurfaceVariants } from '@/components/archive/interaction'
 import { MarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
@@ -47,10 +47,7 @@ export function QuotesPage() {
         actions={
           <>
             <Select value={sort} onValueChange={(value) => setSort(value as 'id' | 'quote')}>
-              <SelectTrigger
-                aria-label="排序方式"
-                className="min-w-32 bg-background/85 transition-colors hover:bg-accent/55"
-              >
+              <SelectTrigger aria-label="排序方式" className="min-w-32 bg-background/85">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent align="start">
@@ -88,9 +85,8 @@ export function QuotesPage() {
               <Link
                 id={`quote-${quote.id}`}
                 key={quote.id}
-                className="group block h-fit scroll-mt-24 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className={`${interactiveSurfaceVariants({ kind: 'card' })} block h-fit scroll-mt-24 focus-visible:ring-2`}
                 to={target}
-                aria-disabled={!anchor}
                 onClick={(event) => {
                   if (!source || !anchor) {
                     event.preventDefault()
@@ -108,7 +104,7 @@ export function QuotesPage() {
                   navigate(recordClientHref(target))
                 }}
               >
-                <Card className="h-fit gap-0 py-0 transition-[background-color,box-shadow] group-hover:bg-card/95 group-hover:ring-primary/30 group-active:bg-accent/30">
+                <Card className="h-fit gap-0 py-0">
                   <CardContent className="p-4 sm:p-5">
                     <div className="mb-3 flex items-center justify-between">
                       <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
@@ -121,9 +117,7 @@ export function QuotesPage() {
                     </blockquote>
                     <div className="mt-4 flex min-h-8 items-center justify-between gap-3 border-t border-border/60 pt-3 text-sm text-muted-foreground">
                       <span>{quote.sourceDate || '来源记录'}</span>
-                      <span
-                        className={`${buttonVariants({ variant: 'link', size: 'xs' })} record-source-action`}
-                      >
+                      <span className="record-source-action app-inline-action inline-flex items-center gap-1.5">
                         <BookOpenText data-icon="inline-start" />
                         跳转到原记录
                       </span>

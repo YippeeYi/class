@@ -2,11 +2,10 @@ import { KeyRound } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
 import { Navigate } from 'react-router'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/archive/interaction'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/features/auth/auth-context'
 
 export function AuthPage() {
@@ -74,16 +73,10 @@ export function AuthPage() {
                 type="submit"
                 size="lg"
                 className="h-11 w-full"
-                disabled={submitting || auth.state === 'loading'}
+                loading={submitting || auth.state === 'loading'}
+                loadingLabel="正在验证…"
               >
-                {submitting ? (
-                  <>
-                    <Spinner data-icon="inline-start" />
-                    正在验证
-                  </>
-                ) : (
-                  '进入档案'
-                )}
+                进入档案
               </Button>
             </FieldGroup>
           </form>

@@ -17,9 +17,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import { ErrorState } from '@/components/archive/async-state'
+import { Button, interactiveSurfaceVariants } from '@/components/archive/interaction'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Item,
@@ -235,17 +235,13 @@ export function HomePage() {
                   icon: MessageSquareQuote,
                 },
               ].map(({ to, label, value, description, icon: Icon }) => (
-                <Link
-                  to={to}
-                  key={to}
-                  className="group rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  <article className="grid h-full min-h-40 content-between rounded-xl border border-border/70 bg-background/38 p-4 transition-[background-color,border-color] duration-150 group-hover:border-primary/35 group-hover:bg-background/62 group-focus-visible:border-ring sm:p-5">
+                <Link to={to} key={to} className={interactiveSurfaceVariants({ kind: 'card' })}>
+                  <article className="grid h-full min-h-40 content-between rounded-xl border border-border/70 bg-background/38 p-4 sm:p-5">
                     <div className="flex items-center justify-between gap-3">
                       <span className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">
                         <Icon className="size-5" />
                       </span>
-                      <ArrowRight className="size-4 text-muted-foreground transition-transform duration-150 group-hover:translate-x-1 group-hover:text-primary" />
+                      <ArrowRight className="size-4 text-muted-foreground" />
                     </div>
                     <div className="mt-5">
                       <div className="flex items-baseline justify-between gap-3">
@@ -274,7 +270,7 @@ export function HomePage() {
             <Item
               key={to}
               variant="outline"
-              className="min-h-20 bg-background/32 px-4 py-3 hover:border-primary/30 hover:bg-background/58"
+              className={`${interactiveSurfaceVariants({ kind: 'item' })} min-h-20 bg-background/32 px-4 py-3`}
               render={<Link to={to} />}
             >
               <ItemMedia
@@ -288,7 +284,7 @@ export function HomePage() {
                 <ItemDescription>{description}</ItemDescription>
               </ItemContent>
               <ItemActions>
-                <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover/item:translate-x-0.5" />
+                <ArrowRight className="size-4 text-muted-foreground" />
               </ItemActions>
             </Item>
           ))}

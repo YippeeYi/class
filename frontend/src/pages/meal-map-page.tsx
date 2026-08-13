@@ -2,9 +2,13 @@ import { Expand, LockKeyhole } from 'lucide-react'
 import { useEffect } from 'react'
 
 import { ImageViewer } from '@/components/archive/image-viewer'
+import {
+  Button,
+  interactiveSurfaceVariants,
+  mediaAffordanceClassName,
+} from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { useAsyncData } from '@/hooks/use-async-data'
@@ -56,7 +60,7 @@ export function MealMapPage() {
                 <Button
                   type="button"
                   variant="ghost"
-                  className="group relative size-full min-h-0 overflow-hidden rounded-none p-0"
+                  className={`${interactiveSurfaceVariants({ kind: 'media' })} relative size-full min-h-0 overflow-hidden rounded-none p-0`}
                   aria-label="查看地图大图"
                 >
                   <img
@@ -80,7 +84,7 @@ export function MealMapPage() {
                   <span
                     data-liquid-glass-interactive
                     data-glass-variant="clear"
-                    className="absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/90 px-3 py-2 text-xs font-medium text-foreground opacity-0 shadow-sm backdrop-blur transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100"
+                    className={`${mediaAffordanceClassName} absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/90 px-3 py-2 text-xs font-medium text-foreground shadow-sm backdrop-blur`}
                   >
                     <Expand className="size-3.5" />
                     查看大图
@@ -107,6 +111,8 @@ export function MealMapPage() {
                   <Button
                     variant="outline"
                     className="mx-auto"
+                    loading={imageFailure.retrying}
+                    loadingLabel="正在重试…"
                     onClick={() => {
                       resource.retry()
                       void imageFailure.retryManually()

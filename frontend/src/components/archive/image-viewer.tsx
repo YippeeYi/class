@@ -1,3 +1,4 @@
+// biome-ignore-all lint/a11y/noNoninteractiveTabindex: The image canvas is a gesture surface with documented zoom and pan keyboard controls; toolbar buttons remain the simpler alternative.
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { Maximize2, Minus, Plus, RotateCcw, X } from 'lucide-react'
 import {
@@ -10,7 +11,7 @@ import {
   useState,
 } from 'react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/archive/interaction'
 import {
   Dialog,
   DialogClose,
@@ -270,8 +271,48 @@ export function ImageViewer({
         <section
           ref={setViewportElement}
           className={`image-viewer-viewport relative min-h-0 flex-1 touch-none overflow-hidden rounded-xl bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-ring ${viewTransform.scale > MIN_SCALE ? 'cursor-grab active:cursor-grabbing' : 'cursor-zoom-in'}`}
+          tabIndex={0}
+          role="application"
           aria-label={`${alt} 大图查看区域`}
           aria-describedby="image-viewer-help"
+          aria-keyshortcuts="Enter Space + - 0 ArrowUp ArrowDown ArrowLeft ArrowRight"
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              zoomTo(transformRef.current.scale > MIN_SCALE ? MIN_SCALE : 2)
+              return
+            }
+            if (event.key === '+' || event.key === '=') {
+              event.preventDefault()
+              zoomTo(transformRef.current.scale * SCALE_STEP)
+              return
+            }
+            if (event.key === '-' || event.key === '_') {
+              event.preventDefault()
+              zoomTo(transformRef.current.scale / SCALE_STEP)
+              return
+            }
+            if (event.key === '0') {
+              event.preventDefault()
+              reset()
+              return
+            }
+            const movement = event.shiftKey ? 64 : 28
+            const offsets: Record<string, { x: number; y: number }> = {
+              ArrowUp: { x: 0, y: movement },
+              ArrowDown: { x: 0, y: -movement },
+              ArrowLeft: { x: movement, y: 0 },
+              ArrowRight: { x: -movement, y: 0 },
+            }
+            const offset = offsets[event.key]
+            if (!offset || transformRef.current.scale <= MIN_SCALE) return
+            event.preventDefault()
+            commitTransform({
+              ...transformRef.current,
+              x: transformRef.current.x + offset.x,
+              y: transformRef.current.y + offset.y,
+            })
+          }}
           onWheel={(event) => {
             event.preventDefault()
             const box = event.currentTarget.getBoundingClientRect()
@@ -369,7 +410,12 @@ export function ImageViewer({
             <div className="grid size-full place-items-center text-center">
               <div>
                 <p className="mb-3 text-sm text-muted-foreground">图片加载失败。</p>
-                <Button variant="outline" onClick={() => void imageFailure.retryManually()}>
+                <Button
+                  variant="outline"
+                  loading={imageFailure.retrying}
+                  loadingLabel="正在重试…"
+                  onClick={() => void imageFailure.retryManually()}
+                >
                   重试
                 </Button>
               </div>
@@ -419,7 +465,12 @@ export function ImageViewer({
             <div className="grid size-full place-items-center text-center">
               <div>
                 <p className="mb-3 text-sm text-muted-foreground">图片加载失败。</p>
-                <Button variant="outline" onClick={() => void imageFailure.retryManually()}>
+                <Button
+                  variant="outline"
+                  loading={imageFailure.retrying}
+                  loadingLabel="正在重试…"
+                  onClick={() => void imageFailure.retryManually()}
+                >
                   重试
                 </Button>
               </div>

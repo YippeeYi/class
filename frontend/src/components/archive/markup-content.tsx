@@ -11,7 +11,7 @@ import {
 import { Link, useNavigate } from 'react-router'
 
 import { ImageViewer } from '@/components/archive/image-viewer'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/archive/interaction'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { Spinner } from '@/components/ui/spinner'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
@@ -92,7 +92,7 @@ function Annotation({ note, children }: { note: string; children: ReactNode }) {
             type="button"
             variant="link"
             size="xs"
-            className="record-annotation inline h-auto min-h-0 whitespace-normal rounded-[0.15em] border-0 px-0 py-0 align-baseline text-[1em] leading-[inherit] font-[inherit] text-foreground/90 underline decoration-primary/55 decoration-dotted decoration-[1.5px] underline-offset-[0.18em] select-text hover:text-foreground hover:decoration-primary focus-visible:border-transparent focus-visible:ring-0"
+            className="record-annotation inline h-auto min-h-0 whitespace-normal rounded-[0.15em] border-0 px-0 py-0 align-baseline text-[1em] leading-[inherit] font-[inherit] text-foreground/90 underline decoration-primary/55 decoration-dotted decoration-[1.5px] underline-offset-[0.18em] select-text focus-visible:border-transparent"
             onPointerDown={(event) => {
               pointerType.current = event.pointerType
               if (event.pointerType === 'touch') pointerClientX.current = null
@@ -217,7 +217,7 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
                   type="button"
                   variant="link"
                   size="xs"
-                  className="markup-link illustration-link inline h-auto min-h-0 whitespace-normal rounded-none border-0 px-0 py-0 align-baseline text-[1em] leading-[inherit] font-[inherit] select-text focus-visible:border-transparent focus-visible:ring-0"
+                  className="markup-link illustration-link inline h-auto min-h-0 whitespace-normal rounded-none border-0 px-0 py-0 align-baseline text-[1em] leading-[inherit] font-[inherit] select-text focus-visible:border-transparent"
                   onPointerEnter={(event) => {
                     requestPreview()
                     rememberPointerPosition(event)
@@ -541,7 +541,7 @@ export function MarkupContent({
             size="xs"
             nativeButton={false}
             render={<Link to={target} />}
-            className={`markup-link inline h-auto min-h-0 whitespace-normal rounded-none border-0 px-0 py-0 align-baseline text-[1em] leading-[inherit] font-[inherit] select-text focus-visible:border-transparent focus-visible:ring-0 ${node.kind}-link`}
+            className={`markup-link inline h-auto min-h-0 whitespace-normal rounded-none border-0 px-0 py-0 align-baseline text-[1em] leading-[inherit] font-[inherit] select-text focus-visible:border-transparent ${node.kind}-link`}
             onClick={(event) => {
               if (node.kind !== 'record') return
               if (onRecordReference) {

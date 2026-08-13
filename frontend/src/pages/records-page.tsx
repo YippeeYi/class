@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { ImageViewer } from '@/components/archive/image-viewer'
+import { Button } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
 import { RecordCard } from '@/components/archive/record-card'
 import {
@@ -23,7 +24,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
@@ -183,11 +183,7 @@ function WrittenRecordPages({
                 if (nextIndex >= 0) onPageChange(nextIndex)
               }}
             >
-              <SelectTrigger
-                size="sm"
-                aria-label="跳转书面页"
-                className="w-28 bg-background/85 transition-colors hover:bg-accent/55"
-              >
+              <SelectTrigger size="sm" aria-label="跳转书面页" className="w-28 bg-background/85">
                 <SelectValue>
                   {(value) => (typeof value === 'string' ? `第 ${value} 页` : '选择页码')}
                 </SelectValue>
@@ -222,7 +218,8 @@ function WrittenRecordPages({
                 <Button
                   type="button"
                   variant="ghost"
-                  className="h-auto w-full overflow-hidden rounded-lg border border-border/70 bg-transparent p-0 shadow-none hover:bg-transparent"
+                  className="h-auto w-full overflow-hidden rounded-lg border border-border/70 bg-transparent p-0 shadow-none group app-interactive-surface app-interactive-media"
+                  aria-label={`查看${hidden ? '隐藏' : '手写'}记录第 ${page.page} 页大图`}
                 >
                   <SignedPageImage key={page.imagePath} path={page.imagePath} page={page.page} />
                 </Button>

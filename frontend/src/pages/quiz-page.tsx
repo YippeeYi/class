@@ -10,11 +10,11 @@ import {
 } from 'react'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { Button } from '@/components/archive/interaction'
 import { QuizMarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Field, FieldLabel } from '@/components/ui/field'
@@ -159,6 +159,8 @@ function SecretImage({ path }: { path: string }) {
           <Button
             size="sm"
             variant="outline"
+            loading={resource.loading}
+            loadingLabel="正在重试…"
             onClick={() => {
               setDecodeFailed(false)
               void resource.retry()

@@ -5,10 +5,10 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from 'recharts'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { Button } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   type ChartConfig,
@@ -427,7 +427,7 @@ export function DailyDistributionCell({
       nativeButton={!item.records.length}
       data-records={item.records.length > 0 ? 'present' : 'empty'}
       data-important={item.important > 0 ? 'true' : 'false'}
-      className="daily-distribution-cell relative grid aspect-square h-auto min-h-0 min-w-0 justify-normal grid-rows-[auto_1fr] items-stretch gap-0.5 whitespace-normal border-border/75 bg-background/74 p-0.5 text-left shadow-none transition-[background-color,border-color,box-shadow] hover:bg-accent/72 data-[important=true]:border-amber-500/45 data-[important=true]:shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--color-amber-500)_18%,transparent)] focus-visible:z-10 focus-visible:ring-2"
+      className="daily-distribution-cell relative grid aspect-square h-auto min-h-0 min-w-0 justify-normal grid-rows-[auto_1fr] items-stretch gap-0.5 whitespace-normal border-border/75 bg-background/74 p-0.5 text-left shadow-none data-[important=true]:border-amber-500/45 data-[important=true]:shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--color-amber-500)_18%,transparent)] focus-visible:z-10"
       aria-label={`${year} 年 ${month} 月 ${item.day} 日：${item.value.toLocaleString()} ${unit}${item.important > 0 ? `，重要 ${item.important.toLocaleString()} ${unit}` : ''}`}
       render={
         item.records.length ? (
@@ -518,7 +518,7 @@ function AuthorDistributionChart({
                     tabIndex={0}
                     role="img"
                     aria-label={`${item.name}：${item.value.toLocaleString()} ${unit}`}
-                    className="cursor-pointer outline-none transition-[opacity,stroke-width] duration-150 focus-visible:opacity-100"
+                    className="cursor-default outline-none transition-[opacity,stroke-width] duration-150 focus-visible:opacity-100"
                     onPointerEnter={() => {
                       setActiveId(item.id)
                       setHoveredSectorId(item.id)

@@ -1,7 +1,7 @@
 import { Search, X } from 'lucide-react'
 import { useMemo } from 'react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/archive/interaction'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
@@ -134,10 +134,7 @@ export function RecordFilters({
               value={value[field] || '__all__'}
               onValueChange={(next) => update({ [field]: next === '__all__' ? '' : next || '' })}
             >
-              <SelectTrigger
-                aria-label={String(allLabel)}
-                className="w-36 bg-background/85 transition-[background-color,border-color,box-shadow] hover:bg-accent/55 data-popup-open:border-ring data-popup-open:ring-3 data-popup-open:ring-ring/20"
-              >
+              <SelectTrigger aria-label={String(allLabel)} className="w-36 bg-background/85">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent align="start">

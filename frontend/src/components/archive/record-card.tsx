@@ -1,10 +1,9 @@
 import { BookOpenText, CalendarDays, Clock, Paperclip, UserRound } from 'lucide-react'
 import { memo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
-
+import { Button, textLinkClassName } from '@/components/archive/interaction'
 import { MarkupContent } from '@/components/archive/markup-content'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -32,9 +31,9 @@ function AttachmentLink({ attachment }: { attachment: Attachment }) {
   }
   return (
     <span className="inline-grid gap-1">
-      <Button variant="outline" size="sm" disabled={loading} onClick={open}>
+      <Button variant="outline" size="sm" loading={loading} loadingLabel="正在打开…" onClick={open}>
         <Paperclip data-icon="inline-start" />
-        {loading ? '正在打开…' : attachment.name || attachment.file}
+        {attachment.name || attachment.file}
       </Button>
       {error && (
         <span className="text-sm text-destructive" role="status">
@@ -89,7 +88,7 @@ export const RecordCard = memo(function RecordCard({
             {record.author && (
               <Link
                 to={`/person?id=${encodeURIComponent(record.author)}`}
-                className="inline-flex items-center gap-1.5 hover:text-primary"
+                className={`${textLinkClassName} inline-flex items-center gap-1.5`}
               >
                 <UserRound className="size-3.5" />
                 {record.author}
@@ -117,7 +116,7 @@ export const RecordCard = memo(function RecordCard({
                             variant="ghost"
                             size="icon-sm"
                             aria-label={`在书面记录中查看${recordDisplayNumber(record)}`}
-                            className="record-source-action text-muted-foreground hover:text-accent-foreground"
+                            className="record-source-action text-muted-foreground"
                             onClick={(event) => onSourceAction(record, event.currentTarget)}
                           />
                         ) : (
@@ -137,7 +136,7 @@ export const RecordCard = memo(function RecordCard({
                             variant="ghost"
                             size="icon-sm"
                             aria-label={`在书面记录中查看${recordDisplayNumber(record)}`}
-                            className="record-source-action text-muted-foreground hover:text-accent-foreground"
+                            className="record-source-action text-muted-foreground"
                           />
                         )
                       }

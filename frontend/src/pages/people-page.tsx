@@ -3,8 +3,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { Button, textLinkClassName } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
@@ -86,7 +86,7 @@ function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; 
             <SelectTrigger
               size="sm"
               aria-label={`${roleLabels[role]}排序方式`}
-              className="min-w-32 bg-background/85 transition-colors hover:bg-accent/55"
+              className="min-w-32 bg-background/85"
             >
               <SelectValue />
             </SelectTrigger>
@@ -147,7 +147,7 @@ function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; 
                     <TableCell className="pl-5 text-muted-foreground">{index + 1}</TableCell>
                     <TableCell className="font-medium">
                       <Link
-                        className="text-primary underline-offset-4 hover:underline"
+                        className={textLinkClassName}
                         to={`/person?id=${encodeURIComponent(person.id)}`}
                       >
                         {stripMarkup(person.name || person.id)}

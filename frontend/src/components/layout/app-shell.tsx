@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
-
+import { Button } from '@/components/archive/interaction'
 import { PAGE_HEADER_ACTIONS_ID, PageHeaderProvider } from '@/components/layout/page-header'
 import {
   AlertDialog,
@@ -37,7 +37,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
-import { Button } from '@/components/ui/button'
 
 import {
   Sidebar,
@@ -123,6 +122,17 @@ function CloseMobileSidebar() {
 function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
   const location = useLocation()
   const activePath = navigationPath(location.pathname)
+  const [clearing, setClearing] = useState(false)
+
+  const clearAccess = async () => {
+    if (clearing) return
+    setClearing(true)
+    try {
+      await onClearAccess()
+    } finally {
+      setClearing(false)
+    }
+  }
 
   return (
     <Sidebar collapsible="icon" className="app-sidebar">
@@ -210,9 +220,17 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>取消</AlertDialogCancel>
-                  <AlertDialogAction variant="destructive" onClick={() => void onClearAccess()}>
-                    移除并清理
+                  <AlertDialogCancel className="app-button app-button--outline" disabled={clearing}>
+                    取消
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    className="app-button app-button--destructive"
+                    variant="destructive"
+                    disabled={clearing}
+                    aria-busy={clearing || undefined}
+                    onClick={() => void clearAccess()}
+                  >
+                    {clearing ? '正在移除…' : '移除并清理'}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -231,6 +249,7 @@ export function AppShell() {
   const isViewportLocked = viewportLockedPaths.has(location.pathname)
   const isWideContent = wideContentPaths.has(location.pathname)
   const [fullscreen, setFullscreen] = useState(Boolean(document.fullscreenElement))
+  const [fullscreenPending, setFullscreenPending] = useState(false)
   const [registeredTitle, setRegisteredTitle] = useState<{
     token: symbol
     title: string
@@ -302,11 +321,15 @@ export function AppShell() {
   }, [])
 
   const toggleFullscreen = async () => {
+    if (fullscreenPending) return
+    setFullscreenPending(true)
     try {
       if (document.fullscreenElement) await document.exitFullscreen()
       else await document.documentElement.requestFullscreen()
     } catch {
       // Fullscreen may be blocked by browser or embedding policy.
+    } finally {
+      setFullscreenPending(false)
     }
   }
 
@@ -358,6 +381,7 @@ export function AppShell() {
                   data-fullscreen-toggle
                   variant="ghost"
                   size="icon-sm"
+                  loading={fullscreenPending}
                   aria-label={fullscreen ? '退出全屏' : '进入全屏'}
                   title={fullscreen ? '退出全屏' : '进入全屏'}
                   onClick={() => void toggleFullscreen()}

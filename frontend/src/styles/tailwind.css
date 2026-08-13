@@ -122,6 +122,17 @@
   --elevation-subtle: 0 1px 2px oklch(0.22 0.016 55 / 7%);
   --elevation-raised: 0 2px 5px -3px oklch(0.22 0.016 55 / 12%);
   --elevation-overlay: 0 4px 10px -5px oklch(0.18 0.012 55 / 16%);
+  --interaction-duration-fast: 120ms;
+  --interaction-duration-standard: 160ms;
+  --interaction-duration-slow: 200ms;
+  --interaction-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --interaction-surface-hover: color-mix(in oklch, var(--accent) 62%, var(--background));
+  --interaction-surface-pressed: color-mix(in oklch, var(--accent) 82%, var(--background));
+  --interaction-surface-selected: color-mix(in oklch, var(--primary) 11%, var(--background));
+  --interaction-border-hover: color-mix(in oklch, var(--primary) 38%, var(--border));
+  --interaction-border-selected: color-mix(in oklch, var(--primary) 66%, var(--border));
+  --interaction-focus: color-mix(in oklch, var(--ring) 42%, transparent);
+  --interaction-disabled-opacity: 0.5;
 }
 
 .dark {
@@ -223,6 +234,371 @@
   }
 }
 
+/*
+ * Application interaction contract
+ * --------------------------------
+ * These rules extend shadcn through stable data slots and project wrapper
+ * classes. Geometry never changes between states: feedback is limited to
+ * paint, opacity and focus rings, with one shared timing and easing system.
+ */
+body
+:where(
+  a[href],
+  button,
+  [role="button"],
+  [data-slot="button"],
+  [data-slot="toggle"],
+  [data-slot="tabs-trigger"],
+  [data-slot="select-trigger"],
+  [data-slot="checkbox"],
+  [data-slot="radio-group-item"],
+  [data-slot="switch"]
+) {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body a[href],
+body :where([data-slot="button"], [data-slot="toggle"], [data-slot="tabs-trigger"]):not(:disabled),
+body
+  :where(
+    [data-slot="select-trigger"],
+    [data-slot="checkbox"],
+    [data-slot="radio-group-item"],
+    [data-slot="switch"]
+  ):not(:disabled),
+body
+  :where(
+    [data-slot="select-item"],
+    [data-slot="dropdown-menu-item"],
+    [data-slot="dropdown-menu-checkbox-item"],
+    [data-slot="dropdown-menu-radio-item"],
+    [data-slot="dropdown-menu-sub-trigger"],
+    [data-slot="context-menu-item"],
+    [data-slot="context-menu-checkbox-item"],
+    [data-slot="context-menu-radio-item"]
+  ):not([data-disabled]) {
+  cursor: pointer;
+}
+
+body :where(button, [role="button"], [data-slot="toggle"], [data-slot="tabs-trigger"]) {
+  translate: none;
+  transition-property: color, background-color, border-color, box-shadow, opacity;
+  transition-duration: var(--interaction-duration-standard);
+  transition-timing-function: var(--interaction-ease-standard);
+}
+
+body
+  :where(
+    [data-slot="input"],
+    [data-slot="textarea"],
+    [data-slot="select-trigger"],
+    [data-slot="native-select"],
+    [data-slot="checkbox"],
+    [data-slot="radio-group-item"],
+    [data-slot="switch"]
+  ) {
+  transition-property: color, background-color, border-color, box-shadow, opacity;
+  transition-duration: var(--interaction-duration-standard);
+  transition-timing-function: var(--interaction-ease-standard);
+}
+
+body .app-button[data-app-size^="icon"] {
+  min-width: 2rem;
+  min-height: 2rem;
+}
+
+body .app-button[aria-busy="true"] {
+  cursor: progress;
+}
+
+/* Composite shadcn controls can contain their own raw Button (for example a
+   dialog close affordance). Give those touch presses a project-level response
+   without restyling their variant at rest. */
+body [data-slot="button"]:not(.app-button, :disabled):active,
+body [data-slot="select-trigger"]:not(:disabled):active {
+  background-color: var(--interaction-surface-pressed);
+}
+
+body
+  :where(
+    .app-button,
+    [data-slot="alert-dialog-action"],
+    [data-slot="alert-dialog-cancel"],
+    [data-slot="input"],
+    [data-slot="textarea"],
+    [data-slot="select-trigger"],
+    [data-slot="toggle"],
+    [data-slot="tabs-trigger"],
+    [data-slot="checkbox"],
+    [data-slot="radio-group-item"],
+    [data-slot="switch"]
+  ):focus-visible {
+  border-color: var(--ring);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--interaction-focus);
+}
+
+body
+  :where(
+    [data-slot="input"],
+    [data-slot="textarea"],
+    [data-slot="select-trigger"]
+  )[aria-invalid="true"]:focus-visible {
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--destructive) 24%, transparent);
+}
+
+body :where(.app-button, [data-slot="toggle"], [data-slot="tabs-trigger"]):disabled,
+body :where(.app-button, [data-slot="toggle"], [data-slot="tabs-trigger"])[aria-disabled="true"],
+body
+  :where(
+    [data-slot="input"],
+    [data-slot="textarea"],
+    [data-slot="select-trigger"],
+    [data-slot="checkbox"],
+    [data-slot="radio-group-item"],
+    [data-slot="switch"]
+  ):disabled,
+body [data-slot="switch"][data-disabled] {
+  opacity: var(--interaction-disabled-opacity);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  body
+    :is(.app-button--default, [data-slot="alert-dialog-action"]:not(.app-button)):not(
+      :disabled
+    ):hover {
+    background-color: color-mix(in oklch, var(--primary) 92%, var(--foreground));
+  }
+  body .app-button--secondary:not(:disabled):hover {
+    background-color: color-mix(in oklch, var(--secondary) 90%, var(--foreground));
+  }
+  body :is(.app-button--outline, [data-slot="alert-dialog-cancel"]):not(:disabled):hover {
+    border-color: var(--interaction-border-hover);
+    background-color: var(--interaction-surface-hover);
+  }
+  body .app-button--ghost:not(:disabled):hover {
+    background-color: color-mix(in oklch, var(--muted) 78%, transparent);
+  }
+  body .app-button--destructive:not(:disabled):hover {
+    background-color: color-mix(in oklch, var(--destructive) 18%, transparent);
+  }
+  body .app-button--link:not(:disabled):hover {
+    color: color-mix(in oklch, var(--primary) 86%, var(--foreground));
+    text-decoration-thickness: 0.09em;
+  }
+  body
+    :where([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]):not(
+      :disabled,
+      :focus-visible,
+      [aria-invalid="true"]
+    ):hover {
+    border-color: color-mix(in oklch, var(--ring) 42%, var(--input));
+  }
+}
+
+body
+  :is(.app-button--default, [data-slot="alert-dialog-action"]:not(.app-button)):not(
+    :disabled
+  ):active {
+  background-color: color-mix(in oklch, var(--primary) 86%, var(--foreground));
+}
+body .app-button--secondary:not(:disabled):active {
+  background-color: color-mix(in oklch, var(--secondary) 82%, var(--foreground));
+}
+body :is(.app-button--outline, [data-slot="alert-dialog-cancel"]):not(:disabled):active,
+body .app-button--ghost:not(:disabled):active {
+  background-color: var(--interaction-surface-pressed);
+}
+body .app-button--destructive:not(:disabled):active {
+  background-color: color-mix(in oklch, var(--destructive) 25%, transparent);
+}
+body .app-button--link:not(:disabled):active {
+  color: color-mix(in oklch, var(--primary) 76%, var(--foreground));
+}
+
+body :where(.app-button--outline, .app-button--ghost)[aria-pressed="true"],
+body [data-slot="toggle"][aria-pressed="true"] {
+  border-color: var(--interaction-border-selected);
+  background-color: var(--interaction-surface-selected);
+  color: var(--foreground);
+}
+
+body [data-slot="select-trigger"]:is([data-popup-open], [aria-expanded="true"]),
+body [data-slot="tabs-trigger"][data-active] {
+  border-color: var(--interaction-border-selected);
+}
+
+body [data-slot="tabs-trigger"]:not(:disabled):active {
+  background-color: var(--interaction-surface-pressed);
+}
+
+body
+  :where(
+    [data-slot="select-item"],
+    [data-slot="dropdown-menu-item"],
+    [data-slot="dropdown-menu-checkbox-item"],
+    [data-slot="dropdown-menu-radio-item"],
+    [data-slot="dropdown-menu-sub-trigger"],
+    [data-slot="context-menu-item"],
+    [data-slot="context-menu-checkbox-item"],
+    [data-slot="context-menu-radio-item"]
+  ) {
+  min-height: 2rem;
+  transition-property: color, background-color, opacity;
+  transition-duration: var(--interaction-duration-fast);
+  transition-timing-function: var(--interaction-ease-standard);
+}
+
+body
+  :where(
+    [data-slot="select-item"],
+    [data-slot="dropdown-menu-item"],
+    [data-slot="dropdown-menu-checkbox-item"],
+    [data-slot="dropdown-menu-radio-item"],
+    [data-slot="dropdown-menu-sub-trigger"],
+    [data-slot="context-menu-item"],
+    [data-slot="context-menu-checkbox-item"],
+    [data-slot="context-menu-radio-item"]
+  ):not([data-disabled]):active {
+  background-color: var(--interaction-surface-pressed);
+}
+
+body
+  :where([data-slot="checkbox"], [data-slot="radio-group-item"], [data-slot="switch"]):not(
+    :disabled,
+    [data-disabled]
+  ):active {
+  border-color: var(--interaction-border-selected);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 18%, transparent);
+}
+
+.app-interactive-surface {
+  border-radius: var(--radius-xl);
+  color: inherit;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app-interactive-card > [data-slot="card"],
+.app-interactive-item {
+  transition-property: color, background-color, border-color, box-shadow;
+  transition-duration: var(--interaction-duration-standard);
+  transition-timing-function: var(--interaction-ease-standard);
+}
+
+.app-interactive-card:focus-visible,
+.app-interactive-item:focus-visible {
+  box-shadow: 0 0 0 3px var(--interaction-focus);
+}
+
+.app-interactive-card:focus-visible > [data-slot="card"],
+.app-interactive-item:focus-visible {
+  border-color: var(--ring);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .app-interactive-card:hover > [data-slot="card"],
+  .app-interactive-item:hover {
+    border-color: var(--interaction-border-hover);
+    background-color: var(--interaction-surface-hover);
+  }
+
+  .app-interactive-card:hover :where([data-slot="item-actions"], .app-inline-action),
+  .app-interactive-item:hover [data-slot="item-actions"] {
+    color: var(--primary);
+  }
+}
+
+.app-interactive-card:active > [data-slot="card"],
+.app-interactive-item:active {
+  border-color: var(--interaction-border-selected);
+  background-color: var(--interaction-surface-pressed);
+}
+
+.app-interactive-surface:is(.is-selected, [aria-current="page"], [aria-selected="true"]),
+.app-interactive-surface:is(.is-selected, [aria-current="page"], [aria-selected="true"])
+  > [data-slot="card"] {
+  border-color: var(--interaction-border-selected);
+  background-color: var(--interaction-surface-selected);
+}
+
+.app-interactive-surface:is(.is-disabled, [aria-disabled="true"]) {
+  cursor: not-allowed;
+  opacity: var(--interaction-disabled-opacity);
+}
+
+.app-interactive-media {
+  transition-property: background-color, border-color, box-shadow, opacity;
+  transition-duration: var(--interaction-duration-standard);
+  transition-timing-function: var(--interaction-ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  body .app-interactive-media:not(:disabled):hover {
+    border-color: var(--interaction-border-hover);
+    background-color: color-mix(in oklch, var(--primary) 4%, transparent);
+  }
+}
+
+body .app-interactive-media:not(:disabled):active {
+  border-color: var(--interaction-border-selected);
+  background-color: color-mix(in oklch, var(--primary) 8%, transparent);
+}
+
+.app-media-affordance {
+  opacity: 0;
+  transition: opacity var(--interaction-duration-standard) var(--interaction-ease-standard);
+}
+
+.app-interactive-media:focus-visible .app-media-affordance {
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .app-interactive-media:hover .app-media-affordance {
+    opacity: 1;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .app-media-affordance {
+    opacity: 1;
+  }
+}
+
+.app-text-link,
+.app-inline-action {
+  color: color-mix(in oklch, var(--primary) 86%, var(--foreground));
+  text-decoration-line: underline;
+  text-decoration-color: color-mix(in oklch, var(--primary) 38%, transparent);
+  text-decoration-thickness: 0.06em;
+  text-underline-offset: 0.2em;
+  transition:
+    color var(--interaction-duration-fast) var(--interaction-ease-standard),
+    text-decoration-color var(--interaction-duration-fast) var(--interaction-ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .app-text-link:hover,
+  .app-inline-action:hover {
+    color: var(--primary);
+    text-decoration-color: currentColor;
+  }
+}
+
+.app-text-link:active,
+.app-inline-action:active {
+  color: color-mix(in oklch, var(--primary) 72%, var(--foreground));
+}
+
+.app-text-link:focus-visible {
+  border-radius: 0.2rem;
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 @layer components {
   .background-layer {
     contain: strict;
@@ -267,13 +643,24 @@
     text-underline-offset: 0.2em;
   }
 
-  .markup-link:hover,
   .markup-link:focus-visible {
-    background: transparent;
+    border-radius: 0.18em;
+    background: color-mix(in oklch, var(--primary) 8%, transparent);
     color: var(--primary);
     text-decoration-style: solid;
     text-decoration-thickness: 0.1em;
-    outline: none;
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .markup-link:hover {
+      background: transparent;
+      color: var(--primary);
+      text-decoration-style: solid;
+      text-decoration-thickness: 0.1em;
+    }
   }
 
   .record-delete {
@@ -295,8 +682,13 @@
     padding-inline: 0.2rem;
     user-select: none;
   }
-  .record-redacted:hover {
+  .record-redacted:active {
     color: var(--background);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .record-redacted:hover {
+      color: var(--background);
+    }
   }
   .record-center {
     display: block;
@@ -314,9 +706,16 @@
       background-color 150ms ease,
       text-decoration-color 150ms ease;
   }
-  .record-annotation:hover,
   .record-annotation:focus-visible {
     background: color-mix(in oklch, var(--primary) 8%, transparent);
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .record-annotation:hover {
+      background: color-mix(in oklch, var(--primary) 8%, transparent);
+    }
   }
   .record-markup.annotation-content {
     contain: none;
@@ -676,15 +1075,16 @@
   font-weight: 600;
   transform: none;
   translate: none;
-  transition:
-    border-color 160ms ease,
-    background-color 160ms ease,
-    color 160ms ease;
+  /* Theme changes swap light and dark foreground/background pairs atomically.
+     Interpolating both colors creates a temporary low-contrast midpoint. */
+  transition: border-color var(--interaction-duration-standard) var(--interaction-ease-standard);
 }
-.quiz-question-card .quiz-option:not(:disabled):hover {
-  border-color: color-mix(in oklch, var(--quiz-type-accent) 46%, var(--border));
-  background: var(--quiz-option-hover-surface);
-  color: var(--quiz-option-foreground);
+@media (hover: hover) and (pointer: fine) {
+  .quiz-question-card .quiz-option:not(:disabled):hover {
+    border-color: color-mix(in oklch, var(--quiz-type-accent) 46%, var(--border));
+    background: var(--quiz-option-hover-surface);
+    color: var(--quiz-option-foreground);
+  }
 }
 .quiz-question-card .quiz-option:not(:disabled):active {
   border-color: color-mix(in oklch, var(--quiz-type-accent) 58%, var(--border));
@@ -731,7 +1131,6 @@
   background: var(--quiz-error-surface);
   color: var(--quiz-error-foreground);
   font-weight: 650;
-  animation: quiz-wrong-nudge 260ms ease both;
 }
 .quiz-question-card .quiz-option.is-wrong .quiz-option-label {
   background: var(--quiz-error-emphasis);
@@ -741,7 +1140,6 @@
 @media (hover: hover) and (pointer: fine) {
   .record-source-action {
     opacity: 0;
-    transform: translateY(0.12rem);
   }
   .group\/record:hover .record-source-action,
   .group\/record:focus-within .record-source-action,
@@ -750,7 +1148,6 @@
   a:focus-visible .record-source-action,
   .record-source-action:focus-visible {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -758,15 +1155,6 @@
   from {
     opacity: 0;
     transform: translateX(-0.35rem);
-  }
-}
-
-@keyframes quiz-wrong-nudge {
-  33% {
-    transform: translateX(-0.18rem);
-  }
-  66% {
-    transform: translateX(0.18rem);
   }
 }
 
@@ -801,16 +1189,16 @@
 
 .app-topbar {
   background: color-mix(in oklch, var(--background) 94%, transparent);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  -webkit-backdrop-filter: blur(10px) saturate(1.04);
+  backdrop-filter: blur(10px) saturate(1.04);
   box-shadow: none;
 }
 
 .app-sidebar [data-slot="sidebar-inner"],
 [data-sidebar="sidebar"][data-mobile="true"] {
   background: color-mix(in oklch, var(--sidebar) 94%, transparent);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  -webkit-backdrop-filter: blur(10px) saturate(1.04);
+  backdrop-filter: blur(10px) saturate(1.04);
 }
 
 [data-background]:not([data-background="default"])
@@ -845,10 +1233,12 @@
     background-color 180ms ease,
     box-shadow 180ms ease;
 }
-.appearance-choice:hover {
-  border-color: color-mix(in oklch, var(--primary) 38%, var(--border));
-  background: color-mix(in oklch, var(--background) 76%, transparent);
-  box-shadow: var(--elevation-subtle);
+@media (hover: hover) and (pointer: fine) {
+  .appearance-choice:hover {
+    border-color: color-mix(in oklch, var(--primary) 38%, var(--border));
+    background: color-mix(in oklch, var(--background) 76%, transparent);
+    box-shadow: var(--elevation-subtle);
+  }
 }
 .appearance-choice[data-selected="true"] {
   border-color: color-mix(in oklch, var(--primary) 72%, var(--border));
@@ -871,6 +1261,18 @@
 .appearance-choice:has([data-slot="radio-group-item"][data-disabled]) {
   cursor: not-allowed;
   opacity: 0.58;
+}
+
+.background-choice-preview {
+  transition:
+    opacity var(--interaction-duration-slow) var(--interaction-ease-standard),
+    scale var(--interaction-duration-slow) var(--interaction-ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  [data-background-id]:hover .background-choice-preview {
+    scale: 1.012;
+  }
 }
 
 /* This preview mirrors the production material: planar geometry, transmitted
@@ -1015,15 +1417,21 @@ html[data-box-style="glass"] body .liquid-control-group > [data-slot="button"] {
     box-shadow 150ms ease;
 }
 
-html[data-box-style="glass"] body .liquid-control-group:is(:hover, :focus-within) {
+html[data-box-style="glass"] body .liquid-control-group:focus-within {
   border-color: color-mix(in oklch, var(--primary) 24%, var(--glass-border));
 }
 
-html[data-box-style="glass"]
-  body
-  .liquid-control-group
-  > [data-slot="button"]:not(:disabled):hover {
-  background: color-mix(in oklch, var(--foreground) 7%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  html[data-box-style="glass"] body .liquid-control-group:is(:hover, :focus-within) {
+    border-color: color-mix(in oklch, var(--primary) 24%, var(--glass-border));
+  }
+
+  html[data-box-style="glass"]
+    body
+    .liquid-control-group
+    > [data-slot="button"]:not(:disabled):hover {
+    background: color-mix(in oklch, var(--foreground) 7%, transparent);
+  }
 }
 
 html[data-box-style="glass"]
@@ -1043,6 +1451,11 @@ html[data-box-style="glass"]
   transform: none;
 }
 
+html[data-box-style="glass"] body .liquid-control-group > [data-slot="button"]:focus-visible {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--interaction-focus);
+}
+
 html[data-box-style="glass"] body [data-slot="tabs-list"]:not([data-variant="line"]) {
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius-group);
@@ -1058,11 +1471,13 @@ html[data-box-style="glass"]
   transform: none;
 }
 
-html[data-box-style="glass"]
-  body
-  [data-slot="tabs-list"]:not([data-variant="line"])
-  > [data-slot="tabs-trigger"]:not([data-active]):hover {
-  background: color-mix(in oklch, var(--foreground) 6%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  html[data-box-style="glass"]
+    body
+    [data-slot="tabs-list"]:not([data-variant="line"])
+    > [data-slot="tabs-trigger"]:not([data-active]):hover {
+    background: color-mix(in oklch, var(--foreground) 6%, transparent);
+  }
 }
 
 html[data-box-style="glass"]
@@ -1073,13 +1488,28 @@ html[data-box-style="glass"]
   box-shadow: none;
 }
 
+html[data-box-style="glass"]
+  body
+  [data-slot="tabs-list"]:not([data-variant="line"])
+  > [data-slot="tabs-trigger"]:focus-visible {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--interaction-focus);
+}
+
 .quiz-filter-bar [data-slot="button"]:disabled {
   opacity: 0.72;
 }
 
-html[data-box-style="glass"] body [data-liquid-glass-interactive]:is(:hover, :focus-visible) {
+html[data-box-style="glass"] body [data-liquid-glass-interactive]:focus-visible {
   border-color: color-mix(in oklch, var(--primary) 30%, var(--glass-border));
   box-shadow: var(--elevation-raised);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html[data-box-style="glass"] body [data-liquid-glass-interactive]:hover {
+    border-color: color-mix(in oklch, var(--primary) 30%, var(--glass-border));
+    box-shadow: var(--elevation-raised);
+  }
 }
 
 /* Structural navigation already has a real divider. Keeping it shadowless
@@ -1186,15 +1616,35 @@ html[data-box-style="glass"] #root :is([data-slot="input"], [data-slot="select-t
   box-shadow: none;
 }
 
+html[data-box-style="glass"]
+  #root
+  :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]):focus-visible {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--interaction-focus);
+}
+
+html[data-box-style="glass"]
+  #root
+  :is(
+    [data-slot="input"],
+    [data-slot="textarea"],
+    [data-slot="select-trigger"]
+  )[aria-invalid="true"]:focus-visible {
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--destructive) 24%, transparent);
+}
+
 html[data-box-style="glass"] #root .appearance-choice {
   border-color: var(--glass-content-border);
   background: color-mix(in oklch, var(--glass-content-surface) 88%, transparent);
   box-shadow: var(--elevation-subtle);
 }
 
-html[data-box-style="glass"] #root .appearance-choice:hover {
-  border-color: color-mix(in oklch, var(--primary) 38%, var(--glass-content-border));
-  background: color-mix(in oklch, var(--glass-content-surface) 96%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  html[data-box-style="glass"] #root .appearance-choice:hover {
+    border-color: color-mix(in oklch, var(--primary) 38%, var(--glass-content-border));
+    background: color-mix(in oklch, var(--glass-content-surface) 96%, transparent);
+  }
 }
 
 html[data-box-style="glass"] #root .appearance-choice[data-selected="true"] {

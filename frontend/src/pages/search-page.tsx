@@ -3,9 +3,9 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { Button, interactiveSurfaceVariants } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useArchive } from '@/features/archive/archive-context'
@@ -106,6 +106,7 @@ function ResultCard({ result, query }: { result: SearchResult; query: string }) 
   return (
     <Link
       to={result.href}
+      className={interactiveSurfaceVariants({ kind: 'card' })}
       onClick={(event) => {
         if (!anchor) return
         prepareRecordJump(anchor)

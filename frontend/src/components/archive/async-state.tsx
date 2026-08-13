@@ -1,6 +1,6 @@
 import { AlertCircle, Inbox, RotateCcw } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/archive/interaction'
 import {
   Empty,
   EmptyContent,
