@@ -141,6 +141,7 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
     activeIndex,
     navigation.length,
     'vertical',
+    ':scope > [data-slot="sidebar-menu-item"]',
   )
 
   const clearAccess = async () => {

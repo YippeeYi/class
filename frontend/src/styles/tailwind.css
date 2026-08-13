@@ -116,6 +116,7 @@
   --glass-ambient: color-mix(in oklch, var(--primary) 5%, transparent);
   --glass-radius-group: calc(var(--radius) * 1.44);
   --glass-radius-control: max(var(--radius-md), calc(var(--glass-radius-group) - 3px));
+  --glass-radius-control-tight: max(var(--radius-md), calc(var(--glass-radius-group) - 4px));
   --glass-radius-panel: calc(var(--glass-radius-group) + var(--radius) * 0.48);
   --glass-blur: 18px;
   --glass-saturation: 1.12;
@@ -123,6 +124,8 @@
   --elevation-raised: 0 2px 5px -3px oklch(0.22 0.016 55 / 12%);
   --elevation-overlay: 0 4px 10px -5px oklch(0.18 0.012 55 / 16%);
   --interaction-duration-fast: 120ms;
+  --interaction-duration-press-in: 82ms;
+  --interaction-duration-release: 210ms;
   --interaction-duration-standard: 160ms;
   --interaction-duration-slow: 200ms;
   --interaction-duration-liquid: 360ms;
@@ -338,9 +341,15 @@ body
 }
 
 body :where(button, [role="button"], [data-slot="toggle"], [data-slot="tabs-trigger"]) {
-  translate: none;
-  transition-property: color, background-color, border-color, border-radius, box-shadow, opacity;
-  transition-duration: var(--interaction-duration-standard);
+  translate: 0 0;
+  scale: 1;
+  transition-property:
+    color, background-color, border-color, border-radius, box-shadow, opacity, translate, scale;
+  transition-duration:
+    var(--interaction-duration-standard), var(--interaction-duration-standard),
+    var(--interaction-duration-standard), var(--interaction-duration-standard),
+    var(--interaction-duration-standard), var(--interaction-duration-standard),
+    var(--interaction-duration-release), var(--interaction-duration-release);
   transition-timing-function: var(--interaction-ease-standard);
 }
 
@@ -372,6 +381,45 @@ body .app-button[data-app-size^="icon"] {
 
 body .app-button[aria-busy="true"] {
   cursor: progress;
+}
+
+body .app-button {
+  --app-button-press-x: 0.985;
+  --app-button-press-y: 0.965;
+  --app-button-press-shift: 1px;
+  position: relative;
+  isolation: isolate;
+  transform-origin: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body .app-button[data-app-size^="icon"] {
+  --app-button-press-x: 0.972;
+  --app-button-press-y: 0.952;
+  --app-button-press-shift: 0.5px;
+}
+
+body .app-button[data-app-size="xs"],
+body .app-button[data-app-size="sm"] {
+  --app-button-press-x: 0.98;
+  --app-button-press-y: 0.96;
+  --app-button-press-shift: 0.75px;
+}
+
+body
+  :where(
+    .app-button,
+    [data-slot="button"],
+    [data-slot="alert-dialog-action"],
+    [data-slot="alert-dialog-cancel"],
+    [data-slot="sidebar-menu-button"],
+    [data-slot="sidebar-rail"]
+  ):not(:disabled, [aria-disabled="true"]):active {
+  translate: 0 var(--app-button-press-shift, 1px);
+  scale: var(--app-button-press-x, 0.985) var(--app-button-press-y, 0.965);
+  transition-duration: var(--interaction-duration-press-in);
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  will-change: scale, translate;
 }
 
 /* Composite shadcn controls can contain their own raw Button (for example a
@@ -560,15 +608,16 @@ body .app-segmented-control[data-segmented-control="true"] {
 :where(body .app-segmented-control[data-segmented-control="true"] > .app-selection-indicator) {
   position: absolute;
   z-index: 1;
-  top: 3px;
-  bottom: 3px;
-  left: 3px;
-  width: calc((100% - 6px) / var(--selection-count));
+  top: 0;
+  left: 0;
+  width: var(--selection-width, 0px);
+  height: var(--selection-height, 0px);
   overflow: hidden;
   border: 1px solid color-mix(in oklch, var(--interaction-border-selected) 64%, transparent);
   border-radius: var(--radius-concentric-inset);
   background: var(--background);
-  transform: translate3d(calc(var(--selection-to) * 100%), 0, 0);
+  transform: translate3d(var(--selection-x, 0px), var(--selection-y, 0px), 0) scale3d(1, 1, 1);
+  transform-origin: top left;
   transition:
     background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
     border-color var(--interaction-duration-standard) var(--interaction-ease-standard);
@@ -654,16 +703,17 @@ body
   position: absolute;
   z-index: 1;
   top: 0;
-  right: 0;
   left: 0;
-  height: 2rem;
+  width: var(--selection-width, 0px);
+  height: var(--selection-height, 0px);
   margin: 0;
   overflow: hidden;
   border: 1px solid color-mix(in oklch, var(--sidebar-primary) 78%, var(--sidebar-border));
   border-radius: var(--radius-md);
   background: var(--sidebar-primary);
   list-style: none;
-  transform: translate3d(0, calc(var(--selection-to) * 100%), 0);
+  transform: translate3d(var(--selection-x, 0px), var(--selection-y, 0px), 0) scale3d(1, 1, 1);
+  transform-origin: top left;
   transition:
     background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
     border-color var(--interaction-duration-standard) var(--interaction-ease-standard);
@@ -674,6 +724,38 @@ body
     .app-sidebar-navigation
   )[data-selection-switching]
   > .app-selection-indicator {
+  will-change: transform;
+}
+
+/* Appearance radio grids use the same stable entity across rows and columns.
+   The frame is paint-only and follows the real option bounds, so responsive
+   wrapping never changes selection semantics or introduces layout animation. */
+.app-spatial-selection {
+  position: relative;
+  isolation: isolate;
+}
+
+.app-spatial-selection > .app-selection-indicator {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  left: 0;
+  width: var(--selection-width, 0px);
+  height: var(--selection-height, 0px);
+  overflow: hidden;
+  border: 1px solid var(--interaction-border-selected);
+  border-radius: var(--radius-panel);
+  background: color-mix(in oklch, var(--primary) 5%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--background) 48%, transparent);
+  transform: translate3d(var(--selection-x, 0px), var(--selection-y, 0px), 0) scale3d(1, 1, 1);
+  transform-origin: top left;
+}
+
+.app-spatial-selection > .app-selection-bridge {
+  display: none;
+}
+
+.app-spatial-selection[data-selection-switching] > .app-selection-indicator {
   will-change: transform;
 }
 
@@ -1710,6 +1792,10 @@ body [data-slot="switch-thumb"] {
   background: color-mix(in oklch, var(--primary) 7%, var(--background));
   box-shadow: var(--elevation-subtle);
 }
+.app-spatial-selection .appearance-choice[data-selected="true"] {
+  border-color: transparent;
+  background: color-mix(in oklch, var(--background) 62%, transparent);
+}
 .appearance-choice:active {
   background: color-mix(in oklch, var(--primary) 10%, var(--background));
   box-shadow: var(--elevation-subtle);
@@ -1875,6 +1961,144 @@ html[data-box-style="glass"]
   border-radius: var(--glass-radius-group);
 }
 
+/* Project buttons use one paint-only optical stack. A pointer press records
+   its origin once, then CSS handles compression, illumination, edge tension,
+   depth loss, and release without React state or per-frame layout reads. */
+html[data-box-style="glass"] body .app-button:not(.app-button--link) {
+  overflow: clip;
+  border-color: color-mix(in oklch, var(--glass-border) 84%, transparent);
+  border-radius: var(--glass-radius-control);
+  background:
+    linear-gradient(180deg, color-mix(in oklch, white 28%, transparent) 0, transparent 1.5px),
+    linear-gradient(112deg, color-mix(in oklch, white 8%, transparent), transparent 54%),
+    var(--app-button-glass-fill, color-mix(in oklch, var(--glass-surface-strong) 90%, transparent));
+  background-clip: padding-box;
+  box-shadow:
+    0 1px 2px color-mix(in oklch, var(--foreground) 10%, transparent),
+    inset 0 1px color-mix(in oklch, white 16%, transparent);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  transition-duration:
+    var(--interaction-duration-standard), var(--interaction-duration-standard),
+    var(--interaction-duration-standard), var(--interaction-duration-standard),
+    var(--interaction-duration-release), var(--interaction-duration-standard),
+    var(--interaction-duration-release), var(--interaction-duration-release);
+  transition-timing-function: var(--interaction-ease-liquid);
+}
+
+html[data-box-style="glass"] body .app-button--default {
+  --app-button-glass-fill: color-mix(in oklch, var(--primary) 84%, var(--glass-surface-strong));
+}
+
+html[data-box-style="glass"] body .app-button--secondary {
+  --app-button-glass-fill: color-mix(in oklch, var(--secondary) 76%, var(--glass-surface-strong));
+}
+
+html[data-box-style="glass"] body .app-button--outline {
+  --app-button-glass-fill: color-mix(in oklch, var(--glass-content-surface) 76%, transparent);
+}
+
+html[data-box-style="glass"] body .app-button--ghost {
+  --app-button-glass-fill: color-mix(in oklch, var(--glass-surface) 48%, transparent);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+html[data-box-style="glass"] body .app-button--destructive {
+  --app-button-glass-fill: color-mix(in oklch, var(--destructive) 18%, var(--glass-surface-strong));
+  border-color: color-mix(in oklch, var(--destructive) 34%, var(--glass-border));
+}
+
+html[data-box-style="glass"] body .app-button:not(.app-button--link)::before {
+  position: absolute;
+  z-index: -1;
+  inset: -55%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at var(--app-press-x, 50%) var(--app-press-y, 50%),
+    color-mix(in oklch, white 54%, transparent) 0,
+    color-mix(in oklch, var(--primary) 18%, transparent) 20%,
+    transparent 52%
+  );
+  content: "";
+  opacity: 0.1;
+  transform: scale3d(0.58, 0.46, 1);
+  transform-origin: var(--app-press-x, 50%) var(--app-press-y, 50%);
+  transition:
+    opacity var(--interaction-duration-release) var(--interaction-ease-liquid),
+    transform var(--interaction-duration-release) var(--interaction-ease-liquid);
+  pointer-events: none;
+}
+
+html[data-box-style="glass"] body .app-button:not(.app-button--link)::after {
+  position: absolute;
+  z-index: 2;
+  inset: 1px;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 1px color-mix(in oklch, white 24%, transparent),
+    inset 0 -1px color-mix(in oklch, var(--foreground) 7%, transparent);
+  content: "";
+  opacity: 0.62;
+  transform: scale3d(1, 1, 1);
+  transition:
+    opacity var(--interaction-duration-release) var(--interaction-ease-liquid),
+    transform var(--interaction-duration-release) var(--interaction-ease-liquid);
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html[data-box-style="glass"] body .app-button:not(.app-button--link, :disabled):hover {
+    border-color: color-mix(in oklch, var(--primary) 31%, var(--glass-border));
+    box-shadow:
+      0 2px 4px -2px color-mix(in oklch, var(--foreground) 18%, transparent),
+      inset 0 1px color-mix(in oklch, white 22%, transparent);
+  }
+
+  html[data-box-style="glass"] body .app-button:not(.app-button--link, :disabled):hover::before {
+    opacity: 0.2;
+  }
+}
+
+html[data-box-style="glass"] body .app-button:not(.app-button--link, :disabled):active {
+  border-color: color-mix(in oklch, var(--primary) 42%, var(--glass-border));
+  background:
+    linear-gradient(180deg, color-mix(in oklch, white 18%, transparent) 0, transparent 1px),
+    linear-gradient(112deg, color-mix(in oklch, white 12%, transparent), transparent 58%),
+    color-mix(in oklch, var(--app-button-glass-fill) 88%, var(--foreground) 4%);
+  box-shadow:
+    0 0.5px 1px color-mix(in oklch, var(--foreground) 8%, transparent),
+    inset 0 1.5px 3px color-mix(in oklch, var(--foreground) 14%, transparent),
+    inset 0 -1px color-mix(in oklch, white 13%, transparent);
+  transition-duration: var(--interaction-duration-press-in);
+}
+
+html[data-box-style="glass"] body .app-button:not(.app-button--link, :disabled):active::before {
+  opacity: 0.78;
+  transform: scale3d(1.08, 0.92, 1);
+  transition-duration: var(--interaction-duration-press-in);
+}
+
+html[data-box-style="glass"] body .app-button:not(.app-button--link, :disabled):active::after {
+  opacity: 0.9;
+  transform: scale3d(0.992, 0.958, 1);
+  transition-duration: var(--interaction-duration-press-in);
+}
+
+html[data-box-style="glass"]
+  body
+  :where(
+    [data-slot="button"]:not(.app-button),
+    [data-slot="alert-dialog-action"],
+    [data-slot="alert-dialog-cancel"],
+    [data-slot="sidebar-menu-button"]
+  ):not(:disabled, [aria-disabled="true"]):active {
+  border-color: color-mix(in oklch, var(--primary) 34%, var(--glass-border));
+  box-shadow:
+    inset 0 1.5px 3px color-mix(in oklch, var(--foreground) 12%, transparent),
+    inset 0 -1px color-mix(in oklch, white 12%, transparent);
+}
+
 /* Neighbouring controls share the parent sample. Hover, press, selection and
    focus alter only thin overlay fills, so geometry and edges never jump. */
 html[data-box-style="glass"] body .liquid-control-group {
@@ -1943,7 +2167,7 @@ html[data-box-style="glass"]
   body
   [data-slot="tabs-list"]:not([data-variant="line"])
   > [data-slot="tabs-trigger"] {
-  border-radius: var(--glass-radius-control);
+  border-radius: var(--glass-radius-control-tight);
   background: transparent;
   box-shadow: none;
   transform: none;
@@ -1979,7 +2203,11 @@ html[data-box-style="glass"]
    can continue from the current composited transform without React remounts. */
 html[data-box-style="glass"]
   body
-  :is(.app-segmented-control[data-segmented-control="true"], .app-sidebar-navigation)
+  :is(
+    .app-segmented-control[data-segmented-control="true"],
+    .app-sidebar-navigation,
+    .app-spatial-selection
+  )
   > .app-selection-indicator {
   overflow: visible;
   border-color: transparent;
@@ -1991,7 +2219,11 @@ html[data-box-style="glass"]
 
 html[data-box-style="glass"]
   body
-  :is(.app-segmented-control[data-segmented-control="true"], .app-sidebar-navigation)
+  :is(
+    .app-segmented-control[data-segmented-control="true"],
+    .app-sidebar-navigation,
+    .app-spatial-selection
+  )
   > .app-selection-indicator
   > .app-selection-refraction {
   display: block;
@@ -2015,7 +2247,11 @@ html[data-box-style="glass"]
 
 html[data-box-style="glass"]
   body
-  :is(.app-segmented-control[data-segmented-control="true"], .app-sidebar-navigation)
+  :is(
+    .app-segmented-control[data-segmented-control="true"],
+    .app-sidebar-navigation,
+    .app-spatial-selection
+  )
   > .app-selection-indicator
   > .app-selection-refraction::before {
   position: absolute;
@@ -2041,7 +2277,11 @@ html[data-box-style="glass"]
 
 html[data-box-style="glass"]
   body
-  :is(.app-segmented-control[data-segmented-control="true"], .app-sidebar-navigation)
+  :is(
+    .app-segmented-control[data-segmented-control="true"],
+    .app-sidebar-navigation,
+    .app-spatial-selection
+  )
   > .app-selection-indicator
   > .app-selection-refraction::after {
   position: absolute;
@@ -2063,7 +2303,11 @@ html[data-box-style="glass"]
 
 html[data-box-style="glass"]
   body
-  :is(.app-segmented-control[data-segmented-control="true"], .app-sidebar-navigation)
+  :is(
+    .app-segmented-control[data-segmented-control="true"],
+    .app-sidebar-navigation,
+    .app-spatial-selection
+  )
   > .app-selection-indicator
   > .app-selection-lens {
   z-index: 3;
@@ -2081,7 +2325,45 @@ html[data-box-style="glass"]
 
 html[data-box-style="glass"]
   body
-  .app-segmented-control[data-segmented-control="true"][data-selection-direction="forward"]
+  :is(
+    .app-segmented-control[data-segmented-control="true"],
+    .app-sidebar-navigation,
+    .app-spatial-selection
+  )[data-selection-axis="vertical"]
+  > .app-selection-indicator
+  > .app-selection-lens {
+  background: linear-gradient(
+    14deg,
+    transparent 10%,
+    color-mix(in oklch, white 38%, transparent) 43%,
+    color-mix(in oklch, var(--primary) 14%, transparent) 57%,
+    transparent 84%
+  );
+  background-size: 100% 210%;
+}
+
+html[data-box-style="glass"]
+  body
+  :is(
+    .app-segmented-control[data-segmented-control="true"],
+    .app-sidebar-navigation,
+    .app-spatial-selection
+  )[data-selection-axis="vertical"]
+  > .app-selection-indicator
+  > .app-selection-refraction::after {
+  background:
+    radial-gradient(circle at 14% 18%, rgb(255 255 255 / 33%), transparent 22%),
+    radial-gradient(
+      circle at 82% 78%,
+      color-mix(in oklch, var(--primary) 22%, transparent),
+      transparent 32%
+    ),
+    linear-gradient(12deg, transparent 18%, rgb(255 255 255 / 18%) 45%, transparent 69%);
+}
+
+html[data-box-style="glass"]
+  body
+  [data-selection-axis="horizontal"][data-selection-direction="forward"]
   > .app-selection-indicator
   > .app-selection-refraction {
   transform-origin: left center;
@@ -2089,7 +2371,7 @@ html[data-box-style="glass"]
 
 html[data-box-style="glass"]
   body
-  .app-segmented-control[data-segmented-control="true"][data-selection-direction="backward"]
+  [data-selection-axis="horizontal"][data-selection-direction="backward"]
   > .app-selection-indicator
   > .app-selection-refraction {
   transform-origin: right center;
@@ -2097,7 +2379,7 @@ html[data-box-style="glass"]
 
 html[data-box-style="glass"]
   body
-  .app-sidebar-navigation[data-selection-direction="forward"]
+  [data-selection-axis="vertical"][data-selection-direction="forward"]
   > .app-selection-indicator
   > .app-selection-refraction {
   transform-origin: center top;
@@ -2105,7 +2387,7 @@ html[data-box-style="glass"]
 
 html[data-box-style="glass"]
   body
-  .app-sidebar-navigation[data-selection-direction="backward"]
+  [data-selection-axis="vertical"][data-selection-direction="backward"]
   > .app-selection-indicator
   > .app-selection-refraction {
   transform-origin: center bottom;
@@ -2115,14 +2397,16 @@ html[data-box-style="glass"]
   body
   :is(
     .app-segmented-control[data-segmented-control="true"],
-    .app-sidebar-navigation
+    .app-sidebar-navigation,
+    .app-spatial-selection
   )[data-selection-switching]
   > :is(.app-selection-indicator, .app-selection-bridge),
 html[data-box-style="glass"]
   body
   :is(
     .app-segmented-control[data-segmented-control="true"],
-    .app-sidebar-navigation
+    .app-sidebar-navigation,
+    .app-spatial-selection
   )[data-selection-switching]
   > .app-selection-indicator
   > :is(.app-selection-refraction, .app-selection-lens) {
@@ -2131,44 +2415,79 @@ html[data-box-style="glass"]
 
 html[data-box-style="glass"]
   body
-  .app-segmented-control[data-segmented-control="true"][data-selection-switching]
-  > .app-selection-bridge {
-  position: absolute;
-  z-index: 0;
-  top: 4px;
-  bottom: 4px;
-  left: 3px;
-  display: block;
-  width: calc((100% - 6px) / var(--selection-count));
-  border-block: 1px solid color-mix(in oklch, white 18%, var(--glass-border));
-  border-radius: var(--glass-radius-control);
-  background: color-mix(in oklch, var(--primary) 10%, var(--glass-surface-strong));
-  transform: translate3d(calc(var(--selection-min) * 100%), 0, 0)
-    scaleX(calc(var(--selection-distance) + 1));
-  transform-origin: left center;
-  opacity: 0;
-}
-
-html[data-box-style="glass"]
-  body
-  .app-sidebar-navigation[data-selection-switching]
+  :is(
+    .app-segmented-control[data-segmented-control="true"],
+    .app-sidebar-navigation,
+    .app-spatial-selection
+  )[data-selection-switching]
   > .app-selection-bridge {
   position: absolute;
   z-index: 0;
   top: 0;
-  right: 1px;
-  left: 1px;
+  left: 0;
   display: block;
-  height: 2rem;
+  width: var(--selection-bridge-width, 0px);
+  height: var(--selection-bridge-height, 0px);
   margin: 0;
-  border-inline: 1px solid color-mix(in oklch, white 18%, var(--glass-border));
+  border: 1px solid color-mix(in oklch, white 18%, var(--glass-border));
   border-radius: var(--glass-radius-control);
   background: color-mix(in oklch, var(--primary) 10%, var(--glass-surface-strong));
   list-style: none;
-  transform: translate3d(0, calc(var(--selection-min) * 100%), 0)
-    scaleY(calc(var(--selection-distance) + 1));
-  transform-origin: center top;
+  transform: translate3d(var(--selection-bridge-x, 0px), var(--selection-bridge-y, 0px), 0)
+    scale3d(1, 1, 1);
+  transform-origin: top left;
   opacity: 0;
+}
+
+html[data-box-style="glass"] body .app-spatial-selection > .app-selection-indicator {
+  z-index: 4;
+  border-radius: var(--glass-radius-panel);
+}
+
+html[data-box-style="glass"]
+  body
+  .app-spatial-selection
+  > .app-selection-indicator
+  > .app-selection-refraction {
+  border-color: color-mix(in oklch, var(--primary) 62%, var(--glass-border));
+  background: color-mix(in oklch, var(--primary) 3.5%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, white 18%, transparent);
+}
+
+html[data-box-style="glass"]
+  body
+  .app-spatial-selection[data-selection-axis]
+  > .app-selection-indicator
+  > .app-selection-refraction::after {
+  opacity: 0.16;
+}
+
+html[data-box-style="glass"]
+  body
+  .app-spatial-selection
+  > .app-selection-indicator
+  > .app-selection-lens {
+  opacity: 0.14;
+}
+
+html[data-box-style="glass"]
+  body
+  .app-spatial-selection[data-selection-switching]
+  > .app-selection-bridge {
+  z-index: 3;
+  border-radius: var(--glass-radius-panel);
+  background: color-mix(in oklch, var(--primary) 5%, transparent);
+}
+
+html[data-box-style="glass"]
+  body
+  .app-segmented-control[data-segmented-control="true"][data-selection-axis]
+  > :is(.app-selection-indicator, .app-selection-bridge),
+html[data-box-style="glass"]
+  body
+  .app-segmented-control[data-segmented-control="true"][data-selection-axis]
+  > .app-segmented-trigger[data-slot="tabs-trigger"] {
+  border-radius: var(--glass-radius-control-tight);
 }
 
 html[data-box-style="glass"] body .app-sidebar-navigation > .app-selection-indicator {
@@ -2345,6 +2664,11 @@ html[data-box-style="glass"] #root .appearance-choice[data-selected="true"] {
   border-color: color-mix(in oklch, var(--primary) 66%, var(--glass-content-border));
   background: color-mix(in oklch, var(--primary) 8%, var(--glass-content-surface));
   box-shadow: var(--elevation-subtle);
+}
+
+html[data-box-style="glass"] #root .app-spatial-selection .appearance-choice[data-selected="true"] {
+  border-color: transparent;
+  background: color-mix(in oklch, var(--glass-content-surface) 88%, transparent);
 }
 
 html[data-box-style="glass"] #root .appearance-choice:has([data-slot="radio-group-item"]:focus) {

@@ -19,6 +19,7 @@ const harness = String.raw`<!doctype html>
       import { MemoryRouter, useLocation, useNavigate } from 'react-router'
       import { MarkupContent, QuizMarkupContent } from '/src/components/archive/markup-content.tsx'
       import { ImageViewer } from '/src/components/archive/image-viewer.tsx'
+      import { SelectionMotionLayers, useSelectionMotion } from '/src/components/archive/selection-motion.tsx'
       import { TooltipProvider } from '/src/components/ui/tooltip.tsx'
       import { DailyDistributionCell } from '/src/pages/timeline-page.tsx'
       import { BackgroundsPage } from '/src/pages/backgrounds-page.tsx'
@@ -27,9 +28,10 @@ const harness = String.raw`<!doctype html>
       import { RecordsPage } from '/src/pages/records-page.tsx'
       import { BackgroundRoot } from '/src/components/layout/background-root.tsx'
       import { Badge } from '/src/components/ui/badge.tsx'
-      import { Button } from '/src/components/ui/button.tsx'
+      import { Button } from '/src/components/archive/interaction.tsx'
       import { Input } from '/src/components/ui/input.tsx'
       import { ScrollArea } from '/src/components/ui/scroll-area.tsx'
+      import { Sidebar, SidebarContent, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger } from '/src/components/ui/sidebar.tsx'
       import { ArchiveProvider } from '/src/features/archive/archive-context.tsx'
       import { rememberImageDimensions } from '/src/services/image-metadata.ts'
       import { installRecordJumpGuard } from '/src/lib/record-navigation.ts'
@@ -212,6 +214,40 @@ const harness = String.raw`<!doctype html>
         ))
       }
 
+      function SidebarFixtureNavigation() {
+        const [active, setActive] = React.useState(0)
+        const motion = useSelectionMotion(active, 3, 'vertical', ':scope > [data-slot="sidebar-menu-item"]')
+        const labels = ['侧栏项目一', '侧栏项目二', '侧栏项目三']
+        return e(SidebarMenu, { ref: motion.ref, className: 'app-sidebar-navigation' },
+          e(SelectionMotionLayers, { listItems: true }),
+          labels.map((label, index) => e(SidebarMenuItem, { key: label },
+            e(SidebarMenuButton, {
+              isActive: active === index,
+              className: 'app-sidebar-navigation-item',
+              onClick: () => setActive(index),
+            }, e('span', null, String(index + 1)), e('span', null, label)),
+          )),
+        )
+      }
+
+      function SidebarFixture() {
+        return e('section', { 'data-sidebar-fixture': '', hidden: true, style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } },
+          e(SidebarProvider, { defaultOpen: true, className: 'relative overflow-hidden rounded-xl border', style: { minHeight: '18rem' } },
+            e(Sidebar, { collapsible: 'icon', className: '!absolute !inset-y-0 !h-full' },
+              e(SidebarContent, null, e(SidebarFixtureNavigation)),
+              e(SidebarRail, { 'aria-label': '侧栏边缘折叠测试' }),
+            ),
+            e(SidebarInset, { className: 'min-h-[18rem]' },
+              e('header', { className: 'flex h-14 items-center gap-3 border-b px-4' },
+                e(SidebarTrigger, { 'aria-label': '侧栏折叠测试' }),
+                e('strong', null, 'shadcn Sidebar 折叠回归'),
+              ),
+              e('p', { className: 'p-4 text-sm text-muted-foreground' }, '验证官方 icon collapse、宽度变化与垂直选中层。'),
+            ),
+          ),
+        )
+      }
+
       function LocationProbe() {
         const location = useLocation()
         const navigate = useNavigate()
@@ -255,6 +291,7 @@ const harness = String.raw`<!doctype html>
                 ),
                 e(QuizIdentityBlankFixture),
                 e(ScrollAreaFixture),
+                e(SidebarFixture),
                 e('section', { 'data-case': 'app-surface', className: 'app-main-surface bg-background', style: { width: '68rem', maxWidth: '100%', minHeight: '220px', margin: '24px auto', padding: '20px' } },
                   e('header', { className: 'app-topbar rounded-xl border p-4' }, '全局背景表面'),
                   e('aside', { className: 'app-sidebar mt-4 w-48' },
@@ -1215,7 +1252,27 @@ try {
     const pressed = await readState()
     await page.mouse.up()
     assert.ok(pressed.contrast >= 4.5, `${themeId} pressed quiz option contrast is too low`)
-    assert.deepEqual(pressed.bounds, normal.bounds, `${themeId} quiz option press must not move or resize`)
+    assert.ok(
+      pressed.bounds.width < normal.bounds.width &&
+        pressed.bounds.width >= normal.bounds.width * 0.96 &&
+        pressed.bounds.height < normal.bounds.height &&
+        pressed.bounds.height >= normal.bounds.height * 0.94,
+      `${themeId} quiz option press must use restrained coordinated compression: ${JSON.stringify({ normal: normal.bounds, pressed: pressed.bounds })}`,
+    )
+    assert.ok(
+      Math.abs(
+        pressed.bounds.left + pressed.bounds.width / 2 -
+          (normal.bounds.left + normal.bounds.width / 2),
+      ) <= 2,
+      `${themeId} quiz option press must keep its perceived center stable`,
+    )
+    await page.waitForTimeout(240)
+    const released = await readState()
+    assert.ok(
+      Math.abs(released.bounds.width - normal.bounds.width) <= 0.5 &&
+        Math.abs(released.bounds.height - normal.bounds.height) <= 0.5,
+      `${themeId} quiz option release must settle to its exact original geometry: ${JSON.stringify({ normal: normal.bounds, released: released.bounds })}`,
+    )
   }
   await assertQuizOptionInteractions('paper')
   await assertQuizOptionInteractions('midnight')
@@ -1575,6 +1632,64 @@ try {
       : Number.POSITIVE_INFINITY
   })
   assert.ok(settledSelectionDelta <= 1, `liquid selection must settle exactly on the active option: ${settledSelectionDelta}`)
+
+  const sidebarFixture = page.locator('[data-sidebar-fixture]')
+  await sidebarFixture.evaluate((fixture) => {
+    fixture.hidden = false
+  })
+  await sidebarFixture.scrollIntoViewIfNeeded()
+  const sidebarTrigger = sidebarFixture.getByRole('button', { name: '侧栏折叠测试' })
+  for (let index = 0; index < 8; index += 1) await sidebarTrigger.click()
+  await page.waitForTimeout(240)
+  assert.equal(
+    await sidebarFixture.locator('[data-slot="sidebar"]').first().getAttribute('data-state'),
+    'expanded',
+    'rapid shadcn Sidebar toggles must preserve the final controlled state',
+  )
+  await sidebarTrigger.click()
+  await page.waitForTimeout(240)
+  const collapsedSidebar = await sidebarFixture.locator('[data-slot="sidebar-container"]').evaluate((container) => ({
+    width: container.getBoundingClientRect().width,
+    contentOverflow: (() => {
+      const content = container.querySelector('[data-slot="sidebar-inner"]')
+      return content ? content.scrollWidth - content.clientWidth : Number.POSITIVE_INFINITY
+    })(),
+  }))
+  assert.ok(
+    collapsedSidebar.width <= 52 && collapsedSidebar.contentOverflow <= 1,
+    `shadcn icon collapse must settle without clipped or overflowing content: ${JSON.stringify(collapsedSidebar)}`,
+  )
+  await sidebarTrigger.click()
+  await page.waitForTimeout(240)
+  const sidebarNavigation = sidebarFixture.locator('.app-sidebar-navigation')
+  await sidebarFixture.getByRole('button', { name: /侧栏项目一/ }).click()
+  await sidebarFixture.getByRole('button', { name: /侧栏项目三/ }).click()
+  await sidebarFixture.getByRole('button', { name: /侧栏项目二/ }).click()
+  const verticalSidebarMotion = await sidebarNavigation.evaluate((list) => ({
+    axis: list.getAttribute('data-selection-axis'),
+    material: list.getAttribute('data-selection-material'),
+    switching: list.hasAttribute('data-selection-switching'),
+  }))
+  assert.deepEqual(
+    verticalSidebarMotion,
+    { axis: 'vertical', material: 'liquid', switching: true },
+    'sidebar selection must use the dedicated interruptible vertical liquid path',
+  )
+  await page.waitForTimeout(410)
+  const sidebarSelectionDelta = await sidebarNavigation.evaluate((list) => {
+    const indicator = list.querySelector('.app-selection-indicator')?.getBoundingClientRect()
+    const selected = list.querySelector('[data-slot="sidebar-menu-button"][data-active]')?.getBoundingClientRect()
+    return indicator && selected
+      ? Math.abs(indicator.top + indicator.height / 2 - (selected.top + selected.height / 2))
+      : Number.POSITIVE_INFINITY
+  })
+  assert.ok(
+    sidebarSelectionDelta <= 1,
+    `vertical sidebar selection must settle on the active row after interruption: ${sidebarSelectionDelta}`,
+  )
+  await sidebarFixture.evaluate((fixture) => {
+    fixture.hidden = true
+  })
   await page.getByRole('tab', { name: /^配色/ }).click()
   for (const themeId of [
     'paper',

@@ -9,6 +9,8 @@ import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 
 type ShadcnButtonProps = ComponentProps<typeof ShadcnButton>
+type ButtonPointerEvent = Parameters<NonNullable<ShadcnButtonProps['onPointerDown']>>[0]
+type ButtonKeyboardEvent = Parameters<NonNullable<ShadcnButtonProps['onKeyDown']>>[0]
 
 export type ButtonProps = ShadcnButtonProps & {
   /** Keeps async actions visually and functionally unavailable until completion. */
@@ -33,8 +35,27 @@ export function Button({
   disabled,
   'aria-busy': ariaBusy,
   children,
+  onPointerDown,
+  onKeyDown,
   ...props
 }: ButtonProps) {
+  const rememberPointerOrigin = (event: ButtonPointerEvent) => {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const x = ((event.clientX - bounds.left) / Math.max(1, bounds.width)) * 100
+    const y = ((event.clientY - bounds.top) / Math.max(1, bounds.height)) * 100
+    event.currentTarget.style.setProperty('--app-press-x', `${Math.max(0, Math.min(100, x))}%`)
+    event.currentTarget.style.setProperty('--app-press-y', `${Math.max(0, Math.min(100, y))}%`)
+    onPointerDown?.(event)
+  }
+
+  const rememberKeyboardOrigin = (event: ButtonKeyboardEvent) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.currentTarget.style.setProperty('--app-press-x', '50%')
+      event.currentTarget.style.setProperty('--app-press-y', '50%')
+    }
+    onKeyDown?.(event)
+  }
+
   return (
     <ShadcnButton
       data-app-button="true"
@@ -45,6 +66,8 @@ export function Button({
       size={size}
       disabled={disabled || loading}
       aria-busy={ariaBusy ?? (loading || undefined)}
+      onPointerDown={rememberPointerOrigin}
+      onKeyDown={rememberKeyboardOrigin}
       {...props}
     >
       {loading ? (
