@@ -20,10 +20,10 @@ function durationInMilliseconds(value: string, fallback: number) {
   return fallback
 }
 
-function selectionRect(container: HTMLElement, target: HTMLElement): SelectionRect {
+function selectionRect(target: HTMLElement): SelectionRect {
   return {
-    x: target.offsetLeft + container.scrollLeft,
-    y: target.offsetTop + container.scrollTop,
+    x: target.offsetLeft,
+    y: target.offsetTop,
     width: target.offsetWidth,
     height: target.offsetHeight,
   }
@@ -77,7 +77,7 @@ export function useSelectionMotion<T extends HTMLElement>(
     const indicator = container.querySelector<HTMLElement>(':scope > .app-selection-indicator')
     if (!target || !indicator) return
 
-    const targetRect = selectionRect(container, target)
+    const targetRect = selectionRect(target)
     const fromIndex = previousIndex.current ?? safeIndex
     const previousRect =
       previousIndex.current === null ? targetRect : visibleSelectionRect(container, indicator)
@@ -121,6 +121,7 @@ export function useSelectionMotion<T extends HTMLElement>(
     moving.id = 'app-selection-move'
     animation.current = moving
     settleTimer.current = window.setTimeout(() => {
+      if (target.isConnected) setRestingGeometry(container, selectionRect(target))
       delete container.dataset.selectionSwitching
       animation.current = null
       settleTimer.current = null
@@ -139,11 +140,16 @@ export function useSelectionMotion<T extends HTMLElement>(
           container.querySelectorAll<HTMLElement>(':scope > [data-slot="tabs-trigger"]'),
         )
         const target = targets[Math.max(0, Math.min(activeIndex, targets.length - 1))]
-        if (target) setRestingGeometry(container, selectionRect(container, target))
+        if (target) setRestingGeometry(container, selectionRect(target))
       })
     }
     const resizeObserver = new ResizeObserver(updateGeometry)
     resizeObserver.observe(container)
+    container
+      .querySelectorAll<HTMLElement>(':scope > [data-slot="tabs-trigger"]')
+      .forEach((target) => {
+        resizeObserver.observe(target)
+      })
     return () => {
       resizeObserver.disconnect()
       window.cancelAnimationFrame(resizeFrame)

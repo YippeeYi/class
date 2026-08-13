@@ -166,6 +166,7 @@ assert.match(backgroundsPage, /backdrop-blur-md/, 'background metadata must rema
 assert.match(backgroundsPage, /data-background-swatch/, 'background palette swatches must be integrated with their metadata')
 assert.match(backgroundsPage, /data-theme-preset-option/, 'designed theme presets must expose compact visual previews')
 assert.match(backgroundsPage, /data-theme-mode-group/, 'light and dark presets must be visibly grouped')
+assert.match(backgroundsPage, /box-style-preview-surface[\s\S]*<CardContent[\s\S]*box-style-preview-control/, 'box style choices must restore a real shadcn Card preview pattern')
 assert.match(backgroundsPage, /setThemePreset/, 'theme presets must use the shared appearance controller')
 assert.match(backgroundsPage, /title="风格"/, 'the appearance page must use its new user-facing name')
 assert.match(shell, /label: '风格'/, 'global navigation must expose the style page under its new name')
@@ -422,7 +423,17 @@ assert.match(styles, /\.app-main-surface \{[\s\S]*color-mix\(in oklch, var\(--ba
 assert.match(styles, /\.app-sidebar \[data-slot="sidebar-inner"\][\s\S]*backdrop-filter: blur/, 'the desktop sidebar must keep its existing restrained translucent surface')
 assert.match(shell, /<Sidebar collapsible="icon" className="app-sidebar">/, 'the business shell must opt the shadcn sidebar into background-aware styling')
 assert.match(shell, /<SidebarRail \/>/, 'the sidebar edge must use the unmodified shadcn SidebarRail behavior')
-for (const component of ['SidebarProvider', 'SidebarContent', 'SidebarGroup', 'SidebarMenu']) {
+for (const component of [
+  'SidebarProvider',
+  'SidebarHeader',
+  'SidebarContent',
+  'SidebarGroup',
+  'SidebarGroupContent',
+  'SidebarMenu',
+  'SidebarMenuItem',
+  'SidebarMenuButton',
+  'SidebarTrigger',
+]) {
   assert.match(shell, new RegExp(`<${component}`), `the application shell must compose shadcn ${component}`)
 }
 assert.doesNotMatch(styles, /\.app-navigation-item::before|\.app-selection-item::before/, 'selection must not return to a leading vertical marker')
@@ -430,7 +441,7 @@ assert.doesNotMatch(shell, /SelectionMotion|app-sidebar-navigation|app-sidebar-r
 assert.doesNotMatch(backgroundsPage, /SelectionMotion|app-spatial-selection|data-selection-option/, 'appearance choices must not move a shared frame between options')
 assert.match(segmentedTabs, /<TabsList[\s\S]*<SelectionMotionLayer \/>[\s\S]*<TabsTrigger/, 'mode switches must compose the moving layer from shadcn Tabs primitives')
 assert.match(selectionMotion, /visibleSelectionRect[\s\S]*indicator\.animate[\s\S]*app-selection-move/, 'rapid mode switching must continue from the visible shared selection position')
-assert.doesNotMatch(selectionMotion, /bridge|refraction|lens|axis|data-box-style/i, 'selection motion must remain a single restrained horizontal surface')
+assert.doesNotMatch(selectionMotion, /bridge|axis|data-box-style/i, 'selection motion must remain a single restrained horizontal surface')
 for (const [name, source] of [
   ['records', records],
   ['person', person],

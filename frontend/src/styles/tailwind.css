@@ -116,6 +116,11 @@
   --interaction-duration-slow: 200ms;
   --interaction-duration-scene: 500ms;
   --interaction-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --app-press-scale-x: 0.985;
+  --app-press-scale-y: 0.97;
+  --app-press-shift: 0.75px;
+  --app-surface-press-scale: 0.997;
+  --app-surface-press-shift: 0.5px;
   --interaction-surface-hover: color-mix(in oklch, var(--accent) 62%, var(--background));
   --interaction-surface-pressed: color-mix(in oklch, var(--accent) 82%, var(--background));
   --interaction-surface-selected: color-mix(in oklch, var(--primary) 11%, var(--background));
@@ -338,9 +343,6 @@ body
     [data-slot="select-trigger"],
     [data-slot="dialog-close"]
   ) {
-  --app-press-scale-x: 0.985;
-  --app-press-scale-y: 0.97;
-  --app-press-shift: 0.75px;
   transform-origin: center;
   translate: 0 0;
   scale: 1;
@@ -373,6 +375,20 @@ body
   transition-duration: var(--interaction-duration-press-in);
   transition-timing-function: var(--interaction-ease-standard);
   will-change: translate, scale;
+}
+
+/* The shadcn Sidebar and Select primitives intentionally narrow their own
+   transition-property lists. Extend those lists at the project boundary so
+   the shared press response can release smoothly without replacing the
+   official components or their width/open-state transitions. */
+body [data-slot="sidebar-menu-button"] {
+  transition-property:
+    width, height, padding, color, background-color, border-color, opacity, translate, scale;
+}
+
+body [data-slot="select-trigger"] {
+  transition-property:
+    color, background-color, border-color, border-radius, box-shadow, opacity, translate, scale;
 }
 
 body [data-slot="card"] {
@@ -656,6 +672,14 @@ body
   color: inherit;
   cursor: pointer;
   outline: none;
+  transform-origin: center;
+  translate: 0 0;
+  scale: 1;
+  transition-property: color, opacity, translate, scale;
+  transition-duration:
+    var(--interaction-duration-standard), var(--interaction-duration-standard),
+    var(--interaction-duration-release), var(--interaction-duration-release);
+  transition-timing-function: var(--interaction-ease-standard);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -693,6 +717,12 @@ body
 .app-interactive-item:active {
   border-color: var(--interaction-border-selected);
   background-color: var(--interaction-surface-pressed);
+}
+
+.app-interactive-surface:not(.is-disabled, [aria-disabled="true"]):active {
+  translate: 0 var(--app-surface-press-shift);
+  scale: var(--app-surface-press-scale);
+  transition-duration: var(--interaction-duration-press-in);
 }
 
 .app-interactive-surface:is(.is-selected, [aria-current="page"], [aria-selected="true"]),
@@ -1424,11 +1454,16 @@ body .app-interactive-media:not(:disabled):active {
   background: color-mix(in oklch, var(--background) 62%, transparent);
   color: var(--foreground);
   box-shadow: var(--elevation-subtle);
+  transform-origin: center;
+  translate: 0 0;
+  scale: 1;
   transition:
     border-radius var(--interaction-duration-slow) var(--interaction-ease-standard),
     border-color var(--interaction-duration-standard) var(--interaction-ease-standard),
     background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
-    box-shadow var(--interaction-duration-standard) var(--interaction-ease-standard);
+    box-shadow var(--interaction-duration-standard) var(--interaction-ease-standard),
+    translate var(--interaction-duration-release) var(--interaction-ease-standard),
+    scale var(--interaction-duration-release) var(--interaction-ease-standard);
 }
 
 /* Keep the motion cadence of shadcn/Base UI overlays, popups and stateful
@@ -1479,9 +1514,12 @@ body [data-slot="switch-thumb"] {
   background: color-mix(in oklch, var(--primary) 7%, var(--background));
   box-shadow: var(--elevation-subtle);
 }
-.appearance-choice:active {
+.appearance-choice:not(:has([data-slot="radio-group-item"][data-disabled])):active {
   background: color-mix(in oklch, var(--primary) 10%, var(--background));
   box-shadow: var(--elevation-subtle);
+  translate: 0 var(--app-surface-press-shift);
+  scale: var(--app-surface-press-scale);
+  transition-duration: var(--interaction-duration-press-in);
 }
 .appearance-choice [data-slot="radio-group-item"] {
   flex: none;
@@ -1501,21 +1539,43 @@ body [data-slot="switch-thumb"] {
   transition: opacity var(--interaction-duration-slow) var(--interaction-ease-standard);
 }
 
+.box-style-preview {
+  --box-preview-surface-radius: calc(var(--box-preview-base-radius) * 1.4);
+  --box-preview-control-radius: calc(var(--box-preview-base-radius) * 0.8);
+  background:
+    linear-gradient(145deg, color-mix(in oklch, var(--primary) 6%, transparent), transparent 54%),
+    color-mix(in oklch, var(--muted) 72%, var(--background));
+}
+
 .box-style-preview-surface,
 .box-style-preview-control {
-  transition: border-radius var(--interaction-duration-slow) var(--interaction-ease-standard);
+  border-radius: var(--box-preview-surface-radius);
 }
 
-[data-box-style-id="compact"] :is(.box-style-preview-surface, .box-style-preview-control) {
-  border-radius: 0.36rem;
+.box-style-preview-inset {
+  border-radius: var(--box-preview-control-radius);
 }
 
-[data-box-style-id="default"] :is(.box-style-preview-surface, .box-style-preview-control) {
-  border-radius: 0.78rem;
+.box-style-preview-surface,
+.box-style-preview-control {
+  box-shadow: var(--elevation-subtle);
+  transition:
+    border-radius var(--interaction-duration-slow) var(--interaction-ease-standard),
+    background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
+    border-color var(--interaction-duration-standard) var(--interaction-ease-standard),
+    box-shadow var(--interaction-duration-standard) var(--interaction-ease-standard);
 }
 
-[data-box-style-id="rounded"] :is(.box-style-preview-surface, .box-style-preview-control) {
-  border-radius: 1.12rem;
+[data-box-style-id="compact"] {
+  --box-preview-base-radius: 0.42rem;
+}
+
+[data-box-style-id="default"] {
+  --box-preview-base-radius: 0.78rem;
+}
+
+[data-box-style-id="rounded"] {
+  --box-preview-base-radius: 1.12rem;
 }
 
 .quiz-filter-bar [data-slot="button"]:disabled {

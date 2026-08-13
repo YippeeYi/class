@@ -578,6 +578,18 @@ try {
     settledSegmentedAlignment.centerDelta <= 1 && settledSegmentedAlignment.sizeDelta <= 1,
     `the moving selected surface must settle exactly on its shadcn trigger: ${JSON.stringify(settledSegmentedAlignment)}`,
   )
+  await page.locator('[data-segmented-motion-fixture]').evaluate((fixture) => {
+    fixture.style.width = '17rem'
+  })
+  await page.waitForTimeout(50)
+  const resizedSegmentedAlignment = await readSegmentedAlignment()
+  assert.ok(
+    resizedSegmentedAlignment.centerDelta <= 1 && resizedSegmentedAlignment.sizeDelta <= 1,
+    `the selected surface must remeasure its real trigger after responsive resizing: ${JSON.stringify(resizedSegmentedAlignment)}`,
+  )
+  await page.locator('[data-segmented-motion-fixture]').evaluate((fixture) => {
+    fixture.style.width = '24rem'
+  })
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await secondSegment.click()
   const reducedSegmentedState = await readSegmentedAlignment()
@@ -1510,6 +1522,35 @@ try {
   await page.getByRole('tab', { name: /^方框/ }).click()
   const boxStyleCards = page.locator('[data-box-style-id]')
   assert.equal(await boxStyleCards.count(), 3, 'compact, standard, and rounded must be the only box styles')
+  const boxPreviewStyles = await boxStyleCards.evaluateAll((cards) =>
+    cards.map((card) => {
+      const surface = card.querySelector('.box-style-preview-surface')
+      const control = card.querySelector('.box-style-preview-control')
+      const inset = card.querySelector('.box-style-preview-inset')
+      const surfaceStyle = getComputedStyle(surface)
+      return {
+        id: card.getAttribute('data-box-style-id'),
+        surfaceRadius: Number.parseFloat(surfaceStyle.borderTopLeftRadius),
+        controlRadius: Number.parseFloat(getComputedStyle(control).borderTopLeftRadius),
+        insetRadius: Number.parseFloat(getComputedStyle(inset).borderTopLeftRadius),
+        borderWidth: Number.parseFloat(surfaceStyle.borderTopWidth),
+        background: surfaceStyle.backgroundColor,
+        shadow: surfaceStyle.boxShadow,
+      }
+    }),
+  )
+  assert.ok(
+    boxPreviewStyles[0].surfaceRadius < boxPreviewStyles[1].surfaceRadius &&
+      boxPreviewStyles[1].surfaceRadius < boxPreviewStyles[2].surfaceRadius,
+    `box previews must show the three real radius families: ${JSON.stringify(boxPreviewStyles)}`,
+  )
+  boxPreviewStyles.forEach((preview) => {
+    assert.equal(preview.surfaceRadius, preview.controlRadius, `${preview.id} preview surfaces must share one radius family`)
+    assert.ok(preview.insetRadius < preview.surfaceRadius, `${preview.id} preview controls must use the corresponding smaller control radius`)
+    assert.ok(preview.borderWidth >= 1, `${preview.id} preview must retain a visible ordinary border`)
+    assert.notEqual(preview.background, 'rgba(0, 0, 0, 0)', `${preview.id} preview must retain its card background`)
+    assert.notEqual(preview.shadow, 'none', `${preview.id} preview must retain its restrained card elevation`)
+  })
   const radiusFamilies = []
   for (const [id, expectedInset] of [
     ['compact', 2],
@@ -1627,7 +1668,7 @@ try {
   await page.getByRole('tab', { name: /^背景/ }).click()
   const reducedSelectionMotion = await page.getByRole('tablist', { name: '风格设置分区' }).evaluate((list) => ({
     transforms: [...list.querySelectorAll('[data-slot="tabs-trigger"]')].map((trigger) => getComputedStyle(trigger).transform),
-    movingLayers: list.querySelectorAll('.app-selection-indicator, .app-selection-bridge, .app-selection-refraction').length,
+    movingLayers: list.querySelectorAll('.app-selection-indicator').length,
   }))
   assert.ok(reducedSelectionMotion.transforms.every((transform) => transform === 'none'))
   assert.equal(reducedSelectionMotion.movingLayers, 0, 'reduced motion must retain the same direct-state selection model')
@@ -1638,7 +1679,7 @@ try {
   const rapidSelectionState = await page.getByRole('tablist', { name: '风格设置分区' }).evaluate((list) => ({
     active: [...list.querySelectorAll('[data-slot="tabs-trigger"][data-active]')].map((trigger) => trigger.textContent?.trim()),
     transforms: [...list.querySelectorAll('[data-slot="tabs-trigger"]')].map((trigger) => getComputedStyle(trigger).transform),
-    movingLayers: list.querySelectorAll('.app-selection-indicator, .app-selection-bridge, .app-selection-refraction').length,
+    movingLayers: list.querySelectorAll('.app-selection-indicator').length,
   }))
   assert.equal(rapidSelectionState.active.length, 1)
   assert.match(rapidSelectionState.active[0] || '', /^方框/)
@@ -1678,7 +1719,7 @@ try {
   await sidebarFixture.getByRole('button', { name: /侧栏项目二/ }).click()
   const sidebarMenuState = await sidebarFixture.locator('[data-slot="sidebar-menu"]').evaluate((list) => ({
     active: [...list.querySelectorAll('[data-slot="sidebar-menu-button"][data-active]')].map((button) => button.textContent?.trim()),
-    movingLayers: list.querySelectorAll('.app-selection-indicator, .app-selection-bridge, .app-selection-refraction').length,
+    movingLayers: list.querySelectorAll('.app-selection-indicator').length,
     customSelectionAttributes: [...list.attributes].filter((attribute) => attribute.name.startsWith('data-selection-')).length,
   }))
   assert.deepEqual(

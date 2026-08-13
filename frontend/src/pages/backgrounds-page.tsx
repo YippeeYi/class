@@ -156,15 +156,29 @@ function BoxStyleOption({ id, selected }: { id: BoxStyleId; selected: boolean })
       className="appearance-choice group/box overflow-hidden font-normal leading-normal"
     >
       <span
-        className="box-style-preview relative grid min-h-40 place-items-center overflow-hidden border-b border-border/60 bg-muted/70"
+        className="box-style-preview relative grid min-h-40 place-items-center overflow-hidden border-b border-border/60"
         aria-hidden="true"
       >
-        <span className="box-style-preview-surface absolute left-[15%] top-[22%] h-20 w-[58%] border border-border bg-card p-3 shadow-sm">
-          <span className="mb-2 block h-2 w-2/3 rounded-full bg-foreground/70" />
-          <span className="block h-1.5 w-full rounded-full bg-muted-foreground/35" />
-          <span className="mt-1.5 block h-1.5 w-4/5 rounded-full bg-muted-foreground/25" />
-        </span>
-        <span className="box-style-preview-control absolute bottom-[18%] right-[13%] size-16 border border-border bg-card shadow-sm" />
+        <Card className="box-style-preview-surface absolute left-[12%] top-[16%] z-10 h-24 w-[64%] gap-0 border border-border bg-card py-0 ring-0">
+          <CardContent className="grid h-full content-between p-3">
+            <span className="grid gap-2">
+              <span className="block h-2 w-2/3 rounded-full bg-foreground/72" />
+              <span className="block h-1.5 w-full rounded-full bg-muted-foreground/35" />
+              <span className="block h-1.5 w-4/5 rounded-full bg-muted-foreground/24" />
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="box-style-preview-inset block h-5 w-14 border border-primary/35 bg-primary/12" />
+              <span className="box-style-preview-inset block h-5 w-9 border border-border bg-muted/72" />
+            </span>
+          </CardContent>
+        </Card>
+        <Card className="box-style-preview-control absolute bottom-[12%] right-[10%] z-20 size-[4.5rem] gap-0 border border-border bg-card py-0 ring-0">
+          <CardContent className="grid size-full place-items-center p-2.5">
+            <span className="box-style-preview-inset grid size-9 place-items-center border border-primary/25 bg-primary/10">
+              <Square className="size-4 text-primary" strokeWidth={1.75} />
+            </span>
+          </CardContent>
+        </Card>
       </span>
       <span className="flex items-start gap-3 p-4">
         <RadioGroupItem id={`box-style-${id}`} value={id} className="mt-0.5" />
