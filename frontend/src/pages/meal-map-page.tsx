@@ -75,9 +75,7 @@ export function MealMapPage() {
                     className="absolute inset-0 size-full object-contain p-2 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:p-3"
                   />
                   <span
-                    data-liquid-glass-interactive
-                    data-glass-variant="clear"
-                    className={`${mediaAffordanceClassName} absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/90 px-3 py-2 text-xs font-medium text-foreground shadow-sm backdrop-blur`}
+                    className={`${mediaAffordanceClassName} absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/95 px-3 py-2 text-xs font-medium text-foreground shadow-sm`}
                   >
                     <Expand className="size-3.5" />
                     查看大图
@@ -117,7 +115,7 @@ export function MealMapPage() {
               )}
             </div>
           )}
-          <figcaption className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-background/82 px-2.5 py-1.5 text-xs text-muted-foreground backdrop-blur">
+          <figcaption className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-background/95 px-2.5 py-1.5 text-xs text-muted-foreground">
             滚轮缩放 · 拖动浏览 · 工具栏复位
           </figcaption>
         </figure>

@@ -2,8 +2,6 @@ import {
   BookOpenText,
   BrainCircuit,
   ChartNoAxesCombined,
-  ChevronLeft,
-  ChevronRight,
   FileText,
   Home,
   Image,
@@ -19,7 +17,6 @@ import {
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
 import { Button } from '@/components/archive/interaction'
-import { SelectionMotionLayers, useSelectionMotion } from '@/components/archive/selection-motion'
 import { PAGE_HEADER_ACTIONS_ID, PageHeaderProvider } from '@/components/layout/page-header'
 import {
   AlertDialog,
@@ -130,19 +127,8 @@ function CloseMobileSidebar() {
 
 function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
   const location = useLocation()
-  const { state } = useSidebar()
   const activePath = navigationPath(location.pathname)
   const [clearing, setClearing] = useState(false)
-  const activeIndex = Math.max(
-    0,
-    navigation.findIndex(({ to }) => isNavigationActive(activePath, to)),
-  )
-  const navigationMotion = useSelectionMotion<HTMLUListElement>(
-    activeIndex,
-    navigation.length,
-    'vertical',
-    ':scope > [data-slot="sidebar-menu-item"]',
-  )
 
   const clearAccess = async () => {
     if (clearing) return
@@ -183,8 +169,7 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
         <SidebarGroup>
           <SidebarGroupLabel>主要导航</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu ref={navigationMotion.ref} className="app-sidebar-navigation">
-              <SelectionMotionLayers listItems />
+            <SidebarMenu>
               {navigation.map(({ to, label, icon: Icon }) => {
                 const isActive = isNavigationActive(activePath, to)
                 const destination =
@@ -201,7 +186,6 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
                     <SidebarMenuButton
                       isActive={isActive}
                       tooltip={label}
-                      className="app-sidebar-navigation-item"
                       onPointerEnter={() => void preloadRoute(to)}
                       onFocus={() => void preloadRoute(to)}
                       render={<NavLink to={destination} />}
@@ -256,16 +240,7 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
-      <SidebarRail
-        className="app-sidebar-rail"
-        tabIndex={0}
-        aria-label={state === 'expanded' ? '收起侧边栏' : '展开侧边栏'}
-        title={state === 'expanded' ? '收起侧边栏' : '展开侧边栏'}
-      >
-        <span className="app-sidebar-rail-affordance" aria-hidden="true">
-          {state === 'expanded' ? <ChevronLeft /> : <ChevronRight />}
-        </span>
-      </SidebarRail>
+      <SidebarRail />
     </Sidebar>
   )
 }
@@ -423,7 +398,7 @@ export function AppShell() {
               tabIndex={-1}
               key={location.pathname}
               className={cn(
-                'mx-auto w-full min-w-0 max-w-full px-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-6 lg:px-8',
+                'mx-auto w-full min-w-0 max-w-full px-4 sm:px-6 lg:px-8',
                 isViewportLocked
                   ? 'h-[calc(100dvh-4rem)] min-h-0 max-w-[96rem] overflow-hidden py-4 sm:py-5 lg:py-6'
                   : 'min-h-[calc(100svh-4rem)] py-6 pb-12 sm:py-7 sm:pb-16 lg:py-8',

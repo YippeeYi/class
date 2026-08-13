@@ -74,7 +74,7 @@ const recordViewItems = [
 ] as const
 
 const JUMP_HIGHLIGHT_HOLD_MS = 520
-const JUMP_HIGHLIGHT_FADE_MS = 680
+const JUMP_HIGHLIGHT_FADE_MS = 200
 
 function criteriaFromSearch(params: URLSearchParams): RecordCriteria {
   return {
@@ -215,7 +215,7 @@ function WrittenRecordPages({
         </div>
         <div
           key={page.imagePath}
-          className="grid items-start gap-5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 lg:grid-cols-[minmax(20rem,42%)_minmax(0,1fr)]"
+          className="grid items-start gap-5 lg:grid-cols-[minmax(20rem,42%)_minmax(0,1fr)]"
         >
           <div className="min-h-0 self-start lg:sticky lg:top-20">
             <ImageViewer
@@ -820,7 +820,7 @@ export function RecordsPage() {
               setPageIndex(0)
             }}
           >
-            <SegmentedTabsList value={view} items={recordViewItems} ariaLabel="记录显示模式" />
+            <SegmentedTabsList items={recordViewItems} ariaLabel="记录显示模式" />
           </Tabs>
         }
       />
@@ -864,7 +864,7 @@ export function RecordsPage() {
         <ErrorState title="记录加载失败" onRetry={recordsResource.retry} />
       )}
       {!loading && (!recordsResource.error || hidden) && view === 'list' && (
-        <div className="grid gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+        <div className="grid gap-4">
           {filtered.length ? (
             filtered.map((record) => (
               <RecordCard

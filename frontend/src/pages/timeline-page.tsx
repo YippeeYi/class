@@ -869,7 +869,7 @@ export function TimelinePage() {
         description="从全局、年度、月度和每日四个层级查看记录密度、作者与关联人物。"
         actions={
           <Tabs value={metric} onValueChange={(value) => setMetric(value as Metric)}>
-            <SegmentedTabsList value={metric} items={metricItems} ariaLabel="统计指标" />
+            <SegmentedTabsList items={metricItems} ariaLabel="统计指标" />
           </Tabs>
         }
       />
@@ -883,7 +883,7 @@ export function TimelinePage() {
       )}
       {resource.data && !records.length && <EmptyState title="暂无可统计的记录" />}
       {resource.data && records.length > 0 && (
-        <div className="min-w-0 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+        <div className="min-w-0">
           <section className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
             {summaryStats.map(({ label, value, icon: Icon }) => (
               <Card key={label} className="gap-0 bg-card/78 py-0">

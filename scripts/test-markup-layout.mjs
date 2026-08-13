@@ -19,7 +19,6 @@ const harness = String.raw`<!doctype html>
       import { MemoryRouter, useLocation, useNavigate } from 'react-router'
       import { MarkupContent, QuizMarkupContent } from '/src/components/archive/markup-content.tsx'
       import { ImageViewer } from '/src/components/archive/image-viewer.tsx'
-      import { SelectionMotionLayers, useSelectionMotion } from '/src/components/archive/selection-motion.tsx'
       import { TooltipProvider } from '/src/components/ui/tooltip.tsx'
       import { DailyDistributionCell } from '/src/pages/timeline-page.tsx'
       import { BackgroundsPage } from '/src/pages/backgrounds-page.tsx'
@@ -216,14 +215,11 @@ const harness = String.raw`<!doctype html>
 
       function SidebarFixtureNavigation() {
         const [active, setActive] = React.useState(0)
-        const motion = useSelectionMotion(active, 3, 'vertical', ':scope > [data-slot="sidebar-menu-item"]')
         const labels = ['侧栏项目一', '侧栏项目二', '侧栏项目三']
-        return e(SidebarMenu, { ref: motion.ref, className: 'app-sidebar-navigation' },
-          e(SelectionMotionLayers, { listItems: true }),
+        return e(SidebarMenu, null,
           labels.map((label, index) => e(SidebarMenuItem, { key: label },
             e(SidebarMenuButton, {
               isActive: active === index,
-              className: 'app-sidebar-navigation-item',
               onClick: () => setActive(index),
             }, e('span', null, String(index + 1)), e('span', null, label)),
           )),
@@ -242,7 +238,7 @@ const harness = String.raw`<!doctype html>
                 e(SidebarTrigger, { 'aria-label': '侧栏折叠测试' }),
                 e('strong', null, 'shadcn Sidebar 折叠回归'),
               ),
-              e('p', { className: 'p-4 text-sm text-muted-foreground' }, '验证官方 icon collapse、宽度变化与垂直选中层。'),
+              e('p', { className: 'p-4 text-sm text-muted-foreground' }, '验证官方 icon collapse、宽度变化与选中状态。'),
             ),
           ),
         )
@@ -295,7 +291,7 @@ const harness = String.raw`<!doctype html>
                 e('section', { 'data-case': 'app-surface', className: 'app-main-surface bg-background', style: { width: '68rem', maxWidth: '100%', minHeight: '220px', margin: '24px auto', padding: '20px' } },
                   e('header', { className: 'app-topbar rounded-xl border p-4' }, '全局背景表面'),
                   e('aside', { className: 'app-sidebar mt-4 w-48' },
-                    e('div', { 'data-slot': 'sidebar-inner', className: 'rounded-xl bg-sidebar p-4' }, '侧栏磨砂层'),
+                    e('div', { 'data-slot': 'sidebar-inner', className: 'rounded-xl bg-sidebar p-4' }, '侧栏表面'),
                   ),
                   e('div', { 'data-slot': 'card', className: 'mt-4 rounded-xl bg-card p-4' }, '内容卡片'),
                 ),
@@ -406,7 +402,6 @@ async function assertFullscreenImageViewer(page, label) {
         left: overlayBounds.left,
         right: overlayBounds.right,
         bottom: overlayBounds.bottom,
-        backdrop: getComputedStyle(overlay).backdropFilter,
         background: getComputedStyle(overlay).backgroundColor,
       },
       image: imageBounds && {
@@ -464,11 +459,6 @@ async function assertFullscreenImageViewer(page, label) {
       Math.abs(geometry.content.right - geometry.viewportWidth) <= 1 &&
       Math.abs(geometry.content.bottom - geometry.viewportHeight) <= 1,
     `${label} image viewer must cover the exact viewport: ${JSON.stringify(geometry)}`,
-  )
-  assert.notEqual(
-    geometry.overlay?.backdrop,
-    'none',
-    `${label} image overlay must blur the actual page that remains beneath the portal`,
   )
   assert.match(
     geometry.overlay?.background || '',
@@ -1031,12 +1021,12 @@ try {
     }
   })
   assert.ok(
-    appearanceTabsGeometry.height >= 40 && appearanceTabsGeometry.height <= 54,
-    `appearance tab rail must reuse the compact standard control height: ${JSON.stringify(appearanceTabsGeometry)}`,
+    appearanceTabsGeometry.height >= 30 && appearanceTabsGeometry.height <= 36,
+    `appearance tab rail must use the standard shadcn control height: ${JSON.stringify(appearanceTabsGeometry)}`,
   )
   appearanceTabsGeometry.triggers.forEach((trigger) => {
     assert.ok(
-      trigger.top >= -1 && trigger.bottom >= -1 && trigger.height >= 40,
+      trigger.top >= -1 && trigger.bottom >= -1 && trigger.height >= 24,
       `appearance tab controls must stay fully inside the rail: ${JSON.stringify(appearanceTabsGeometry)}`,
     )
   })
@@ -1253,18 +1243,11 @@ try {
     await page.mouse.up()
     assert.ok(pressed.contrast >= 4.5, `${themeId} pressed quiz option contrast is too low`)
     assert.ok(
-      pressed.bounds.width < normal.bounds.width &&
-        pressed.bounds.width >= normal.bounds.width * 0.96 &&
-        pressed.bounds.height < normal.bounds.height &&
-        pressed.bounds.height >= normal.bounds.height * 0.94,
-      `${themeId} quiz option press must use restrained coordinated compression: ${JSON.stringify({ normal: normal.bounds, pressed: pressed.bounds })}`,
-    )
-    assert.ok(
-      Math.abs(
-        pressed.bounds.left + pressed.bounds.width / 2 -
-          (normal.bounds.left + normal.bounds.width / 2),
-      ) <= 2,
-      `${themeId} quiz option press must keep its perceived center stable`,
+      Math.abs(pressed.bounds.width - normal.bounds.width) <= 0.5 &&
+        Math.abs(pressed.bounds.height - normal.bounds.height) <= 0.5 &&
+        pressed.bounds.top - normal.bounds.top >= 0.5 &&
+        pressed.bounds.top - normal.bounds.top <= 1.5,
+      `${themeId} quiz option press must keep shadcn geometry and use only the shared 1px shift: ${JSON.stringify({ normal: normal.bounds, pressed: pressed.bounds })}`,
     )
     await page.waitForTimeout(240)
     const released = await readState()
@@ -1326,7 +1309,6 @@ try {
     cards.map((card) => {
       const preview = card.querySelector('[data-slot="aspect-ratio"]')
       const strip = card.querySelector('[data-background-swatch]')
-      const glass = card.querySelector('.backdrop-blur-md')
       const bounds = preview?.getBoundingClientRect()
       return {
         id: card.getAttribute('data-background-id'),
@@ -1337,7 +1319,6 @@ try {
         strip: strip ? getComputedStyle(strip).backgroundImage : '',
         stripWidthRatio: strip ? strip.getBoundingClientRect().width / card.getBoundingClientRect().width : 1,
         stripIntegrated: strip ? strip !== card.firstElementChild : false,
-        backdrop: glass ? getComputedStyle(glass).backdropFilter : '',
       }
     }),
   )
@@ -1345,7 +1326,6 @@ try {
     assert.ok(Math.abs(card.ratio - 4 / 3) <= 0.02, `background ${card.id} must keep a stable 4:3 preview: ${JSON.stringify(card)}`)
     assert.notEqual(card.strip, 'none', `background ${card.id} needs a representative theme strip`)
     assert.ok(card.stripIntegrated && card.stripWidthRatio < 0.3, `background ${card.id} swatch must remain a secondary part of its metadata`)
-    assert.notEqual(card.backdrop, 'none', `background ${card.id} metadata needs a readable glass surface`)
   })
   assert.ok(
     await backgroundCards.evaluateAll((cards) => cards.every((card) => card.tagName === 'LABEL')),
@@ -1421,217 +1401,74 @@ try {
     const layer = layers[layers.length - 1]
     const topbar = surface.querySelector('.app-topbar')
     const sidebar = surface.querySelector('[data-slot="sidebar-inner"]')
-    const card = surface.querySelector('[data-slot="card"]')
     return {
       layerImage: layer ? getComputedStyle(layer).backgroundImage : '',
       surfaceImage: getComputedStyle(surface).backgroundImage,
       surfaceColor: getComputedStyle(surface).backgroundColor,
-      topbarBackdrop: topbar ? getComputedStyle(topbar).backdropFilter : '',
-      sidebarBackdrop: sidebar ? getComputedStyle(sidebar).backdropFilter : '',
-      cardColor: card ? getComputedStyle(card).backgroundColor : '',
+      topbarColor: topbar ? getComputedStyle(topbar).backgroundColor : '',
+      sidebarColor: sidebar ? getComputedStyle(sidebar).backgroundColor : '',
       rootImage: getComputedStyle(document.documentElement).backgroundImage,
       bodyColor: getComputedStyle(document.body).backgroundColor,
       rootOverscroll: getComputedStyle(document.documentElement).overscrollBehaviorY,
       bodyOverscroll: getComputedStyle(document.body).overscrollBehaviorY,
+      appearanceKeys: Object.keys(
+        JSON.parse(localStorage.getItem('classRecord:appearance:v1') || '{}'),
+      ).sort(),
     }
   })
-  assert.match(surfaceGeometry.layerImage, /cloud\.webp/, 'the selected background must remain mounted behind the formal application surface')
-  assert.notEqual(surfaceGeometry.surfaceImage, 'none', 'the application surface needs a translucent readability gradient')
-  assert.match(surfaceGeometry.surfaceColor, /(?:\/ 0\)|, 0\))$/, `the application surface must not keep an opaque shadcn background: ${JSON.stringify(surfaceGeometry)}`)
-  assert.notEqual(surfaceGeometry.topbarBackdrop, 'none', 'the top bar must keep a bounded glass treatment')
-  assert.notEqual(surfaceGeometry.sidebarBackdrop, 'none', 'the sidebar must keep a bounded glass treatment')
-  assert.match(surfaceGeometry.rootImage, /cloud\.webp/, 'elastic overscroll must reveal the same selected image on the document canvas')
-  assert.match(surfaceGeometry.bodyColor, /(?:\/ 0\)|, 0\))$/, `the body must not cover the shared overscroll canvas: ${JSON.stringify(surfaceGeometry)}`)
+  assert.match(surfaceGeometry.layerImage, /cloud\.webp/, 'the selected background must remain mounted behind the application surface')
+  assert.notEqual(surfaceGeometry.surfaceImage, 'none', 'the application surface needs a readability gradient')
+  assert.match(surfaceGeometry.surfaceColor, /(?:\/ 0\)|, 0\))$/, 'the application surface must remain transparent: ' + JSON.stringify(surfaceGeometry))
+  assert.doesNotMatch(surfaceGeometry.topbarColor, /(?:\/ 0\)|, 0\))$/, 'the top bar must use one readable solid surface')
+  assert.doesNotMatch(surfaceGeometry.sidebarColor, /(?:\/ 0\)|, 0\))$/, 'the sidebar must use one readable solid surface')
+  assert.match(surfaceGeometry.rootImage, /cloud\.webp/, 'elastic overscroll must reveal the selected image on the document canvas')
+  assert.match(surfaceGeometry.bodyColor, /(?:\/ 0\)|, 0\))$/, 'the body must not cover the shared overscroll canvas: ' + JSON.stringify(surfaceGeometry))
   assert.equal(surfaceGeometry.rootOverscroll, 'none', 'the root must contain vertical elastic overscroll')
   assert.equal(surfaceGeometry.bodyOverscroll, 'none', 'the body must not reveal a mismatched canvas at either edge')
+  assert.deepEqual(surfaceGeometry.appearanceKeys, ['background', 'theme'], 'appearance persistence must contain only the two visible settings')
 
-  await page.getByRole('tab', { name: /^方框/ }).click()
-  const boxStyleCards = page.locator('[data-box-style-id]')
-  assert.equal(await boxStyleCards.count(), 3, 'compact, standard, and liquid glass must be the only box styles')
-  const radiusFamilies = []
-  for (const [id, expectedInset] of [
-    ['compact', 2],
-    ['default', 4],
-    ['glass', 7],
-  ]) {
-    await page.locator(`[data-box-style-id="${id}"]`).click()
-    await page.waitForFunction(
-      (boxStyle) => document.documentElement.dataset.boxStyle === boxStyle,
-      id,
-    )
-    await page.waitForTimeout(220)
-    const geometry = await page.locator('[data-scroll-area-fixture]').evaluate((root) => {
-      const scrollbar = root.querySelector(
-        '[data-slot="scroll-area-scrollbar"][data-orientation="vertical"]',
-      )
-      const thumb = scrollbar?.querySelector('[data-slot="scroll-area-thumb"]')
-      const rootBounds = root.getBoundingClientRect()
-      const scrollbarBounds = scrollbar?.getBoundingClientRect()
-      const thumbBounds = thumb?.getBoundingClientRect()
-      const rootStyles = getComputedStyle(root)
-      return {
-        edgeInset: Number.parseFloat(rootStyles.getPropertyValue('--scrollbar-edge-inset')),
-        rootRadius: Number.parseFloat(rootStyles.borderTopLeftRadius),
-        rootOverflow: rootStyles.overflow,
-        scrollbarTopInset: scrollbarBounds ? scrollbarBounds.top - rootBounds.top : -1,
-        scrollbarBottomInset: scrollbarBounds ? rootBounds.bottom - scrollbarBounds.bottom : -1,
-        scrollbarWidth: scrollbarBounds?.width || 0,
-        thumbWidth: thumbBounds?.width || 0,
-        thumbRadius: thumb ? Number.parseFloat(getComputedStyle(thumb).borderTopLeftRadius) : 0,
-      }
-    })
-    assert.equal(geometry.edgeInset, expectedInset, `${id} scrollbars must use their radius-family edge inset`)
-    assert.equal(geometry.rootOverflow, 'clip', `${id} rounded scroll areas must clip edge leakage`)
-    assert.ok(
-      Math.abs(geometry.scrollbarTopInset - expectedInset) <= 1 &&
-        Math.abs(geometry.scrollbarBottomInset - expectedInset) <= 1,
-      `${id} scrollbar must stay clear of both rounded ends: ${JSON.stringify(geometry)}`,
-    )
-    assert.ok(
-      geometry.thumbWidth <= geometry.scrollbarWidth + 1,
-      `${id} vertical thumb must not widen beyond its track: ${JSON.stringify(geometry)}`,
-    )
-    assert.ok(geometry.thumbRadius > 0, `${id} scrollbar thumb must inherit a visible radius`)
-    radiusFamilies.push({ id, ...geometry })
+  const styleSection = page.locator('[data-case="backgrounds"]')
+  assert.equal(await styleSection.getByRole('tab').count(), 2, 'the style page must expose only palette and background sections')
+  await styleSection.getByRole('tab', { name: /^配色/ }).click()
+  await styleSection.getByRole('tab', { name: /^背景/ }).click()
+  await styleSection.getByRole('tab', { name: /^配色/ }).click()
+  assert.equal(
+    await styleSection.getByRole('tab', { name: /^配色/ }).getAttribute('data-active'),
+    '',
+    'rapid section switching must settle on the final direct selected state',
+  )
+  for (const themeId of ['paper', 'mist', 'apricot', 'sage', 'rose', 'ink', 'midnight', 'pine', 'aurora']) {
+    await page.locator('[data-theme-preset-option="' + themeId + '"]').click()
   }
-  assert.ok(
-    radiusFamilies[0].rootRadius < radiusFamilies[1].rootRadius &&
-      radiusFamilies[1].rootRadius < radiusFamilies[2].rootRadius,
-    `the three product radius families must remain visually distinct: ${JSON.stringify(radiusFamilies)}`,
-  )
-  await page.locator('[data-box-style-id="default"]').click()
-  await page.waitForFunction(() => document.documentElement.dataset.boxStyle === 'default')
-  await page.getByRole('tab', { name: /^背景/ }).click()
-  const standardSelectionAnimations = await page.locator('.app-segmented-control').evaluate((list) =>
-    list
-      .getAnimations({ subtree: true })
-      .map((animation) => animation.id)
-      .filter(Boolean),
-  )
-  assert.deepEqual(
-    standardSelectionAnimations,
-    ['app-selection-move'],
-    'ordinary segmented controls must use one lightweight shared-surface movement',
-  )
-  await page.getByRole('tab', { name: /^方框/ }).click()
-  const glassChoice = page.locator('[data-box-style-id="glass"]')
-  await glassChoice.scrollIntoViewIfNeeded()
-  const glassChoiceBoundsBefore = await glassChoice.boundingBox()
-  await glassChoice.hover()
-  await page.waitForTimeout(220)
-  const glassChoiceBoundsAfter = await glassChoice.boundingBox()
-  assert.ok(
-    glassChoiceBoundsBefore &&
-      glassChoiceBoundsAfter &&
-      glassChoiceBoundsAfter.width === glassChoiceBoundsBefore.width &&
-      glassChoiceBoundsAfter.height === glassChoiceBoundsBefore.height &&
-      Math.abs(glassChoiceBoundsAfter.x - glassChoiceBoundsBefore.x) <= 1 &&
-      Math.abs(glassChoiceBoundsAfter.y - glassChoiceBoundsBefore.y) <= 1,
-    `box-style hover must preserve selectable-card geometry: ${JSON.stringify({ glassChoiceBoundsBefore, glassChoiceBoundsAfter })}`,
-  )
-  const defaultQuizSizes = await page.locator('[data-quiz-theme-fixture]').evaluateAll((cards) =>
+  await page.waitForFunction(() => document.documentElement.dataset.themePreset === 'aurora')
+  await page.locator('[data-theme-preset-option="auto"]').click()
+  await page.waitForFunction(() => document.documentElement.dataset.themePreset === 'auto')
+
+  const quizGeometry = await page.locator('[data-quiz-theme-fixture]').evaluateAll((cards) =>
     cards.map((card) => ({
       type: card.getAttribute('data-question-type'),
-      width: card.getBoundingClientRect().width,
-      height: card.getBoundingClientRect().height,
+      overflowX: card.scrollWidth - card.clientWidth,
+      overflowY: card.scrollHeight - card.clientHeight,
+      overflow: getComputedStyle(card).overflow,
+      outlineStyle: getComputedStyle(card).outlineStyle,
+      borderWidths: [
+        getComputedStyle(card).borderTopWidth,
+        getComputedStyle(card).borderRightWidth,
+        getComputedStyle(card).borderBottomWidth,
+        getComputedStyle(card).borderLeftWidth,
+      ],
+      headerRadius: getComputedStyle(card.querySelector('[data-slot="card-header"]')).borderStartStartRadius,
+      footerRadius: getComputedStyle(card.querySelector('[data-slot="card-footer"]')).borderEndStartRadius,
     })),
   )
-  await page.locator('[data-box-style-id="glass"]').click()
-  await page.waitForFunction(() => {
-    const value = JSON.parse(localStorage.getItem('classRecord:appearance:v1') || 'null')
-    return value?.box === 'glass' && document.documentElement.dataset.boxStyle === 'glass'
+  quizGeometry.forEach((card) => {
+    assert.ok(card.overflowX <= 1 && card.overflowY <= 1, card.type + ' quiz content must not overflow: ' + JSON.stringify(card))
+    assert.equal(card.overflow, 'hidden', card.type + ' quiz content must follow one outer radius')
+    assert.equal(card.outlineStyle, 'none', card.type + ' quiz card must not duplicate its border')
+    assert.equal(new Set(card.borderWidths).size, 1, card.type + ' quiz card must keep one continuous border')
+    assert.equal(Number.parseFloat(card.headerRadius), 0, card.type + ' header must rely on the outer top radius')
+    assert.equal(Number.parseFloat(card.footerRadius), 0, card.type + ' footer must rely on the outer bottom radius')
   })
-  const glassCardBackdrop = await page
-    .locator('[data-case="app-surface"] [data-slot="card"]')
-    .evaluate((card) => getComputedStyle(card).backdropFilter)
-  assert.equal(
-    glassCardBackdrop,
-    'none',
-    'dense content cards must use the quieter material without repeating an expensive backdrop pass',
-  )
-  await page.getByRole('tab', { name: /^配色/ }).click()
-  const liquidSelectionMotion = await page.locator('.app-segmented-control').evaluate((list) => {
-    const indicator = list.querySelector('.app-selection-indicator')
-    const bridge = list.querySelector('.app-selection-bridge')
-    const refraction = list.querySelector('.app-selection-refraction')
-    return {
-      switching: list.hasAttribute('data-selection-switching'),
-      material: list.getAttribute('data-selection-material'),
-      animations: list
-        .getAnimations({ subtree: true })
-        .map((animation) => animation.id)
-        .filter(Boolean)
-        .sort(),
-      bridgeDisplay: bridge ? getComputedStyle(bridge).display : '',
-      backdrop: getComputedStyle(list).backdropFilter,
-      indicatorBackdrop: indicator ? getComputedStyle(indicator).backdropFilter : '',
-      refractionBackdrop: refraction ? getComputedStyle(refraction).backdropFilter : '',
-      refractionFilter: refraction ? getComputedStyle(refraction, '::after').filter : '',
-    }
-  })
-  assert.equal(liquidSelectionMotion.switching, true)
-  assert.equal(liquidSelectionMotion.material, 'liquid')
-  assert.deepEqual(
-    liquidSelectionMotion.animations,
-    [
-      'app-liquid-selection-bridge',
-      'app-liquid-selection-lens',
-      'app-liquid-selection-move',
-      'app-liquid-selection-reshape',
-    ],
-    `liquid tabs must reshape through one moving surface and a temporary bridge: ${JSON.stringify(liquidSelectionMotion)}`,
-  )
-  assert.equal(liquidSelectionMotion.bridgeDisplay, 'block')
-  assert.notEqual(liquidSelectionMotion.backdrop, 'none', 'the segmented group must own exactly one bounded backdrop sample')
-  assert.equal(liquidSelectionMotion.indicatorBackdrop, 'none', 'the moving selection must not resample the backdrop')
-  assert.equal(liquidSelectionMotion.refractionBackdrop, 'none', 'the refracted highlight must not resample the backdrop')
-  assert.match(liquidSelectionMotion.refractionFilter, /app-liquid-glass-refraction/, 'liquid highlights must use the bounded shared refraction filter')
-  await page.waitForTimeout(440)
-  assert.equal(
-    await page.locator('.app-segmented-control').getAttribute('data-selection-switching'),
-    null,
-    'paint-only liquid switching state must settle and release after the animation',
-  )
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  await page.getByRole('tab', { name: /^背景/ }).click()
-  const reducedLiquidMotion = await page.locator('.app-segmented-control').evaluate((list) => ({
-    switching: list.hasAttribute('data-selection-switching'),
-    animations: list.getAnimations({ subtree: true }).filter((animation) => animation.id).length,
-  }))
-  assert.deepEqual(
-    reducedLiquidMotion,
-    { switching: false, animations: 0 },
-    `reduced motion must bypass liquid selection animation: ${JSON.stringify(reducedLiquidMotion)}`,
-  )
-  await page.waitForTimeout(440)
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  await page.getByRole('tab', { name: /^配色/ }).click()
-  await page.getByRole('tab', { name: /^背景/ }).click()
-  await page.getByRole('tab', { name: /^方框/ }).click()
-  const rapidLiquidSwitch = await page.locator('.app-segmented-control').evaluate((list) => {
-    const indicator = list.querySelector('.app-selection-indicator')?.getBoundingClientRect()
-    const selected = list.querySelector('[data-slot="tabs-trigger"][data-active]')?.getBoundingClientRect()
-    return {
-      active: list.querySelector('[data-slot="tabs-trigger"][data-active]')?.textContent?.trim(),
-      animationCount: list.getAnimations({ subtree: true }).filter((animation) => animation.id).length,
-      centerDelta:
-        indicator && selected
-          ? Math.abs(indicator.left + indicator.width / 2 - (selected.left + selected.width / 2))
-          : Number.POSITIVE_INFINITY,
-    }
-  })
-  assert.match(rapidLiquidSwitch.active || '', /^方框/)
-  assert.ok(rapidLiquidSwitch.animationCount <= 4, `rapid switching must keep a bounded animation set: ${JSON.stringify(rapidLiquidSwitch)}`)
-  assert.ok(Number.isFinite(rapidLiquidSwitch.centerDelta), 'rapid switching must retain one measurable selected surface')
-  await page.waitForTimeout(410)
-  const settledSelectionDelta = await page.locator('.app-segmented-control').evaluate((list) => {
-    const indicator = list.querySelector('.app-selection-indicator')?.getBoundingClientRect()
-    const selected = list.querySelector('[data-slot="tabs-trigger"][data-active]')?.getBoundingClientRect()
-    return indicator && selected
-      ? Math.abs(indicator.left + indicator.width / 2 - (selected.left + selected.width / 2))
-      : Number.POSITIVE_INFINITY
-  })
-  assert.ok(settledSelectionDelta <= 1, `liquid selection must settle exactly on the active option: ${settledSelectionDelta}`)
 
   const sidebarFixture = page.locator('[data-sidebar-fixture]')
   await sidebarFixture.evaluate((fixture) => {
@@ -1657,233 +1494,23 @@ try {
   }))
   assert.ok(
     collapsedSidebar.width <= 52 && collapsedSidebar.contentOverflow <= 1,
-    `shadcn icon collapse must settle without clipped or overflowing content: ${JSON.stringify(collapsedSidebar)}`,
+    'shadcn icon collapse must settle without clipped content: ' + JSON.stringify(collapsedSidebar),
   )
   await sidebarTrigger.click()
   await page.waitForTimeout(240)
-  const sidebarNavigation = sidebarFixture.locator('.app-sidebar-navigation')
   await sidebarFixture.getByRole('button', { name: /侧栏项目一/ }).click()
   await sidebarFixture.getByRole('button', { name: /侧栏项目三/ }).click()
   await sidebarFixture.getByRole('button', { name: /侧栏项目二/ }).click()
-  const verticalSidebarMotion = await sidebarNavigation.evaluate((list) => ({
-    axis: list.getAttribute('data-selection-axis'),
-    material: list.getAttribute('data-selection-material'),
-    switching: list.hasAttribute('data-selection-switching'),
-  }))
-  assert.deepEqual(
-    verticalSidebarMotion,
-    { axis: 'vertical', material: 'liquid', switching: true },
-    'sidebar selection must use the dedicated interruptible vertical liquid path',
-  )
-  await page.waitForTimeout(410)
-  const sidebarSelectionDelta = await sidebarNavigation.evaluate((list) => {
-    const indicator = list.querySelector('.app-selection-indicator')?.getBoundingClientRect()
-    const selected = list.querySelector('[data-slot="sidebar-menu-button"][data-active]')?.getBoundingClientRect()
-    return indicator && selected
-      ? Math.abs(indicator.top + indicator.height / 2 - (selected.top + selected.height / 2))
-      : Number.POSITIVE_INFINITY
-  })
-  assert.ok(
-    sidebarSelectionDelta <= 1,
-    `vertical sidebar selection must settle on the active row after interruption: ${sidebarSelectionDelta}`,
-  )
+  const activeSidebarItems = sidebarFixture.locator('[data-slot="sidebar-menu-button"][data-active]')
+  assert.equal(await activeSidebarItems.count(), 1, 'Sidebar must keep exactly one shadcn active item')
+  assert.match(await activeSidebarItems.textContent(), /侧栏项目二/, 'rapid navigation changes must settle on the final item')
   await sidebarFixture.evaluate((fixture) => {
     fixture.hidden = true
   })
-  await page.getByRole('tab', { name: /^配色/ }).click()
-  for (const themeId of [
-    'paper',
-    'mist',
-    'apricot',
-    'sage',
-    'rose',
-    'ink',
-    'midnight',
-    'pine',
-    'aurora',
-  ]) {
-    await page.locator(`[data-theme-preset-option="${themeId}"]`).click()
-    await page.waitForFunction(
-      (id) => document.documentElement.dataset.themePreset === id,
-      themeId,
-    )
-    const recordMaterial = await recordsFixture.locator('#record-r3').evaluate(async (target) => {
-      target.removeAttribute('data-record-jump-highlight')
-      const normal = getComputedStyle(target)
-      const normalState = {
-        style: normal.borderStyle,
-        width: normal.borderWidth,
-        color: normal.borderColor,
-      }
-      target.setAttribute('data-record-jump-highlight', 'true')
-      await new Promise((resolve) => window.setTimeout(resolve, 180))
-      const highlighted = getComputedStyle(target)
-      const highlightedState = {
-        style: highlighted.borderStyle,
-        width: highlighted.borderWidth,
-        color: highlighted.borderColor,
-      }
-      target.removeAttribute('data-record-jump-highlight')
-      return { normalState, highlightedState }
-    })
-    assert.equal(
-      recordMaterial.normalState.style,
-      'solid',
-      `${themeId} written records must retain a material boundary`,
-    )
-    assert.ok(
-      Number.parseFloat(recordMaterial.normalState.width) >= 1,
-      `${themeId} written record boundary must remain visible: ${JSON.stringify(recordMaterial)}`,
-    )
-    assert.doesNotMatch(
-      recordMaterial.normalState.color,
-      /(?:\/ 0\)|, 0\))$/,
-      `${themeId} written record boundary must not become transparent`,
-    )
-    assert.equal(
-      recordMaterial.highlightedState.style,
-      'solid',
-      `${themeId} jump state must retain a semantic boundary`,
-    )
-    assert.ok(
-      Number.parseFloat(recordMaterial.highlightedState.width) >= 1,
-      `${themeId} jump highlight must retain the quiet material boundary: ${JSON.stringify(recordMaterial)}`,
-    )
-    assert.notEqual(
-      recordMaterial.highlightedState.color,
-      recordMaterial.normalState.color,
-      `${themeId} jump highlight must remain distinguishable from the normal boundary`,
-    )
-  }
-  await page.locator('[data-theme-preset-option="auto"]').click()
-  await page.waitForFunction(() => document.documentElement.dataset.themePreset === 'auto')
-  await page.getByRole('tab', { name: /^方框/ }).click()
-  const liquidLayers = await page.locator('[data-case="app-surface"]').evaluate((surface) => {
-    const describe = (target) => {
-      const style = getComputedStyle(target)
-      return {
-        backdrop: style.backdropFilter,
-        backgroundImage: style.backgroundImage,
-        boxShadow: style.boxShadow,
-      }
-    }
-    const topbar = surface.querySelector('.app-topbar')
-    const sidebar = surface.querySelector('[data-slot="sidebar-inner"]')
-    const card = surface.querySelector('[data-slot="card"]')
-    return {
-      topbar: describe(topbar),
-      sidebar: describe(sidebar),
-      card: describe(card),
-      transientAttributes: document.querySelectorAll('[data-liquid-active]').length,
-      inlinePointerStyles: [...document.querySelectorAll('[style]')].filter(
-        (target) =>
-          target.style.getPropertyValue('--liquid-pointer-x') ||
-          target.style.getPropertyValue('--liquid-ambient-local'),
-      ).length,
-    }
-  })
-  for (const [name, layer] of Object.entries({
-    topbar: liquidLayers.topbar,
-    sidebar: liquidLayers.sidebar,
-  })) {
-    assert.notEqual(layer.backdrop, 'none', `${name} must keep one bounded backdrop sample`)
-    assert.doesNotMatch(layer.backgroundImage, /radial-gradient/, `${name} must keep a planar edge response`)
-    assert.doesNotMatch(layer.boxShadow, /inset/, `${name} must not create a thick or convex inner rim`)
-  }
-  assert.equal(liquidLayers.card.backdrop, 'none', 'content cards must remain in the standard material layer')
-  assert.equal(liquidLayers.transientAttributes, 0, 'glass must not mutate transient active attributes during pointer movement')
-  assert.equal(liquidLayers.inlinePointerStyles, 0, 'glass must not retain pointer-dependent inline paint state')
 
-  await page.getByRole('tab', { name: /^配色/ }).click()
-  await page.locator('[data-theme-preset-option="midnight"]').click()
-  await page.waitForFunction(
-    () =>
-      document.documentElement.dataset.themePreset === 'midnight' &&
-      document.documentElement.classList.contains('dark'),
-  )
-  const darkLiquidLayers = await page.locator('[data-case="app-surface"]').evaluate((surface) => {
-    const targets = [surface.querySelector('.app-topbar'), surface.querySelector('[data-slot="sidebar-inner"]')]
-    return targets.map((target) => {
-      const style = getComputedStyle(target)
-      return { backgroundImage: style.backgroundImage, boxShadow: style.boxShadow }
-    })
-  })
-  darkLiquidLayers.forEach((layer) => {
-    assert.doesNotMatch(layer.backgroundImage, /radial-gradient/, 'dark glass must not use a convex centre highlight')
-    assert.doesNotMatch(layer.boxShadow, /inset/, 'dark glass must not use white inner glow or thick-glass shading')
-  })
-  if (process.env.CLASS_RECORD_DARK_GLASS_SCREENSHOT) {
-    await page.screenshot({ path: process.env.CLASS_RECORD_DARK_GLASS_SCREENSHOT, fullPage: true })
-  }
-  await page.locator('[data-theme-preset-option="auto"]').click()
-  await page.waitForFunction(() => document.documentElement.dataset.themePreset === 'auto')
-  await page.getByRole('tab', { name: /^方框/ }).click()
-  const glassQuizGeometry = await page.locator('[data-quiz-theme-fixture]').evaluateAll((cards) =>
-    cards.map((card) => ({
-      type: card.getAttribute('data-question-type'),
-      width: card.getBoundingClientRect().width,
-      height: card.getBoundingClientRect().height,
-      overflowX: card.scrollWidth - card.clientWidth,
-      overflowY: card.scrollHeight - card.clientHeight,
-      backdrop: getComputedStyle(card).backdropFilter,
-      contain: getComputedStyle(card).contain,
-      outlineStyle: getComputedStyle(card).outlineStyle,
-      overflow: getComputedStyle(card).overflow,
-      cardRadius: getComputedStyle(card).borderStartStartRadius,
-      edgeContent: getComputedStyle(card, '::before').content,
-      backgroundImage: getComputedStyle(card).backgroundImage,
-      boxShadow: getComputedStyle(card).boxShadow,
-      borderWidths: [
-        getComputedStyle(card).borderTopWidth,
-        getComputedStyle(card).borderRightWidth,
-        getComputedStyle(card).borderBottomWidth,
-        getComputedStyle(card).borderLeftWidth,
-      ],
-      headerTopOffset:
-        card.querySelector('[data-slot="card-header"]').getBoundingClientRect().top -
-        card.getBoundingClientRect().top,
-      headerRadius: getComputedStyle(card.querySelector('[data-slot="card-header"]')).borderStartStartRadius,
-      footerRadius: getComputedStyle(card.querySelector('[data-slot="card-footer"]')).borderEndStartRadius,
-    })),
-  )
-  glassQuizGeometry.forEach((card) => {
-    assert.ok(
-      card.overflowX <= 1 && card.overflowY <= 1,
-      `liquid glass must not clip or enlarge ${card.type} quiz content: ${JSON.stringify(card)}`,
-    )
-    assert.equal(card.backdrop, 'none', `liquid glass quiz cards must avoid duplicated backdrop edge sampling on ${card.type}`)
-    assert.equal(card.contain, 'none', `${card.type} quiz cards must not create an independent containment surface at their corners`)
-    assert.equal(card.outlineStyle, 'none', `${card.type} quiz cards must not rasterize a second rounded outline`)
-    assert.equal(card.overflow, 'hidden', `${card.type} quiz material layers must be clipped by one outer radius`)
-    assert.ok(Number.parseFloat(card.cardRadius) > 0, `${card.type} quiz card must retain its outer radius`)
-    assert.equal(card.edgeContent, 'none', `${card.type} quiz card must not add a second masked rim that can fracture at corners`)
-    assert.equal(card.backgroundImage, 'none', `${card.type} quiz card must not retain a second top-edge gradient layer`)
-    assert.equal(card.boxShadow, 'none', `${card.type} quiz card must not rely on a shadow that its locked viewport can clip`)
-    assert.equal(new Set(card.borderWidths).size, 1, `${card.type} quiz card must keep one continuous border around all four corners`)
-    assert.ok(card.headerTopOffset <= 2, `${card.type} quiz header must begin directly inside the single outer edge`)
-    assert.equal(Number.parseFloat(card.headerRadius), 0, `${card.type} quiz header must rely on the single outer top radius`)
-    assert.equal(Number.parseFloat(card.footerRadius), 0, `${card.type} quiz footer must rely on the single outer bottom radius`)
-  })
-  assert.deepEqual(
-    glassQuizGeometry.map(({ type, width, height }) => ({ type, width, height })),
-    defaultQuizSizes,
-    'switching to liquid glass must not resize or reflow quiz cards',
-  )
-  if (process.env.CLASS_RECORD_GLASS_SCREENSHOT) {
-    await page.screenshot({ path: process.env.CLASS_RECORD_GLASS_SCREENSHOT, fullPage: true })
-  }
   await page.setViewportSize({ width: 390, height: 720 })
-  await assertFullscreenImageViewer(page, 'liquid-glass 390px')
+  await assertFullscreenImageViewer(page, 'standard 390px')
   await page.setViewportSize({ width: 1280, height: 1000 })
-  await page.locator('[data-box-style-id="default"]').click()
-  await page.waitForFunction(() => document.documentElement.dataset.boxStyle === 'default')
-  const resetGlassState = await page.locator('[data-case="app-surface"] [data-slot="card"]').evaluate((card) => ({
-    backdrop: getComputedStyle(card).backdropFilter,
-    activeLayers: document.querySelectorAll('[data-liquid-active="true"]').length,
-  }))
-  assert.equal(resetGlassState.backdrop, 'none', 'default box mode must not retain liquid-glass blur')
-  assert.equal(resetGlassState.activeLayers, 0, 'default box mode must clear transient liquid-glass interaction state')
-
   await page.evaluate(() => window.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: 'auto' }))
   const bottomBoundary = await page.evaluate(() => {
     const viewportHeight = window.visualViewport?.height || window.innerHeight
@@ -1893,7 +1520,7 @@ try {
       rootImage: getComputedStyle(document.documentElement).backgroundImage,
     }
   })
-  assert.ok(Math.abs(bottomBoundary.scrollY - bottomBoundary.maximum) <= 1, `the document must clamp its final scroll position: ${JSON.stringify(bottomBoundary)}`)
+  assert.ok(Math.abs(bottomBoundary.scrollY - bottomBoundary.maximum) <= 1, 'the document must clamp its final scroll position: ' + JSON.stringify(bottomBoundary))
   assert.match(bottomBoundary.rootImage, /cloud\.webp/, 'the selected root background must remain continuous at the lower scroll edge')
 
   const teacherSection = page.locator('[data-people-role="teacher"]')
@@ -2257,11 +1884,6 @@ try {
     densityPage.on('pageerror', (error) => densityErrors.push(error.message))
     await densityPage.goto(origin, { waitUntil: 'networkidle' })
     await densityPage.waitForFunction(() => window.__markupLayoutReady === true)
-    await densityPage.getByRole('tab', { name: /^方框/ }).click()
-    await densityPage.locator('[data-box-style-id="glass"]').click()
-    await densityPage.waitForFunction(
-      () => document.documentElement.dataset.boxStyle === 'glass',
-    )
     const densityQuizEdges = await densityPage
       .locator('[data-quiz-theme-fixture]')
       .evaluateAll((cards) =>
@@ -2275,7 +1897,6 @@ try {
               style.borderBottomWidth,
               style.borderLeftWidth,
             ],
-            backdrop: style.backdropFilter,
             pseudoContent: getComputedStyle(card, '::before').content,
           }
         }),
@@ -2287,12 +1908,11 @@ try {
         ['1px', '1px', '1px', '1px'],
         `DPR ${deviceScaleFactor} quiz edge must be one continuous box-model border`,
       )
-      assert.equal(edge.backdrop, 'none', `DPR ${deviceScaleFactor} quiz edge must not resample the backdrop`)
       assert.equal(edge.pseudoContent, 'none', `DPR ${deviceScaleFactor} quiz edge must not add a masked rim`)
     })
     await assertFullscreenImageViewer(
       densityPage,
-      `liquid-glass DPR ${deviceScaleFactor}`,
+      `standard DPR ${deviceScaleFactor}`,
     )
     assert.deepEqual(
       densityErrors,

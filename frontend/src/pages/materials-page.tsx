@@ -90,7 +90,7 @@ export function MaterialsPage() {
             <ScrollArea className="min-h-0 flex-1">
               <div
                 key={activeId}
-                className="material-reading mx-auto w-full max-w-[68rem] px-5 py-5 pr-7 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:px-7 sm:py-7 sm:pr-9 lg:px-8 lg:py-8 lg:pr-10"
+                className="material-reading mx-auto w-full max-w-[68rem] px-5 py-5 pr-7 sm:px-7 sm:py-7 sm:pr-9 lg:px-8 lg:py-8 lg:pr-10"
               >
                 {active ? (
                   <MarkupContent content={active.content} />

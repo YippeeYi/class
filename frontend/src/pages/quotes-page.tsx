@@ -74,7 +74,7 @@ export function QuotesPage() {
         <EmptyState title="暂无名言" description="记录中还没有可展示的名言标记。" />
       )}
       {resource.data && (
-        <div className="grid items-start gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 sm:grid-cols-2">
+        <div className="grid items-start gap-4 sm:grid-cols-2">
           {quotes.map((quote) => {
             const { anchor, source, sources } = quoteRecordTarget(
               quote,

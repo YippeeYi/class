@@ -205,11 +205,7 @@ export function PersonPage() {
               setCriteria(EMPTY_RECORD_CRITERIA)
             }}
           >
-            <SegmentedTabsList
-              value={mode as (typeof personRecordModes)[number]['value']}
-              items={personRecordModes}
-              ariaLabel="人物相关记录模式"
-            />
+            <SegmentedTabsList items={personRecordModes} ariaLabel="人物相关记录模式" />
           </Tabs>
         )}
       </div>
@@ -230,7 +226,7 @@ export function PersonPage() {
           </AlertDescription>
         </Alert>
       )}
-      <div className="grid gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+      <div className="grid gap-4">
         {related.length ? (
           related.map((record) => <RecordCard record={record} key={recordStableKey(record)} />)
         ) : (
