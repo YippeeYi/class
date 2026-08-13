@@ -224,6 +224,7 @@ export function QuizPage() {
   const questionAnchorRef = useRef<HTMLDivElement>(null)
   const pendingQuestionTop = useRef<number | null>(null)
   const secretUnlocking = useRef(false)
+  const answerLocked = useRef(false)
   const questions = useMemo(
     () =>
       resource.data
@@ -248,6 +249,7 @@ export function QuizPage() {
 
   const next = useCallback(() => {
     captureQuestionPosition()
+    answerLocked.current = false
     setCurrent(pickQuestion(candidates))
     setInput('')
     setResult(null)
@@ -332,7 +334,7 @@ export function QuizPage() {
   }, [secret])
 
   const answer = (value: string) => {
-    if (!current || result) return
+    if (!current || result || answerLocked.current) return
     if (current.content === 'secret') {
       const answerChars = splitAnswerCharacters(current.answer)
       const inputChars = splitAnswerCharacters(value)
@@ -355,11 +357,13 @@ export function QuizPage() {
         return
       }
       setSecretHint('')
+      answerLocked.current = true
       setResult('correct')
       setScore((score) => ({ correct: score.correct + 1, total: score.total + 1 }))
       return
     }
     const correct = normalizeText(stripMarkup(value)) === normalizeText(stripMarkup(current.answer))
+    answerLocked.current = true
     setResult(correct ? 'correct' : 'wrong')
     setScore((score) => ({ correct: score.correct + Number(correct), total: score.total + 1 }))
   }
@@ -512,6 +516,7 @@ export function QuizPage() {
           <Card
             className="content-frame quiz-question-card min-h-0 flex-1 gap-0 overflow-hidden py-0"
             data-question-type={current?.type || 'choice'}
+            data-answer-result={result || 'pending'}
           >
             <CardHeader className="quiz-question-header shrink-0 rounded-none border-b px-4 py-3.5 sm:px-5">
               <div className="flex items-center justify-between gap-3">
@@ -542,7 +547,7 @@ export function QuizPage() {
                 </span>
               )}
             </CardHeader>
-            <CardContent className="min-h-0 flex-1 p-0">
+            <CardContent className="quiz-question-content min-h-0 flex-1 p-0">
               {current ? (
                 <ScrollArea key={current.id} className="h-full">
                   <div
@@ -579,20 +584,38 @@ export function QuizPage() {
                           <div className="flex flex-col gap-2 sm:flex-row">
                             <Input
                               id="quiz-answer"
-                              className="disabled:opacity-75"
+                              className={cn(
+                                'quiz-answer-input disabled:opacity-100',
+                                result === 'correct' && 'is-correct',
+                                result === 'wrong' && 'is-wrong',
+                              )}
                               value={input}
                               onChange={(event) => setInput(event.target.value)}
                               disabled={Boolean(result)}
+                              aria-invalid={result === 'wrong' || undefined}
+                              aria-describedby="quiz-answer-feedback"
                               autoComplete="off"
                               autoFocus
                               placeholder="请输入挖空内容"
                             />
                             <Button
                               type="submit"
-                              className="w-full sm:w-auto"
+                              className={cn(
+                                'quiz-submit-button w-full disabled:opacity-100 sm:w-auto',
+                                result === 'correct' && 'is-correct',
+                                result === 'wrong' && 'is-wrong',
+                              )}
                               disabled={!input.trim() || Boolean(result)}
+                              aria-describedby="quiz-answer-feedback"
                             >
-                              提交
+                              {result ? (
+                                <>
+                                  {result === 'correct' ? <Check /> : <X />}
+                                  已提交
+                                </>
+                              ) : (
+                                '提交'
+                              )}
                             </Button>
                           </div>
                         </Field>
@@ -620,7 +643,11 @@ export function QuizPage() {
                               }}
                             >
                               <span className="quiz-option-label">
-                                {current.type === 'judge' ? (
+                                {result && isAnswer ? (
+                                  <Check />
+                                ) : result && isSelected && !isAnswer ? (
+                                  <X />
+                                ) : current.type === 'judge' ? (
                                   index === 0 ? (
                                     <Check />
                                   ) : (
@@ -650,9 +677,11 @@ export function QuizPage() {
             {current && (
               <CardFooter className="min-h-16 shrink-0 justify-between gap-4 border-t bg-transparent px-4 py-3 sm:px-5">
                 <div
+                  id="quiz-answer-feedback"
                   className={cn(
                     'min-w-0 flex-1 text-sm leading-6',
-                    !result && 'text-muted-foreground',
+                    !result && !secretHint && 'text-muted-foreground',
+                    !result && secretHint && 'quiz-result-progress',
                     result === 'correct' && 'quiz-result-correct',
                     result === 'wrong' && 'quiz-result-wrong',
                   )}
@@ -660,11 +689,19 @@ export function QuizPage() {
                   aria-live="polite"
                 >
                   {result ? (
-                    <>
-                      <strong>{result === 'correct' ? '回答正确' : '回答错误'}</strong>
-                      {result === 'wrong' && <> · 正确答案：{current.answer}。</>}
-                      {current.explanation && ` ${current.explanation}`}
-                    </>
+                    <span
+                      key={`${current.id}-${result}`}
+                      className="quiz-result-feedback inline-flex items-start gap-2"
+                    >
+                      <span className="quiz-result-icon mt-0.5 grid size-5 shrink-0 place-items-center rounded-full">
+                        {result === 'correct' ? <Check /> : <X />}
+                      </span>
+                      <span>
+                        <strong>{result === 'correct' ? '回答正确' : '回答错误'}</strong>
+                        {result === 'wrong' && <> · 正确答案：{current.answer}。</>}
+                        {current.explanation && ` ${current.explanation}`}
+                      </span>
+                    </span>
                   ) : current.content === 'secret' && secretHint ? (
                     <>
                       <strong>继续作答</strong> · {secretHint}

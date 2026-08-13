@@ -267,6 +267,21 @@ assert.match(timeline, /整体记录人/, 'the global author distribution was lo
 assert.match(timeline, /全档案月度/, 'the chronological all-month trend is missing')
 assert.match(timeline, /yearAuthorPie/, 'the selected-year author distribution is missing')
 assert.match(timeline, /MiniAuthorPie/, 'daily author composition markers are missing')
+assert.match(
+  timeline,
+  /usePersistentHighlight/,
+  'all statistics legends must reuse the container-level highlight state contract',
+)
+assert.doesNotMatch(
+  timeline,
+  /记录人图例/,
+  'the redundant daily author legend heading must remain removed',
+)
+assert.doesNotMatch(
+  timeline,
+  /strokeDasharray|strokeDashoffset|pathLength="100"/,
+  'daily pies must use contiguous sectors instead of accumulated dashed-circle segments',
+)
 assert.match(timeline, /fixedTimelineChartScale/, 'timeline charts must preserve the baseline fixed-step scale')
 assert.match(timeline, /openQuoteSource/, 'timeline quote chips must resolve the original record directly')
 assert.match(timeline, /recordDateCache/, 'timeline date parsing must be cached per immutable record')
@@ -310,6 +325,16 @@ assert.match(timeline, /overlapWidth \* overlapHeight/, 'author pie tooltip plac
 assert.match(timeline, /createPortal\([\s\S]*<ChartTooltipContent/, 'pie and bar tooltips must reuse the same shadcn chart tooltip content')
 assert.match(timeline, /ResizeObserver[\s\S]*observer\.disconnect\(\)/, 'pie tooltip geometry listeners must be cleaned up')
 assert.doesNotMatch(authorChartSource, /max-h-|overflow-y-auto/, 'normal author legends must expand instead of creating an internal scrollbar')
+assert.match(
+  authorChartSource,
+  /aria-label="记录人占比图例"[\s\S]*onPointerLeave=\{clearPointer\}[\s\S]*onBlur=\{clearFocusWhenLeaving\}/,
+  'author legends must clear only at their complete container boundary',
+)
+assert.doesNotMatch(
+  authorChartSource,
+  /<Button[\s\S]{0,500}onPointerLeave=/,
+  'individual author legend items must not clear highlight while crossing an internal gap',
+)
 assert.match(timeline, /isAnimationActive=\{false\}/, 'bar tooltips and bars must avoid first-measure position animation')
 assert.match(shell, /wideContentPaths = new Set\(\['\/timeline'\]\)/, 'the statistics workspace needs the wide desktop content lane')
 for (const [name, source] of [
@@ -348,6 +373,17 @@ assert.match(markup, /type: 'blank'; answer: string/, 'quiz blanks must be repre
 assert.match(markup, /node\.id === redaction\.id[\s\S]*visibleLabel === redaction\.normalizedLabel/, 'quiz redaction must match both entity identity and exact visible label')
 assert.doesNotMatch(markupContent, /\.split\(/, 'quiz prompts must not globally replace matching display text')
 assert.match(quiz, /quiz-result-correct[\s\S]*quiz-result-wrong/, 'quiz feedback must use theme-aware semantic state colors')
+assert.match(quiz, /answerLocked\.current/, 'final quiz answers need a synchronous duplicate-submit guard')
+assert.match(
+  quiz,
+  /data-answer-result=\{result \|\| 'pending'\}/,
+  'one semantic answer state must drive the complete question card feedback',
+)
+assert.match(
+  quiz,
+  /quiz-answer-input[\s\S]*quiz-submit-button[\s\S]*quiz-result-feedback/,
+  'fill input, submit button, and persistent result region must respond together',
+)
 assert.match(
   quiz,
   /current\.content === 'secret' && secretHint[\s\S]*<strong>继续作答<\/strong>[\s\S]*选择答案或填写完整内容后提交。/,

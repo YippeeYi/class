@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/chart'
 import { Tabs } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
+import { usePersistentHighlight } from '@/hooks/use-persistent-highlight'
 import {
   countTextCharacters,
   extractMarkupReferences,
@@ -27,7 +28,9 @@ import {
 } from '@/lib/markup'
 import { quoteRecordTarget } from '@/lib/quote-navigation'
 import { prepareRecordJump, recordClientHref } from '@/lib/record-navigation'
+import { buildPieSectorPaths } from '@/lib/stats'
 import { fixedTimelineChartScale } from '@/lib/timeline'
+import { cn } from '@/lib/utils'
 import type { RecordItem } from '@/types/domain'
 
 type Metric = 'count' | 'characters'
@@ -364,37 +367,33 @@ function MiniAuthorPie({
   colors: Map<string, string>
   activeId: string | null
 }) {
-  const total = entries.reduce((sum, [, value]) => sum + value, 0)
-  let offset = 0
+  const sectors = useMemo(
+    () => buildPieSectorPaths(entries.map(([id, value]) => ({ id, value }))),
+    [entries],
+  )
   return (
     <span
       className="daily-distribution-pie block aspect-square w-[58%] min-w-8 max-w-12 shrink-0"
       aria-hidden="true"
     >
-      <svg viewBox="0 0 40 40" className="block size-full" aria-hidden="true" focusable="false">
-        <circle cx="20" cy="20" r="10" fill="var(--muted)" />
-        {entries.map(([id, value]) => {
-          const length = total ? (value / total) * 100 : 0
-          const dashOffset = -offset
-          offset += length
-          return (
-            <circle
-              key={id}
-              cx="20"
-              cy="20"
-              r="10"
-              pathLength="100"
-              fill="none"
-              stroke={colors.get(id) || 'var(--muted-foreground)'}
-              strokeWidth="20"
-              strokeDasharray={`${length} ${100 - length}`}
-              strokeDashoffset={dashOffset}
-              transform="rotate(-90 20 20)"
-              opacity={activeId && activeId !== id ? 0.18 : 1}
-              className="transition-opacity duration-(--interaction-duration-standard)"
-            />
-          )
-        })}
+      <svg
+        viewBox="0 0 40 40"
+        className="block size-full"
+        shapeRendering="geometricPrecision"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <circle cx="20" cy="20" r="19" fill="var(--muted)" />
+        {sectors.map((sector) => (
+          <path
+            key={sector.id}
+            d={sector.path}
+            data-author-sector={sector.id}
+            fill={colors.get(sector.id) || 'var(--muted-foreground)'}
+            opacity={activeId && activeId !== sector.id ? 0.18 : 1}
+            className="transition-opacity duration-(--interaction-duration-standard)"
+          />
+        ))}
         <circle cx="20" cy="20" r="19" fill="none" stroke="var(--border)" strokeWidth="1" />
       </svg>
     </span>
@@ -480,23 +479,28 @@ function AuthorDistributionChart({
   config: ChartConfig
   unit: string
 }) {
-  const [activeId, setActiveId] = useState<string | null>(null)
+  const { activeId, activatePointer, clearPointer, activateFocus, clearFocusWhenLeaving } =
+    usePersistentHighlight()
   const [hoveredSectorId, setHoveredSectorId] = useState<string | null>(null)
   const chartRef = useRef<HTMLDivElement>(null)
   const total = data.reduce((sum, item) => sum + item.value, 0)
   const middleAngles = useMemo(() => authorPieMiddleAngles(data), [data])
   const hoveredDatum = data.find((item) => item.id === hoveredSectorId) || null
+  const resolvedActiveId = data.some((item) => item.id === activeId) ? activeId : null
 
   return (
     <div className="grid min-w-0 grid-cols-[7rem_minmax(0,1fr)] items-center gap-2.5 sm:grid-cols-[9.25rem_minmax(0,1fr)] sm:gap-[1.125rem]">
       <div ref={chartRef} className="relative mx-auto size-[6.75rem] sm:size-[8.75rem]">
-        <ChartContainer config={config} className="relative z-10 aspect-square size-full">
-          <PieChart
-            onMouseLeave={() => {
-              setActiveId(null)
-              setHoveredSectorId(null)
-            }}
-          >
+        <ChartContainer
+          config={config}
+          className="relative z-10 aspect-square size-full"
+          onPointerLeave={() => {
+            clearPointer()
+            setHoveredSectorId(null)
+          }}
+          onBlur={clearFocusWhenLeaving}
+        >
+          <PieChart>
             <Pie
               data={data}
               dataKey="value"
@@ -510,33 +514,25 @@ function AuthorDistributionChart({
               isAnimationActive={false}
             >
               {data.map((item) => {
-                const subdued = activeId !== null && activeId !== item.id
+                const subdued = resolvedActiveId !== null && resolvedActiveId !== item.id
                 return (
                   <Cell
                     key={item.id}
                     fill={item.color}
                     opacity={subdued ? 0.3 : 1}
                     stroke="var(--background)"
-                    strokeWidth={activeId === item.id ? 4 : 2}
+                    strokeWidth={resolvedActiveId === item.id ? 4 : 2}
                     tabIndex={0}
                     role="img"
                     aria-label={`${item.name}：${item.value.toLocaleString()} ${unit}`}
                     className="cursor-default outline-none transition-[opacity,stroke-width] duration-(--interaction-duration-standard) focus-visible:opacity-100"
                     onPointerEnter={() => {
-                      setActiveId(item.id)
+                      activatePointer(item.id)
                       setHoveredSectorId(item.id)
-                    }}
-                    onPointerLeave={() => {
-                      setActiveId(null)
-                      setHoveredSectorId(null)
                     }}
                     onFocus={() => {
-                      setActiveId(item.id)
+                      activateFocus(item.id)
                       setHoveredSectorId(item.id)
-                    }}
-                    onBlur={() => {
-                      setActiveId(null)
-                      setHoveredSectorId(null)
                     }}
                   />
                 )
@@ -559,7 +555,12 @@ function AuthorDistributionChart({
           </strong>
         </div>
       </div>
-      <ul className="grid min-w-0 list-none gap-1" aria-label="记录人占比图例">
+      <ul
+        className="grid min-w-0 list-none gap-1"
+        aria-label="记录人占比图例"
+        onPointerLeave={clearPointer}
+        onBlur={clearFocusWhenLeaving}
+      >
         {data.map((item) => {
           const percentage = total ? Math.round((item.value / total) * 100) : 0
           return (
@@ -568,12 +569,19 @@ function AuthorDistributionChart({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-auto w-full justify-between gap-3 px-2 py-1.5 text-meta"
-                aria-pressed={activeId === item.id}
-                onPointerEnter={() => setActiveId(item.id)}
-                onPointerLeave={() => setActiveId(null)}
-                onFocus={() => setActiveId(item.id)}
-                onBlur={() => setActiveId(null)}
+                className={cn(
+                  'h-auto w-full justify-between gap-3 px-2 py-1.5 text-meta',
+                  'aria-pressed:bg-muted aria-pressed:text-foreground dark:aria-pressed:bg-muted/50',
+                )}
+                aria-pressed={resolvedActiveId === item.id}
+                onPointerEnter={() => {
+                  activatePointer(item.id)
+                  setHoveredSectorId(null)
+                }}
+                onFocus={() => {
+                  activateFocus(item.id)
+                  setHoveredSectorId(null)
+                }}
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <i
@@ -648,7 +656,13 @@ export function TimelinePage() {
   const [params, setParams] = useSearchParams()
   const [metric, setMetric] = useState<Metric>('count')
   const [navigationError, setNavigationError] = useState('')
-  const [activeDailyAuthor, setActiveDailyAuthor] = useState<string | null>(null)
+  const {
+    activeId: activeDailyAuthor,
+    activatePointer: activateDailyAuthorPointer,
+    clearPointer: clearDailyAuthorPointer,
+    activateFocus: activateDailyAuthorFocus,
+    clearFocusWhenLeaving: clearDailyAuthorFocusWhenLeaving,
+  } = usePersistentHighlight()
   const records = resource.data?.records || []
   const archivePeriods = useMemo(() => {
     const byYear = new Map<string, RecordItem[]>()
@@ -810,6 +824,9 @@ export function TimelinePage() {
     () => [...authors.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])),
     [authors],
   )
+  const resolvedActiveDailyAuthor = dailyAuthorLegend.some(([id]) => id === activeDailyAuthor)
+    ? activeDailyAuthor
+    : null
 
   const openQuoteSource = (id: string) => {
     const quote = quoteById.get(id)
@@ -1113,38 +1130,38 @@ export function TimelinePage() {
                         month={month}
                         unit={unit}
                         colors={dailyAuthorColors}
-                        activeAuthor={activeDailyAuthor}
+                        activeAuthor={resolvedActiveDailyAuthor}
                       />
                     ))}
                   </div>
                   {dailyAuthorLegend.length > 0 && (
-                    <div className="mt-4 border-t pt-4">
-                      <p className="mb-2 text-meta font-medium text-muted-foreground">记录人图例</p>
-                      <ul className="flex list-none flex-wrap gap-1.5">
-                        {dailyAuthorLegend.map(([id]) => (
-                          <li key={id}>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 gap-2 px-2 text-meta"
-                              aria-pressed={activeDailyAuthor === id}
-                              onPointerEnter={() => setActiveDailyAuthor(id)}
-                              onPointerLeave={() => setActiveDailyAuthor(null)}
-                              onFocus={() => setActiveDailyAuthor(id)}
-                              onBlur={() => setActiveDailyAuthor(null)}
-                            >
-                              <i
-                                className="size-2.5 rounded-full"
-                                style={{ backgroundColor: dailyAuthorColors.get(id) }}
-                                aria-hidden="true"
-                              />
-                              {knownPeople.get(id) || id}
-                            </Button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                    <ul
+                      className="mt-3 flex list-none flex-wrap gap-1.5 border-t pt-3"
+                      aria-label="记录人占比图例"
+                      onPointerLeave={clearDailyAuthorPointer}
+                      onBlur={clearDailyAuthorFocusWhenLeaving}
+                    >
+                      {dailyAuthorLegend.map(([id]) => (
+                        <li key={id}>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 gap-2 px-2 text-meta aria-pressed:bg-muted aria-pressed:text-foreground dark:aria-pressed:bg-muted/50"
+                            aria-pressed={resolvedActiveDailyAuthor === id}
+                            onPointerEnter={() => activateDailyAuthorPointer(id)}
+                            onFocus={() => activateDailyAuthorFocus(id)}
+                          >
+                            <i
+                              className="size-2.5 rounded-full"
+                              style={{ backgroundColor: dailyAuthorColors.get(id) }}
+                              aria-hidden="true"
+                            />
+                            {knownPeople.get(id) || id}
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
                   )}
                 </CardContent>
               </Card>

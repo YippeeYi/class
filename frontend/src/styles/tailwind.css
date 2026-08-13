@@ -1274,6 +1274,9 @@ body .app-interactive-media:not(:disabled):active {
   .quiz-result-wrong {
     color: var(--quiz-error-foreground);
   }
+  .quiz-result-progress {
+    color: var(--quiz-type-ink);
+  }
 }
 
 /* Quiz answers still use the shadcn Button structure and focus contract, but
@@ -1348,6 +1351,44 @@ body .app-interactive-media:not(:disabled):active {
   color: var(--quiz-error-emphasis-foreground);
 }
 
+.quiz-question-card .quiz-answer-input.is-correct {
+  border-color: color-mix(in oklch, var(--quiz-success-emphasis) 62%, var(--border));
+  background: color-mix(in oklch, var(--quiz-success-surface) 76%, var(--background));
+  color: var(--quiz-success-foreground);
+  opacity: 1;
+}
+.quiz-question-card .quiz-answer-input.is-wrong {
+  border-color: color-mix(in oklch, var(--quiz-error-emphasis) 62%, var(--border));
+  background: color-mix(in oklch, var(--quiz-error-surface) 76%, var(--background));
+  color: var(--quiz-error-foreground);
+  opacity: 1;
+}
+.quiz-question-card .quiz-submit-button.is-correct:disabled {
+  border-color: var(--quiz-success-emphasis);
+  background: var(--quiz-success-emphasis);
+  color: var(--quiz-success-emphasis-foreground);
+  opacity: 1;
+}
+.quiz-question-card .quiz-submit-button.is-wrong:disabled {
+  border-color: var(--quiz-error-emphasis);
+  background: var(--quiz-error-emphasis);
+  color: var(--quiz-error-emphasis-foreground);
+  opacity: 1;
+}
+.quiz-result-feedback {
+  animation: quiz-result-feedback-in var(--interaction-duration-slow)
+    var(--interaction-ease-standard) both;
+}
+.quiz-result-icon {
+  background: currentColor;
+}
+.quiz-result-icon > svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  color: var(--background);
+  stroke-width: 2.5;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .record-source-action {
     opacity: 0;
@@ -1394,6 +1435,13 @@ body .app-interactive-media:not(:disabled):active {
   from {
     opacity: 0;
     transform: translateX(-0.35rem);
+  }
+}
+
+@keyframes quiz-result-feedback-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.2rem);
   }
 }
 
@@ -1701,6 +1749,29 @@ body [data-slot="switch-thumb"] {
   border-end-end-radius: 0;
   background: transparent;
   background-clip: padding-box;
+}
+.quiz-question-content {
+  transition: background-color var(--interaction-duration-slow) var(--interaction-ease-standard);
+}
+#root .quiz-question-card[data-answer-result="correct"] {
+  border-color: color-mix(in oklch, var(--quiz-success-emphasis) 58%, var(--border));
+}
+#root .quiz-question-card[data-answer-result="wrong"] {
+  border-color: color-mix(in oklch, var(--quiz-error-emphasis) 54%, var(--border));
+}
+#root .quiz-question-card[data-answer-result="correct"] > .quiz-question-header {
+  border-color: color-mix(in oklch, var(--quiz-success-emphasis) 34%, var(--border));
+  background: color-mix(in oklch, var(--quiz-success-surface) 36%, transparent);
+}
+#root .quiz-question-card[data-answer-result="wrong"] > .quiz-question-header {
+  border-color: color-mix(in oklch, var(--quiz-error-emphasis) 32%, var(--border));
+  background: color-mix(in oklch, var(--quiz-error-surface) 34%, transparent);
+}
+#root .quiz-question-card[data-answer-result="correct"] > .quiz-question-content {
+  background-color: color-mix(in oklch, var(--quiz-success-surface) 10%, transparent);
+}
+#root .quiz-question-card[data-answer-result="wrong"] > .quiz-question-content {
+  background-color: color-mix(in oklch, var(--quiz-error-surface) 9%, transparent);
 }
 .record-surface {
   --record-rest-border: var(--border);

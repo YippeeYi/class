@@ -99,6 +99,7 @@ try {
     '/src/features/quiz/quiz-engine.ts',
   )
   const { fixedTimelineChartScale } = await vite.ssrLoadModule('/src/lib/timeline.ts')
+  const { buildPieSectorPaths } = await vite.ssrLoadModule('/src/lib/stats.ts')
   const runtimeQuestions = [
     { id: 'a-person-choice', sourceId: 'a', content: 'person', type: 'choice' },
     { id: 'a-person-fill', sourceId: 'a', content: 'person', type: 'fill' },
@@ -130,6 +131,29 @@ try {
     max: 150,
     ticks: [0, 25, 50, 75, 100, 125, 150],
   })
+  const contiguousSectors = buildPieSectorPaths([
+    { id: 'first', value: 1 },
+    { id: 'second', value: 2 },
+    { id: 'third', value: 3 },
+  ])
+  assert.equal(contiguousSectors.length, 3)
+  const sectorStart = (path) => path.match(/^M 20 20 L (-?[\d.]+) (-?[\d.]+) A/)?.slice(1)
+  const sectorEnd = (path) => path.match(/ 1 (-?[\d.]+) (-?[\d.]+) Z$/)?.slice(1)
+  assert.deepEqual(
+    sectorEnd(contiguousSectors[0].path),
+    sectorStart(contiguousSectors[1].path),
+    'adjacent daily pie sectors must reuse one exact SVG boundary',
+  )
+  assert.deepEqual(
+    sectorEnd(contiguousSectors[2].path),
+    sectorStart(contiguousSectors[0].path),
+    'the final daily pie sector must close on the initial SVG boundary',
+  )
+  assert.match(
+    buildPieSectorPaths([{ id: 'only', value: 4 }])[0].path,
+    /A 19 19 0 1 1[\s\S]*A 19 19 0 1 1/,
+    'single-author daily pies must render as one complete circle',
+  )
   const centeredQuestions = buildQuestions(
     [
       {
