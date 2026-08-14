@@ -46,8 +46,9 @@ CLASS_RECORD_BUCKET=classrecord-private
 
 ## 缓存与失效
 
-- 结构化内容：`loadWithCache` 在同一页面生命周期内按键复用同一个 Promise，并保留内存结果；会话缓存的版本为
-  `classRecord:dataCache:v1`、TTL 为 10 分钟。授权清除、授权刷新失败和 bfcache 恢复都会清空它，失败请求不会写入缓存。
+- 结构化内容：`loadCached` 会合并同一授权范围、同一 key 的在途请求；默认依次查询内存、15 分钟
+  `sessionStorage` 和 IndexedDB（24 小时新鲜、7 天 stale）。网络失败时仅回退到同一授权范围内仍在 stale
+  窗口的持久数据；隐藏数据和隐藏题不落入持久缓存。授权清除会清空这些缓存。
 - 私有签名 URL：只在内存中保存，普通资源最长 600 秒；隐藏题和蹭饭图最长 180 秒。经过寿命约 80% 后不再命中签名缓存，由下一次实际加载或失败恢复按需重签，不用后台定时器替换已解码图片。
   退出页面、清除访问权限或 bfcache 恢复均清空 URL 与预加载结果。页面不会将 URL 写入 localStorage/sessionStorage。
 - 图片：浏览器原生 HTTP 缓存负责已解码 URL 的重复使用；当前页面图片高优先级、相邻/候选图片空闲预热，不会在首页下载全部高清图。

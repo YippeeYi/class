@@ -10,6 +10,7 @@ import {
 } from 'react'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { FilterToggle } from '@/components/archive/filter-toggle'
 import { QuizMarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -288,6 +289,7 @@ export function QuizPage() {
       if (buffer !== 'lamian' || secret.length || secretUnlocking.current) return
       secretUnlocking.current = true
       try {
+        setSecretError('')
         const rows = await loadQuizQuestions(true)
         const extra = rows.filter((item) => item.answer).map(normalizeSecretQuestion)
         if (!extra.length) throw new Error('题库为空')
@@ -299,6 +301,7 @@ export function QuizPage() {
         await preloadImageDimensionList(imagePaths)
         if (!active) return
         setSecret(extra)
+        setSecretError('')
       } catch {
         if (active) setSecretError('隐藏题库暂时无法加载，请稍后重试。')
       } finally {
@@ -461,17 +464,14 @@ export function QuizPage() {
                 <span className="text-sm font-medium text-muted-foreground">题型</span>
                 <ButtonGroup>
                   {(['choice', 'fill', 'judge'] as const).map((type) => (
-                    <Button
+                    <FilterToggle
                       key={type}
-                      size="sm"
-                      variant={enabledTypes.has(type) ? 'default' : 'outline'}
-                      aria-pressed={enabledTypes.has(type)}
+                      pressed={enabledTypes.has(type)}
                       disabled={typeCannotBeRemoved(type)}
-                      onClick={() => toggleType(type)}
+                      onPressedChange={() => toggleType(type)}
                     >
-                      {enabledTypes.has(type) && <Check data-icon="inline-start" />}
                       {TYPE_LABELS[type]}
-                    </Button>
+                    </FilterToggle>
                   ))}
                 </ButtonGroup>
               </div>
@@ -487,17 +487,14 @@ export function QuizPage() {
                       ...(secret.length ? ['secret' as const] : []),
                     ] as const
                   ).map((content) => (
-                    <Button
+                    <FilterToggle
                       key={content}
-                      size="sm"
-                      variant={enabledContent.has(content) ? 'default' : 'outline'}
-                      aria-pressed={enabledContent.has(content)}
+                      pressed={enabledContent.has(content)}
                       disabled={contentCannotBeRemoved(content)}
-                      onClick={() => toggleContent(content)}
+                      onPressedChange={() => toggleContent(content)}
                     >
-                      {enabledContent.has(content) && <Check data-icon="inline-start" />}
                       {CONTENT_LABELS[content]}
-                    </Button>
+                    </FilterToggle>
                   ))}
                 </ButtonGroup>
                 <Button

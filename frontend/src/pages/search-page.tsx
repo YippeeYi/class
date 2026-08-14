@@ -3,10 +3,10 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { FilterToggle } from '@/components/archive/filter-toggle'
 import { interactiveSurfaceVariants } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useArchive } from '@/features/archive/archive-context'
@@ -300,15 +300,13 @@ export function SearchPage() {
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             {(['record', 'person', 'quote'] as const).map((type) => (
-              <Button
+              <FilterToggle
                 key={type}
-                variant={types.has(type) ? 'default' : 'outline'}
-                size="sm"
-                aria-pressed={types.has(type)}
-                onClick={() => toggle(type)}
+                pressed={types.has(type)}
+                onPressedChange={() => toggle(type)}
               >
                 {labels[type]}
-              </Button>
+              </FilterToggle>
             ))}
           </div>
         </CardContent>

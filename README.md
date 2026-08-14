@@ -1,236 +1,333 @@
-# Class Record
+# 编日史（Class Record）
 
-一个接入 Supabase 的班级档案前端。敏感记录、人物、名言、答题数据和图片资源都从 Supabase 读取；访问者必须先通过一次性邀请码验证，前端才会加载站点内容。
+编日史是一套面向班级内部的只读档案网站。它把日常记录、人物、原话、书面页、补充资料、统计和答题统一到一个 React 单页应用中；结构化内容与私有资源来自 Supabase，访问者必须先使用一次性邀请码换取服务端访问凭证。
 
-前端已整体迁移为 React 19 + TypeScript 7 单页应用，使用 React Router 8、Vite 8、Tailwind CSS v4，以及由官方 shadcn CLI 下载的 Base UI 全组件源码。原生 HTML/CSS/JS 运行时已经移除。
+本文件只描述当前代码真实实现。`docs/` 中带 baseline、audit、report 或日期的文件是历史审查快照，不应覆盖本 README、当前源码、`sql/setup.sql` 和 `sql/check.sql` 的现行约定。
 
-## 项目结构
+## 产品边界与安全模型
+
+- 网站没有注册、账号、密码、个人中心或用户身份表。
+- 一次性邀请码由 `verify_invite_code` RPC 原子校验并作废，成功后换取一个 256 位随机访问 token；浏览器不保存原始邀请码。
+- token 通过 `x-class-record-access` 请求头发送。表 RLS、Storage policy 和签名 URL 都在服务端重新验证 token，修改浏览器本地数据不能生成权限。
+- 普通会话只能读取普通档案；管理员会话才可读取隐藏记录、隐藏书面页、隐藏补充和隐藏题图。
+- 浏览器候选凭证采用 90 天闲置期限和 365 天绝对期限；每次恢复页面都要调用 `refresh_invite_access` 服务端复验。
+- 前端不提交评论、收藏、表情、分享、答题结果、纠错或其他业务数据。仅访问凭证、缓存、外观偏好和全屏偏好保存在本机。
+- “移除访问权限”会清除凭证、外观和 Web Storage，并清理内存数据、签名 URL、IndexedDB、Cache Storage 和同源 Service Worker；下次访问需要新邀请码。
+- 已签发的普通资源 URL 最长有效 600 秒；地图、`hidden/` 和 `images/quiz/` 等敏感资源最长 180 秒。
+
+更完整的威胁模型、撤销与管理员检查方式见 [访问权限安全模型](docs/access-security-model.md)。
+
+## 页面与功能
+
+| 路由 | 页面职责与主要交互 |
+| --- | --- |
+| `/auth` | 邀请码验证。输入与提交在请求期间统一禁用并显示 loading；验证成功后只消费一次同源回跳地址。 |
+| `/` | 导览。显示记录、人物、名言数量，提供核心入口和工具入口；当天存在历史记录时显示“历史上的今天”。 |
+| `/records` | 记录浏览。支持列表/书面模式、正文搜索、年月日联动筛选、仅重要、排除每日例行、附件与记录引用跳转。 |
+| `/people` | 人物名单。按同学、老师、其他分组；每组可独立按 ID、参与数、记录数、字数或学科排序，老师可优先显示主要老师。 |
+| `/person?id=...` | 人物详情。显示别名、身份、学科、头像、简介，以及“参与事件/记录事件”两类相关记录和同一套记录筛选。 |
+| `/quotes` | 名言列表。按 ID 或内容升降序；名言从记录标记派生，点击可定位到对应书面记录。匹配缺失或不唯一时显示明确错误。 |
+| `/timeline` | 统计。可切换记录条数/正文字符数，查看全局、年度、月度和每日趋势、记录人分布、重要记录、活跃人物与名言等数据。 |
+| `/search?q=...` | 全站搜索。120ms 防抖，按相关度搜索记录、箴言、页补充、人物和名言，可组合开关记录/人物/名言三类结果。 |
+| `/quiz` | 档案答题。由记录、页补充、人物和名言实时生成选择、填空、判断题；支持题型/内容筛选、换题、即时判题和本次页面分数。 |
+| `/materials?id=...` | 资料阅读。URL 保存当前资料；目录与正文独立滚动，非法 ID 会回退到第一项并提示。 |
+| `/map` | 私有地图。固定比例占位、短时签名加载、有界自动重签和手动重试；可进入统一大图查看器。 |
+| `/backgrounds` | 风格设置。独立组合配色、背景和方框风格，选择即时生效并持久化。 |
+| `/credits` | 制作组与致谢。展示分组成员、致谢正文和附件说明，支持统一正文标记。 |
+| `/404`、未知路径 | 公开 404，不挂载档案数据。受保护路由允许尾斜杠，但不会把未知子路径放入受保护应用。 |
+
+### 全局壳层与导航
+
+- 桌面端使用可折叠 shadcn Sidebar，移动端使用同一组件的 Sheet 行为；切换路由后移动侧栏自动关闭。
+- 顶栏统一包含侧栏触发器、面包屑、页面级操作和全屏切换。人物详情会在顶栏显示当前人物名，同时侧栏仍选中“人物”。
+- 路由前进时统一回到顶部，浏览器后退/前进保留原生 POP 位置；记录引用跳转由记录页独占一次测量滚动，避免二次回弹。
+- 导航项在 pointer/focus 意图出现时预加载对应按需 chunk；页面仍由 React Router lazy route 拆分。
+- 提供“跳到主要内容”链接、focus-visible、键盘可操作浮层、可读 loading/empty/error 状态，并尊重 `prefers-reduced-motion`。
+
+### 记录与书面页
+
+`/records` 的 URL 参数是可恢复状态：
+
+| 参数 | 含义 |
+| --- | --- |
+| `view=written` | 打开书面记录模式；省略时为列表模式。 |
+| `q` | 只搜索渲染后的记录正文，不把日期、记录人或附件名混入。 |
+| `year`、`month`、`day` | 日期筛选；选择项根据其他日期条件联动生成。 |
+| `important=1` | 仅显示重要记录。 |
+| `excludeDaily=1` | 排除文件名以 `-00` 结尾的每日例行记录。 |
+
+书面模式按 `class_record_pages` 的起止文件映射记录，显示原始页图、对应文字记录、页箴言和页补充；支持上一页、下一页、页码 Select，以及相邻页图片预热。筛选条件同样作用于书面页及补充记录。
+
+正文中的记录/名言引用会先清理筛选并定位目标，完成后可返回跳转前的视图、筛选、页码和滚动位置。损坏或恶意 fragment 会安全忽略，不会让页面抛出 URI 错误。附件只在用户展开并点击时请求签名 URL。
+
+### 人物、名言、搜索与统计规则
+
+- `[[person:...]]` 计入人物参与事件；记录 JSON 的 `author` 与 `[[author:...]]` 计入记录事件。
+- 人物统计和详情会复用已解析的引用/字符缓存；页箴言与页补充会异步补入人物详情，不阻塞基本资料首屏。
+- 名言不是独立手工表：`loadQuotes` 从普通记录里的 `[[quote:...]]` 标记去重派生，并保留来源记录与日期。
+- 全站搜索索引记录全部可见字段、附件名、页箴言、页补充、人物资料和名言；结果先按标题完全匹配、前缀、包含、正文包含分级，再按时间/稳定键排序，不做静默截断。
+- 时间轴只统计拥有真实有效日历日期的普通记录。不存在的日期（如 2 月 31 日）不会进入年/月/日聚合。
+- 图表使用 Recharts 与 shadcn Chart；图例 hover/focus 通过同一个持久高亮状态联动，不通过放大扇形改变布局。年份、月份和名言可继续跳到对应记录视图。
+
+### 答题规则
+
+- 普通题由记录、页箴言、页补充、人物和名言在浏览器内生成；每日例行记录不参与生成。
+- 题源先等权选择，再在该题源的可用内容与题型中选择，避免题目多的单条记录获得更高概率。
+- 题型包括选择、填空、判断；内容包括记录人、记录时间、人名和名言。筛选不会允许用户移除到零个可生成组合。
+- 填空与判断使用统一正文 AST 的安全子集；需要猜测的目标标签被替换为空位，敏感 ID、注释正文和插图路径不会进入题面树。
+- 最终提交使用同步锁防止快速双击重复计分；答案、输入、结果和隐藏题进度在换题时一起重置。分数只存在当前页面，不上传。
+- 管理员会话输入 `lamian` 后才按需读取隐藏题库；普通会话不会读取隐藏题行或题图。隐藏填空按 grapheme 校验长度，并保留本轮已猜中的字符位置。
+
+### 图片、浮层与大图
+
+- 记录书面页、正文插图、人物头像、题图和地图都使用 Supabase Storage 私有对象；签名 URL 只保存在内存。
+- 图片尺寸元数据使用内存、会话和 IndexedDB 缓存，并尽量用 Range 请求解析 PNG/JPEG/GIF/WebP/SVG 尺寸，减少加载前布局跳动。
+- 图片解码失败最多自动强制重签一次；后续失败保持可见错误并等待用户手动重试，避免无限请求循环。
+- 注解和插图预览使用 shadcn HoverCard，支持鼠标、键盘与触控；滚动其祖先容器时会关闭，避免浮层脱离锚点。
+- 大图查看器组合 shadcn Dialog、Tooltip 和 Button，支持 1×–8× 缩放、滚轮/双击/双指缩放、拖动、方向键移动、复位和焦点锁定。
+
+### 风格设置
+
+外观状态统一保存在 `classRecord:appearance:v1`：
+
+- 配色：随背景自动取色，加 5 套浅色预设（纸白、雾蓝、暖杏、柔苔、莓霜）和 4 套深色预设（夜墨、深海、松夜、极光）。
+- 背景：纸本、山、云；图片背景包含署名安全外链、预览 loading/error/retry 和代表色。
+- 方框：利落小角、标准圆角、圆角方框；只改变统一圆角/滚动条几何，不改变业务布局。
+
+`public/theme-bootstrap.js` 会在 React 启动前恢复背景、配色、dark class 和已缓存 palette，避免首屏闪白。运行期换背景先解码，再通过固定双层背景淡入。
+
+## 数据来源与数据流
+
+### Supabase 表与用途
+
+| 表 | 前端用途 | 权限 |
+| --- | --- | --- |
+| `class_records` | 普通/隐藏记录、附件、重要标记、正文 | 普通可读普通行；管理员可读 hidden 行 |
+| `class_people` | 人物基本资料、角色、学科、头像 | 有效会话可读 |
+| `class_record_pages` | 书面页范围、排序、图像路径 | 普通/管理员按 hidden 分级 |
+| `class_page_messages` | 每页箴言 | 有效会话可读 |
+| `class_page_supplements` | 每页补充记录 | 普通/管理员按 hidden 分级 |
+| `class_materials` | 资料目录与正文 | 有效会话可读 |
+| `class_quiz_questions` | 管理员隐藏题 | 仅管理员可读 |
+| `class_credits_page` | 制作组、致谢、附件说明 | 有效会话可读 |
+| `class_private_assets` | 地图等私有资源的无路径尺寸元数据 | 有效会话可读 |
+
+私有二进制对象位于非公开 `classrecord-private` bucket。普通允许路径为 `data/attachments/`、`images/record-pages/` 和 `images/private/meal-map.png`；管理员另可访问 `hidden/` 与 `images/quiz/` 中的资源。源 JSON 不上传到 Storage。
+
+### 前端加载与缓存
+
+1. `AuthProvider` 从本机读取候选 token，并调用 `refresh_invite_access`。未通过前不挂载业务数据树。
+2. `ArchiveProvider` 按需并行加载记录和人物，再从记录派生名言；其中一类失败时保留已成功的数据，并向页面暴露部分失败。
+3. 页面专属数据在进入页面后再加载：书面页、资料、隐藏题、地图元数据、风格资源和致谢不会由导览页全量预取。
+4. `loadCached` 合并同授权范围、同 key 的在途请求。默认缓存层为内存 → 15 分钟 sessionStorage → IndexedDB（24 小时新鲜、最多 7 天 stale）→ 网络。
+5. 网络失败时只允许回退到同一授权范围内仍在 stale 窗口的数据。缓存 scope 包含授权时间，新的邀请码不会读取旧会话缓存。
+6. hidden 数据和管理员隐藏题不写入 sessionStorage/IndexedDB；签名 URL 也从不持久化。
+
+`force` 表示绕过已完成缓存，不表示制造重复请求；同 key 的在途请求仍合并。达到签名寿命 80% 后，仅下一次真实使用会重签，不存在后台 interval 定时替换已解码图片。
+
+## 记录正文标记
+
+正文、人物简介、资料和致谢使用统一的平衡括号语法 `[[type:参数]]`。解析结果是类型化 AST，React 直接渲染文本节点，不拼接 HTML，也不使用 `dangerouslySetInnerHTML`。
+
+| 功能 | 写法 |
+| --- | --- |
+| 人物参与者 / 额外记录人 | `[[person:人物ID|显示文字]]` / `[[author:人物ID|显示文字]]` |
+| 名言 / 记录 / 资料引用 | `[[quote:名言ID|原话]]` / `[[record:文件名|文字]]` / `[[material:资料ID|文字]]` |
+| 注解 / 插图 | `[[anno:注解内容|被注释文字]]` / `[[illu:example.png|被标记文字]]` |
+| 分式 / 方程式箭头 | `[[frac:上方|下方]]` / `[[arrow:上方|下方]]` |
+| 样式 | `[[del:删除线]]`、`[[under:下划线]]`、`[[red:标红]]`、`[[hide:黑幕]]` |
+| 上下标与对齐 | `[[sup:上标]]`、`[[sub:下标]]`、`[[center:居中]]`、`[[right:右对齐]]` |
+| 表格 | `[[table:2x3|A1|A2|A3|B1|B2|B3]]` |
+
+标记参数可以递归嵌套，最大解析深度为 24。表格限制为 1–30 行、1–12 列。使用 `\|`、`\[`、`\]`、`\\` 转义特殊字符；在 JSON 字符串中反斜杠还需再次转义。未知类型、非法 ID、非法插图路径、缺少参数或未闭合标记会按原文显示。
+
+普通 `illu` 参数只能是安全图片文件名；渲染器固定映射到 `data/attachments/`。上传脚本会把隐藏正文里的同类引用改写成受控 `hidden/文件名`，再映射到 `hidden/data/attachments/`。完整语法、浮层和排版保证见 [记录正文标记语法](docs/record-content-markup.md)。
+
+## 公共 UI 与交互体系
+
+- `frontend/src/components/ui/` 是 shadcn CLI 生成的 Base UI / Nova 组件源码，按项目约定只读。业务修改不得直接编辑这里。
+- `components/archive/filter-toggle.tsx` 统一记录、人物、搜索和答题中的持久筛选：底层复用 shadcn Toggle，固定 outline variant、默认尺寸和 pressed/focus/disabled 契约。
+- `SegmentedTabsList` 统一记录模式、人物记录模式、统计指标和风格顶层分区；状态仍由 shadcn Tabs 管理，共享层只绘制选中移动反馈。
+- `PageHeading` + `PageHeaderProvider` 统一页面标题与响应式顶栏操作；`AsyncState` 统一 loading、empty、error、retry。
+- `RecordCard`、`RecordFilters`、`ImageViewer`、`SelectionMotionLayer` 和 `interactiveSurfaceVariants` 分别统一记录、筛选、大图、选中动画与可点击业务表面。
+- Button、IconButton、Select、Dialog、AlertDialog、HoverCard、Tooltip、Input、RadioGroup、Sidebar、Card、Table、ScrollArea 等都组合 shadcn 组件；业务源码不再用原生 button/input/select 复制控件状态机。
+- 全局交互 token 统一 hover、pressed、focus、selected、disabled、loading、时长、缓动、阴影和 reduced-motion。具体约定见 [全站 UI 交互反馈规范](docs/ui-interaction-standard.md)。
+
+## 工程结构
 
 ```text
-frontend/
-├─ index.html          # Vite / React 入口
-├─ components.json     # shadcn CLI（Base UI / Nova）配置
-├─ public/             # 字体、背景、Logo 等静态资源
-├─ src/
-│  ├─ components/ui/   # shadcn CLI 下载的完整 Base UI 组件源码
-│  ├─ components/      # 档案业务组件和应用壳层
-│  ├─ features/auth/   # 邀请码门禁与访问状态
-│  ├─ pages/           # React 路由页面
-│  ├─ services/        # Supabase 与安全数据访问
-│  └─ lib/             # 标记解析、统计与通用工具
-├─ package.json        # 前端依赖与命令
-├─ tsconfig*.json      # TypeScript 7 严格模式配置
-├─ vite.config.ts      # React 与 Tailwind v4 插件配置
-└─ biome.json          # 不受 TS 7 peer 范围限制的代码检查配置
-scripts/               # 本地管理、安全验证和回归测试脚本
-sql/                   # Supabase 初始化与安全检查 SQL
-docs/                  # 运维和内容格式文档
-private-assets/        # 本地私密源文件（Git 忽略）
+.
+├─ frontend/
+│  ├─ public/                    # 首屏脚本、Logo、背景与 SPA fallback
+│  ├─ src/
+│  │  ├─ components/ui/          # 只读 shadcn Base UI 组件
+│  │  ├─ components/archive/     # 可复用档案业务组件
+│  │  ├─ components/layout/      # AppShell、页头、背景根层
+│  │  ├─ features/auth/          # 邀请门禁与凭证生命周期
+│  │  ├─ features/archive/       # 全站档案数据 Context
+│  │  ├─ features/quiz/          # 题目生成、筛选与抽样规则
+│  │  ├─ hooks/                  # 异步、图片、浮层、图表交互 hooks
+│  │  ├─ lib/                    # 标记、路由跳转、统计和纯工具函数
+│  │  ├─ pages/                  # 路由页面
+│  │  ├─ services/               # Supabase、数据、缓存和清理
+│  │  ├─ styles/                 # Tailwind v4 与项目 token/业务样式
+│  │  └─ types/                  # 领域类型
+│  ├─ components.json            # shadcn Base UI / Nova 配置
+│  └─ vite.config.ts             # Vite、React、Tailwind 与 Pages base
+├─ scripts/                      # 环境检查、管理 CLI、安全与回归测试
+├─ sql/setup.sql                 # 表、RPC、RLS、Storage policy
+├─ sql/check.sql                 # 生产 Supabase 只读漂移检查
+├─ docs/                         # 现行专题文档与历史审查快照
+├─ private-assets/               # Git 忽略的本地私密源数据/资源
+├─ .github/workflows/            # GitHub Pages 发布流程
+└─ vercel.json                   # Vercel 构建、缓存、安全头与 SPA rewrite
 ```
 
-## 当前安全模型
+添加页面时至少同步检查 `app.tsx` 的受保护白名单与 Route、`route-preload.ts`、AppShell 导航、文档和静态测试；不能只新增一个页面文件。
 
-- 没有账号体系：没有注册、登录、用户身份表、用户 ID、管理员账号或个人中心。
-- 一次性邀请码通过 Supabase RPC `verify_invite_code(input_code text)` 验证并原子作废。
-- 前端不读取邀请码表，不硬编码可用邀请码。
-- 验证通过后，本地只保存 `classRecord:inviteAccess` 和 `classRecord:lastVisitAt`，不保存原始邀请码；状态采用 90 天最近访问滑动有效期和 365 天绝对有效期，权限始终由服务端 token 验证决定。
-- 完整的访问权限边界、撤销方式和用户注意事项见 [docs/access-security-model.md](docs/access-security-model.md)。
-- 前端允许的 Supabase 交互只有邀请码验证、必要数据读取、Storage 签名 URL 和必要的只读展示请求。
-- 前端不再提交评论、收藏、表情、分享、成就、Q 币、答题结果、纠错、留言或任何用户本地状态。
+## 技术栈
 
-## 页面
+- React 19、React DOM 19、TypeScript 7、React Router 8
+- Vite 8、Tailwind CSS 4、Biome 2
+- shadcn CLI 4、Base UI、class-variance-authority、tailwind-merge
+- Supabase JS 2（PostgREST、RPC、Storage）
+- Recharts 3、Lucide React、Geist Variable Font
+- Node.js 内建测试脚本；Playwright 用于可选真实布局回归
 
-| 页面 | 文件 | 说明 |
-| --- | --- | --- |
-| 邀请码验证 | `/auth` | 输入一次性邀请码 |
-| 导览 | `/` | 站点入口和统计卡片 |
-| 记录 | `/records` | 普通记录和书面记录展示 |
-| 人物 | `/people`, `/person?id=...` | 人物列表和详情 |
-| 名言 | `/quotes` | 名言列表，点击后定位到对应记录 |
-| 搜索 | `/search` | 记录、人物、名言搜索 |
-| 统计 | `/timeline` | 档案统计视图 |
-| 答题 | `/quiz` | 本地判题，不上传答题结果 |
-| 资料、地图、背景、致谢 | `/materials`, `/map`, `/backgrounds`, `/credits` | 其他档案功能 |
+依赖版本以根 `package-lock.json` 为发布锁定来源，不应手工推断或在文档中维护另一份精确版本表。
 
-## 关键文件
+## 本地开发
 
-- `frontend/src/features/auth/`：统一邀请码门禁、本地候选 token 和服务端刷新。
-- `frontend/src/services/supabase.ts`：Supabase 客户端配置。
-- `frontend/src/services/data.ts`：记录、人物、资料、答题、书面页和 Storage 签名 URL 读取。
-- `frontend/src/lib/markup.ts`：记录正文标记的安全解析、引用提取与纯文本转换。
-- `frontend/src/components/ui/`：由 `npx shadcn@latest add --all` 下载的 Base UI 组件源码。
-- `sql/setup.sql`：当前无账号方案的 Supabase 建表、函数、RLS 与 Storage policy SQL。
-- `sql/check.sql`：Supabase 安全状态只读检查 SQL。
-
-## 本地运行
-
-项目要求 Node.js 22.12.0 或更高版本，仓库根目录的 `.nvmrc` 固定使用 Node 22。首次在 macOS 上开发时，先确认终端可以找到 Node.js 和 npm：
+要求 Node.js `>=22.12.0`；仓库 `.nvmrc` 使用 Node 22。
 
 ```bash
-node --version
-npm --version
-```
-
-如果项目从 Windows 直接复制而来，不要复用原来的 `node_modules`。在仓库根目录使用当前 Mac 的 Node.js 重新安装锁定依赖：
-
-```bash
-rm -rf node_modules frontend/node_modules
+nvm install
+nvm use
 npm ci
 npm run doctor
 npm run dev
 ```
 
-使用 nvm 时可先运行 `nvm install && nvm use`。如果 `node` 或 `npm` 显示 `command not found`，需要先为 macOS 安装 Node.js 22；仅复制项目目录不会同时迁移 Windows 上安装的 Node.js。
+开发地址为 `http://127.0.0.1:5173/`。如果从另一操作系统复制项目，不要复用旧 `node_modules`；删除安装目录后在当前系统重新执行 `npm ci`。
 
-访问：
-
-```text
-http://127.0.0.1:5173/
-```
-
-常用检查命令：
-
-```bash
-npm run doctor
-npm run typecheck
-npm run lint
-npm test
-npm run build
-# 或一次运行全部检查
-npm run check
-```
-
-## GitHub Pages 部署
-
-仓库包含 [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml)。推送到 `main` 分支或手动运行该 workflow 后，它会安装依赖、执行类型检查、lint、测试和生产构建，并将 `frontend/dist` 部署到 GitHub Pages。
-
-首次使用时，在仓库 `Settings → Pages → Build and deployment` 中将 Source 设置为 `GitHub Actions`。Vite 会在 Actions 中根据 `GITHUB_REPOSITORY` 自动设置项目路径，React Router 和静态资源也会使用对应的 `basename` 与 base URL。
-
-## 记录正文跳转标记
-
-记录 JSON 的 `content` 可使用 `[[record:文件名|显示文字]]` 创建记录跳转。例如：
+前端已经内置当前 Supabase 项目的公开 URL 与 anon key。需要连接另一项目时，在 `frontend/.env.local` 配置：
 
 ```text
-参见 [[record:2025-01-06-01|这条记录]]。
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-public-anon-key
 ```
 
-文件名可带或不带 `.json`。点击后会通过 React Router 进入记录页，并使用查询参数定位目标记录。
+anon key 不是 service role 密钥，但新项目仍必须执行同一套 RLS/Storage policy。若部署到 Vercel 且更换 Supabase 域名，还必须同步更新 `vercel.json` 的 CSP `connect-src` 与 `img-src`。
 
-正文也支持行内分式 `[[frac:上方文字|下方文字]]`，以及悬浮或点击显示说明的注解
-`[[anno:注解内容|被注释文字]]`。格式不完整的标记会安全地按原文显示。
-
-项目内附件插图可使用 `[[illu:data/attachments/example.png|被标记文字]]`。悬浮、键盘聚焦或
-触屏点击被标记文字时会显示图片预览；路径仅允许附件目录中的常见图片格式。
-
-删除线使用 `[[del:被删除文字]]`，正文会保留文字并以内联删除线显示。
-
-下划线使用 `[[under:被标记文字]]`，标红使用 `[[red:被标记文字]]`；两者均支持递归嵌套其他正文标记。
-
-上述 `[[...]]` 标记使用平衡括号递归解析为类型化 AST，参数中的嵌套标记会继续渲染；
-普通文本直接作为 React 文本节点输出，不拼接 HTML 字符串。插图路径严格限制在
-`data/attachments/` 目录。
-
-注解内容同样支持人物、名言、跳转及文字样式标记；注解或插图的二次悬浮标记会在浮层中
-安全降级为标签文字。注解与插图浮层均支持移入停留，并在离开触发文字和浮层后延迟关闭。
-
-## Supabase 邀请码设置
-
-完整设置 SQL 见 `sql/setup.sql`，安全检查 SQL 见 `sql/check.sql`。核心机制：数据库只保存 `invite_codes.code_hash`，前端提交邀请码后由 RPC 在数据库端读取私有配置表 `invite_code_settings` 中的 pepper 计算 hash，并在同一个 `update ... returning` 操作中把邀请码标记为已使用。
-
-本地生成邀请码：
+## 检查、测试与构建
 
 ```bash
-npm install
-npm run admin -- invites generate --count 30 --expires-days 14 --note "G2-1 首批邀请码"
-# 仅在需要访问 hidden 内容时生成高权限邀请码
-npm run admin -- invites generate --count 1 --expires-days 7 --access-level admin --note "管理员隐藏内容访问"
+npm run doctor             # Node/依赖/跨平台原生包检查
+npm run typecheck          # TypeScript project build
+npm run lint               # Biome 只读检查
+npm test                   # 安全、缓存、路由、正文、记录、答题、搜索等回归
+npm run test:layout        # 可选：真实 Chromium 正文/响应式布局回归
+npm run build              # 输出 frontend/dist
+npm run preview            # http://127.0.0.1:4173/
+npm run check              # doctor + typecheck + lint + test + build
 ```
 
-统一管理入口为 `scripts/admin.mjs`：
+`npm test` 覆盖安全边界、私有图片、签名/重试、门禁、三级缓存、插图尺寸、标记 AST、记录身份与跳转、滚动边界、记录视图、答题/统计算法、搜索、尾斜杠路由和静态 UI/部署契约。`test:layout` 需要本机已有兼容 Playwright Chromium。
+
+可选在线安全检查：
 
 ```bash
-# 预检查或上传全部私密内容
-npm run admin -- upload --dry-run
-npm run admin -- upload
+npm run verify-security-live
 
-# 查看全部邀请码的状态；不会显示邀请码明文或哈希
+# 进一步验证真实普通或管理员 token、现存对象和 5 秒 signed URL 过期
+CLASS_RECORD_ACCESS_TOKEN=64字符访问token npm run verify-security-live
+```
+
+不提供 token 时，脚本只验证匿名请求和伪造 token 不能读取保护表/Storage；真实普通与管理员链路仍需分别提供合法 token 才能完成。
+
+## Supabase 初始化与本地管理
+
+1. 在 Supabase SQL Editor 以 owner 身份完整执行 `sql/setup.sql`。
+2. 执行 `sql/check.sql`，确认表、函数权限、RLS、private bucket 和唯一 Storage SELECT policy 没有漂移。
+3. 复制 `.env.example` 为仓库根 `.env`，填入本地管理变量：
+
+```text
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=local-service-role-key
+INVITE_CODE_PEPPER=long-random-secret
+CLASS_RECORD_BUCKET=classrecord-private
+```
+
+`SUPABASE_SERVICE_ROLE_KEY` 和 `INVITE_CODE_PEPPER` 只允许存在于本地或受保护的运维环境，绝不能加 `VITE_` 前缀、提交到 Git、写入前端或粘贴到浏览器控制台。
+
+### 邀请码
+
+```bash
+npm run admin -- invites generate --count 30 --expires-days 14 --note "首批邀请码"
+npm run admin -- invites generate --count 1 --expires-days 7 --access-level admin --note "管理员"
 npm run admin -- invites list
-
-# 用邀请码明文检查这一张是否已使用、过期或不存在；不会回显输入内容
 npm run admin -- invites check --code CR-ABCD-EFGH-2345
 ```
 
-邀请码只会在 `invites generate` 成功时输出一次；数据库仅保存加 pepper 的哈希。请立即在安全位置保存生成结果，不要把邀请码、`.env` 或命令输出提交到 Git。
+邀请码明文只在 generate 成功时输出一次；数据库只保存带 pepper 的哈希。list/check 不输出 hash 或访问 token。
 
-本地 `.env` 需要包含：
+### 私密内容组织
 
 ```text
-SUPABASE_URL=https://你的项目.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=你的 service role key，仅本地使用
-INVITE_CODE_PEPPER=请填写一段足够长的随机字符串
+private-assets/
+├─ content/
+│  ├─ record/*.json                 # 普通/hidden 记录
+│  ├─ record/record_pages.json      # 书面页范围与图片映射
+│  ├─ people/*.json                 # 人物
+│  ├─ messages/<页码>.json          # 页箴言
+│  ├─ page-supplements/08-02.json   # 页码-序号补充记录
+│  ├─ materials/*.json              # 资料
+│  ├─ quiz/lamian.json              # 管理员隐藏题
+│  ├─ credits-page.json             # 制作组与致谢
+│  └─ attachments/                  # 正文/附件引用的二进制文件
+├─ record-pages/                    # 书面页原图
+├─ quiz/                            # 隐藏题图本地源
+└─ meal-map/map.png                 # 地图原图；也兼容单独的 map.PNG
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` 和 `INVITE_CODE_PEPPER` 只用于本地管理脚本，绝不能进入前端代码。
+页补充文件名必须是 `页面-编号.json`；上传脚本以文件名解析页码与排序。资料 ID 默认使用文件名去掉 `.json` 的部分，也可在 JSON 中提供业务 `id`；`sortOrder` 控制排序。详细页箴言格式见 [书面记录页箴言](docs/page-messages.md)，地图操作见 [地图部署说明](docs/meal-map-operation.md)。
 
-## 数据与图片
-
-前端不依赖本地 `private-assets/`。记录、人物、名言、答题和书面记录页来自 Supabase 表；图片和附件通过 Supabase Storage 签名 URL 加载。
-
-正式上传脚本只会上传数据库行实际引用、且位于白名单根目录中的二进制资源，不会把 `private-assets/content/**/*.json` 上传到 Storage。Quiz 原图仅保存在本机被 Git 忽略的 `private-assets/quiz/` 下，迁移后对应对象路径仍为 `images/quiz/`。需要同步清理远端失效文件时，先 dry-run，再使用：
+### 校验、上传与清理
 
 ```bash
+npm run admin -- upload --validate-only
+npm run admin -- upload --dry-run
+npm run admin -- upload --concurrency=3
 npm run admin -- upload --prune --confirm-prune
 ```
 
-`--prune` 会以本次数据库导入实际生成的资源清单为准清理整个专用 bucket；请仅将 `classrecord-private` 用于本网站，并在执行前保留必要备份。
+上传流程扫描源 JSON、重写受控资源引用、校验数据库 schema、批量 upsert 表行，并只上传最终数据库行实际引用且位于白名单根目录的二进制对象。网络请求最多重试三次，并限制 1–8 个上传并发。
 
-`lamian` 隐藏题及其 `images/quiz/` 题图仅对管理员邀请码会话开放。普通邀请码不会预加载隐藏题，敲击 `lamian` 也不会触发解锁。
+`--prune` 会根据本次完整导入清单删除远端陈旧表行和 bucket 对象，必须同时传入 `--confirm-prune`。专用 bucket 不应混放其他系统文件；执行前先 dry-run 并保留备份。
 
-## 第二阶段安全参数
+## 部署
 
-- 普通 Storage signed URL 有效期为 600 秒；`hidden/` 和 `images/quiz/` 为 180 秒。URL 只保存在页面内存，不写入 Web Storage，并在页面退出或权限清理时清空。
-- 邀请访问保持 90 天闲置滑动体验，但服务端会在首次授权 365 天后强制重新验证。浏览器中的本地状态只用于找到候选 token，页面放行始终需要 Supabase 刷新成功。
-- `verify_invite_code()` 同时按代理提供的来源 IP、被尝试的邀请码和全站请求量限流。历史清理由 `cleanup_invite_code_attempts()` 独立执行，建议在 Supabase Cron 中每天调用一次：`select public.cleanup_invite_code_attempts();`。
-- 初始搭建与环境检查只使用 `sql/setup.sql` 和 `sql/check.sql`。
+### GitHub Pages
 
-## 书面记录页内补充记录
+`.github/workflows/deploy-pages.yml` 在推送 `main` 或手动触发时执行 `npm ci`、typecheck、lint、test 和 build，将 `frontend/dist` 部署到 Pages，并复制 `index.html` 为 `404.html` 支持 SPA 回退。Vite 根据 `GITHUB_REPOSITORY` 自动设置项目子路径，BrowserRouter 使用同一 `BASE_URL` 作为 basename。
 
-补充记录文件单独放在 `private-assets/content/page-supplements/`，不要放进 `private-assets/content/record/`。
+首次部署需在仓库 `Settings → Pages → Build and deployment` 选择 GitHub Actions。
 
-文件命名保持 `页面-编号.json`，例如 `08-02.json`。字段只需要：
+### Vercel
 
-```json
-{
-  "author": "记录人ID",
-  "content": "补充记录内容"
-}
-```
+`vercel.json` 使用根命令 `npm run build` 和输出目录 `frontend/dist`，提供：
 
-上传脚本会把这些文件导入 `class_page_supplements`，前端只会在书面记录模式的对应页码中显示；它们不会进入普通记录列表、搜索、人物页、名言跳转或统计。
+- `/assets/*` 一年 immutable 缓存；非 hash 字体、背景、Logo 独立 30 天缓存。
+- CSP、HSTS、Referrer-Policy、nosniff、Permissions-Policy、frame protection 等安全头。
+- `/data/*`、书面页、题图、私有图等敏感公开路径返回 404。
+- 其余路径 rewrite 到 `index.html`，由 React Router 处理。
 
-## 资料数据
+## 维护约定
 
-资料文件单独放在 `private-assets/content/materials/`。
-
-文件名建议使用稳定的英文、数字、短横线或下划线，例如：
-
-```text
-exam-rules.json
-chemistry-notes.json
-```
-
-上传脚本会使用文件名去掉 `.json` 后的部分作为默认资料 ID。每个 JSON 至少包含：
-
-```json
-{
-  "title": "资料标题",
-  "content": "资料解释内容"
-}
-```
-
-可选字段：
-
-- `id`：资料唯一标识；不填时使用文件名。
-- `sortOrder`：排序序号；不填时按文件名扫描顺序。
-
-`content` 支持现有记录正文标记语法，例如人物、名言、插图、注释、黑幕、上下标、删除线和标红。
+- 禁止直接编辑 `frontend/src/components/ui/`；通过业务组合、`className`、variant、设计 token 或公共业务组件扩展。
+- 不要为了视觉重构改变记录编号、日期、人物关系、题目抽样、hidden 权限或上传数据规则。
+- 不要恢复 HTML 字符串渲染、原生控件模拟、后台签名 URL 定时刷新、跨页面无关数据预取或 hidden 持久缓存。
+- 新增异步操作必须同时处理 loading、disabled/aria-busy、empty、error 和可重试状态；图片失败必须有界。
+- 生产数据行为以 `services/data.ts`、`features/quiz/quiz-engine.ts`、`lib/markup.ts`、SQL 与管理脚本为准；修改规则时同步更新测试和本文档。
+- `.env`、`private-assets/`、邀请码、service role key、访问 token 和管理命令输出不得提交到 Git。
+- 发布前至少执行 `npm run check`；有可用浏览器环境时再执行 `npm run test:layout`、公开入口控制台检查，以及普通/管理员合法 token 的完整人工回归。

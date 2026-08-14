@@ -45,6 +45,7 @@ import {
   beginRecordJump,
   completeRecordJump,
   consumeRecordJump,
+  decodeRecordHash,
   type PendingRecordJump,
   replaceRecordJumpHash,
 } from '@/lib/record-navigation'
@@ -382,16 +383,8 @@ export function RecordsPage() {
     },
     [navigate],
   )
-  const pendingJump = useRef<PendingRecordJump | null>(
-    consumeRecordJump() ||
-      (window.location.hash
-        ? {
-            targetAnchorId: decodeURIComponent(window.location.hash.slice(1)),
-            originHref: '',
-            createdAt: Date.now(),
-          }
-        : null),
-  )
+  const pendingJump = useRef<PendingRecordJump | null>(null)
+  const initialJumpCaptured = useRef(false)
   const observedLocationKey = useRef(location.key)
   const observedHash = useRef(location.hash)
   const [jumpRevision, setJumpRevision] = useState(0)
@@ -417,6 +410,17 @@ export function RecordsPage() {
   useEffect(() => {
     document.title = '编日史 · 记录'
   }, [])
+  useLayoutEffect(() => {
+    if (initialJumpCaptured.current) return
+    initialJumpCaptured.current = true
+    const targetAnchorId = decodeRecordHash(location.hash)
+    const next =
+      consumeRecordJump() ||
+      (targetAnchorId ? { targetAnchorId, originHref: '', createdAt: Date.now() } : null)
+    if (!next) return
+    pendingJump.current = next
+    setJumpRevision((value) => value + 1)
+  }, [location.hash])
   useEffect(() => {
     const nextView = params.get('view') === 'written' ? 'written' : 'list'
     const nextCriteria = criteriaFromSearch(params)
@@ -433,15 +437,10 @@ export function RecordsPage() {
     }
     const hashChanged = observedHash.current !== location.hash
     observedHash.current = location.hash
+    const targetAnchorId = hashChanged ? decodeRecordHash(location.hash) : ''
     const next =
       consumeRecordJump() ||
-      (hashChanged && location.hash
-        ? {
-            targetAnchorId: decodeURIComponent(location.hash.slice(1)),
-            originHref: '',
-            createdAt: Date.now(),
-          }
-        : null)
+      (targetAnchorId ? { targetAnchorId, originHref: '', createdAt: Date.now() } : null)
     if (!next) return
     pendingJump.current = next
     setJumpRevision((value) => value + 1)
@@ -456,9 +455,11 @@ export function RecordsPage() {
       if (!buffer.endsWith('qibaishihuaxia')) return
       buffer = ''
       try {
+        setHiddenError('')
         if (!(await hasAdminAccess())) return
         setHiddenRecords(await loadRecords({ hidden: true }))
         setHidden(true)
+        setHiddenError('')
         replaceRouteState(view, EMPTY_RECORD_CRITERIA)
       } catch {
         setHiddenError('隐藏记录暂时无法加载，请稍后重试。')

@@ -1,6 +1,7 @@
 import { Search, X } from 'lucide-react'
 import { useMemo } from 'react'
 
+import { FilterToggle } from '@/components/archive/filter-toggle'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -11,7 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Toggle } from '@/components/ui/toggle'
 import { normalizeText, unique } from '@/lib/archive'
 import { stripMarkup } from '@/lib/markup'
 import type { RecordItem } from '@/types/domain'
@@ -147,20 +147,18 @@ export function RecordFilters({
               </SelectContent>
             </Select>
           ))}
-          <Toggle
+          <FilterToggle
             pressed={value.important}
             onPressedChange={(pressed) => update({ important: pressed })}
-            variant="outline"
           >
             仅重要
-          </Toggle>
-          <Toggle
+          </FilterToggle>
+          <FilterToggle
             pressed={value.excludeDaily}
             onPressedChange={(pressed) => update({ excludeDaily: pressed })}
-            variant="outline"
           >
             排除每日例行
-          </Toggle>
+          </FilterToggle>
           {active && (
             <Button variant="ghost" onClick={() => onChange(EMPTY_RECORD_CRITERIA)}>
               <X data-icon="inline-start" />

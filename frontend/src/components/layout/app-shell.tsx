@@ -96,6 +96,15 @@ function RouteScrollManager() {
   const navigationType = useNavigationType()
   const previous = useRef<{ pathname: string; search: string } | null>(null)
 
+  useEffect(() => {
+    if (!('scrollRestoration' in window.history)) return
+    const previousMode = window.history.scrollRestoration
+    window.history.scrollRestoration = 'manual'
+    return () => {
+      window.history.scrollRestoration = previousMode
+    }
+  }, [])
+
   useLayoutEffect(() => {
     const last = previous.current
     const isInitialRender = last === null
@@ -269,7 +278,7 @@ export function AppShell() {
     return () => setRegisteredTitle((current) => (current?.token === token ? null : current))
   }, [])
   const sectionTitle = navigation.find((item) => item.to === navigationPath(location.pathname))
-  const pageTitle = sectionTitle?.label || registeredTitle?.title || '档案'
+  const pageTitle = registeredTitle?.title || sectionTitle?.label || '档案'
 
   useEffect(() => {
     const root = document.documentElement

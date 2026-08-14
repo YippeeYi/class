@@ -1,5 +1,5 @@
 import { KeyRound } from 'lucide-react'
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { Navigate } from 'react-router'
 
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,8 @@ export function AuthPage() {
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [redirectTarget, setRedirectTarget] = useState<string | null>(null)
+  const redirectCaptured = useRef(false)
   const displayedError =
     error ||
     (auth.state === 'error'
@@ -24,8 +26,26 @@ export function AuthPage() {
   useEffect(() => {
     document.title = '邀请码 · 编日史'
   }, [])
+  useEffect(() => {
+    if (auth.state !== 'authenticated' || redirectCaptured.current) return
+    redirectCaptured.current = true
+    setRedirectTarget(auth.consumeTarget())
+  }, [auth])
 
-  if (auth.state === 'authenticated') return <Navigate to={auth.consumeTarget()} replace />
+  if (auth.state === 'authenticated') {
+    if (redirectTarget) return <Navigate to={redirectTarget} replace />
+    return (
+      <div
+        className="grid min-h-svh place-items-center text-sm text-muted-foreground"
+        role="status"
+      >
+        <span className="flex items-center gap-3">
+          <Spinner className="size-5" />
+          正在返回原页面…
+        </span>
+      </div>
+    )
+  }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()

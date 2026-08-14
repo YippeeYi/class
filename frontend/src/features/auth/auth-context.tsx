@@ -55,9 +55,20 @@ function readCandidate(): { candidate: AccessRecord | null; shouldClear: boolean
 
 function rememberTarget(target: string) {
   try {
-    sessionStorage.setItem(REDIRECT_KEY, target)
+    sessionStorage.setItem(REDIRECT_KEY, safeRedirectTarget(target))
   } catch {
     // Direct navigation to the guide remains available when session storage is unavailable.
+  }
+}
+
+function safeRedirectTarget(target: string) {
+  try {
+    const url = new URL(target, window.location.origin)
+    if (url.origin !== window.location.origin || !target.startsWith('/') || target.startsWith('//'))
+      return '/'
+    return `${url.pathname}${url.search}${url.hash}`
+  } catch {
+    return '/'
   }
 }
 
@@ -65,7 +76,7 @@ function consumeTarget() {
   try {
     const target = sessionStorage.getItem(REDIRECT_KEY) || '/'
     sessionStorage.removeItem(REDIRECT_KEY)
-    return target
+    return safeRedirectTarget(target)
   } catch {
     return '/'
   }

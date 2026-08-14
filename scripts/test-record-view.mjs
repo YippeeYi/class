@@ -4,6 +4,7 @@ import { readFrontend } from './test-react-helpers.mjs'
 const page = await readFrontend('src/pages/records-page.tsx')
 const card = await readFrontend('src/components/archive/record-card.tsx')
 const filters = await readFrontend('src/components/archive/record-filters.tsx')
+const navigation = await readFrontend('src/lib/record-navigation.ts')
 assert.match(page, /value: 'list'/, 'list view is missing')
 assert.match(page, /value: 'written'/, 'written view is missing')
 assert.match(page, /<SegmentedTabsList[\s\S]*items=\{recordViewItems\}/, 'record modes must restore the shared shadcn Tabs selection motion')
@@ -24,6 +25,13 @@ assert.match(page, /recordsResource = useAsyncData\(\(\) => loadRecords\(\)\)/, 
 assert.doesNotMatch(page, /useArchive/, 'the record list must not wait for unrelated people and quote data')
 assert.match(page, /qibaishihuaxia/, 'admin hidden-record sequence was not preserved')
 assert.match(page, /hasAdminAccess/, 'hidden records must check admin access')
+assert.doesNotMatch(page, /decodeURIComponent/, 'record pages must not decode malformed hashes during render')
+assert.match(navigation, /function decodeRecordHash[\s\S]*catch[\s\S]*return ''/, 'record hashes need a non-throwing decoder')
+assert.doesNotMatch(
+  page.slice(page.indexOf('export function RecordsPage'), page.indexOf('useLayoutEffect(() => {', page.indexOf('export function RecordsPage'))),
+  /consumeRecordJump\(\)/,
+  'pending record jumps must not be consumed during render',
+)
 assert.match(
   page,
   /recordNavigation = useRef\([\s\S]*origin:\s*\{[\s\S]*view: state\.view,[\s\S]*pageIndex: state\.pageIndex,[\s\S]*criteria: \{ \.\.\.state\.criteria \}[\s\S]*scrollY:/,

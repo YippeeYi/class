@@ -1,7 +1,8 @@
 # 全站 UI 交互反馈规范
 
 本规范是业务页面的统一交互基线。`frontend/src/components/ui` 是只读的 shadcn/ui 组件目录；
-业务页面只要已有对应 shadcn 组件，就必须直接组合该组件及其官方 API，不新增同义封装或自制基础控件。
+业务页面只要已有对应 shadcn 组件，就必须组合该组件及其官方 API，不自制基础控件；跨页面语义确实相同且
+需要锁定 variant、尺寸或反馈契约时，可以增加轻量业务封装，但不得复制底层状态机。
 
 ## 1. 组件使用边界
 
@@ -9,6 +10,8 @@
   骨架屏、空状态、分页及侧边栏优先直接使用 `@/components/ui/*`。
 - `frontend/src/components/archive/interaction.tsx` 只保留 shadcn 没有覆盖的业务表面与文本链接样式，
   不导出 Button、variant 或基础交互状态机。
+- `FilterToggle` 是持久筛选的项目级语义组件：内部只组合 shadcn `Toggle`，统一 outline variant、默认尺寸、
+  pressed、focus 与 disabled 契约；记录、人物、搜索、答题不得各自改用 Button 模拟同一语义。
 - 业务组件可以组合 shadcn 组件，但不得复制 shadcn 已有组件、修改 shadcn 源码或绕过其可访问性语义。
 - 原生元素只用于没有对应 shadcn 语义的正文、媒体画布、图表与必要的结构元素。
 
@@ -44,7 +47,8 @@
 
 - Tabs 直接使用 shadcn `Tabs`、`TabsList`、`TabsTrigger`、`TabsContent`。记录模式、人物记录模式和
   统计指标通过 `SegmentedTabsList` 组合这些原语，只扩展原有的共享选中层移动，不复制 Tabs 状态机。
-- RadioGroup、Checkbox、Switch、Toggle 和 ButtonGroup 直接使用对应 shadcn 组件。
+- RadioGroup、Checkbox、Switch 和 ButtonGroup 使用对应 shadcn 组件；跨页面持久筛选使用
+  `FilterToggle` 组合 shadcn Toggle。一次性命令、单选导航和答题答案仍使用 Button，不混入筛选语义。
 - 分段模式选中层读取真实 TabsTrigger 布局边界，以 200ms 标准缓动移动；快速连续选择从当前可见位置
   继续且始终只保留一个动画，Reduced Motion 下即时落位。
 - 风格页顶层“配色 / 背景 / 方框”使用与其他分段模式一致的共享选中层；各分区内部的配色卡、背景卡

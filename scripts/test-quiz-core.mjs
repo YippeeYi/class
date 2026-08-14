@@ -4,6 +4,7 @@ import { createServer } from 'vite'
 import { frontend, readFrontend } from './test-react-helpers.mjs'
 
 const quiz = await readFrontend('src/pages/quiz-page.tsx')
+const filterToggle = await readFrontend('src/components/archive/filter-toggle.tsx')
 const engine = await readFrontend('src/features/quiz/quiz-engine.ts')
 const markupContent = await readFrontend('src/components/archive/markup-content.tsx')
 const styles = await readFrontend('src/styles/tailwind.css')
@@ -81,10 +82,12 @@ assert.doesNotMatch(
   'unlocking the hidden pool must expose, but not automatically select, the hidden content filter',
 )
 assert.equal(
-  (quiz.match(/variant=\{enabled(?:Types|Content)\.has\([^)]*\) \? 'default' : 'outline'\}/g) || []).length,
+  (quiz.match(/<FilterToggle[\s\S]*?pressed=\{enabled(?:Types|Content)\.has\([^)]*\)\}/g) || [])
+    .length,
   2,
-  'question type and content filters must share one selected-state color system',
+  'question type and content filters must share the persistent filter toggle contract',
 )
+assert.match(filterToggle, /<Toggle[\s\S]*variant="outline"/, 'shared filters must compose the shadcn Toggle outline variant')
 
 const vite = await createServer({
   configFile: false,

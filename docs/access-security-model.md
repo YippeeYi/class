@@ -29,7 +29,7 @@ token 是 bearer credential：攻击者取得原始 token 后，可以在另一�
 - 记录 `created_at`、`last_seen_at`（管理员视图中显示为 `last_used_at`）、`expires_at`、`revoked_at`。
 - 十分钟超过 60 次刷新会标记 `high_refresh_rate`；五分钟内来源哈希变化会标记 `rapid_origin_change`。标记仅供检查，不自动封禁移动网络用户。
 - signed URL 只在页面内存中短暂缓存，不写入 `sessionStorage`，页面退出时清理。
-- 生产 CSP 只允许本站脚本和指定 Supabase 项目连接；Supabase SDK 2.45.0 已固定版本、自托管并校验 SHA-384，不加载统计或第三方运行时代码。
+- Vercel 生产 CSP 只允许本站脚本和指定 Supabase 项目连接；Supabase SDK 由 npm lockfile 固定并随 Vite 产物打包，不从运行时 CDN 加载，也未接入统计脚本。
 - token 不进入 URL、DOM、控制台输出或用户错误提示。
 
 ## 5. 管理员如何检查和撤销

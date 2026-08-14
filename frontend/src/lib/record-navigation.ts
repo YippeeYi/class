@@ -94,15 +94,20 @@ function pendingRecordJump() {
   }
 }
 
-function recordHashTarget() {
-  const leaf = window.location.pathname.split('/').filter(Boolean).at(-1)
-  if (leaf !== 'records' || !window.location.hash) return ''
+export function decodeRecordHash(hash: string) {
+  if (!hash) return ''
   try {
-    const target = decodeURIComponent(window.location.hash.slice(1))
+    const target = decodeURIComponent(hash.replace(/^#/, ''))
     return target.startsWith('record-') ? target : ''
   } catch {
     return ''
   }
+}
+
+function recordHashTarget() {
+  const leaf = window.location.pathname.split('/').filter(Boolean).at(-1)
+  if (leaf !== 'records' || !window.location.hash) return ''
+  return decodeRecordHash(window.location.hash)
 }
 
 function captureRecordHash() {

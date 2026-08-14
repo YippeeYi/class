@@ -63,6 +63,15 @@ function parseRecordDate(record: RecordItem) {
   const day = Number(match[3])
   const year = match[1]
   if (!year || month < 1 || month > 12 || day < 1 || day > 31) return null
+  const candidate = new Date(0)
+  candidate.setUTCHours(0, 0, 0, 0)
+  candidate.setUTCFullYear(Number(year), month - 1, day)
+  if (
+    candidate.getUTCFullYear() !== Number(year) ||
+    candidate.getUTCMonth() !== month - 1 ||
+    candidate.getUTCDate() !== day
+  )
+    return null
   return {
     year,
     month: String(month).padStart(2, '0'),

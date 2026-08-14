@@ -5,6 +5,7 @@ import { BackgroundRoot } from '@/components/layout/background-root'
 import { Spinner } from '@/components/ui/spinner'
 import { ArchiveProvider } from '@/features/archive/archive-context'
 import { AccessGate } from '@/features/auth/access-gate'
+import { normalizeAppPathname } from '@/lib/app-route'
 import { routeModuleLoaders } from '@/lib/route-preload'
 
 const AuthPage = lazy(() =>
@@ -90,7 +91,8 @@ const protectedPaths = new Set([
 
 function AppEntry(): ReactElement {
   const location = useLocation()
-  return protectedPaths.has(location.pathname) ? <ProtectedApp /> : <NotFoundPage />
+  const pathname = normalizeAppPathname(location.pathname)
+  return protectedPaths.has(pathname) ? <ProtectedApp /> : <NotFoundPage />
 }
 
 function ProtectedApp(): ReactElement {

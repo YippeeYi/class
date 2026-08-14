@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { FilterToggle } from '@/components/archive/filter-toggle'
 import { textLinkClassName } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Button } from '@/components/ui/button'
@@ -22,7 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Toggle } from '@/components/ui/toggle'
 import { useArchive } from '@/features/archive/archive-context'
 import { stripMarkup } from '@/lib/markup'
 import { buildPeopleStats } from '@/lib/stats'
@@ -109,9 +109,9 @@ function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; 
             {descending ? <ArrowDownAZ /> : <ArrowUpAZ />}
           </Button>
           {role === 'teacher' && (
-            <Toggle size="sm" variant="outline" pressed={mainFirst} onPressedChange={setMainFirst}>
+            <FilterToggle pressed={mainFirst} onPressedChange={setMainFirst}>
               主要老师优先
-            </Toggle>
+            </FilterToggle>
           )}
         </div>
       </CardHeader>
