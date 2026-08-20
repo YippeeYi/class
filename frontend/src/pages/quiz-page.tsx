@@ -186,6 +186,7 @@ export function SecretImage({ path }: { path: string }) {
     <ImageViewer
       path={path}
       initialUrl={resource.src}
+      initialDimensions={frameDimensions}
       alt="题目插图"
       trigger={
         <Button

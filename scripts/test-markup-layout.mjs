@@ -37,7 +37,7 @@ const harness = String.raw`<!doctype html>
       import { Sidebar, SidebarContent, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger } from '/src/components/ui/sidebar.tsx'
       import { Tabs } from '/src/components/ui/tabs.tsx'
       import { ArchiveProvider } from '/src/features/archive/archive-context.tsx'
-      import { useRouteDocumentTitle } from '/src/hooks/use-document-title.ts'
+      import { DocumentTitleProvider } from '/src/hooks/use-document-title.ts'
       import { rememberImageDimensions } from '/src/services/image-metadata.ts'
       import { installRecordJumpGuard } from '/src/lib/record-navigation.ts'
       import '/src/styles/tailwind.css'
@@ -212,9 +212,24 @@ const harness = String.raw`<!doctype html>
           path: 'fixtures/progressive-original.svg',
           alt: '按需高清测试图片',
           initialUrl: preview,
+          initialDimensions: { width: 480, height: 320 },
           trigger: e(Button, { type: 'button', variant: 'ghost', className: 'h-auto p-0', 'aria-label': '打开按需高清测试图片' },
             e('img', { src: preview, alt: '按需图片压缩预览', width: 480, height: 320, style: { pointerEvents: 'none' } }),
           ),
+        }))
+      }
+
+      function CancelledImageViewerFixture() {
+        const preview = 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22300%22 viewBox=%220 0 400 300%22%3E%3Crect width=%22400%22 height=%22300%22 fill=%22%236d6175%22/%3E%3C/svg%3E'
+        return e('section', {
+          'data-case': 'cancelled-image-viewer',
+          style: { width: '68rem', maxWidth: '100%', margin: '24px auto', padding: '16px', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' },
+        }, e(ImageViewer, {
+          path: 'fixtures/progressive-cancel.svg',
+          alt: '快速关闭测试图片',
+          initialUrl: preview,
+          initialDimensions: { width: 400, height: 300 },
+          trigger: e(Button, { type: 'button', variant: 'outline' }, '打开快速关闭测试图片'),
         }))
       }
 
@@ -301,12 +316,19 @@ const harness = String.raw`<!doctype html>
       function LocationProbe() {
         const location = useLocation()
         const navigate = useNavigate()
-        useRouteDocumentTitle(location.pathname)
         React.useEffect(() => {
           window.__memoryLocation = location.pathname + location.search + location.hash
           window.__memoryNavigate = navigate
         }, [location, navigate])
         return null
+      }
+
+      function TitleBoundary({ children }) {
+        const location = useLocation()
+        return e(DocumentTitleProvider, {
+          pathname: location.pathname,
+          locationKey: location.pathname + location.search,
+        }, children)
       }
 
       function RecordsRouteFixture() {
@@ -323,6 +345,7 @@ const harness = String.raw`<!doctype html>
 
       function App() {
         return e(MemoryRouter, null,
+          e(TitleBoundary, null,
           e(BackgroundRoot, null,
             e(React.Fragment, null,
               e(LocationProbe),
@@ -360,6 +383,7 @@ const harness = String.raw`<!doctype html>
                 ),
                 e(ImageViewerFixture),
                 e(PrivateImageViewerFixture),
+                e(CancelledImageViewerFixture),
                 e(SecretImageLayoutFixture),
                 e(ArchiveProvider, null,
                   e('section', { 'data-case': 'guide', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(HomePage)),
@@ -369,6 +393,7 @@ const harness = String.raw`<!doctype html>
                 ),
               ),
             ),
+          ),
           ),
         )
       }
@@ -616,6 +641,13 @@ try {
       })
       return
     }
+    if (
+      request.method() === 'GET' &&
+      /\/fixtures\/progressive-(?:original|cancel)\.svg$/u.test(url.pathname) &&
+      url.searchParams.get('rendition') === 'original'
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 180))
+    }
     const svg = url.pathname.endsWith('/fixtures/quiz-wide.svg')
       ? '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600"><rect width="1200" height="600" fill="#233a5b"/></svg>'
       : url.pathname.endsWith('/fixtures/quiz-tall.svg')
@@ -642,13 +674,13 @@ try {
   await page.goto(origin, { waitUntil: 'networkidle' })
   await page.waitForFunction(() => window.__markupLayoutReady === true)
   assert.deepEqual(pageErrors, [], `browser page errors during initial render: ${pageErrors.join('; ')}`)
-  assert.equal(await page.title(), '编日史·导览')
+  assert.equal(await page.title(), '编日史 · 导览')
   for (const [route, title] of [
-    ['/records', '编日史·记录'],
-    ['/person?id=p01', '编日史·人物'],
-    ['/credits', '编日史·致谢'],
-    ['/unknown', '编日史·错误'],
-    ['/', '编日史·导览'],
+    ['/records', '编日史 · 记录'],
+    ['/person?id=p01', '编日史 · 人物'],
+    ['/credits', '编日史 · 致谢'],
+    ['/unknown', '编日史 · 错误'],
+    ['/', '编日史 · 导览'],
   ]) {
     await page.evaluate((nextRoute) => window.__memoryNavigate(nextRoute), route)
     await page.waitForFunction((expected) => document.title === expected, title)
@@ -888,7 +920,7 @@ try {
   assert.ok(settledTeacherOrder.centerDelta <= 1 && settledTeacherOrder.sizeDelta <= 1)
 
   await page.evaluate(() => window.__memoryNavigate('/person?id=p1'))
-  await page.waitForFunction(() => document.title === '编日史·人物')
+  await page.waitForFunction(() => document.title === '编日史 · 人物 · 人物一')
   const personFixture = page.locator('[data-case="person"]')
   const personOrderControl = personFixture.getByRole('tablist', {
     name: '人物相关记录显示顺序',
@@ -903,7 +935,7 @@ try {
   const settledPersonOrder = await orderControlState(personOrderControl)
   assert.ok(settledPersonOrder.centerDelta <= 1 && settledPersonOrder.sizeDelta <= 1)
   await page.evaluate(() => window.__memoryNavigate('/'))
-  await page.waitForFunction(() => document.title === '编日史·导览')
+  await page.waitForFunction(() => document.title === '编日史 · 导览')
 
   const nestedRedaction = page.locator('[data-case="nested-redaction"] .record-redacted')
   const nestedRedactionLink = nestedRedaction.locator('.markup-link').first()
@@ -1262,10 +1294,42 @@ try {
   await privateViewerTrigger.click()
   const privateViewerDialog = page.locator('.image-viewer-dialog[data-slot="dialog-content"]')
   await privateViewerDialog.waitFor({ state: 'visible' })
+  await privateViewerDialog.evaluate((dialog) => {
+    const samples = []
+    window.__viewerOpenSamples = samples
+    const started = performance.now()
+    const capture = () => {
+      const image = dialog.querySelector('img[alt="按需高清测试图片"]')
+      if (image) {
+        const bounds = image.getBoundingClientRect()
+        samples.push({
+          width: bounds.width,
+          height: bounds.height,
+          original: image.src.includes('rendition=original'),
+        })
+      }
+      if (dialog.isConnected && performance.now() - started < 1200) requestAnimationFrame(capture)
+    }
+    requestAnimationFrame(capture)
+  })
   await page.waitForFunction(() =>
     document
       .querySelector('img[alt="按需高清测试图片"]')
       ?.src.includes('/fixtures/progressive-original.svg'),
+  )
+  await page.waitForTimeout(80)
+  const viewerOpenSamples = await page.evaluate(() => window.__viewerOpenSamples || [])
+  assert.ok(
+    viewerOpenSamples.some((sample) => !sample.original) &&
+      viewerOpenSamples.some((sample) => sample.original),
+    `the viewer must keep its preview mounted until the delayed original is decoded: ${JSON.stringify(viewerOpenSamples)}`,
+  )
+  const viewerOpenWidths = viewerOpenSamples.map((sample) => sample.width)
+  const viewerOpenHeights = viewerOpenSamples.map((sample) => sample.height)
+  assert.ok(
+    Math.max(...viewerOpenWidths) - Math.min(...viewerOpenWidths) <= 1 &&
+      Math.max(...viewerOpenHeights) - Math.min(...viewerOpenHeights) <= 1,
+    `preview-to-original replacement must preserve the exact large-image frame: ${JSON.stringify(viewerOpenSamples)}`,
   )
   const firstPrivateViewerRequests = storageRequests.filter(
     (request) => request.path === privateViewerPath,
@@ -1288,8 +1352,45 @@ try {
     undefined,
     'the viewer request must target the original rendition rather than another thumbnail',
   )
+  const viewerBeforeClose = await privateViewerDialog
+    .locator('img[alt="按需高清测试图片"]')
+    .evaluate((image) => {
+      const bounds = image.getBoundingClientRect()
+      return { width: bounds.width, height: bounds.height }
+    })
+  await privateViewerDialog.evaluate((dialog) => {
+    const samples = []
+    window.__viewerCloseSamples = samples
+    const started = performance.now()
+    const capture = () => {
+      const image = dialog.querySelector('img[alt="按需高清测试图片"]')
+      if (image) {
+        const bounds = image.getBoundingClientRect()
+        if (bounds.width > 0 && bounds.height > 0)
+          samples.push({
+            closed: dialog.hasAttribute('data-closed'),
+            width: bounds.width,
+            height: bounds.height,
+          })
+      }
+      if (dialog.isConnected && performance.now() - started < 800) requestAnimationFrame(capture)
+    }
+    requestAnimationFrame(capture)
+  })
   await page.getByRole('button', { name: '关闭大图' }).click()
   await privateViewerDialog.waitFor({ state: 'hidden' })
+  const viewerCloseSamples = (await page.evaluate(() => window.__viewerCloseSamples || [])).filter(
+    (sample) => sample.closed,
+  )
+  assert.ok(viewerCloseSamples.length > 0, 'the large viewer must retain its existing exit phase')
+  assert.ok(
+    viewerCloseSamples.every(
+      (sample) =>
+        Math.abs(sample.width - viewerBeforeClose.width) <= 1 &&
+        Math.abs(sample.height - viewerBeforeClose.height) <= 1,
+    ),
+    `closing the viewer must preserve its frame until the exit animation unmounts: ${JSON.stringify(viewerCloseSamples)}`,
+  )
   await privateViewerTrigger.click()
   await privateViewerDialog.waitFor({ state: 'visible' })
   await page.waitForFunction(() =>
@@ -1313,6 +1414,39 @@ try {
     ).length <= 1,
     `reopening a large image must reuse the browser image cache: ${JSON.stringify(repeatedPrivateViewerRequests)}`,
   )
+  const cancelledViewerPath =
+    '/storage/v1/object/sign/classrecord-private/fixtures/progressive-cancel.svg'
+  const cancelledViewerTrigger = page.getByRole('button', {
+    name: '打开快速关闭测试图片',
+  })
+  await cancelledViewerTrigger.click()
+  await privateViewerDialog.waitFor({ state: 'visible' })
+  await page.waitForTimeout(40)
+  await page.getByRole('button', { name: '关闭大图' }).click()
+  await privateViewerDialog.waitFor({ state: 'hidden' })
+  await cancelledViewerTrigger.click()
+  await privateViewerDialog.waitFor({ state: 'visible' })
+  await page.waitForFunction(() =>
+    document
+      .querySelector('img[alt="快速关闭测试图片"]')
+      ?.src.includes('/fixtures/progressive-cancel.svg'),
+  )
+  const cancelledViewerRequests = storageRequests.filter(
+    (request) => request.path === cancelledViewerPath,
+  )
+  assert.equal(
+    cancelledViewerRequests.filter((request) => request.method === 'POST').length,
+    1,
+    `closing during load and reopening must reuse the pending signed URL: ${JSON.stringify(cancelledViewerRequests)}`,
+  )
+  assert.ok(
+    cancelledViewerRequests.filter(
+      (request) => request.method === 'GET' && request.resourceType === 'image',
+    ).length <= 1,
+    `closing during load and reopening must deduplicate the pending original download: ${JSON.stringify(cancelledViewerRequests)}`,
+  )
+  await page.getByRole('button', { name: '关闭大图' }).click()
+  await privateViewerDialog.waitFor({ state: 'hidden' })
   const writtenPreviewSigns = storageRequests.filter(
     (request) =>
       request.method === 'POST' &&

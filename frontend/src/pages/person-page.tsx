@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
 import { useAsyncData } from '@/hooks/use-async-data'
+import { usePersonDocumentTitle } from '@/hooks/use-document-title'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { extractAuthorIds, extractParticipantIds, stripMarkup } from '@/lib/markup'
 import { recordStableKey } from '@/lib/record-identity'
@@ -90,6 +91,7 @@ function PersonAvatar({ person }: { person: Person }) {
     <ImageViewer
       path={remote ? '' : person.avatarUrl}
       initialUrl={src}
+      initialDimensions={{ width: 192, height: 192 }}
       alt={`${label}的头像`}
       trigger={
         <Button
@@ -114,6 +116,8 @@ export function PersonPage() {
   const resource = useArchive()
   const supplementalResource = useAsyncData(() => loadSupplementalRecords())
   const person = resource.data?.people.find((item) => item.id === id)
+  const personTitleName = person ? stripMarkup(person.name || '').trim() : ''
+  usePersonDocumentTitle(personTitleName)
   const relatedSources = useMemo(
     () => [...(resource.data?.records || []), ...(supplementalResource.data || [])],
     [resource.data?.records, supplementalResource.data],
@@ -147,7 +151,7 @@ export function PersonPage() {
     <PageHeading
       eyebrow="PERSON ARCHIVE"
       title={displayName}
-      headerTitle={displayName}
+      headerTitle={personTitleName || '人物'}
       showTitleInContent
       description="人物资料与相关记录"
       actions={

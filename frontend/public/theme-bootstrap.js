@@ -2,7 +2,10 @@
   const backgroundKey = 'classRecord:background'
   const appearanceKey = 'classRecord:appearance:v1'
   const paletteKey = 'classRecord:backgroundPalette:v1'
-  const images = { mountain: 'mountain.webp', cloud: 'cloud.webp' }
+  const images = {
+    mountain: { preview: 'mountain-preview.jpg', original: 'mountain.webp' },
+    cloud: { preview: 'cloud-preview.jpg', original: 'cloud.webp' },
+  }
   const themes = new Set([
     'auto',
     'paper',
@@ -64,12 +67,13 @@
       }
     }
 
-    const file = images[id]
-    if (file) {
+    const files = images[id]
+    if (files) {
       const scriptUrl = document.currentScript?.src || document.baseURI
-      const imageUrl = new URL(`images/backgrounds/${file}`, scriptUrl).href
+      const previewUrl = new URL(`images/backgrounds/${files.preview}`, scriptUrl).href
+      const imageUrl = new URL(`images/backgrounds/${files.original}`, scriptUrl).href
       root.style.background =
-        `linear-gradient(to bottom, rgb(20 18 15 / .34), rgb(20 18 15 / .52)), url("${imageUrl}") center / cover fixed`
+        `linear-gradient(to bottom, rgb(20 18 15 / .34), rgb(20 18 15 / .52)), url("${previewUrl}") center / cover fixed`
       const preload = document.createElement('link')
       preload.rel = 'preload'
       preload.as = 'image'

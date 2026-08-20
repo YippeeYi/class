@@ -260,6 +260,7 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
               path={path}
               alt="记录插图"
               initialUrl={preview.src}
+              initialDimensions={lockedDimensions || dimensions}
               trigger={
                 <Button
                   ref={triggerRef}

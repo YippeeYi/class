@@ -59,6 +59,7 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAuth } from '@/features/auth/auth-context'
+import { normalizeAppPathname } from '@/lib/app-route'
 import { NAVIGATION_PAGE_NAMES } from '@/lib/page-title'
 import { completeRecordJump, isRecordJumpActive } from '@/lib/record-navigation'
 import { preloadRoute } from '@/lib/route-preload'
@@ -83,7 +84,8 @@ const viewportLockedPaths = new Set(['/materials', '/quiz', '/map'])
 const wideContentPaths = new Set(['/timeline'])
 
 function navigationPath(pathname: string) {
-  return pathname === '/person' ? '/people' : pathname
+  const normalized = normalizeAppPathname(pathname)
+  return normalized === '/person' ? '/people' : normalized
 }
 
 function isNavigationActive(activePath: string, destination: string) {
@@ -270,16 +272,30 @@ export function AppShell() {
   const [fullscreen, setFullscreen] = useState(Boolean(document.fullscreenElement))
   const [fullscreenPending, setFullscreenPending] = useState(false)
   const [registeredTitle, setRegisteredTitle] = useState<{
+    locationKey: string
     token: symbol
     title: string
   } | null>(null)
-  const registerTitle = useCallback((title: string) => {
-    const token = Symbol(title)
-    setRegisteredTitle({ token, title })
-    return () => setRegisteredTitle((current) => (current?.token === token ? null : current))
-  }, [])
+  const titleLocationKey = `${location.pathname}${location.search}`
+  const registerTitle = useCallback(
+    (title: string) => {
+      const token = Symbol(title)
+      setRegisteredTitle({ locationKey: titleLocationKey, token, title })
+      return () => setRegisteredTitle((current) => (current?.token === token ? null : current))
+    },
+    [titleLocationKey],
+  )
+  const currentRegisteredTitle =
+    registeredTitle?.locationKey === titleLocationKey ? registeredTitle.title : ''
   const sectionTitle = navigation.find((item) => item.to === navigationPath(location.pathname))
-  const pageTitle = registeredTitle?.title || sectionTitle?.label || '档案'
+  const isPersonPage = normalizeAppPathname(location.pathname) === '/person'
+  const personName =
+    isPersonPage && currentRegisteredTitle !== NAVIGATION_PAGE_NAMES['/people']
+      ? currentRegisteredTitle
+      : ''
+  const pageTitle = isPersonPage
+    ? personName || NAVIGATION_PAGE_NAMES['/people']
+    : sectionTitle?.label || '档案'
 
   useEffect(() => {
     const root = document.documentElement
@@ -384,10 +400,29 @@ export function AppShell() {
                   </BreadcrumbItem>
                   <BreadcrumbSeparator className="shrink-0 text-muted-foreground/70" />
                   <BreadcrumbItem className="min-w-0">
-                    <BreadcrumbPage className="truncate text-sm font-medium sm:text-base">
-                      {pageTitle}
-                    </BreadcrumbPage>
+                    {isPersonPage && personName ? (
+                      <BreadcrumbLink
+                        render={<Link to="/people" />}
+                        className="truncate text-sm font-medium sm:text-base"
+                      >
+                        {NAVIGATION_PAGE_NAMES['/people']}
+                      </BreadcrumbLink>
+                    ) : (
+                      <BreadcrumbPage className="truncate text-sm font-medium sm:text-base">
+                        {pageTitle}
+                      </BreadcrumbPage>
+                    )}
                   </BreadcrumbItem>
+                  {isPersonPage && personName && (
+                    <>
+                      <BreadcrumbSeparator className="shrink-0 text-muted-foreground/70" />
+                      <BreadcrumbItem className="min-w-0">
+                        <BreadcrumbPage className="truncate text-sm font-medium sm:text-base">
+                          {personName}
+                        </BreadcrumbPage>
+                      </BreadcrumbItem>
+                    </>
+                  )}
                 </BreadcrumbList>
               </Breadcrumb>
               <div

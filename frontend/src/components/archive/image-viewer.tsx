@@ -5,6 +5,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -24,13 +25,18 @@ import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
+import { type ImageDimensions, validImageDimensions } from '@/lib/image-metadata'
+import { getImageDimensions, rememberImageDimensions } from '@/services/image-metadata'
 
 const MIN_SCALE = 1
 const MAX_SCALE = 8
 const SCALE_STEP = 1.25
 const VIEWPORT_PADDING = 32
 const MAX_SESSION_ORIGINAL_URLS = 48
+const FALLBACK_DIMENSIONS: ImageDimensions = { width: 4, height: 3 }
 const loadedOriginalUrls = new Map<string, string>()
+const loadingOriginals = new Map<string, Promise<void>>()
+let originalLoadGeneration = 0
 
 function loadedOriginalUrl(path: string) {
   return path ? loadedOriginalUrls.get(path) || '' : ''
@@ -51,9 +57,38 @@ function forgetLoadedOriginal(path: string, src: string) {
   if (loadedOriginalUrls.get(path) === src) loadedOriginalUrls.delete(path)
 }
 
+function decodeOriginal(path: string, src: string) {
+  const key = `${path}\u0000${src}`
+  const pending = loadingOriginals.get(key)
+  if (pending) return pending
+  const image = new Image()
+  image.decoding = 'async'
+  const promise = new Promise<void>((resolve, reject) => {
+    image.onload = async () => {
+      try {
+        await image.decode()
+      } catch {
+        // A completed load is still displayable in browsers that reject decode().
+      }
+      resolve()
+    }
+    image.onerror = () => reject(new Error('Original image could not be decoded.'))
+    image.src = src
+  }).finally(() => {
+    if (loadingOriginals.get(key) === promise) loadingOriginals.delete(key)
+  })
+  loadingOriginals.set(key, promise)
+  return promise
+}
+
 if (typeof window !== 'undefined') {
-  window.addEventListener('classrecordcacheclearing', () => loadedOriginalUrls.clear())
-  window.addEventListener('pagehide', () => loadedOriginalUrls.clear())
+  const clearOriginals = () => {
+    originalLoadGeneration += 1
+    loadedOriginalUrls.clear()
+    loadingOriginals.clear()
+  }
+  window.addEventListener('classrecordcacheclearing', clearOriginals)
+  window.addEventListener('pagehide', clearOriginals)
 }
 
 type ViewTransform = { scale: number; x: number; y: number }
@@ -95,11 +130,13 @@ export function ImageViewer({
   alt,
   trigger,
   initialUrl = '',
+  initialDimensions,
 }: {
   path: string
   alt: string
   trigger: ReactElement
   initialUrl?: string
+  initialDimensions?: ImageDimensions | null
 }) {
   const [open, setOpen] = useState(false)
   const asset = useSignedAsset(open ? path : '')
@@ -111,7 +148,14 @@ export function ImageViewer({
   const [viewTransform, setViewTransform] = useState<ViewTransform>({ scale: 1, x: 0, y: 0 })
   const transformRef = useRef(viewTransform)
   transformRef.current = viewTransform
-  const [natural, setNatural] = useState({ width: 0, height: 0 })
+  const [measuredDimensions, setMeasuredDimensions] = useState<{
+    path: string
+    value: ImageDimensions | null
+  }>(() => ({ path, value: getImageDimensions(path) }))
+  const [lockedDimensions, setLockedDimensions] = useState<{
+    path: string
+    value: ImageDimensions | null
+  }>({ path: '', value: null })
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 })
   const [viewportElement, setViewportElement] = useState<HTMLElement | null>(null)
   const pointers = useRef(new Map<number, { x: number; y: number }>())
@@ -129,6 +173,16 @@ export function ImageViewer({
   } | null>(null)
   const originalSrc = loadedOriginal.path === path ? loadedOriginal.src : loadedOriginalUrl(path)
   const src = originalSrc || initialUrl
+  const rememberedDimensions = getImageDimensions(path)
+  const availableDimensions = validImageDimensions(initialDimensions)
+    ? initialDimensions
+    : measuredDimensions.path === path && validImageDimensions(measuredDimensions.value)
+      ? measuredDimensions.value
+      : rememberedDimensions || FALLBACK_DIMENSIONS
+  const dimensions =
+    lockedDimensions.path === path && validImageDimensions(lockedDimensions.value)
+      ? lockedDimensions.value
+      : availableDimensions
   const usingPreviewFallback = Boolean(initialUrl && !originalSrc)
   const originalUnavailable = Boolean(imageFailure.failed || asset.error)
 
@@ -141,35 +195,24 @@ export function ImageViewer({
   useEffect(() => {
     if (!open || !asset.src || asset.src === originalSrc) return
     let active = true
-    const image = new Image()
-    image.decoding = 'async'
-    image.onload = () => {
-      if (!active) return
-      imageFailure.markLoaded()
-      rememberLoadedOriginal(path, asset.src)
-      setLoadedOriginal({ path, src: asset.src })
-    }
-    image.onerror = () => {
-      if (active) imageFailure.markFailed()
-    }
-    image.src = asset.src
+    const loadGeneration = originalLoadGeneration
+    void decodeOriginal(path, asset.src).then(
+      () => {
+        if (!active || loadGeneration !== originalLoadGeneration) return
+        imageFailure.markLoaded()
+        rememberLoadedOriginal(path, asset.src)
+        setLoadedOriginal({ path, src: asset.src })
+      },
+      () => {
+        if (active && loadGeneration === originalLoadGeneration) imageFailure.markFailed()
+      },
+    )
     return () => {
       active = false
     }
   }, [asset.src, imageFailure.markFailed, imageFailure.markLoaded, open, originalSrc, path])
 
-  useEffect(() => {
-    if (open) return
-    const reset: ViewTransform = { scale: 1, x: 0, y: 0 }
-    transformRef.current = reset
-    setViewTransform(reset)
-    setNatural({ width: 0, height: 0 })
-    pointers.current.clear()
-    drag.current = null
-    pinch.current = null
-  }, [open])
-
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || !viewportElement) return
     const element = viewportElement
     const update = () => {
@@ -187,13 +230,16 @@ export function ImageViewer({
   }, [open, viewportElement])
 
   const base = useMemo(() => {
-    if (!natural.width || !natural.height || !viewportSize.width || !viewportSize.height)
+    if (!dimensions?.width || !dimensions.height || !viewportSize.width || !viewportSize.height)
       return { width: 0, height: 0 }
     const availableWidth = Math.max(1, viewportSize.width - VIEWPORT_PADDING)
     const availableHeight = Math.max(1, viewportSize.height - VIEWPORT_PADDING)
-    const ratio = Math.min(1, availableWidth / natural.width, availableHeight / natural.height)
-    return { width: natural.width * ratio, height: natural.height * ratio }
-  }, [natural, viewportSize])
+    const imageRatio = dimensions.width / dimensions.height
+    const availableRatio = availableWidth / availableHeight
+    return availableRatio > imageRatio
+      ? { width: availableHeight * imageRatio, height: availableHeight }
+      : { width: availableWidth, height: availableWidth / imageRatio }
+  }, [dimensions, viewportSize])
 
   const clampTransform = useCallback(
     (candidate: ViewTransform): ViewTransform => {
@@ -250,7 +296,29 @@ export function ImageViewer({
   }
 
   return (
-    <Dialog modal="trap-focus" open={open} onOpenChange={setOpen}>
+    <Dialog
+      modal="trap-focus"
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (
+          nextOpen &&
+          !(lockedDimensions.path === path && validImageDimensions(lockedDimensions.value))
+        )
+          setLockedDimensions({ path, value: availableDimensions })
+        setOpen(nextOpen)
+      }}
+      onOpenChangeComplete={(nextOpen) => {
+        if (nextOpen) return
+        const nextTransform: ViewTransform = { scale: 1, x: 0, y: 0 }
+        transformRef.current = nextTransform
+        setViewTransform(nextTransform)
+        setViewportSize({ width: 0, height: 0 })
+        setLockedDimensions({ path: '', value: null })
+        pointers.current.clear()
+        drag.current = null
+        pinch.current = null
+      }}
+    >
       <DialogTrigger render={trigger} />
       <DialogContent
         showCloseButton={false}
@@ -471,14 +539,19 @@ export function ImageViewer({
               draggable={false}
               decoding="async"
               onLoad={(event) => {
+                if (!open) return
                 if (!usingPreviewFallback) imageFailure.markLoaded()
-                reset()
-                setNatural({
+                const nextDimensions = {
                   width: event.currentTarget.naturalWidth,
                   height: event.currentTarget.naturalHeight,
-                })
+                }
+                if (validImageDimensions(nextDimensions)) {
+                  rememberImageDimensions(path, nextDimensions)
+                  setMeasuredDimensions({ path, value: nextDimensions })
+                }
               }}
               onError={() => {
+                if (!open) return
                 if (!usingPreviewFallback) {
                   forgetLoadedOriginal(path, src)
                   setLoadedOriginal({ path, src: '' })
@@ -487,9 +560,9 @@ export function ImageViewer({
               }}
               className="image-viewer-image absolute left-1/2 top-1/2 max-w-none select-none"
               style={{
-                width: base.width ? `${base.width}px` : '100%',
-                height: base.height ? `${base.height}px` : '100%',
-                objectFit: base.width ? undefined : 'contain',
+                width: base.width ? `${base.width}px` : `calc(100% - ${VIEWPORT_PADDING}px)`,
+                height: base.height ? `${base.height}px` : `calc(100% - ${VIEWPORT_PADDING}px)`,
+                objectFit: 'contain',
                 transform: `translate3d(calc(-50% + ${viewTransform.x}px), calc(-50% + ${viewTransform.y}px), 0) scale(${viewTransform.scale})`,
                 transformOrigin: 'center',
               }}

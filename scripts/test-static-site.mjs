@@ -98,9 +98,17 @@ assert.equal(
   'page actions must not mount duplicate desktop and mobile control trees',
 )
 assert.match(pageHeading, /showTitleInContent &&[\s\S]*<h1/, 'exception pages must be able to retain a meaningful content title')
-assert.match(person, /headerTitle=\{displayName\}/, 'person metadata must still expose its detailed page title')
-assert.match(shell, /registeredTitle\?\.title \|\| sectionTitle\?\.label/, 'the shared top bar must prefer the registered page title')
-assert.match(shell, /pathname === '\/person' \? '\/people'/, 'person details must remain in the People navigation section')
+assert.match(
+  person,
+  /usePersonDocumentTitle\(personTitleName\)[\s\S]*headerTitle=\{personTitleName \|\| '人物'\}/,
+  'person metadata must register the displayed name for the document title and breadcrumb',
+)
+assert.match(
+  shell,
+  /isPersonPage && personName[\s\S]*render=\{<Link to="\/people" \/>\}[\s\S]*\{personName\}/,
+  'person breadcrumbs must keep the People parent link before the displayed person name',
+)
+assert.match(shell, /normalized === '\/person' \? '\/people'/, 'person details must remain in the People navigation section')
 assert.match(person, /showTitleInContent/, 'the person name must remain visible in the content hierarchy')
 assert.match(person, /<Avatar[\s\S]*<AvatarFallback/, 'person avatars must keep a stable shadcn placeholder')
 assert.ok(
@@ -274,7 +282,7 @@ assert.match(styles, /\.image-viewer-dialog\[data-slot="dialog-content"\][\s\S]*
 assert.match(styles, /\[data-slot="dialog-portal"\]:has\(> \.image-viewer-dialog\) > \[data-slot="dialog-overlay"\][\s\S]*background: rgb\(8 10 13 \/ 52%\);[\s\S]*backdrop-filter: blur\(14px\)/, 'the image viewer must style the shadcn overlay while dimming the real current page')
 assert.doesNotMatch(imageViewer, /image-viewer-ambient/, 'the image viewer must not synthesize a replacement background from the opened image')
 assert.doesNotMatch(imageViewer, /image-viewer-(?:dialog|viewport)[^"\n]*bg-black/, 'the image viewer content and viewport must not create a black rectangle around media')
-assert.match(imageViewer, /<Dialog modal="trap-focus"/, 'the full-screen image viewer must use the modal focus and scroll-lock contract')
+assert.match(imageViewer, /<Dialog\s+modal="trap-focus"/, 'the full-screen image viewer must use the modal focus and scroll-lock contract')
 assert.match(imageViewer, /MIN_SCALE = 1[\s\S]*MAX_SCALE = 8[\s\S]*zoomTo/, 'image zoom must use one bounded transform model')
 assert.match(imageViewer, /viewportElement[\s\S]*ResizeObserver[\s\S]*ref=\{setViewportElement\}/, 'portal-mounted viewers must begin measurement when the real viewport node appears')
 assert.match(imageViewer, /onWheel=[\s\S]*onDoubleClick=[\s\S]*onPointerDown=[\s\S]*pinch\.current/, 'image zoom must support wheel, double-click, drag, and pinch without parallel state systems')

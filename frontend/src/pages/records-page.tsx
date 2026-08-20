@@ -336,6 +336,7 @@ function SignedPageImage({ path, page, hidden }: { path: string; page: string; h
     <ImageViewer
       path={path}
       initialUrl={image.src}
+      initialDimensions={dimensions}
       alt={`${hidden ? '隐藏' : '手写'}记录第 ${page} 页`}
       trigger={
         <Button

@@ -409,6 +409,9 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
   const [appearance, setAppearance] = useState(readAppearance)
   const current = appearance.background
   const [visible, setVisible] = useState(readBackground)
+  const [visibleOriginalReady, setVisibleOriginalReady] = useState(
+    () => !backgrounds.find((item) => item.id === visible)?.image,
+  )
   const [previous, setPrevious] = useState<BackgroundId | null>(null)
   const [pendingPreview, setPendingPreview] = useState<BackgroundId | null>(null)
   const transitionTimer = useRef<number | null>(null)
@@ -424,13 +427,24 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (current === visible) {
       setPendingPreview(null)
-      return
+      if (!selected?.image || visibleOriginalReady) return
+      let active = true
+      void decodeBackground(selected.image).then(
+        () => {
+          if (active) setVisibleOriginalReady(true)
+        },
+        () => undefined,
+      )
+      return () => {
+        active = false
+      }
     }
     let active = true
     const commit = () => {
       if (!active) return
       setPrevious(visible)
       setVisible(current)
+      setVisibleOriginalReady(true)
       setPendingPreview(null)
       if (transitionTimer.current) window.clearTimeout(transitionTimer.current)
       transitionTimer.current = window.setTimeout(() => {
@@ -439,6 +453,7 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       }, 560)
     }
     if (!selected?.image) {
+      setVisibleOriginalReady(true)
       commit()
       return () => {
         active = false
@@ -449,7 +464,7 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
     return () => {
       active = false
     }
-  }, [current, selected, visible])
+  }, [current, selected, visible, visibleOriginalReady])
 
   useEffect(
     () => () => {
@@ -468,7 +483,9 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const root = document.documentElement
-    const layer = backgroundLayerStyle(visible)
+    const layer = visibleOriginalReady
+      ? backgroundLayerStyle(visible)
+      : backgroundPreviewLayerStyle(visible)
     // The fixed React layer paints the normal viewport, while the document
     // canvas is what Safari and other elastic scrollers reveal beyond its
     // edges. Keep both on the same source instead of disabling overscroll.
@@ -480,7 +497,7 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
     root.style.backgroundAttachment = 'fixed'
     root.dataset.background = visible
     delete root.dataset.backgroundBootstrap
-  }, [visible])
+  }, [visible, visibleOriginalReady])
 
   useEffect(() => {
     let active = true
@@ -535,7 +552,11 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
         key={visible}
         aria-hidden="true"
         className="background-layer pointer-events-none fixed inset-0 z-0 bg-cover bg-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-scene)"
-        style={backgroundLayerStyle(visible)}
+        style={
+          visibleOriginalReady
+            ? backgroundLayerStyle(visible)
+            : backgroundPreviewLayerStyle(visible)
+        }
       />
       {pendingPreview && (
         <div

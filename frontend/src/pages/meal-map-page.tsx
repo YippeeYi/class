@@ -45,6 +45,7 @@ export function MealMapPage() {
             <ImageViewer
               path={MAP_PATH}
               initialUrl={src}
+              initialDimensions={dimensions}
               alt="地图"
               trigger={
                 <Button
