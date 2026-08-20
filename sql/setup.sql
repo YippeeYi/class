@@ -691,7 +691,7 @@ add column if not exists raw jsonb not null default '{}'::jsonb;
 
 create table if not exists public.class_credits_page (
     id text primary key default 'main',
-    title text not null default '制作组与致谢',
+    title text not null default '致谢',
     sections jsonb not null default '[]'::jsonb,
     thanks jsonb not null default '[]'::jsonb,
     original_images jsonb not null default '[]'::jsonb,

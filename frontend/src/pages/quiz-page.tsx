@@ -407,7 +407,7 @@ export function QuizPage() {
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <PageHeading
         eyebrow={null}
-        title="档案答题"
+        title="答题"
         description="题目从记录、人物与名言实时生成；筛选题型和内容后开始挑战。"
         className="shrink-0"
         compact

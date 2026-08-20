@@ -14,7 +14,7 @@ import {
   type RecordCriteria,
   RecordFilters,
 } from '@/components/archive/record-filters'
-import { type RecordOrder, RecordOrderButtons } from '@/components/archive/record-order-toggle'
+import { type RecordOrder, RecordOrderToggle } from '@/components/archive/record-order-toggle'
 import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -152,7 +152,7 @@ export function PersonPage() {
       description="人物资料与相关记录"
       actions={
         <Link to="/people" className={buttonVariants({ variant: 'outline' })}>
-          返回人物名单
+          返回人物
         </Link>
       }
     />
@@ -177,7 +177,7 @@ export function PersonPage() {
         {heading}
         <EmptyState
           title={id ? '没有找到这位人物' : '人物参数缺失'}
-          description="请从人物名单页重新打开。"
+          description="请从人物页重新打开。"
         />
       </div>
     )
@@ -236,7 +236,7 @@ export function PersonPage() {
               />
             </Tabs>
           )}
-          <RecordOrderButtons
+          <RecordOrderToggle
             value={recordOrder}
             onValueChange={setRecordOrder}
             ariaLabel="人物相关记录显示顺序"

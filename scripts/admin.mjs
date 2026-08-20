@@ -710,7 +710,7 @@ const importCreditsPage = async () => {
 
     await upsert('class_credits_page', [{
         id: 'main',
-        title: String(raw.title || '制作组与致谢').trim(),
+        title: String(raw.title || '致谢').trim(),
         sections,
         thanks,
         original_images: originalImages,

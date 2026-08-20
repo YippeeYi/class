@@ -30,5 +30,5 @@ export function pageNameForPath(pathname: string) {
 }
 
 export function formatRouteDocumentTitle(pathname: string) {
-  return `${SITE_TITLE}${pageNameForPath(pathname)}`
+  return `${SITE_TITLE}·${pageNameForPath(pathname)}`
 }

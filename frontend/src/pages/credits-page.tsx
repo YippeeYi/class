@@ -18,13 +18,13 @@ export function CreditsPage() {
   return (
     <div>
       <PageHeading
-        title={resource.data?.title || '制作组与致谢'}
+        title={resource.data?.title || '致谢'}
         description="感谢所有记录、整理、校对与守护这份共同记忆的人。"
       />
       {resource.loading && <PageSkeleton rows={4} />}
       {resource.error && <ErrorState title="致谢内容加载失败" onRetry={resource.retry} />}
       {resource.data && !hasContent && (
-        <EmptyState title="暂无可展示内容" description="制作组与致谢页面还没有可显示的资料。" />
+        <EmptyState title="暂无可展示内容" description="致谢页面还没有可显示的资料。" />
       )}
       {resource.data && hasContent && (
         <div className="grid gap-4 md:grid-cols-2">

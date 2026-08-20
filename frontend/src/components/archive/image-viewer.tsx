@@ -29,6 +29,32 @@ const MIN_SCALE = 1
 const MAX_SCALE = 8
 const SCALE_STEP = 1.25
 const VIEWPORT_PADDING = 32
+const MAX_SESSION_ORIGINAL_URLS = 48
+const loadedOriginalUrls = new Map<string, string>()
+
+function loadedOriginalUrl(path: string) {
+  return path ? loadedOriginalUrls.get(path) || '' : ''
+}
+
+function rememberLoadedOriginal(path: string, src: string) {
+  if (!path || !src) return
+  loadedOriginalUrls.delete(path)
+  loadedOriginalUrls.set(path, src)
+  while (loadedOriginalUrls.size > MAX_SESSION_ORIGINAL_URLS) {
+    const oldest = loadedOriginalUrls.keys().next().value
+    if (!oldest) break
+    loadedOriginalUrls.delete(oldest)
+  }
+}
+
+function forgetLoadedOriginal(path: string, src: string) {
+  if (loadedOriginalUrls.get(path) === src) loadedOriginalUrls.delete(path)
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('classrecordcacheclearing', () => loadedOriginalUrls.clear())
+  window.addEventListener('pagehide', () => loadedOriginalUrls.clear())
+}
 
 type ViewTransform = { scale: number; x: number; y: number }
 
@@ -78,7 +104,10 @@ export function ImageViewer({
   const [open, setOpen] = useState(false)
   const asset = useSignedAsset(open ? path : '')
   const imageFailure = useBoundedImageRetry(open ? path : '', asset.retry)
-  const [originalSrc, setOriginalSrc] = useState('')
+  const [loadedOriginal, setLoadedOriginal] = useState(() => ({
+    path,
+    src: loadedOriginalUrl(path),
+  }))
   const [viewTransform, setViewTransform] = useState<ViewTransform>({ scale: 1, x: 0, y: 0 })
   const transformRef = useRef(viewTransform)
   transformRef.current = viewTransform
@@ -98,9 +127,16 @@ export function ImageViewer({
     focalY: number
     transform: ViewTransform
   } | null>(null)
+  const originalSrc = loadedOriginal.path === path ? loadedOriginal.src : loadedOriginalUrl(path)
   const src = originalSrc || initialUrl
   const usingPreviewFallback = Boolean(initialUrl && !originalSrc)
   const originalUnavailable = Boolean(imageFailure.failed || asset.error)
+
+  useEffect(() => {
+    const clear = () => setLoadedOriginal({ path, src: '' })
+    window.addEventListener('classrecordcacheclearing', clear)
+    return () => window.removeEventListener('classrecordcacheclearing', clear)
+  }, [path])
 
   useEffect(() => {
     if (!open || !asset.src || asset.src === originalSrc) return
@@ -110,7 +146,8 @@ export function ImageViewer({
     image.onload = () => {
       if (!active) return
       imageFailure.markLoaded()
-      setOriginalSrc(asset.src)
+      rememberLoadedOriginal(path, asset.src)
+      setLoadedOriginal({ path, src: asset.src })
     }
     image.onerror = () => {
       if (active) imageFailure.markFailed()
@@ -119,7 +156,7 @@ export function ImageViewer({
     return () => {
       active = false
     }
-  }, [asset.src, imageFailure.markFailed, imageFailure.markLoaded, open, originalSrc])
+  }, [asset.src, imageFailure.markFailed, imageFailure.markLoaded, open, originalSrc, path])
 
   useEffect(() => {
     if (open) return
@@ -127,7 +164,6 @@ export function ImageViewer({
     transformRef.current = reset
     setViewTransform(reset)
     setNatural({ width: 0, height: 0 })
-    setOriginalSrc('')
     pointers.current.clear()
     drag.current = null
     pinch.current = null
@@ -443,7 +479,11 @@ export function ImageViewer({
                 })
               }}
               onError={() => {
-                if (!usingPreviewFallback) imageFailure.markFailed()
+                if (!usingPreviewFallback) {
+                  forgetLoadedOriginal(path, src)
+                  setLoadedOriginal({ path, src: '' })
+                  imageFailure.markFailed()
+                }
               }}
               className="image-viewer-image absolute left-1/2 top-1/2 max-w-none select-none"
               style={{

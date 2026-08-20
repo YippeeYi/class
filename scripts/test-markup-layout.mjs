@@ -26,6 +26,7 @@ const harness = String.raw`<!doctype html>
       import { BackgroundsPage } from '/src/pages/backgrounds-page.tsx'
       import { HomePage } from '/src/pages/home-page.tsx'
       import { PeoplePage } from '/src/pages/people-page.tsx'
+      import { PersonPage } from '/src/pages/person-page.tsx'
       import { SecretImage } from '/src/pages/quiz-page.tsx'
       import { RecordsPage } from '/src/pages/records-page.tsx'
       import { BackgroundRoot } from '/src/components/layout/background-root.tsx'
@@ -82,7 +83,7 @@ const harness = String.raw`<!doctype html>
       sessionStorage.setItem(cachePrefix + 'page-messages', cacheEntry([]))
       sessionStorage.setItem(cachePrefix + 'page-supplements:false', cacheEntry([]))
       sessionStorage.setItem(cachePrefix + 'people', cacheEntry([
-        { id: 'p1', name: '人物一', role: 'student' },
+        { id: 'p1', name: '人物一', role: 'student', aliases: [], avatarUrl: '' },
         { id: 'p2', name: '人物二', role: 'student' },
         { id: 'a-teacher', name: '普通老师', role: 'teacher', subject: '数学', main: false },
         { id: 'z-teacher', name: '重点老师', role: 'teacher', subject: '语文', main: true },
@@ -314,6 +315,12 @@ const harness = String.raw`<!doctype html>
         return e('section', { 'data-case': 'records', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(RecordsPage))
       }
 
+      function PersonRouteFixture() {
+        const location = useLocation()
+        if (location.pathname !== '/person') return null
+        return e('section', { 'data-case': 'person', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(PersonPage))
+      }
+
       function App() {
         return e(MemoryRouter, null,
           e(BackgroundRoot, null,
@@ -357,6 +364,7 @@ const harness = String.raw`<!doctype html>
                 e(ArchiveProvider, null,
                   e('section', { 'data-case': 'guide', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(HomePage)),
                   e('section', { 'data-case': 'people', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(PeoplePage)),
+                  e(PersonRouteFixture),
                 ),
                 ),
               ),
@@ -597,11 +605,13 @@ try {
       return
     }
     if (request.method() === 'POST') {
+      const requestBody = JSON.parse(request.postData() || '{}')
+      const rendition = requestBody.transform ? 'preview' : 'original'
       await route.fulfill({
         status: 200,
         headers: { ...corsHeaders, 'content-type': 'application/json' },
         body: JSON.stringify({
-          signedURL: `${url.pathname.replace('/storage/v1', '')}?token=layout-image`,
+          signedURL: `${url.pathname.replace('/storage/v1', '')}?token=layout-image&rendition=${rendition}`,
         }),
       })
       return
@@ -632,13 +642,13 @@ try {
   await page.goto(origin, { waitUntil: 'networkidle' })
   await page.waitForFunction(() => window.__markupLayoutReady === true)
   assert.deepEqual(pageErrors, [], `browser page errors during initial render: ${pageErrors.join('; ')}`)
-  assert.equal(await page.title(), '编日史导览')
+  assert.equal(await page.title(), '编日史·导览')
   for (const [route, title] of [
-    ['/records', '编日史记录'],
-    ['/person?id=p01', '编日史人物'],
-    ['/credits', '编日史致谢'],
-    ['/unknown', '编日史错误'],
-    ['/', '编日史导览'],
+    ['/records', '编日史·记录'],
+    ['/person?id=p01', '编日史·人物'],
+    ['/credits', '编日史·致谢'],
+    ['/unknown', '编日史·错误'],
+    ['/', '编日史·导览'],
   ]) {
     await page.evaluate((nextRoute) => window.__memoryNavigate(nextRoute), route)
     await page.waitForFunction((expected) => document.title === expected, title)
@@ -747,6 +757,11 @@ try {
   await secretImageDialog.waitFor({ state: 'hidden' })
   await wideSecretTrigger.click()
   await secretImageDialog.waitFor({ state: 'visible' })
+  assert.match(
+    (await secretImageDialog.locator('img[alt="题目插图"]').getAttribute('src')) || '',
+    /rendition=original/,
+    'reopening a decoded hidden image must display the cached original immediately',
+  )
   await page.waitForFunction(() =>
     document
       .querySelector('.image-viewer-dialog img[alt="题目插图"]')
@@ -823,6 +838,72 @@ try {
   assert.equal(reducedSegmentedState.switching, false)
   assert.deepEqual(reducedSegmentedState.animationIds, [])
   await page.emulateMedia({ reducedMotion: 'no-preference' })
+
+  const orderControlState = (control) =>
+    control.evaluate((list) => {
+      const indicator = list.querySelector('.app-selection-indicator')?.getBoundingClientRect()
+      const active = list.querySelector('[data-slot="tabs-trigger"][data-active]')?.getBoundingClientRect()
+      return {
+        active: list.querySelector('[data-slot="tabs-trigger"][data-active]')?.textContent?.trim(),
+        centerDelta: indicator && active
+          ? Math.abs(indicator.left + indicator.width / 2 - (active.left + active.width / 2))
+          : Number.POSITIVE_INFINITY,
+        sizeDelta: indicator && active
+          ? Math.max(Math.abs(indicator.width - active.width), Math.abs(indicator.height - active.height))
+          : Number.POSITIVE_INFINITY,
+        switching: list.hasAttribute('data-selection-switching'),
+        animationIds: list.getAnimations({ subtree: true }).map((animation) => animation.id).filter(Boolean),
+      }
+    })
+
+  const peopleFixture = page.locator('[data-case="people"]')
+  const peopleOrderControls = peopleFixture.getByRole('tablist', { name: /显示顺序/ })
+  assert.equal(
+    await peopleOrderControls.count(),
+    await peopleFixture.locator('[data-people-role]').count(),
+    'every visible people-list section must expose the shared order control',
+  )
+  const studentOrderControl = peopleFixture.getByRole('tablist', { name: '同学显示顺序' })
+  const studentNames = () =>
+    peopleFixture
+      .locator('[data-people-role="student"] tbody tr a')
+      .evaluateAll((links) => links.map((link) => link.textContent?.trim()))
+  assert.deepEqual(await studentNames(), ['人物一', '人物二'])
+  assert.equal((await orderControlState(studentOrderControl)).active, '正序')
+  await studentOrderControl.getByRole('tab', { name: '逆序' }).click()
+  const movingStudentOrder = await orderControlState(studentOrderControl)
+  assert.equal(movingStudentOrder.switching, true)
+  assert.deepEqual(movingStudentOrder.animationIds, ['app-selection-move'])
+  assert.deepEqual(await studentNames(), ['人物二', '人物一'])
+  await page.waitForTimeout(260)
+  const settledStudentOrder = await orderControlState(studentOrderControl)
+  assert.ok(settledStudentOrder.centerDelta <= 1 && settledStudentOrder.sizeDelta <= 1)
+
+  const teacherOrderControl = peopleFixture.getByRole('tablist', { name: '老师显示顺序' })
+  assert.equal((await orderControlState(teacherOrderControl)).active, '正序')
+  await teacherOrderControl.getByRole('tab', { name: '逆序' }).click()
+  assert.equal((await orderControlState(teacherOrderControl)).switching, true)
+  await page.waitForTimeout(260)
+  const settledTeacherOrder = await orderControlState(teacherOrderControl)
+  assert.ok(settledTeacherOrder.centerDelta <= 1 && settledTeacherOrder.sizeDelta <= 1)
+
+  await page.evaluate(() => window.__memoryNavigate('/person?id=p1'))
+  await page.waitForFunction(() => document.title === '编日史·人物')
+  const personFixture = page.locator('[data-case="person"]')
+  const personOrderControl = personFixture.getByRole('tablist', {
+    name: '人物相关记录显示顺序',
+  })
+  await personOrderControl.waitFor({ state: 'visible' })
+  assert.equal((await orderControlState(personOrderControl)).active, '逆序')
+  await personOrderControl.getByRole('tab', { name: '正序' }).click()
+  const movingPersonOrder = await orderControlState(personOrderControl)
+  assert.equal(movingPersonOrder.switching, true)
+  assert.deepEqual(movingPersonOrder.animationIds, ['app-selection-move'])
+  await page.waitForTimeout(260)
+  const settledPersonOrder = await orderControlState(personOrderControl)
+  assert.ok(settledPersonOrder.centerDelta <= 1 && settledPersonOrder.sizeDelta <= 1)
+  await page.evaluate(() => window.__memoryNavigate('/'))
+  await page.waitForFunction(() => document.title === '编日史·导览')
 
   const nestedRedaction = page.locator('[data-case="nested-redaction"] .record-redacted')
   const nestedRedactionLink = nestedRedaction.locator('.markup-link').first()

@@ -1,4 +1,3 @@
-import { ArrowDownAZ, ArrowUpAZ } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
@@ -6,7 +5,7 @@ import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async
 import { FilterToggle } from '@/components/archive/filter-toggle'
 import { textLinkClassName } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
-import { Button } from '@/components/ui/button'
+import { RecordOrderToggle } from '@/components/archive/record-order-toggle'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
@@ -99,15 +98,11 @@ function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; 
               {role === 'teacher' && <SelectItem value="subject">按学科</SelectItem>}
             </SelectContent>
           </Select>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            aria-label={descending ? '切换为升序' : '切换为降序'}
-            title={descending ? '切换为升序' : '切换为降序'}
-            onClick={() => setDescending((value) => !value)}
-          >
-            {descending ? <ArrowDownAZ /> : <ArrowUpAZ />}
-          </Button>
+          <RecordOrderToggle
+            value={descending ? 'descending' : 'ascending'}
+            onValueChange={(value) => setDescending(value === 'descending')}
+            ariaLabel={`${roleLabels[role]}显示顺序`}
+          />
           {role === 'teacher' && (
             <FilterToggle pressed={mainFirst} onPressedChange={setMainFirst}>
               主要老师优先
@@ -195,13 +190,13 @@ export function PeoplePage() {
   return (
     <div>
       <PageHeading
-        title="人物名单"
+        title="人物"
         description="同学、老师与其他人物按组同时呈现；每一组可独立排序。"
       />
       {resource.loading && <PageSkeleton rows={5} />}
-      {resource.error && <ErrorState title="人物名单加载失败" onRetry={resource.retry} />}
+      {resource.error && <ErrorState title="人物加载失败" onRetry={resource.retry} />}
       {resource.data && resource.data.people.length === 0 && (
-        <EmptyState title="人物名单为空" description="人物资料尚未上传，稍后再来查看。" />
+        <EmptyState title="人物为空" description="人物资料尚未上传，稍后再来查看。" />
       )}
       {resource.data && resource.data.people.length > 0 && (
         <div className="grid gap-5">

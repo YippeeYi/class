@@ -6,6 +6,7 @@ const card = await readFrontend('src/components/archive/record-card.tsx')
 const filters = await readFrontend('src/components/archive/record-filters.tsx')
 const navigation = await readFrontend('src/lib/record-navigation.ts')
 const person = await readFrontend('src/pages/person-page.tsx')
+const people = await readFrontend('src/pages/people-page.tsx')
 const search = await readFrontend('src/pages/search-page.tsx')
 const recordOrderControls = await readFrontend('src/components/archive/record-order-toggle.tsx')
 const recordOrder = await loadTypescriptModule('src/lib/record-order.ts')
@@ -50,18 +51,18 @@ assert.match(
 )
 assert.match(
   person,
-  /<RecordOrderButtons[\s\S]*人物相关记录显示顺序/,
-  'person records must use the shared two-button order control',
+  /<RecordOrderToggle[\s\S]*人物相关记录显示顺序/,
+  'person records must reuse the moving shared order control',
 )
-assert.doesNotMatch(
-  person,
-  /<RecordOrderToggle/,
-  'person records must not retain the segmented order control',
+assert.match(
+  people,
+  /<RecordOrderToggle[\s\S]*value=\{descending \? 'descending' : 'ascending'\}[\s\S]*setDescending\(value === 'descending'\)/,
+  'every people-list section must adapt its existing direction state to the shared order control',
 )
 assert.match(
   recordOrderControls,
-  /function RecordOrderButtons[\s\S]*<ButtonGroup[\s\S]*recordOrderItems\.map[\s\S]*<FilterToggle/,
-  'the person order buttons must reuse the existing shadcn ButtonGroup and FilterToggle pattern',
+  /function RecordOrderToggle[\s\S]*<Tabs[\s\S]*<SegmentedTabsList/,
+  'all order controls must reuse the existing shadcn Tabs moving-selection composition',
 )
 assert.match(search, /<RecordOrderToggle[\s\S]*搜索记录结果显示顺序/, 'record search results must reuse the order control')
 assert.match(page, /<SegmentedTabsList[\s\S]*items=\{recordViewItems\}/, 'record modes must restore the shared shadcn Tabs selection motion')

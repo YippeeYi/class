@@ -71,6 +71,21 @@ assert.match(
   /const src = originalSrc \|\| initialUrl/,
   'the viewer must retain its compressed source until the decoded original is ready',
 )
+assert.match(
+  imageViewer,
+  /MAX_SESSION_ORIGINAL_URLS[\s\S]*loadedOriginalUrls[\s\S]*rememberLoadedOriginal/,
+  'decoded original URLs must use one bounded shared session cache',
+)
+assert.match(
+  imageViewer,
+  /rememberLoadedOriginal\(path, asset\.src\)[\s\S]*setLoadedOriginal\(\{ path, src: asset\.src \}\)/,
+  'a decoded original must become immediately reusable across viewer re-entry',
+)
+assert.doesNotMatch(
+  imageViewer,
+  /if \(open\) return[\s\S]{0,400}setLoadedOriginal\([^)]*src: ''/,
+  'closing the viewer must not discard a successfully decoded original',
+)
 assert.match(quizPage, /<ImageViewer[\s\S]*initialUrl=\{resource\.src\}/, 'quiz images must reuse the shared viewer')
 assert.match(
   quizPage,

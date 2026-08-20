@@ -294,7 +294,7 @@ export function SearchPage() {
 
   return (
     <div>
-      <PageHeading title="全站搜索" description="一次搜索记录正文、人物资料与名言内容。" />
+      <PageHeading title="搜索" description="一次搜索记录正文、人物资料与名言内容。" />
       <Card className="mb-6">
         <CardContent>
           <div className="relative">
