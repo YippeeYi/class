@@ -24,7 +24,6 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
-import { useDocumentTitle } from '@/hooks/use-document-title'
 
 type ThemePreset = (typeof themePresets)[number]
 
@@ -253,7 +252,6 @@ export function BackgroundsPage() {
   const [appearance, setAppearance] = useState<AppearancePreference>(readAppearance)
   const [section, setSection] = useState('palette')
   const current = appearance.background
-  useDocumentTitle('风格')
   useEffect(() => {
     const update = (event: Event) =>
       setAppearance((event as CustomEvent<AppearancePreference>).detail || readAppearance())

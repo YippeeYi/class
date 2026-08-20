@@ -12,7 +12,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useArchive } from '@/features/archive/archive-context'
 import { useAsyncData } from '@/hooks/use-async-data'
-import { useDocumentTitle } from '@/hooks/use-document-title'
 import { normalizeText } from '@/lib/archive'
 import { stripMarkup } from '@/lib/markup'
 import { quoteRecordTarget } from '@/lib/quote-navigation'
@@ -132,7 +131,6 @@ export function SearchPage() {
   const resource = useArchive()
   const supplementalResource = useAsyncData(() => loadSupplementalRecords())
 
-  useDocumentTitle('全站搜索')
   useEffect(() => {
     const next = params.get('q') || ''
     setQuery((current) => (current === next ? current : next))

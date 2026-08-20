@@ -37,7 +37,6 @@ import {
   pickQuestion,
 } from '@/features/quiz/quiz-engine'
 import { useAsyncData } from '@/hooks/use-async-data'
-import { useDocumentTitle } from '@/hooks/use-document-title'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { normalizeText } from '@/lib/archive'
 import { stripMarkup } from '@/lib/markup'
@@ -106,20 +105,24 @@ function QuestionSource({ question, revealed }: { question: PlayQuestion; reveal
   )
 }
 
-function SecretImage({ path }: { path: string }) {
+export function SecretImage({ path }: { path: string }) {
   const resource = useSignedAsset(path, { variant: 'preview', width: 960 })
-  const [frameDimensions] = useState(() => getImageDimensions(path) || { width: 4, height: 3 })
+  const [frameDimensions, setFrameDimensions] = useState(
+    () => getImageDimensions(path) || { width: 960, height: 720 },
+  )
   const [ready, setReady] = useState(false)
   const [decodeFailed, setDecodeFailed] = useState(false)
   const ratio = frameDimensions.width / frameDimensions.height
+  const hasViewerTrigger = Boolean(resource.src && !decodeFailed)
+  const sizingStyle = {
+    aspectRatio: `${frameDimensions.width} / ${frameDimensions.height}`,
+    width: `min(100%, ${frameDimensions.width}px, 48rem, calc(52svh * ${ratio}))`,
+  }
 
   const frame = (
     <div
-      className="relative mx-auto grid w-full place-items-center overflow-hidden rounded-xl bg-muted/60 text-sm text-muted-foreground"
-      style={{
-        aspectRatio: `${frameDimensions.width} / ${frameDimensions.height}`,
-        maxWidth: `min(48rem, calc(52svh * ${ratio}))`,
-      }}
+      className={`relative grid place-items-center overflow-hidden rounded-xl bg-muted/60 text-sm text-muted-foreground ${hasViewerTrigger ? 'size-full' : 'mx-auto max-w-full'}`}
+      style={hasViewerTrigger ? undefined : sizingStyle}
       aria-busy={!ready && !decodeFailed}
     >
       {!ready && !decodeFailed && (
@@ -161,10 +164,12 @@ function SecretImage({ path }: { path: string }) {
           decoding="async"
           fetchPriority="high"
           onLoad={(event) => {
-            rememberImageDimensions(path, {
+            const dimensions = {
               width: event.currentTarget.naturalWidth,
               height: event.currentTarget.naturalHeight,
-            })
+            }
+            rememberImageDimensions(path, dimensions)
+            setFrameDimensions(dimensions)
             setReady(true)
           }}
           onError={() => {
@@ -186,7 +191,8 @@ function SecretImage({ path }: { path: string }) {
         <Button
           type="button"
           variant="ghost"
-          className={`${interactiveSurfaceVariants({ kind: 'media' })} relative mx-auto h-auto w-full max-w-3xl overflow-hidden rounded-xl p-0`}
+          style={sizingStyle}
+          className={`${interactiveSurfaceVariants({ kind: 'media' })} relative mx-auto flex h-auto max-w-full overflow-hidden rounded-xl p-0`}
           aria-label="查看题目插图大图"
         >
           {frame}
@@ -265,7 +271,6 @@ export function QuizPage() {
     if (Math.abs(offset) > 0.5) window.scrollBy({ top: offset, left: 0, behavior: 'auto' })
   })
 
-  useDocumentTitle('答题')
   useEffect(() => {
     if (!current && candidates.length) next()
   }, [candidates, current, next])

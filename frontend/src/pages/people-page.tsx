@@ -24,7 +24,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useArchive } from '@/features/archive/archive-context'
-import { useDocumentTitle } from '@/hooks/use-document-title'
 import { stripMarkup } from '@/lib/markup'
 import { buildPeopleStats } from '@/lib/stats'
 import type { Person } from '@/types/domain'
@@ -183,7 +182,6 @@ function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; 
 
 export function PeoplePage() {
   const resource = useArchive()
-  useDocumentTitle('人物名单')
   const stats = useMemo(() => buildPeopleStats(resource.data?.records || []), [resource.data])
   const groups = useMemo(() => {
     const output: Record<Role, Person[]> = { student: [], teacher: [], other: [] }

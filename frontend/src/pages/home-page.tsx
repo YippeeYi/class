@@ -32,7 +32,6 @@ import {
 } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useArchive } from '@/features/archive/archive-context'
-import { useDocumentTitle } from '@/hooks/use-document-title'
 
 const tips = [
   '小提示：Logo 仅作为导览标识。',
@@ -65,7 +64,6 @@ export function HomePage() {
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * tips.length))
   const [logoFailed, setLogoFailed] = useState(false)
 
-  useDocumentTitle('导览')
   useEffect(() => {
     const resetScroll = () => window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
     resetScroll()

@@ -19,7 +19,6 @@ import {
 } from '@/components/ui/chart'
 import { Tabs } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
-import { useDocumentTitle } from '@/hooks/use-document-title'
 import { usePersistentHighlight } from '@/hooks/use-persistent-highlight'
 import {
   countTextCharacters,
@@ -701,7 +700,6 @@ export function TimelinePage() {
   const [year, setYear] = useState(() => params.get('year') || '')
   const [month, setMonth] = useState(() => params.get('month') || '')
 
-  useDocumentTitle('统计')
   useEffect(() => {
     const nextYear = params.get('year') || ''
     const nextMonth = params.get('month') || ''

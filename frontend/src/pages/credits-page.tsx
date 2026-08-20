@@ -5,12 +5,10 @@ import { MarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAsyncData } from '@/hooks/use-async-data'
-import { useDocumentTitle } from '@/hooks/use-document-title'
 import { loadCredits } from '@/services/data'
 
 export function CreditsPage() {
   const resource = useAsyncData(() => loadCredits())
-  useDocumentTitle(resource.data?.title || '制作组与致谢')
   const hasContent = Boolean(
     resource.data &&
       (resource.data.sections.length ||

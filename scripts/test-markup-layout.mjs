@@ -26,6 +26,7 @@ const harness = String.raw`<!doctype html>
       import { BackgroundsPage } from '/src/pages/backgrounds-page.tsx'
       import { HomePage } from '/src/pages/home-page.tsx'
       import { PeoplePage } from '/src/pages/people-page.tsx'
+      import { SecretImage } from '/src/pages/quiz-page.tsx'
       import { RecordsPage } from '/src/pages/records-page.tsx'
       import { BackgroundRoot } from '/src/components/layout/background-root.tsx'
       import { Badge } from '/src/components/ui/badge.tsx'
@@ -35,6 +36,7 @@ const harness = String.raw`<!doctype html>
       import { Sidebar, SidebarContent, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger } from '/src/components/ui/sidebar.tsx'
       import { Tabs } from '/src/components/ui/tabs.tsx'
       import { ArchiveProvider } from '/src/features/archive/archive-context.tsx'
+      import { useRouteDocumentTitle } from '/src/hooks/use-document-title.ts'
       import { rememberImageDimensions } from '/src/services/image-metadata.ts'
       import { installRecordJumpGuard } from '/src/lib/record-navigation.ts'
       import '/src/styles/tailwind.css'
@@ -215,6 +217,20 @@ const harness = String.raw`<!doctype html>
         }))
       }
 
+      function SecretImageLayoutFixture() {
+        return e('section', {
+          'data-secret-image-layout-fixture': '',
+          style: { display: 'grid', width: '68rem', maxWidth: '100%', gap: '20px', margin: '24px auto' },
+        },
+          e('article', { 'data-secret-image-case': 'wide', style: { width: '100%', padding: '16px', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' } },
+            e(SecretImage, { path: 'fixtures/quiz-wide.svg' }),
+          ),
+          e('article', { 'data-secret-image-case': 'tall', style: { width: '100%', padding: '16px', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' } },
+            e(SecretImage, { path: 'fixtures/quiz-tall.svg' }),
+          ),
+        )
+      }
+
       function ScrollAreaFixture() {
         return e(ScrollArea, {
           'data-scroll-area-fixture': '',
@@ -284,6 +300,7 @@ const harness = String.raw`<!doctype html>
       function LocationProbe() {
         const location = useLocation()
         const navigate = useNavigate()
+        useRouteDocumentTitle(location.pathname)
         React.useEffect(() => {
           window.__memoryLocation = location.pathname + location.search + location.hash
           window.__memoryNavigate = navigate
@@ -336,6 +353,7 @@ const harness = String.raw`<!doctype html>
                 ),
                 e(ImageViewerFixture),
                 e(PrivateImageViewerFixture),
+                e(SecretImageLayoutFixture),
                 e(ArchiveProvider, null,
                   e('section', { 'data-case': 'guide', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(HomePage)),
                   e('section', { 'data-case': 'people', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(PeoplePage)),
@@ -588,6 +606,11 @@ try {
       })
       return
     }
+    const svg = url.pathname.endsWith('/fixtures/quiz-wide.svg')
+      ? '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600"><rect width="1200" height="600" fill="#233a5b"/></svg>'
+      : url.pathname.endsWith('/fixtures/quiz-tall.svg')
+        ? '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="1200" viewBox="0 0 600 1200"><rect width="600" height="1200" fill="#7a4f68"/></svg>'
+        : '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200"><rect width="1600" height="1200" fill="#233a5b"/><circle cx="800" cy="600" r="320" fill="#7ac7c4"/></svg>'
     await route.fulfill({
       status: 200,
       headers: {
@@ -595,7 +618,7 @@ try {
         'cache-control': 'public, max-age=3600, immutable',
         'content-type': 'image/svg+xml',
       },
-      body: '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200"><rect width="1600" height="1200" fill="#233a5b"/><circle cx="800" cy="600" r="320" fill="#7ac7c4"/></svg>',
+      body: svg,
     })
   })
   page.on('console', (message) => {
@@ -609,6 +632,138 @@ try {
   await page.goto(origin, { waitUntil: 'networkidle' })
   await page.waitForFunction(() => window.__markupLayoutReady === true)
   assert.deepEqual(pageErrors, [], `browser page errors during initial render: ${pageErrors.join('; ')}`)
+  assert.equal(await page.title(), '编日史导览')
+  for (const [route, title] of [
+    ['/records', '编日史记录'],
+    ['/person?id=p01', '编日史人物'],
+    ['/credits', '编日史致谢'],
+    ['/unknown', '编日史错误'],
+    ['/', '编日史导览'],
+  ]) {
+    await page.evaluate((nextRoute) => window.__memoryNavigate(nextRoute), route)
+    await page.waitForFunction((expected) => document.title === expected, title)
+  }
+
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('[data-secret-image-case] img[alt="题目插图"]')].every(
+      (image) => image.naturalWidth > 0 && getComputedStyle(image).opacity === '1',
+    ),
+  )
+  const readSecretImageGeometry = () =>
+    page.locator('[data-secret-image-case]').evaluateAll((cases) =>
+      cases.map((item) => {
+        const trigger = item.querySelector('button[aria-label="查看题目插图大图"]')
+        const frame = trigger?.firstElementChild
+        const image = frame?.querySelector('img[alt="题目插图"]')
+        const itemBounds = item.getBoundingClientRect()
+        const triggerBounds = trigger?.getBoundingClientRect()
+        const frameBounds = frame?.getBoundingClientRect()
+        const imageBounds = image?.getBoundingClientRect()
+        return {
+          id: item.getAttribute('data-secret-image-case'),
+          itemWidth: itemBounds.width,
+          centerDelta: triggerBounds
+            ? Math.abs(
+                triggerBounds.left + triggerBounds.width / 2 -
+                  (itemBounds.left + itemBounds.width / 2),
+              )
+            : Number.POSITIVE_INFINITY,
+          triggerWidth: triggerBounds?.width || 0,
+          triggerHeight: triggerBounds?.height || 0,
+          frameWidth: frameBounds?.width || 0,
+          frameHeight: frameBounds?.height || 0,
+          imageWidth: imageBounds?.width || 0,
+          imageHeight: imageBounds?.height || 0,
+          overflow: frame ? frame.scrollWidth - frame.clientWidth : Number.POSITIVE_INFINITY,
+        }
+      }),
+    )
+  const assertSecretImageGeometry = (geometry, label) => {
+    assert.equal(geometry.length, 2, `${label} must render both hidden-image aspect ratios`)
+    for (const item of geometry) {
+      assert.ok(item.centerDelta <= 1, `${label} ${item.id} hidden image must be horizontally centered: ${JSON.stringify(item)}`)
+      assert.ok(
+        Math.abs(item.triggerWidth - item.frameWidth) <= 2.1 &&
+          Math.abs(item.triggerHeight - item.frameHeight) <= 2.1,
+        `${label} ${item.id} clickable frame must tightly wrap the displayed image: ${JSON.stringify(item)}`,
+      )
+      assert.ok(
+        Math.abs(item.frameWidth - item.imageWidth) <= 1 &&
+          Math.abs(item.frameHeight - item.imageHeight) <= 1,
+        `${label} ${item.id} preview must fill its aspect-ratio frame without extra blank space: ${JSON.stringify(item)}`,
+      )
+      assert.ok(item.triggerWidth < item.itemWidth - 16, `${label} ${item.id} frame must not be forced to the full content width`)
+      assert.ok(item.overflow <= 1, `${label} ${item.id} hidden image must not overflow its frame`)
+    }
+    const wide = geometry.find((item) => item.id === 'wide')
+    const tall = geometry.find((item) => item.id === 'tall')
+    assert.ok(wide && Math.abs(wide.imageWidth / wide.imageHeight - 2) <= 0.02)
+    assert.ok(tall && Math.abs(tall.imageWidth / tall.imageHeight - 0.5) <= 0.02)
+  }
+  assertSecretImageGeometry(await readSecretImageGeometry(), '1280px')
+  for (const name of ['quiz-wide.svg', 'quiz-tall.svg']) {
+    const requestPath = `/storage/v1/object/sign/classrecord-private/fixtures/${name}`
+    const signs = storageRequests.filter(
+      (request) => request.method === 'POST' && request.path === requestPath,
+    )
+    assert.equal(signs.length, 1, `${name} compressed preview must be signed exactly once`)
+    assert.equal(JSON.parse(signs[0].postData).transform?.width, 960)
+  }
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.waitForTimeout(50)
+  assertSecretImageGeometry(await readSecretImageGeometry(), '390px')
+  await page.setViewportSize({ width: 1280, height: 1000 })
+  await page.waitForTimeout(50)
+  const wideSecretTrigger = page
+    .locator('[data-secret-image-case="wide"]')
+    .getByRole('button', { name: '查看题目插图大图' })
+  await wideSecretTrigger.click()
+  const secretImageDialog = page.locator('.image-viewer-dialog[data-slot="dialog-content"]')
+  await secretImageDialog.waitFor({ state: 'visible' })
+  await page.waitForFunction(() =>
+    document
+      .querySelector('.image-viewer-dialog img[alt="题目插图"]')
+      ?.src.includes('/fixtures/quiz-wide.svg'),
+  )
+  const wideSecretPath = '/storage/v1/object/sign/classrecord-private/fixtures/quiz-wide.svg'
+  const wideOriginalSigns = storageRequests.filter(
+    (request) =>
+      request.method === 'POST' &&
+      request.path === wideSecretPath &&
+      !JSON.parse(request.postData).transform,
+  )
+  assert.equal(wideOriginalSigns.length, 1, 'opening one hidden image must sign only its matching original')
+  assert.equal(
+    storageRequests.filter(
+      (request) =>
+        request.method === 'POST' &&
+        request.path.endsWith('/fixtures/quiz-tall.svg') &&
+        !JSON.parse(request.postData).transform,
+    ).length,
+    0,
+    'opening the wide hidden image must not sign another hidden image original',
+  )
+  await page.getByRole('button', { name: '关闭大图' }).click()
+  await secretImageDialog.waitFor({ state: 'hidden' })
+  await wideSecretTrigger.click()
+  await secretImageDialog.waitFor({ state: 'visible' })
+  await page.waitForFunction(() =>
+    document
+      .querySelector('.image-viewer-dialog img[alt="题目插图"]')
+      ?.src.includes('/fixtures/quiz-wide.svg'),
+  )
+  assert.equal(
+    storageRequests.filter(
+      (request) =>
+        request.method === 'POST' &&
+        request.path === wideSecretPath &&
+        !JSON.parse(request.postData).transform,
+    ).length,
+    1,
+    'reopening a hidden image must reuse its signed original URL during the same session',
+  )
+  await page.getByRole('button', { name: '关闭大图' }).click()
+  await secretImageDialog.waitFor({ state: 'hidden' })
 
   const segmentedMotionFixture = page.getByRole('tablist', { name: '分段切换动画测试' })
   const firstSegment = segmentedMotionFixture.getByRole('tab', { name: '第一个模式' })
@@ -2007,16 +2162,22 @@ try {
     'SidebarRail must stay centered on the official boundary: ' + JSON.stringify(sidebarBoundary),
   )
   const unselectedSidebarItem = sidebarFixture.getByRole('button', { name: /侧栏项目二/ })
+  const selectedSidebarWeight = await sidebarFixture
+    .getByRole('button', { name: /侧栏项目一/ })
+    .evaluate((button) => getComputedStyle(button.lastElementChild).fontWeight)
   const unselectedSidebarBefore = await unselectedSidebarItem.evaluate((button) => ({
     background: getComputedStyle(button).backgroundColor,
     color: getComputedStyle(button).color,
     labelColor: getComputedStyle(button.lastElementChild).color,
+    labelWeight: getComputedStyle(button.lastElementChild).fontWeight,
   }))
   await unselectedSidebarItem.hover()
+  await page.waitForTimeout(180)
   const unselectedSidebarAfter = await unselectedSidebarItem.evaluate((button) => ({
     background: getComputedStyle(button).backgroundColor,
     color: getComputedStyle(button).color,
     labelColor: getComputedStyle(button.lastElementChild).color,
+    labelWeight: getComputedStyle(button.lastElementChild).fontWeight,
   }))
   assert.equal(
     unselectedSidebarAfter.background,
@@ -2028,11 +2189,37 @@ try {
     unselectedSidebarBefore.color,
     'unselected Sidebar hover must not recolor the complete option',
   )
-  assert.notEqual(
+  assert.equal(
     unselectedSidebarAfter.labelColor,
     unselectedSidebarBefore.labelColor,
-    'unselected Sidebar hover must highlight its text label',
+    'unselected Sidebar hover must not recolor its text label',
   )
+  assert.notEqual(
+    unselectedSidebarAfter.labelWeight,
+    unselectedSidebarBefore.labelWeight,
+    'unselected Sidebar hover must only strengthen its text weight',
+  )
+  assert.equal(
+    unselectedSidebarAfter.labelWeight,
+    selectedSidebarWeight,
+    'hovered and selected Sidebar labels must use the exact same bold weight',
+  )
+  await page.mouse.down()
+  const unselectedSidebarPressed = await unselectedSidebarItem.evaluate((button) => ({
+    background: getComputedStyle(button).backgroundColor,
+    color: getComputedStyle(button).color,
+    labelColor: getComputedStyle(button.lastElementChild).color,
+    labelWeight: getComputedStyle(button.lastElementChild).fontWeight,
+  }))
+  assert.deepEqual(
+    unselectedSidebarPressed,
+    {
+      ...unselectedSidebarBefore,
+      labelWeight: selectedSidebarWeight,
+    },
+    'pressing an unselected Sidebar item must retain only the shared bold text feedback',
+  )
+  await page.mouse.up()
   await sidebarFixture.getByRole('button', { name: /侧栏项目一/ }).click()
   await sidebarFixture.getByRole('button', { name: /侧栏项目三/ }).click()
   await sidebarFixture.getByRole('button', { name: /侧栏项目二/ }).click()

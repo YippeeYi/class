@@ -11,12 +11,10 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { useAuth } from '@/features/auth/auth-context'
-import { useDocumentTitle } from '@/hooks/use-document-title'
 
 export function NotFoundPage() {
   const auth = useAuth()
   const authenticated = auth.state === 'authenticated'
-  useDocumentTitle('404')
   return (
     <main className="grid min-h-svh place-items-center px-4 py-8">
       <Empty>

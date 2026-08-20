@@ -9,13 +9,11 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAsyncData } from '@/hooks/use-async-data'
-import { useDocumentTitle } from '@/hooks/use-document-title'
 import { loadMaterials } from '@/services/data'
 
 export function MaterialsPage() {
   const [params, setParams] = useSearchParams()
   const resource = useAsyncData(() => loadMaterials())
-  useDocumentTitle('资料')
   const requestedId = params.get('id') || ''
   const invalidRequestedId = Boolean(
     requestedId && resource.data && !resource.data.some((item) => item.id === requestedId),

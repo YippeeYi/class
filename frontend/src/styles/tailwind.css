@@ -1525,16 +1525,27 @@ body
 }
 
 .app-sidebar-navigation-item[data-slot="sidebar-menu-button"] > span:last-child {
-  transition: color var(--interaction-duration-standard) var(--interaction-ease-standard);
+  transition: font-weight var(--interaction-duration-standard) var(--interaction-ease-standard);
+}
+
+body
+  .app-sidebar-navigation
+  .app-sidebar-navigation-item[data-slot="sidebar-menu-button"]:not([data-active]):active {
+  background: transparent;
+  color: var(--sidebar-foreground);
+}
+
+body
+  .app-sidebar-navigation
+  .app-sidebar-navigation-item[data-slot="sidebar-menu-button"]:not([data-active]):active
+  > span:last-child {
+  font-weight: var(--font-weight-medium);
 }
 
 @media (hover: hover) and (pointer: fine) {
   body
     .app-sidebar-navigation
-    .app-sidebar-navigation-item[data-slot="sidebar-menu-button"]:not(
-      [data-active],
-      :active
-    ):hover {
+    .app-sidebar-navigation-item[data-slot="sidebar-menu-button"]:not([data-active]):hover {
     background: transparent;
     color: var(--sidebar-foreground);
   }
@@ -1543,7 +1554,7 @@ body
     .app-sidebar-navigation
     .app-sidebar-navigation-item[data-slot="sidebar-menu-button"]:not([data-active]):hover
     > span:last-child {
-    color: var(--sidebar-primary);
+    font-weight: var(--font-weight-medium);
   }
 }
 

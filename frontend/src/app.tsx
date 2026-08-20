@@ -5,6 +5,7 @@ import { BackgroundRoot } from '@/components/layout/background-root'
 import { Spinner } from '@/components/ui/spinner'
 import { ArchiveProvider } from '@/features/archive/archive-context'
 import { AccessGate } from '@/features/auth/access-gate'
+import { useRouteDocumentTitle } from '@/hooks/use-document-title'
 import { normalizeAppPathname } from '@/lib/app-route'
 import { routeModuleLoaders } from '@/lib/route-preload'
 
@@ -52,6 +53,9 @@ const TimelinePage = lazy(() =>
 )
 
 export function App() {
+  const location = useLocation()
+  useRouteDocumentTitle(location.pathname)
+
   return (
     <BackgroundRoot>
       <Suspense

@@ -14,7 +14,7 @@ import {
   type RecordCriteria,
   RecordFilters,
 } from '@/components/archive/record-filters'
-import { type RecordOrder, RecordOrderToggle } from '@/components/archive/record-order-toggle'
+import { type RecordOrder, RecordOrderButtons } from '@/components/archive/record-order-toggle'
 import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -24,7 +24,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
 import { useAsyncData } from '@/hooks/use-async-data'
-import { useDocumentTitle } from '@/hooks/use-document-title'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { extractAuthorIds, extractParticipantIds, stripMarkup } from '@/lib/markup'
 import { recordStableKey } from '@/lib/record-identity'
@@ -144,7 +143,6 @@ export function PersonPage() {
   }, [id])
 
   const displayName = person ? stripMarkup(person.name || person.id) || person.id : '人物资料'
-  useDocumentTitle(displayName)
   const heading = (
     <PageHeading
       eyebrow="PERSON ARCHIVE"
@@ -238,7 +236,7 @@ export function PersonPage() {
               />
             </Tabs>
           )}
-          <RecordOrderToggle
+          <RecordOrderButtons
             value={recordOrder}
             onValueChange={setRecordOrder}
             ariaLabel="人物相关记录显示顺序"

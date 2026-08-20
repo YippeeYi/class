@@ -28,6 +28,7 @@ const timeline = await readFrontend('src/pages/timeline-page.tsx')
 const quoteNavigation = await readFrontend('src/lib/quote-navigation.ts')
 const recordIdentity = await readFrontend('src/lib/record-identity.ts')
 const routePreload = await readFrontend('src/lib/route-preload.ts')
+const pageTitle = await readFrontend('src/lib/page-title.ts')
 const themeBootstrap = await readFrontend('public/theme-bootstrap.js')
 const backgrounds = await readFrontend('src/components/layout/background-root.tsx')
 const styles = await readFrontend('src/styles/tailwind.css')
@@ -173,7 +174,12 @@ assert.match(backgroundsPage, /group\/box flex-col items-stretch gap-0/, 'the sh
 assert.match(backgroundsPage, /box-style-preview-surface--\$\{id\}/, 'each box style must receive its own preview-pattern modifier')
 assert.match(backgroundsPage, /setThemePreset/, 'theme presets must use the shared appearance controller')
 assert.match(backgroundsPage, /title="风格"/, 'the appearance page must use its new user-facing name')
-assert.match(shell, /label: '风格'/, 'global navigation must expose the style page under its new name')
+assert.match(
+  shell,
+  /label: NAVIGATION_PAGE_NAMES\['\/backgrounds'\]/,
+  'global navigation must read the style-page name from the shared title map',
+)
+assert.match(pageTitle, /'\/backgrounds': '风格'/, 'the shared route map must expose the style page under its new name')
 assert.match(home, /label: '风格'/, 'the guide must expose the style page under its new name')
 assert.match(backgroundsPage, /value: 'palette'[\s\S]*value: 'background'[\s\S]*value: 'box'/, 'palette, background, and box must be parallel first-level style sections')
 assert.match(backgroundsPage, /<SegmentedTabsList[\s\S]{0,240}ariaLabel="风格设置分区"/, 'style section navigation must reuse the shadcn Tabs moving-selection composition')
@@ -484,8 +490,13 @@ assert.match(styles, /\.app-sidebar\[data-slot="sidebar-container"\][\s\S]*backd
 assert.match(shell, /<Sidebar collapsible="icon" className="app-sidebar">/, 'the business shell must opt the shadcn sidebar into background-aware styling')
 assert.match(
   styles,
-  /app-sidebar-navigation-item[\s\S]*:not\([\s\S]*\[data-active\][\s\S]*:hover \{[\s\S]*background: transparent;[\s\S]*> span:last-child \{[\s\S]*color: var\(--sidebar-primary\)/,
-  'unselected sidebar hover must change only its label color while preserving active styling',
+  /app-sidebar-navigation-item[\s\S]*:not\(\[data-active\]\):active \{[\s\S]*background: transparent;[\s\S]*:not\(\[data-active\]\):active[\s\S]*> span:last-child \{[\s\S]*font-weight: var\(--font-weight-medium\)/,
+  'unselected sidebar press must keep a transparent surface and use the selected text weight',
+)
+assert.match(
+  styles,
+  /:not\(\[data-active\]\):hover \{[\s\S]*background: transparent;[\s\S]*color: var\(--sidebar-foreground\);[\s\S]*:not\(\[data-active\]\):hover[\s\S]*> span:last-child \{[\s\S]*font-weight: var\(--font-weight-medium\)/,
+  'unselected sidebar hover must change only its text weight while preserving active styling',
 )
 assert.match(shell, /<SidebarRail \/>/, 'the sidebar edge must use the unmodified shadcn SidebarRail behavior')
 for (const component of [

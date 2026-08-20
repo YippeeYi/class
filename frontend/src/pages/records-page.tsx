@@ -38,7 +38,6 @@ import { Spinner } from '@/components/ui/spinner'
 import { Tabs } from '@/components/ui/tabs'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
-import { useDocumentTitle } from '@/hooks/use-document-title'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { normalizeRecordKey } from '@/lib/archive'
 import { recordAnchor } from '@/lib/markup'
@@ -424,7 +423,6 @@ export function RecordsPage() {
     return { pages, messages, supplements }
   }, [hidden, view])
 
-  useDocumentTitle('记录')
   useLayoutEffect(() => {
     if (initialJumpCaptured.current) return
     initialJumpCaptured.current = true

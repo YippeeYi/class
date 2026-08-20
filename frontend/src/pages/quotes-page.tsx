@@ -18,7 +18,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useArchive } from '@/features/archive/archive-context'
-import { useDocumentTitle } from '@/hooks/use-document-title'
 import { stripMarkup } from '@/lib/markup'
 import { quoteRecordTarget } from '@/lib/quote-navigation'
 import { isModifiedRecordClick, prepareRecordJump, recordClientHref } from '@/lib/record-navigation'
@@ -29,7 +28,6 @@ export function QuotesPage() {
   const [sourceError, setSourceError] = useState('')
   const resource = useArchive()
   const navigate = useNavigate()
-  useDocumentTitle('名言')
   const quotes = useMemo(
     () =>
       [...(resource.data?.quotes || [])].sort((a, b) => {

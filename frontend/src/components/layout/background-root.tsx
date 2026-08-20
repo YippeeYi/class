@@ -4,7 +4,7 @@ export const BACKGROUND_KEY = 'classRecord:background'
 export const APPEARANCE_KEY = 'classRecord:appearance:v1'
 const PALETTE_KEY = 'classRecord:backgroundPalette:v1'
 let volatileAppearance: AppearancePreference | null = null
-let decodedBackground: { src: string; promise: Promise<HTMLImageElement> } | undefined
+const decodedBackgrounds = new Map<string, Promise<HTMLImageElement>>()
 const THEME_PROPERTIES = [
   '--primary',
   '--ring',
@@ -22,14 +22,15 @@ const THEME_PROPERTIES = [
 const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`
 
 function decodeBackground(src: string) {
-  if (decodedBackground?.src === src) return decodedBackground.promise
+  const cached = decodedBackgrounds.get(src)
+  if (cached) return cached
   const image = new Image()
   image.decoding = 'async'
   image.src = src
   const promise = image.decode().then(() => image)
-  decodedBackground = { src, promise }
+  decodedBackgrounds.set(src, promise)
   promise.catch(() => {
-    if (decodedBackground?.promise === promise) decodedBackground = undefined
+    if (decodedBackgrounds.get(src) === promise) decodedBackgrounds.delete(src)
   })
   return promise
 }

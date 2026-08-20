@@ -12,7 +12,6 @@ import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
-import { useDocumentTitle } from '@/hooks/use-document-title'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { loadMealMapMetadata } from '@/services/data'
 import { getImageDimensions, rememberImageDimensions } from '@/services/image-metadata'
@@ -28,7 +27,6 @@ export function MealMapPage() {
   const dimensions = resource.data || knownDimensions || { width: 4838, height: 2721 }
   const loading = asset.loading && !src
   const failed = Boolean(imageFailure.failed || (!asset.loading && asset.error && !src))
-  useDocumentTitle('地图')
   useEffect(() => {
     if (resource.data) rememberImageDimensions(MAP_PATH, resource.data)
   }, [resource.data])

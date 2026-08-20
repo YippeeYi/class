@@ -59,22 +59,23 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAuth } from '@/features/auth/auth-context'
+import { NAVIGATION_PAGE_NAMES } from '@/lib/page-title'
 import { completeRecordJump, isRecordJumpActive } from '@/lib/record-navigation'
 import { preloadRoute } from '@/lib/route-preload'
 import { cn } from '@/lib/utils'
 
 const navigation = [
-  { to: '/', label: '导览', icon: Home },
-  { to: '/records', label: '记录', icon: BookOpenText },
-  { to: '/people', label: '人物', icon: Users },
-  { to: '/quotes', label: '名言', icon: MessageSquareQuote },
-  { to: '/timeline', label: '统计', icon: ChartNoAxesCombined },
-  { to: '/search', label: '搜索', icon: Search },
-  { to: '/quiz', label: '答题', icon: BrainCircuit },
-  { to: '/materials', label: '资料', icon: FileText },
-  { to: '/map', label: '地图', icon: MapIcon },
-  { to: '/backgrounds', label: '风格', icon: Image },
-  { to: '/credits', label: '致谢', icon: Sparkles },
+  { to: '/', label: NAVIGATION_PAGE_NAMES['/'], icon: Home },
+  { to: '/records', label: NAVIGATION_PAGE_NAMES['/records'], icon: BookOpenText },
+  { to: '/people', label: NAVIGATION_PAGE_NAMES['/people'], icon: Users },
+  { to: '/quotes', label: NAVIGATION_PAGE_NAMES['/quotes'], icon: MessageSquareQuote },
+  { to: '/timeline', label: NAVIGATION_PAGE_NAMES['/timeline'], icon: ChartNoAxesCombined },
+  { to: '/search', label: NAVIGATION_PAGE_NAMES['/search'], icon: Search },
+  { to: '/quiz', label: NAVIGATION_PAGE_NAMES['/quiz'], icon: BrainCircuit },
+  { to: '/materials', label: NAVIGATION_PAGE_NAMES['/materials'], icon: FileText },
+  { to: '/map', label: NAVIGATION_PAGE_NAMES['/map'], icon: MapIcon },
+  { to: '/backgrounds', label: NAVIGATION_PAGE_NAMES['/backgrounds'], icon: Image },
+  { to: '/credits', label: NAVIGATION_PAGE_NAMES['/credits'], icon: Sparkles },
 ]
 
 const FULLSCREEN_STORAGE_KEY = 'classRecord:keepFullscreen'

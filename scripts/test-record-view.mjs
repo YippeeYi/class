@@ -7,6 +7,7 @@ const filters = await readFrontend('src/components/archive/record-filters.tsx')
 const navigation = await readFrontend('src/lib/record-navigation.ts')
 const person = await readFrontend('src/pages/person-page.tsx')
 const search = await readFrontend('src/pages/search-page.tsx')
+const recordOrderControls = await readFrontend('src/components/archive/record-order-toggle.tsx')
 const recordOrder = await loadTypescriptModule('src/lib/record-order.ts')
 assert.match(page, /value: 'list'/, 'list view is missing')
 assert.match(page, /value: 'written'/, 'written view is missing')
@@ -47,7 +48,21 @@ assert.match(
   /orderRecords\([\s\S]*'ascending',[\s\S]*compareRecordNumber/,
   'written ordinary records must be fixed to ascending record number',
 )
-assert.match(person, /<RecordOrderToggle[\s\S]*人物相关记录显示顺序/, 'person records must reuse the order control')
+assert.match(
+  person,
+  /<RecordOrderButtons[\s\S]*人物相关记录显示顺序/,
+  'person records must use the shared two-button order control',
+)
+assert.doesNotMatch(
+  person,
+  /<RecordOrderToggle/,
+  'person records must not retain the segmented order control',
+)
+assert.match(
+  recordOrderControls,
+  /function RecordOrderButtons[\s\S]*<ButtonGroup[\s\S]*recordOrderItems\.map[\s\S]*<FilterToggle/,
+  'the person order buttons must reuse the existing shadcn ButtonGroup and FilterToggle pattern',
+)
 assert.match(search, /<RecordOrderToggle[\s\S]*搜索记录结果显示顺序/, 'record search results must reuse the order control')
 assert.match(page, /<SegmentedTabsList[\s\S]*items=\{recordViewItems\}/, 'record modes must restore the shared shadcn Tabs selection motion')
 assert.match(page, /function recordsSearch/, 'record navigation state needs one URL serializer')
