@@ -4,12 +4,18 @@ import { readFrontend } from './test-react-helpers.mjs'
 const markupComponent = await readFrontend('src/components/archive/markup-content.tsx')
 const mapPage = await readFrontend('src/pages/meal-map-page.tsx')
 const recordsPage = await readFrontend('src/pages/records-page.tsx')
+const quizPage = await readFrontend('src/pages/quiz-page.tsx')
 const data = await readFrontend('src/services/data.ts')
 const signedAssetHook = await readFrontend('src/hooks/use-signed-asset.ts')
+const imageViewer = await readFrontend('src/components/archive/image-viewer.tsx')
 const boundedRetryHook = await readFrontend('src/hooks/use-bounded-image-retry.ts')
 assert.match(markupComponent, /useSignedAsset\(requested \? path : ''/, 'record illustrations must be signed only on demand')
 assert.match(markupComponent, /preview\.loading/, 'illustrations need an explicit loading state')
-assert.match(signedAssetHook, /signAssetUrl\(path, \{ forceRefresh \}\)/, 'the image hook must use the secure signer')
+assert.match(
+  signedAssetHook,
+  /signAssetUrl\(path, \{ forceRefresh, variant, width, quality \}\)/,
+  'the image hook must sign an explicit cached image variant',
+)
 assert.doesNotMatch(
   signedAssetHook,
   /setInterval/,
@@ -22,13 +28,17 @@ assert.match(
 )
 assert.match(
   signedAssetHook,
-  /state\.path === path/,
-  'the image hook must never expose a signed URL left over from another asset path',
+  /state\.key === assetKey/,
+  'the image hook must never expose a signed URL left over from another path or rendition',
 )
 assert.match(boundedRetryHook, /automaticRetryUsed/, 'decode failures need a bounded automatic retry budget')
 assert.match(boundedRetryHook, /setFailed\(true\)/, 'exhausted image retries must expose a stable error state')
 assert.match(mapPage, /loadMealMapMetadata/, 'meal map must load its gated intrinsic metadata')
-assert.match(mapPage, /useSignedAsset\(MAP_PATH\)/, 'the signed-asset hook must be the sole URL owner')
+assert.match(
+  mapPage,
+  /useSignedAsset\(MAP_PATH, \{ variant: 'preview', width: 1600 \}\)/,
+  'the map must use one transformed preview URL before opening the original',
+)
 assert.doesNotMatch(
   mapPage,
   /useImageDimensions\(MAP_PATH\)/,
@@ -41,4 +51,35 @@ assert.doesNotMatch(
 )
 assert.match(mapPage, /ImageViewer/, 'meal map must use the shared zoom and pan viewer')
 assert.match(recordsPage, /SignedPageImage/, 'written record pages need a signed image component')
+assert.match(
+  recordsPage,
+  /useSignedAsset\(path, \{ variant: 'preview', width: 1200 \}\)/,
+  'written pages must render a transformed preview before opening the original',
+)
+assert.match(
+  data,
+  /transform: \{ width, quality, resize: 'contain' \}/,
+  'preview URLs must use the storage image transformation endpoint',
+)
+assert.match(
+  imageViewer,
+  /useSignedAsset\(open \? path : ''\)/,
+  'the original URL must only be requested while the shared viewer is open',
+)
+assert.match(
+  imageViewer,
+  /const src = originalSrc \|\| initialUrl/,
+  'the viewer must retain its compressed source until the decoded original is ready',
+)
+assert.match(quizPage, /<ImageViewer[\s\S]*initialUrl=\{resource\.src\}/, 'quiz images must reuse the shared viewer')
+assert.match(
+  quizPage,
+  /useSignedAsset\(path, \{ variant: 'preview', width: 960 \}\)/,
+  'quiz images must first request a compressed rendition',
+)
+assert.doesNotMatch(
+  quizPage,
+  /preloadQuizImage|quizImagePreloadCache/,
+  'unlocking the quiz must not preload hidden original images',
+)
 console.log('React image loading checks passed.')

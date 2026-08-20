@@ -65,7 +65,7 @@ assert.match(themeBootstrap, /backgroundPalette:v1/, 'the first paint must reuse
 assert.match(themeBootstrap, /classRecord:appearance:v1/, 'the first paint must restore the unified appearance preference')
 assert.match(themeBootstrap, /dataset\.themePreset/, 'the selected theme preset must be applied before React starts')
 assert.match(main, /BrowserRouter basename/, 'router basename must follow the Pages project path')
-assert.match(home, /BASE_URL.*logo-guide\.png/, 'logo must use the Vite base URL')
+assert.match(home, /BASE_URL.*logo-guide-preview\.png/, 'logo must use the compressed Vite asset')
 assert.doesNotMatch(home, /tapLogo|logoAnimation|logoTapCount|logoTapTimer/, 'the guide logo must not retain click or animation state')
 assert.doesNotMatch(home, /<Button[\s\S]{0,500}logo-guide\.png/, 'the guide logo must not be wrapped in a button')
 assert.match(home, /role="img"[\s\S]*draggable=\{false\}[\s\S]*pointer-events-none[\s\S]*select-none/, 'the guide logo must be a non-draggable, non-selectable display image')
@@ -74,8 +74,8 @@ assert.match(backgrounds, /extractPalette/, 'image backgrounds must update the t
 assert.match(backgrounds, /PALETTE_KEY/, 'derived background palettes must be cached')
 assert.equal(
   (backgrounds.match(/fixed inset-0/g) || []).length,
-  2,
-  'the steady background and temporary crossfade layer must be the only full-screen fixed layers',
+  3,
+  'the steady background, prior crossfade, and selected thumbnail fallback must be the only full-screen fixed layers',
 )
 assert.match(styles, /\.background-layer[\s\S]*contain: strict/, 'background paint must stay in a stable compositing layer')
 assert.doesNotMatch(shell, /backdrop-blur-xl/, 'the sticky app bar must not re-blur the full page during fast scrolling')
@@ -200,6 +200,18 @@ assert.match(themeBootstrap, /darkThemes/, 'all dark presets must restore dark c
 assert.match(backgrounds, /if \(cached\) \{[\s\S]*applyPalette\(cached\)[\s\S]*return/, 'cached background palettes must skip repeated image sampling')
 assert.match(backgrounds, /mountain\.webp/, 'the mountain background must use the optimized WebP asset')
 assert.match(backgrounds, /cloud\.webp/, 'the cloud background must use the optimized WebP asset')
+assert.match(backgrounds, /mountain-preview\.jpg/, 'the mountain chooser must use a dedicated thumbnail')
+assert.match(backgrounds, /cloud-preview\.jpg/, 'the cloud chooser must use a dedicated thumbnail')
+assert.match(
+  backgroundsPage,
+  /<BackgroundPreview src=\{item\.preview\}/,
+  'the chooser must never render each unselected original background',
+)
+assert.match(
+  backgrounds,
+  /setPendingPreview\(selected\.preview \? current : null\)[\s\S]*decodeBackground\(selected\.image\)\.then\(commit/,
+  'a selected thumbnail must remain visible until its original has decoded',
+)
 assert.match(themeBootstrap, /mountain\.webp/, 'the first-paint background path must match React')
 assert.match(styles, /@import "@fontsource-variable\/geist"/, 'the interface must use the installed compressed variable-font package')
 assert.doesNotMatch(styles, /Google Sans Flex|GoogleSansFlex/, 'the obsolete multi-megabyte public font must not be requested')
@@ -212,6 +224,9 @@ assert.equal(
 )
 assert.equal(await existsFrontend('public/images/backgrounds/mountain.webp'), true)
 assert.equal(await existsFrontend('public/images/backgrounds/cloud.webp'), true)
+assert.equal(await existsFrontend('public/images/backgrounds/mountain-preview.jpg'), true)
+assert.equal(await existsFrontend('public/images/backgrounds/cloud-preview.jpg'), true)
+assert.equal(await existsFrontend('public/logo-guide-preview.png'), true)
 assert.equal(await existsFrontend('public/images/backgrounds/mountain.jpg'), false)
 assert.equal(await existsFrontend('public/images/backgrounds/cloud.jpg'), false)
 assert.match(records, /criteriaFromSearch\(params\)/, 'record filters must restore from URL changes')
@@ -368,7 +383,8 @@ assert.match(quotes, /grid items-start gap-4/, 'quote cards must size to their o
 assert.match(quotes, /<Link[\s\S]*focus-visible:ring-2[\s\S]*<Card className="h-fit gap-0 py-0/, 'quote cards must preserve whole-card keyboard navigation without default card padding')
 assert.match(quotes, /<CardContent className="p-4 sm:p-5">/, 'quote cards need one explicit, balanced content inset')
 assert.doesNotMatch(quotes, /<Card id=|<CardContent className="pt-4">/, 'quote cards must not restore the oversized legacy composition')
-assert.match(quiz, /preloadQuizImage/, 'secret quiz image preloading is missing')
+assert.doesNotMatch(quiz, /preloadQuizImage|quizImagePreloadCache/, 'hidden quiz originals must not preload')
+assert.match(quiz, /<ImageViewer[\s\S]*initialUrl=\{resource\.src\}/, 'hidden quiz images must use the shared large viewer')
 assert.match(quiz, /text-foreground\/90/, 'quiz source text needs sufficient contrast')
 assert.match(quiz, /<ScrollArea key=\{current\.id\}/, 'quiz questions must scroll inside the card')
 assert.match(markup, /type: 'blank'; answer: string/, 'quiz blanks must be represented as entity-aware safe AST nodes')
@@ -466,6 +482,11 @@ assert.match(styles, /\.record-markup \{[\s\S]*contain: inline-size/, 'long tabl
 assert.match(styles, /\.app-main-surface \{[\s\S]*color-mix\(in oklch, var\(--background\) 68%, transparent\)/, 'the application surface must reveal the selected fixed background')
 assert.match(styles, /\.app-sidebar\[data-slot="sidebar-container"\][\s\S]*backdrop-filter: blur/, 'the desktop sidebar container must own one restrained translucent surface without relocating the rail')
 assert.match(shell, /<Sidebar collapsible="icon" className="app-sidebar">/, 'the business shell must opt the shadcn sidebar into background-aware styling')
+assert.match(
+  styles,
+  /app-sidebar-navigation-item[\s\S]*:not\([\s\S]*\[data-active\][\s\S]*:hover \{[\s\S]*background: transparent;[\s\S]*> span:last-child \{[\s\S]*color: var\(--sidebar-primary\)/,
+  'unselected sidebar hover must change only its label color while preserving active styling',
+)
 assert.match(shell, /<SidebarRail \/>/, 'the sidebar edge must use the unmodified shadcn SidebarRail behavior')
 for (const component of [
   'SidebarProvider',

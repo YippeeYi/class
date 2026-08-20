@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
+import { ImageViewer } from '@/components/archive/image-viewer'
+import { interactiveSurfaceVariants } from '@/components/archive/interaction'
 import { MarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { RecordCard } from '@/components/archive/record-card'
@@ -12,6 +14,7 @@ import {
   type RecordCriteria,
   RecordFilters,
 } from '@/components/archive/record-filters'
+import { type RecordOrder, RecordOrderToggle } from '@/components/archive/record-order-toggle'
 import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -21,9 +24,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
 import { useAsyncData } from '@/hooks/use-async-data'
+import { useDocumentTitle } from '@/hooks/use-document-title'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { extractAuthorIds, extractParticipantIds, stripMarkup } from '@/lib/markup'
 import { recordStableKey } from '@/lib/record-identity'
+import { orderRecords } from '@/lib/record-order'
 import { loadSupplementalRecords } from '@/services/data'
 import type { Person, RecordItem } from '@/types/domain'
 
@@ -52,10 +57,14 @@ function authorIds(record: RecordItem) {
 
 function PersonAvatar({ person }: { person: Person }) {
   const remote = /^https?:\/\//i.test(person.avatarUrl)
-  const signed = useSignedAsset(remote ? '' : person.avatarUrl)
+  const signed = useSignedAsset(remote ? '' : person.avatarUrl, {
+    variant: 'preview',
+    width: 384,
+    quality: 76,
+  })
   const src = remote ? person.avatarUrl : signed.src
   const label = stripMarkup(person.name || person.id) || person.id
-  return (
+  const avatar = (
     <Avatar
       className="aspect-square h-auto w-full max-w-48 rounded-xl after:rounded-xl"
       aria-label={label}
@@ -77,6 +86,24 @@ function PersonAvatar({ person }: { person: Person }) {
       </AvatarFallback>
     </Avatar>
   )
+  if (!src) return avatar
+  return (
+    <ImageViewer
+      path={remote ? '' : person.avatarUrl}
+      initialUrl={src}
+      alt={`${label}的头像`}
+      trigger={
+        <Button
+          type="button"
+          variant="ghost"
+          className={`${interactiveSurfaceVariants({ kind: 'media' })} h-auto w-full max-w-48 justify-start rounded-xl p-0`}
+          aria-label={`查看${label}的头像大图`}
+        >
+          {avatar}
+        </Button>
+      }
+    />
+  )
 }
 
 export function PersonPage() {
@@ -84,6 +111,7 @@ export function PersonPage() {
   const id = params.get('id') || ''
   const [mode, setMode] = useState('participated')
   const [criteria, setCriteria] = useState<RecordCriteria>(EMPTY_RECORD_CRITERIA)
+  const [recordOrder, setRecordOrder] = useState<RecordOrder>('descending')
   const resource = useArchive()
   const supplementalResource = useAsyncData(() => loadSupplementalRecords())
   const person = resource.data?.people.find((item) => item.id === id)
@@ -92,34 +120,31 @@ export function PersonPage() {
     [resource.data?.records, supplementalResource.data],
   )
   const participatedRecords = useMemo(
-    () =>
-      relatedSources
-        .filter((record) => participantIds(record).includes(id))
-        .sort((a, b) => recordStableKey(b).localeCompare(recordStableKey(a))),
+    () => relatedSources.filter((record) => participantIds(record).includes(id)),
     [id, relatedSources],
   )
   const authoredRecords = useMemo(
-    () =>
-      relatedSources
-        .filter((record) => authorIds(record).includes(id))
-        .sort((a, b) => recordStableKey(b).localeCompare(recordStableKey(a))),
+    () => relatedSources.filter((record) => authorIds(record).includes(id)),
     [id, relatedSources],
   )
   const allRelated = mode === 'authored' ? authoredRecords : participatedRecords
-  const related = useMemo(() => filterRecords(allRelated, criteria), [allRelated, criteria])
+  const related = useMemo(
+    () =>
+      orderRecords(filterRecords(allRelated, criteria), recordOrder, (left, right) =>
+        recordStableKey(left).localeCompare(recordStableKey(right)),
+      ),
+    [allRelated, criteria, recordOrder],
+  )
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: same-route person links must reset view-local controls when the URL id changes.
   useEffect(() => {
     setMode('participated')
     setCriteria(EMPTY_RECORD_CRITERIA)
+    setRecordOrder('descending')
   }, [id])
 
-  useEffect(() => {
-    document.title = person
-      ? `${stripMarkup(person.name || person.id)} · 编日史`
-      : '人物资料 · 编日史'
-  }, [person])
   const displayName = person ? stripMarkup(person.name || person.id) || person.id : '人物资料'
+  useDocumentTitle(displayName)
   const heading = (
     <PageHeading
       eyebrow="PERSON ARCHIVE"
@@ -197,21 +222,28 @@ export function PersonPage() {
           相关记录{' '}
           <span className="text-sm font-normal text-muted-foreground">{related.length}</span>
         </h2>
-        {authoredRecords.length > 0 && (
-          <Tabs
-            value={mode}
-            onValueChange={(value) => {
-              setMode(value)
-              setCriteria(EMPTY_RECORD_CRITERIA)
-            }}
-          >
-            <SegmentedTabsList
-              value={mode as (typeof personRecordModes)[number]['value']}
-              items={personRecordModes}
-              ariaLabel="人物相关记录模式"
-            />
-          </Tabs>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {authoredRecords.length > 0 && (
+            <Tabs
+              value={mode}
+              onValueChange={(value) => {
+                setMode(value)
+                setCriteria(EMPTY_RECORD_CRITERIA)
+              }}
+            >
+              <SegmentedTabsList
+                value={mode as (typeof personRecordModes)[number]['value']}
+                items={personRecordModes}
+                ariaLabel="人物相关记录模式"
+              />
+            </Tabs>
+          )}
+          <RecordOrderToggle
+            value={recordOrder}
+            onValueChange={setRecordOrder}
+            ariaLabel="人物相关记录显示顺序"
+          />
+        </div>
       </div>
       <RecordFilters records={allRelated} value={criteria} onChange={setCriteria} />
       {supplementalResource.loading && (

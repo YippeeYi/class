@@ -1,12 +1,54 @@
 import assert from 'node:assert/strict'
-import { readFrontend } from './test-react-helpers.mjs'
+import { loadTypescriptModule, readFrontend } from './test-react-helpers.mjs'
 
 const page = await readFrontend('src/pages/records-page.tsx')
 const card = await readFrontend('src/components/archive/record-card.tsx')
 const filters = await readFrontend('src/components/archive/record-filters.tsx')
 const navigation = await readFrontend('src/lib/record-navigation.ts')
+const person = await readFrontend('src/pages/person-page.tsx')
+const search = await readFrontend('src/pages/search-page.tsx')
+const recordOrder = await loadTypescriptModule('src/lib/record-order.ts')
 assert.match(page, /value: 'list'/, 'list view is missing')
 assert.match(page, /value: 'written'/, 'written view is missing')
+assert.deepEqual(
+  recordOrder
+    .orderRecords(
+      [
+        { id: '10', fileName: '10.json', recordIndex: 10 },
+        { id: '2', fileName: '2.json', recordIndex: 2 },
+      ],
+      'ascending',
+    )
+    .map((record) => record.id),
+  ['2', '10'],
+)
+assert.match(
+  page,
+  /view === 'list' && \([\s\S]*<RecordOrderToggle/,
+  'list mode must expose the shared order control',
+)
+assert.doesNotMatch(
+  page.slice(page.indexOf('function WrittenRecordPages'), page.indexOf('function SignedPageImage')),
+  /RecordOrderToggle/,
+  'written mode must never expose a reversible order control',
+)
+assert.match(
+  page,
+  /pageMessage[\s\S]*pageSupplements[\s\S]*pageRecords\.map/,
+  'written mode must render proverbs, supplements, then ordinary records as continuous sections',
+)
+assert.match(
+  page,
+  /pageSupplements = supplements[\s\S]*supplementIndex - right\.supplementIndex/,
+  'written supplements must be ordered by their record number',
+)
+assert.match(
+  page,
+  /orderRecords\([\s\S]*'ascending',[\s\S]*compareRecordNumber/,
+  'written ordinary records must be fixed to ascending record number',
+)
+assert.match(person, /<RecordOrderToggle[\s\S]*人物相关记录显示顺序/, 'person records must reuse the order control')
+assert.match(search, /<RecordOrderToggle[\s\S]*搜索记录结果显示顺序/, 'record search results must reuse the order control')
 assert.match(page, /<SegmentedTabsList[\s\S]*items=\{recordViewItems\}/, 'record modes must restore the shared shadcn Tabs selection motion')
 assert.match(page, /function recordsSearch/, 'record navigation state needs one URL serializer')
 assert.match(page, /replaceRouteState\(value as 'list' \| 'written', criteria\)/, 'view tabs must update state and URL exactly once')

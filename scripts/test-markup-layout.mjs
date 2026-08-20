@@ -200,6 +200,21 @@ const harness = String.raw`<!doctype html>
         }))
       }
 
+      function PrivateImageViewerFixture() {
+        const preview = 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22480%22 height=%22320%22 viewBox=%220 0 480 320%22%3E%3Crect width=%22480%22 height=%22320%22 fill=%22%235a6575%22/%3E%3C/svg%3E'
+        return e('section', {
+          'data-case': 'private-image-viewer',
+          style: { width: '68rem', maxWidth: '100%', margin: '24px auto', padding: '16px', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' },
+        }, e(ImageViewer, {
+          path: 'fixtures/progressive-original.svg',
+          alt: '按需高清测试图片',
+          initialUrl: preview,
+          trigger: e(Button, { type: 'button', variant: 'ghost', className: 'h-auto p-0', 'aria-label': '打开按需高清测试图片' },
+            e('img', { src: preview, alt: '按需图片压缩预览', width: 480, height: 320, style: { pointerEvents: 'none' } }),
+          ),
+        }))
+      }
+
       function ScrollAreaFixture() {
         return e(ScrollArea, {
           'data-scroll-area-fixture': '',
@@ -295,6 +310,7 @@ const harness = String.raw`<!doctype html>
                 e(Case, { id: 'stack', width: '52rem', content: stackContent }),
                 e(Case, { id: 'annotation', width: '52rem', content: annotationContent }),
                 e(Case, { id: 'annotation-edge', width: '52rem', content: annotationEdgeContent, align: 'right' }),
+                e(Case, { id: 'nested-redaction', width: '52rem', content: '黑幕嵌套：[[hide:前 [[person:p01|人物标记]] [[under:[[quote:q01|嵌套名言]]]] 后]]' }),
                 e(Case, { id: 'illustration', width: '52rem', content: illustrationContent }),
                 e(Case, { id: 'illustration-edge', width: '52rem', content: illustrationEdgeContent, align: 'right' }),
                 e(DailyGrid, { id: 'narrow', width: '18rem', columns: 4 }),
@@ -319,6 +335,7 @@ const harness = String.raw`<!doctype html>
                   e('div', { 'data-slot': 'card', className: 'mt-4 rounded-xl bg-card p-4' }, '内容卡片'),
                 ),
                 e(ImageViewerFixture),
+                e(PrivateImageViewerFixture),
                 e(ArchiveProvider, null,
                   e('section', { 'data-case': 'guide', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(HomePage)),
                   e('section', { 'data-case': 'people', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(PeoplePage)),
@@ -530,8 +547,57 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } })
   const pageErrors = []
   const consoleProblems = []
+  const imageRequests = []
+  const storageRequests = []
   let expectedHarnessNetworkFailures = 0
   page.on('pageerror', (error) => pageErrors.push(error.message))
+  page.on('request', (request) => {
+    if (request.url().includes('/storage/v1/object/sign/')) {
+      storageRequests.push({
+        method: request.method(),
+        path: new URL(request.url()).pathname,
+        resourceType: request.resourceType(),
+        postData: request.postData() || '',
+      })
+    }
+    if (request.resourceType() !== 'image') return
+    try {
+      imageRequests.push(new URL(request.url()).pathname)
+    } catch {
+      imageRequests.push(request.url())
+    }
+  })
+  await page.route('**/storage/v1/object/sign/**', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    const corsHeaders = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': '*',
+    }
+    if (request.method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: corsHeaders })
+      return
+    }
+    if (request.method() === 'POST') {
+      await route.fulfill({
+        status: 200,
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          signedURL: `${url.pathname.replace('/storage/v1', '')}?token=layout-image`,
+        }),
+      })
+      return
+    }
+    await route.fulfill({
+      status: 200,
+      headers: {
+        ...corsHeaders,
+        'cache-control': 'public, max-age=3600, immutable',
+        'content-type': 'image/svg+xml',
+      },
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200"><rect width="1600" height="1200" fill="#233a5b"/><circle cx="800" cy="600" r="320" fill="#7ac7c4"/></svg>',
+    })
+  })
   page.on('console', (message) => {
     if (/^Failed to load resource: the server responded with a status of 400/u.test(message.text())) {
       expectedHarnessNetworkFailures += 1
@@ -603,7 +669,42 @@ try {
   assert.deepEqual(reducedSegmentedState.animationIds, [])
   await page.emulateMedia({ reducedMotion: 'no-preference' })
 
+  const nestedRedaction = page.locator('[data-case="nested-redaction"] .record-redacted')
+  const nestedRedactionLink = nestedRedaction.locator('.markup-link').first()
+  const concealedNestedRedaction = await nestedRedactionLink.evaluate((link) => ({
+    color: getComputedStyle(link).color,
+    decoration: getComputedStyle(link).textDecorationColor,
+  }))
+  assert.match(
+    concealedNestedRedaction.color,
+    /(?:rgba\(0, 0, 0, 0\)|\/ 0\))$/,
+    `nested reference color must remain concealed by its parent redaction: ${JSON.stringify(concealedNestedRedaction)}`,
+  )
+  await nestedRedaction.hover()
+  const revealedNestedRedaction = await nestedRedactionLink.evaluate((link) => ({
+    color: getComputedStyle(link).color,
+    decoration: getComputedStyle(link).textDecorationColor,
+  }))
+  assert.notEqual(
+    revealedNestedRedaction.color,
+    concealedNestedRedaction.color,
+    'hovering a redaction must reveal the recursively rendered reference without replacing it',
+  )
+  await page.mouse.move(4, 4)
+
   const recordsFixture = page.locator('[data-case="records"]')
+  await page.setViewportSize({ width: 600, height: 1000 })
+  await page.waitForTimeout(50)
+  const recordOrderTabs = recordsFixture.getByRole('tablist', { name: '记录显示顺序' })
+  const visibleRecordIds = () =>
+    recordsFixture.locator('.record-surface').evaluateAll((records) => records.map((record) => record.id))
+  assert.deepEqual(await visibleRecordIds(), ['record-r3', 'record-r2', 'record-r1'])
+  await recordOrderTabs.getByRole('tab', { name: '正序' }).click()
+  assert.deepEqual(await visibleRecordIds(), ['record-r1', 'record-r2', 'record-r3'])
+  await recordOrderTabs.getByRole('tab', { name: '逆序' }).click()
+  assert.deepEqual(await visibleRecordIds(), ['record-r3', 'record-r2', 'record-r1'])
+  await page.setViewportSize({ width: 1280, height: 1000 })
+  await page.waitForTimeout(50)
   const sourceJump = recordsFixture.getByRole('button', {
     name: '在书面记录中查看#r3',
   })
@@ -912,6 +1013,82 @@ try {
 
   await page.setViewportSize({ width: 1280, height: 1000 })
   await assertFullscreenImageViewer(page, 'default 1280px')
+  const privateViewerPath = '/storage/v1/object/sign/classrecord-private/fixtures/progressive-original.svg'
+  assert.equal(
+    storageRequests.filter(
+      (request) => request.path === privateViewerPath && request.method === 'POST',
+    ).length,
+    0,
+    'rendering a compressed private-image trigger must not sign its original',
+  )
+  const privateViewerTrigger = page.getByRole('button', { name: '打开按需高清测试图片' })
+  await privateViewerTrigger.scrollIntoViewIfNeeded()
+  await privateViewerTrigger.click()
+  const privateViewerDialog = page.locator('.image-viewer-dialog[data-slot="dialog-content"]')
+  await privateViewerDialog.waitFor({ state: 'visible' })
+  await page.waitForFunction(() =>
+    document
+      .querySelector('img[alt="按需高清测试图片"]')
+      ?.src.includes('/fixtures/progressive-original.svg'),
+  )
+  const firstPrivateViewerRequests = storageRequests.filter(
+    (request) => request.path === privateViewerPath,
+  )
+  assert.equal(
+    firstPrivateViewerRequests.filter((request) => request.method === 'POST').length,
+    1,
+    `opening a large image must sign its original exactly once: ${JSON.stringify(firstPrivateViewerRequests)}`,
+  )
+  assert.equal(
+    firstPrivateViewerRequests.filter(
+      (request) => request.method === 'GET' && request.resourceType === 'image',
+    ).length,
+    1,
+    `opening a large image must download only that original: ${JSON.stringify(firstPrivateViewerRequests)}`,
+  )
+  assert.equal(
+    JSON.parse(firstPrivateViewerRequests.find((request) => request.method === 'POST').postData)
+      .transform,
+    undefined,
+    'the viewer request must target the original rendition rather than another thumbnail',
+  )
+  await page.getByRole('button', { name: '关闭大图' }).click()
+  await privateViewerDialog.waitFor({ state: 'hidden' })
+  await privateViewerTrigger.click()
+  await privateViewerDialog.waitFor({ state: 'visible' })
+  await page.waitForFunction(() =>
+    document
+      .querySelector('img[alt="按需高清测试图片"]')
+      ?.src.includes('/fixtures/progressive-original.svg'),
+  )
+  await page.getByRole('button', { name: '关闭大图' }).click()
+  await privateViewerDialog.waitFor({ state: 'hidden' })
+  const repeatedPrivateViewerRequests = storageRequests.filter(
+    (request) => request.path === privateViewerPath,
+  )
+  assert.equal(
+    repeatedPrivateViewerRequests.filter((request) => request.method === 'POST').length,
+    1,
+    `reopening a large image must reuse its signed URL: ${JSON.stringify(repeatedPrivateViewerRequests)}`,
+  )
+  assert.ok(
+    repeatedPrivateViewerRequests.filter(
+      (request) => request.method === 'GET' && request.resourceType === 'image',
+    ).length <= 1,
+    `reopening a large image must reuse the browser image cache: ${JSON.stringify(repeatedPrivateViewerRequests)}`,
+  )
+  const writtenPreviewSigns = storageRequests.filter(
+    (request) =>
+      request.method === 'POST' &&
+      request.path.endsWith('/classrecord-private/fixtures/page-2.webp'),
+  )
+  assert.ok(writtenPreviewSigns.length >= 1, 'the visible written page must request its compressed rendition')
+  assert.ok(
+    writtenPreviewSigns.every(
+      (request) => JSON.parse(request.postData).transform?.width === 1200,
+    ),
+    `written pages must not sign an original outside the large viewer: ${JSON.stringify(writtenPreviewSigns)}`,
+  )
   const tableBalance = await page.evaluate(() => {
     const small = document.querySelector('[data-case="small"]')
     const smallTable = small?.querySelector('table')
@@ -1387,6 +1564,14 @@ try {
   assert.equal(await backgroundCards.count(), 3, 'all baseline background choices must remain available')
   await backgroundCards.last().scrollIntoViewIfNeeded()
   await page.waitForFunction(() => [...document.querySelectorAll('[data-background-id] img')].every((image) => image.naturalWidth > 0))
+  const chooserImageRequests = imageRequests.filter((request) =>
+    /\/images\/backgrounds\/(?:mountain|cloud)(?:-preview)?\.(?:jpg|webp)$/u.test(request),
+  )
+  assert.deepEqual(
+    [...new Set(chooserImageRequests)].sort(),
+    ['/images/backgrounds/cloud-preview.jpg', '/images/backgrounds/mountain-preview.jpg'],
+    `opening the chooser must request only its two compressed previews: ${JSON.stringify(chooserImageRequests)}`,
+  )
   const mountainBoundsBefore = await page.locator('[data-background-id="mountain"]').boundingBox()
   await page.locator('[data-background-id="mountain"]').hover()
   await page.waitForTimeout(220)
@@ -1496,6 +1681,19 @@ try {
   await page.waitForFunction(() => localStorage.getItem('classRecord:background') === 'cloud')
   await page.waitForFunction(() => JSON.parse(localStorage.getItem('classRecord:appearance:v1') || 'null')?.background === 'cloud')
   await page.waitForFunction(() => document.querySelector('[data-background-visible="cloud"]'))
+  const selectedOriginalRequests = imageRequests.filter((request) =>
+    /\/images\/backgrounds\/(?:mountain|cloud)\.webp$/u.test(request),
+  )
+  assert.deepEqual(
+    [...new Set(selectedOriginalRequests)].sort(),
+    ['/images/backgrounds/cloud.webp', '/images/backgrounds/mountain.webp'],
+    `only backgrounds actually selected during the test may request originals: ${JSON.stringify(selectedOriginalRequests)}`,
+  )
+  assert.ok(
+    selectedOriginalRequests.filter((request) => request.endsWith('/cloud.webp')).length <= 1 &&
+      selectedOriginalRequests.filter((request) => request.endsWith('/mountain.webp')).length <= 1,
+    `selected originals must reuse one browser request each: ${JSON.stringify(selectedOriginalRequests)}`,
+  )
   const surfaceGeometry = await page.locator('[data-case="app-surface"]').evaluate((surface) => {
     const layers = document.querySelectorAll('[data-background-visible="cloud"] > .background-layer')
     const layer = layers[layers.length - 1]
@@ -1637,6 +1835,7 @@ try {
   assert.deepEqual(backgroundSelectionState.selected, ['cloud'], 'background selection must update directly on the chosen label')
   assert.equal(backgroundSelectionState.movingLayers, 0, 'background selection must not mount a moving shared frame')
   await page.getByRole('tab', { name: /^方框/ }).click()
+  await page.waitForTimeout(220)
   const roundedChoice = page.locator('[data-box-style-id="rounded"]')
   await roundedChoice.scrollIntoViewIfNeeded()
   const readRoundedChoiceDocumentBounds = () => roundedChoice.evaluate((choice) => {
@@ -1806,6 +2005,33 @@ try {
   assert.ok(
     sidebarBoundary.railCenterDelta <= 1,
     'SidebarRail must stay centered on the official boundary: ' + JSON.stringify(sidebarBoundary),
+  )
+  const unselectedSidebarItem = sidebarFixture.getByRole('button', { name: /侧栏项目二/ })
+  const unselectedSidebarBefore = await unselectedSidebarItem.evaluate((button) => ({
+    background: getComputedStyle(button).backgroundColor,
+    color: getComputedStyle(button).color,
+    labelColor: getComputedStyle(button.lastElementChild).color,
+  }))
+  await unselectedSidebarItem.hover()
+  const unselectedSidebarAfter = await unselectedSidebarItem.evaluate((button) => ({
+    background: getComputedStyle(button).backgroundColor,
+    color: getComputedStyle(button).color,
+    labelColor: getComputedStyle(button.lastElementChild).color,
+  }))
+  assert.equal(
+    unselectedSidebarAfter.background,
+    unselectedSidebarBefore.background,
+    'unselected Sidebar hover must not paint a background block',
+  )
+  assert.equal(
+    unselectedSidebarAfter.color,
+    unselectedSidebarBefore.color,
+    'unselected Sidebar hover must not recolor the complete option',
+  )
+  assert.notEqual(
+    unselectedSidebarAfter.labelColor,
+    unselectedSidebarBefore.labelColor,
+    'unselected Sidebar hover must highlight its text label',
   )
   await sidebarFixture.getByRole('button', { name: /侧栏项目一/ }).click()
   await sidebarFixture.getByRole('button', { name: /侧栏项目三/ }).click()
@@ -2042,6 +2268,39 @@ try {
   assert.equal(await guide.getByRole('link', { name: /记录/ }).count() > 0, true, 'guide must expose the primary records entry')
   assert.equal(await guide.getByRole('link', { name: /致谢/ }).count(), 1, 'guide must restore the baseline credits entry')
   assert.equal(await guide.getByRole('button', { name: /历史上的今天/ }).count(), 1, 'guide must retain the date-matched history entry')
+  const guideRecordCardLink = guide.locator('a.app-interactive-card[href="/records"]').last()
+  const readGuideCardState = () =>
+    guideRecordCardLink.evaluate((link) => {
+      const card = link.querySelector('[data-slot="card"]')
+      const bounds = card.getBoundingClientRect()
+      const styles = getComputedStyle(card)
+      return {
+        bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+        background: styles.backgroundColor,
+        border: styles.borderColor,
+      }
+    })
+  const guideCardBefore = await readGuideCardState()
+  await guideRecordCardLink.hover()
+  await page.waitForTimeout(220)
+  const guideCardAfter = await readGuideCardState()
+  assert.deepEqual(
+    guideCardAfter.bounds,
+    guideCardBefore.bounds,
+    'guide entry hover must not move or resize the shared interactive card',
+  )
+  assert.ok(
+    guideCardAfter.background !== guideCardBefore.background ||
+      guideCardAfter.border !== guideCardBefore.border,
+    `guide entry hover must expose the shared card feedback: ${JSON.stringify({ guideCardBefore, guideCardAfter })}`,
+  )
+  await page.keyboard.press('Tab')
+  await guideRecordCardLink.focus()
+  assert.notEqual(
+    await guideRecordCardLink.evaluate((link) => getComputedStyle(link).boxShadow),
+    'none',
+    'guide entry keyboard focus must expose the shared focus-visible ring',
+  )
   const guideGeometry = await guide.evaluate((section) => ({
     overflow: section.scrollWidth - section.clientWidth,
     heroColumns: getComputedStyle(section.querySelector('.guide-hero [data-slot="card-content"]')).gridTemplateColumns,

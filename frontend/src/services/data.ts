@@ -17,6 +17,16 @@ import type {
 
 type Row = Record<string, unknown>
 const signedUrls = new Map<string, { promise: Promise<string>; refreshAt: number }>()
+export const DEFAULT_ASSET_PREVIEW_WIDTH = 1280
+export const DEFAULT_ASSET_PREVIEW_QUALITY = 72
+export type AssetVariant = 'original' | 'preview'
+type AssetSignOptions = {
+  expiresIn?: number
+  forceRefresh?: boolean
+  variant?: AssetVariant
+  width?: number
+  quality?: number
+}
 
 function cached<T>(key: string, loader: () => Promise<T>, force = false): Promise<T> {
   return loadCached({ key, loader, force })
@@ -407,23 +417,33 @@ function isSensitivePath(path: string) {
   )
 }
 
-export async function signAssetUrl(
-  path: string,
-  options: number | { expiresIn?: number; forceRefresh?: boolean } = {},
-) {
+export async function signAssetUrl(path: string, options: number | AssetSignOptions = {}) {
   const safePath = normalizePrivatePath(path)
   if (!safePath) return ''
-  const settings = typeof options === 'number' ? { expiresIn: options } : options
+  const settings: AssetSignOptions = typeof options === 'number' ? { expiresIn: options } : options
+  const variant = settings.variant || 'original'
+  const width = Math.round(
+    Math.min(2048, Math.max(160, settings.width || DEFAULT_ASSET_PREVIEW_WIDTH)),
+  )
+  const quality = Math.round(
+    Math.min(92, Math.max(40, settings.quality || DEFAULT_ASSET_PREVIEW_QUALITY)),
+  )
   const configured = isSensitivePath(safePath) ? 180 : 600
   const expiresIn = Math.min(configured, Math.max(30, settings.expiresIn || configured))
-  const key = `asset:${safePath}:${expiresIn}`
+  const key = `asset:${safePath}:${expiresIn}:${variant}:${variant === 'preview' ? `${width}:${quality}` : 'source'}`
   if (settings.forceRefresh) signedUrls.delete(key)
   const cachedUrl = signedUrls.get(key)
   if (cachedUrl && cachedUrl.refreshAt > Date.now()) return cachedUrl.promise
   const promise = (async () => {
+    // Storage transformations keep the original object path and RLS policy while
+    // producing a separately cached, modern-format rendition for inline display.
     const { data, error } = await currentClient()
       .storage.from(supabaseConfig.bucket)
-      .createSignedUrl(safePath, Math.min(900, Math.max(30, expiresIn)))
+      .createSignedUrl(
+        safePath,
+        Math.min(900, Math.max(30, expiresIn)),
+        variant === 'preview' ? { transform: { width, quality, resize: 'contain' } } : undefined,
+      )
     if (error) throw error
     return data.signedUrl
   })().catch((error) => {

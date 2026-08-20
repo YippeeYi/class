@@ -8,6 +8,7 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/c
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/features/auth/auth-context'
+import { useDocumentTitle } from '@/hooks/use-document-title'
 
 export function AuthPage() {
   const auth = useAuth()
@@ -23,9 +24,7 @@ export function AuthPage() {
       : '')
   const pending = submitting || auth.state === 'loading'
 
-  useEffect(() => {
-    document.title = '邀请码 · 编日史'
-  }, [])
+  useDocumentTitle('邀请码')
   useEffect(() => {
     if (auth.state !== 'authenticated' || redirectCaptured.current) return
     redirectCaptured.current = true

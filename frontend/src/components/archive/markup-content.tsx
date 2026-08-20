@@ -164,7 +164,7 @@ function Annotation({ note, children }: { note: string; children: ReactNode }) {
 
 function IllustrationReference({ path, children }: { path: string; children: ReactNode }) {
   const [requested, setRequested] = useState(false)
-  const dimensions = useImageDimensions(path)
+  const dimensions = useImageDimensions(path, requested, 720)
   const [lockedDimensions, setLockedDimensions] = useState<ImageDimensions | null>(null)
   const [open, setOpen] = useState(false)
   const [ready, setReady] = useState(false)
@@ -176,7 +176,7 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
   const openRef = useRef(false)
   const openRequest = useRef(0)
   const dismissedByScroll = useRef(false)
-  const preview = useSignedAsset(requested ? path : '')
+  const preview = useSignedAsset(requested ? path : '', { variant: 'preview', width: 720 })
   const frame = previewFrame(lockedDimensions || dimensions)
 
   useEffect(() => {
@@ -204,7 +204,7 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
 
   const requestPreview = () => {
     setRequested(true)
-    void preloadImageDimensions(path)
+    void preloadImageDimensions(path, 720)
   }
   const rememberPointerPosition = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const previousPointer = lastPointerPosition.current
@@ -241,7 +241,7 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
       showAtLockedPointer(known)
       return
     }
-    void preloadImageDimensions(path).then((loaded) => {
+    void preloadImageDimensions(path, 720).then((loaded) => {
       if (request !== openRequest.current) return
       showAtLockedPointer(loaded || { width: 240, height: 180 })
     })

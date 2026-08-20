@@ -12,6 +12,7 @@ import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
+import { useDocumentTitle } from '@/hooks/use-document-title'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { loadMealMapMetadata } from '@/services/data'
 import { getImageDimensions, rememberImageDimensions } from '@/services/image-metadata'
@@ -20,16 +21,14 @@ const MAP_PATH = 'images/private/meal-map.png'
 
 export function MealMapPage() {
   const resource = useAsyncData(() => loadMealMapMetadata())
-  const asset = useSignedAsset(MAP_PATH)
+  const asset = useSignedAsset(MAP_PATH, { variant: 'preview', width: 1600 })
   const imageFailure = useBoundedImageRetry(MAP_PATH, asset.retry)
   const src = asset.src
   const knownDimensions = getImageDimensions(MAP_PATH)
   const dimensions = resource.data || knownDimensions || { width: 4838, height: 2721 }
   const loading = asset.loading && !src
   const failed = Boolean(imageFailure.failed || (!asset.loading && asset.error && !src))
-  useEffect(() => {
-    document.title = '地图 · 编日史'
-  }, [])
+  useDocumentTitle('地图')
   useEffect(() => {
     if (resource.data) rememberImageDimensions(MAP_PATH, resource.data)
   }, [resource.data])

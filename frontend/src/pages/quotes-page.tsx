@@ -1,14 +1,14 @@
-import { ArrowDownAZ, ArrowUpAZ, BookOpenText, Quote as QuoteIcon } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { BookOpenText, Quote as QuoteIcon } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { interactiveSurfaceVariants } from '@/components/archive/interaction'
 import { MarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
+import { type RecordOrder, RecordOrderToggle } from '@/components/archive/record-order-toggle'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
@@ -18,27 +18,26 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useArchive } from '@/features/archive/archive-context'
+import { useDocumentTitle } from '@/hooks/use-document-title'
 import { stripMarkup } from '@/lib/markup'
 import { quoteRecordTarget } from '@/lib/quote-navigation'
 import { isModifiedRecordClick, prepareRecordJump, recordClientHref } from '@/lib/record-navigation'
 
 export function QuotesPage() {
   const [sort, setSort] = useState<'id' | 'quote'>('id')
-  const [descending, setDescending] = useState(false)
+  const [recordOrder, setRecordOrder] = useState<RecordOrder>('ascending')
   const [sourceError, setSourceError] = useState('')
   const resource = useArchive()
   const navigate = useNavigate()
-  useEffect(() => {
-    document.title = '名言 · 编日史'
-  }, [])
+  useDocumentTitle('名言')
   const quotes = useMemo(
     () =>
       [...(resource.data?.quotes || [])].sort((a, b) => {
         const left = sort === 'quote' ? stripMarkup(a.quote) : a.id
         const right = sort === 'quote' ? stripMarkup(b.quote) : b.id
-        return left.localeCompare(right, 'zh-CN') * (descending ? -1 : 1)
+        return left.localeCompare(right, 'zh-CN') * (recordOrder === 'descending' ? -1 : 1)
       }),
-    [descending, resource.data, sort],
+    [recordOrder, resource.data, sort],
   )
   return (
     <div>
@@ -56,10 +55,11 @@ export function QuotesPage() {
                 <SelectItem value="quote">按内容</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={() => setDescending((value) => !value)}>
-              {descending ? <ArrowDownAZ /> : <ArrowUpAZ />}
-              {descending ? '降序' : '升序'}
-            </Button>
+            <RecordOrderToggle
+              value={recordOrder}
+              onValueChange={setRecordOrder}
+              ariaLabel="名言显示顺序"
+            />
           </>
         }
       />

@@ -6,7 +6,7 @@ import {
   validImageDimensions,
 } from '@/lib/image-metadata'
 import { loadCached } from '@/services/cache'
-import { signAssetUrl } from '@/services/data'
+import { DEFAULT_ASSET_PREVIEW_WIDTH, signAssetUrl } from '@/services/data'
 
 const METADATA_RANGE_BYTES = 64 * 1024
 const FRESH_TTL = 30 * 24 * 60 * 60 * 1000
@@ -47,8 +47,8 @@ function loadDimensionsWithImage(url: string) {
   })
 }
 
-async function loadDimensionsFromNetwork(path: string) {
-  const url = await signAssetUrl(path)
+async function loadDimensionsFromNetwork(path: string, previewWidth: number) {
+  const url = await signAssetUrl(path, { variant: 'preview', width: previewWidth })
   if (!url) throw new Error(`图片地址不可用：${path}`)
   let value: ImageDimensions | null = null
   try {
@@ -69,7 +69,7 @@ async function loadDimensionsFromNetwork(path: string) {
   return value
 }
 
-export function preloadImageDimensions(path: string) {
+export function preloadImageDimensions(path: string, previewWidth = DEFAULT_ASSET_PREVIEW_WIDTH) {
   const normalized = path.trim()
   if (!normalized) return Promise.resolve(null)
   const current = dimensions.get(normalized)
@@ -82,7 +82,7 @@ export function preloadImageDimensions(path: string) {
     freshTtl: FRESH_TTL,
     staleTtl: STALE_TTL,
     sessionTtl: 24 * 60 * 60 * 1000,
-    loader: () => loadDimensionsFromNetwork(normalized),
+    loader: () => loadDimensionsFromNetwork(normalized, previewWidth),
   })
     .then((value) => {
       if (requestGeneration !== generation) return null
@@ -108,21 +108,25 @@ export async function preloadImageDimensionList(paths: Iterable<string>, concurr
   await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, worker))
 }
 
-export function useImageDimensions(path: string) {
+export function useImageDimensions(
+  path: string,
+  enabled = true,
+  previewWidth = DEFAULT_ASSET_PREVIEW_WIDTH,
+) {
   const [value, setValue] = useState<ImageDimensions | null>(() => getImageDimensions(path))
   useEffect(() => {
     setValue(getImageDimensions(path))
-    if (!path) return
+    if (!path || !enabled) return
     const pathListeners = listeners.get(path) || new Set<() => void>()
     const update = () => setValue(getImageDimensions(path))
     pathListeners.add(update)
     listeners.set(path, pathListeners)
-    void preloadImageDimensions(path)
+    void preloadImageDimensions(path, previewWidth)
     return () => {
       pathListeners.delete(update)
       if (!pathListeners.size) listeners.delete(path)
     }
-  }, [path])
+  }, [enabled, path, previewWidth])
   return value
 }
 

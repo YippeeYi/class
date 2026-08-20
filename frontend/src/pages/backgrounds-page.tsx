@@ -24,6 +24,7 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { useDocumentTitle } from '@/hooks/use-document-title'
 
 type ThemePreset = (typeof themePresets)[number]
 
@@ -252,9 +253,7 @@ export function BackgroundsPage() {
   const [appearance, setAppearance] = useState<AppearancePreference>(readAppearance)
   const [section, setSection] = useState('palette')
   const current = appearance.background
-  useEffect(() => {
-    document.title = '风格 · 编日史'
-  }, [])
+  useDocumentTitle('风格')
   useEffect(() => {
     const update = (event: Event) =>
       setAppearance((event as CustomEvent<AppearancePreference>).detail || readAppearance())
@@ -380,8 +379,8 @@ export function BackgroundsPage() {
                         className="aspect-[4/3] overflow-hidden bg-muted"
                         style={{ background: item.swatch }}
                       >
-                        {item.image ? (
-                          <BackgroundPreview src={item.image} active={current === item.id} />
+                        {item.preview ? (
+                          <BackgroundPreview src={item.preview} active={current === item.id} />
                         ) : (
                           <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_12%,color-mix(in_oklch,var(--primary)_20%,transparent),transparent_34%),repeating-linear-gradient(0deg,transparent_0_31px,color-mix(in_oklch,var(--primary)_7%,transparent)_32px),linear-gradient(145deg,var(--background),color-mix(in_oklch,var(--secondary)_62%,var(--background)))]" />
                         )}

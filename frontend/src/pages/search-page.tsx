@@ -6,11 +6,13 @@ import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async
 import { FilterToggle } from '@/components/archive/filter-toggle'
 import { interactiveSurfaceVariants } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
+import { type RecordOrder, RecordOrderToggle } from '@/components/archive/record-order-toggle'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useArchive } from '@/features/archive/archive-context'
 import { useAsyncData } from '@/hooks/use-async-data'
+import { useDocumentTitle } from '@/hooks/use-document-title'
 import { normalizeText } from '@/lib/archive'
 import { stripMarkup } from '@/lib/markup'
 import { quoteRecordTarget } from '@/lib/quote-navigation'
@@ -126,12 +128,11 @@ export function SearchPage() {
   const [query, setQuery] = useState(() => params.get('q') || '')
   const [debouncedQuery, setDebouncedQuery] = useState(query)
   const [types, setTypes] = useState<Set<SearchType>>(new Set(['record', 'person', 'quote']))
+  const [recordOrder, setRecordOrder] = useState<RecordOrder>('descending')
   const resource = useArchive()
   const supplementalResource = useAsyncData(() => loadSupplementalRecords())
 
-  useEffect(() => {
-    document.title = '全站搜索 · 编日史'
-  }, [])
+  useDocumentTitle('全站搜索')
   useEffect(() => {
     const next = params.get('q') || ''
     setQuery((current) => (current === next ? current : next))
@@ -226,9 +227,19 @@ export function SearchPage() {
       .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score || b.sortKey.localeCompare(a.sortKey))
     return (['record', 'person', 'quote'] as const)
-      .map((type) => ({ type, items: matches.filter((item) => item.type === type) }))
+      .map((type) => {
+        const items = matches.filter((item) => item.type === type)
+        if (type === 'record') {
+          const direction = recordOrder === 'descending' ? -1 : 1
+          items.sort(
+            (left, right) =>
+              right.score - left.score || left.sortKey.localeCompare(right.sortKey) * direction,
+          )
+        }
+        return { type, items }
+      })
       .filter((group) => group.items.length)
-  }, [debouncedQuery, index, types])
+  }, [debouncedQuery, index, recordOrder, types])
   const total = grouped.reduce((sum, group) => sum + group.items.length, 0)
 
   const toggle = (type: SearchType) =>
@@ -308,6 +319,13 @@ export function SearchPage() {
                 {labels[type]}
               </FilterToggle>
             ))}
+            {types.has('record') && (
+              <RecordOrderToggle
+                value={recordOrder}
+                onValueChange={setRecordOrder}
+                ariaLabel="搜索记录结果显示顺序"
+              />
+            )}
           </div>
         </CardContent>
       </Card>

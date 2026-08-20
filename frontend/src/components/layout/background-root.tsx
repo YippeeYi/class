@@ -173,6 +173,7 @@ export const backgrounds: Array<{
   description: string
   swatch: string
   image?: string
+  preview?: string
   credit: { label: string; href?: string }
 }> = [
   {
@@ -190,6 +191,7 @@ export const backgrounds: Array<{
     description: '取自远山与薄雾的低饱和青蓝色调。',
     swatch: 'linear-gradient(90deg, #477f98, #b9d3da)',
     image: assetUrl('images/backgrounds/mountain.webp'),
+    preview: assetUrl('images/backgrounds/mountain-preview.jpg'),
     credit: {
       label: 'Alessio Soggetti · Unsplash',
       href: 'https://unsplash.com/photos/mountains-covered-with-fogs-gdE-5Oui1Y0',
@@ -202,6 +204,7 @@ export const backgrounds: Array<{
     description: '取自晚霞云层的珊瑚橙与灰紫色调。',
     swatch: 'linear-gradient(90deg, #e18b6d, #887281)',
     image: assetUrl('images/backgrounds/cloud.webp'),
+    preview: assetUrl('images/backgrounds/cloud-preview.jpg'),
     credit: {
       label: 'Agnese Rudzīte · Unsplash',
       href: 'https://unsplash.com/photos/pink-and-orange-clouds-against-a-pale-sky-at-sunset-bziUIonXyI4',
@@ -392,11 +395,21 @@ function backgroundLayerStyle(id: BackgroundId): CSSProperties {
       }
 }
 
+function backgroundPreviewLayerStyle(id: BackgroundId): CSSProperties {
+  const background = backgrounds.find((item) => item.id === id)
+  return background?.preview
+    ? {
+        backgroundImage: `radial-gradient(circle at 50% 20%, transparent 0, transparent 32%, color-mix(in oklch, var(--background) 24%, transparent) 100%), linear-gradient(to bottom, rgb(24 20 16 / .16), rgb(24 20 16 / .34)), url(${background.preview})`,
+      }
+    : backgroundLayerStyle(id)
+}
+
 export function BackgroundRoot({ children }: { children: ReactNode }) {
   const [appearance, setAppearance] = useState(readAppearance)
   const current = appearance.background
   const [visible, setVisible] = useState(readBackground)
   const [previous, setPrevious] = useState<BackgroundId | null>(null)
+  const [pendingPreview, setPendingPreview] = useState<BackgroundId | null>(null)
   const transitionTimer = useRef<number | null>(null)
   useEffect(() => {
     const update = (event: Event) =>
@@ -408,12 +421,16 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
   const visibleBackground = backgrounds.find((item) => item.id === visible)
 
   useEffect(() => {
-    if (current === visible) return
+    if (current === visible) {
+      setPendingPreview(null)
+      return
+    }
     let active = true
     const commit = () => {
       if (!active) return
       setPrevious(visible)
       setVisible(current)
+      setPendingPreview(null)
       if (transitionTimer.current) window.clearTimeout(transitionTimer.current)
       transitionTimer.current = window.setTimeout(() => {
         setPrevious(null)
@@ -426,7 +443,8 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
         active = false
       }
     }
-    void decodeBackground(selected.image).then(commit, commit)
+    setPendingPreview(selected.preview ? current : null)
+    void decodeBackground(selected.image).then(commit, () => undefined)
     return () => {
       active = false
     }
@@ -518,6 +536,13 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
         className="background-layer pointer-events-none fixed inset-0 z-0 bg-cover bg-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-scene)"
         style={backgroundLayerStyle(visible)}
       />
+      {pendingPreview && (
+        <div
+          aria-hidden="true"
+          className="background-layer pointer-events-none fixed inset-0 z-0 bg-cover bg-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-standard)"
+          style={backgroundPreviewLayerStyle(pendingPreview)}
+        />
+      )}
       <div className="relative z-10 min-h-svh">{children}</div>
     </div>
   )

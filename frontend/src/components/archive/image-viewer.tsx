@@ -78,6 +78,7 @@ export function ImageViewer({
   const [open, setOpen] = useState(false)
   const asset = useSignedAsset(open ? path : '')
   const imageFailure = useBoundedImageRetry(open ? path : '', asset.retry)
+  const [originalSrc, setOriginalSrc] = useState('')
   const [viewTransform, setViewTransform] = useState<ViewTransform>({ scale: 1, x: 0, y: 0 })
   const transformRef = useRef(viewTransform)
   transformRef.current = viewTransform
@@ -97,7 +98,28 @@ export function ImageViewer({
     focalY: number
     transform: ViewTransform
   } | null>(null)
-  const src = asset.src || initialUrl
+  const src = originalSrc || initialUrl
+  const usingPreviewFallback = Boolean(initialUrl && !originalSrc)
+  const originalUnavailable = Boolean(imageFailure.failed || asset.error)
+
+  useEffect(() => {
+    if (!open || !asset.src || asset.src === originalSrc) return
+    let active = true
+    const image = new Image()
+    image.decoding = 'async'
+    image.onload = () => {
+      if (!active) return
+      imageFailure.markLoaded()
+      setOriginalSrc(asset.src)
+    }
+    image.onerror = () => {
+      if (active) imageFailure.markFailed()
+    }
+    image.src = asset.src
+    return () => {
+      active = false
+    }
+  }, [asset.src, imageFailure.markFailed, imageFailure.markLoaded, open, originalSrc])
 
   useEffect(() => {
     if (open) return
@@ -105,6 +127,7 @@ export function ImageViewer({
     transformRef.current = reset
     setViewTransform(reset)
     setNatural({ width: 0, height: 0 })
+    setOriginalSrc('')
     pointers.current.clear()
     drag.current = null
     pinch.current = null
@@ -382,7 +405,7 @@ export function ImageViewer({
               <Spinner className="size-7" />
             </div>
           )}
-          {(imageFailure.failed || asset.error) && !src && (
+          {originalUnavailable && !src && (
             <div className="grid size-full place-items-center text-center">
               <div>
                 <p className="mb-3 text-sm text-muted-foreground">图片加载失败。</p>
@@ -404,7 +427,7 @@ export function ImageViewer({
               </div>
             </div>
           )}
-          {src && !imageFailure.failed && (
+          {src && (!imageFailure.failed || usingPreviewFallback) && (
             <img
               key={src}
               src={src}
@@ -412,14 +435,16 @@ export function ImageViewer({
               draggable={false}
               decoding="async"
               onLoad={(event) => {
-                imageFailure.markLoaded()
+                if (!usingPreviewFallback) imageFailure.markLoaded()
                 reset()
                 setNatural({
                   width: event.currentTarget.naturalWidth,
                   height: event.currentTarget.naturalHeight,
                 })
               }}
-              onError={imageFailure.markFailed}
+              onError={() => {
+                if (!usingPreviewFallback) imageFailure.markFailed()
+              }}
               className="image-viewer-image absolute left-1/2 top-1/2 max-w-none select-none"
               style={{
                 width: base.width ? `${base.width}px` : '100%',
@@ -430,12 +455,13 @@ export function ImageViewer({
               }}
             />
           )}
-          {imageFailure.failed && src && (
-            <div className="grid size-full place-items-center text-center">
-              <div>
-                <p className="mb-3 text-sm text-muted-foreground">图片加载失败。</p>
+          {originalUnavailable && src && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4 text-center">
+              <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2 rounded-xl border border-border/70 bg-background/92 px-3 py-2 shadow-sm backdrop-blur">
+                <p className="text-sm text-muted-foreground">高清图加载失败，当前保留压缩图。</p>
                 <Button
                   variant="outline"
+                  size="sm"
                   disabled={imageFailure.retrying}
                   aria-busy={imageFailure.retrying || undefined}
                   onClick={() => void imageFailure.retryManually()}
@@ -446,7 +472,7 @@ export function ImageViewer({
                       正在重试…
                     </>
                   ) : (
-                    '重试'
+                    '重试高清图'
                   )}
                 </Button>
               </div>

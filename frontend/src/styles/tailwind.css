@@ -892,7 +892,7 @@ body .app-interactive-media:not(:disabled):active {
     padding-inline: 0.2rem;
     user-select: none;
   }
-  .record-redacted:active {
+  .record-redacted:is(:active, :focus-within) {
     color: var(--background);
   }
   @media (hover: hover) and (pointer: fine) {
@@ -1279,6 +1279,14 @@ body .app-interactive-media:not(:disabled):active {
   }
 }
 
+/* Nested marker nodes may include Tailwind utility colors emitted after the
+   component layer. Keep the concealment rule unlayered so every legal,
+   recursively rendered marker stays covered until the redaction is revealed. */
+.record-redacted:not(:hover, :active, :focus-within) :where(*) {
+  color: transparent;
+  text-decoration-color: transparent;
+}
+
 /* Quiz answers still use the shadcn Button structure and focus contract, but
    their semantic state surfaces must win over the generic dark outline
    utility so text contrast remains deterministic over every background. */
@@ -1514,6 +1522,29 @@ body
   .app-sidebar-navigation
   .app-sidebar-navigation-item[data-slot="sidebar-menu-button"][data-active] {
   background: transparent;
+}
+
+.app-sidebar-navigation-item[data-slot="sidebar-menu-button"] > span:last-child {
+  transition: color var(--interaction-duration-standard) var(--interaction-ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  body
+    .app-sidebar-navigation
+    .app-sidebar-navigation-item[data-slot="sidebar-menu-button"]:not(
+      [data-active],
+      :active
+    ):hover {
+    background: transparent;
+    color: var(--sidebar-foreground);
+  }
+
+  body
+    .app-sidebar-navigation
+    .app-sidebar-navigation-item[data-slot="sidebar-menu-button"]:not([data-active]):hover
+    > span:last-child {
+    color: var(--sidebar-primary);
+  }
 }
 
 body

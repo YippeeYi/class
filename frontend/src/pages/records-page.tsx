@@ -12,6 +12,7 @@ import {
   type RecordCriteria,
   RecordFilters,
 } from '@/components/archive/record-filters'
+import { type RecordOrder, RecordOrderToggle } from '@/components/archive/record-order-toggle'
 import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -37,9 +38,10 @@ import { Spinner } from '@/components/ui/spinner'
 import { Tabs } from '@/components/ui/tabs'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
+import { useDocumentTitle } from '@/hooks/use-document-title'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { normalizeRecordKey } from '@/lib/archive'
-import { extractMarkupReferences, recordAnchor } from '@/lib/markup'
+import { recordAnchor } from '@/lib/markup'
 import { buildSupplementalRecords } from '@/lib/record-identity'
 import {
   beginRecordJump,
@@ -49,6 +51,7 @@ import {
   type PendingRecordJump,
   replaceRecordJumpHash,
 } from '@/lib/record-navigation'
+import { compareRecordId, compareRecordNumber, orderRecords } from '@/lib/record-order'
 import {
   clampWindowScrollTop,
   scrollTargetIntoView,
@@ -62,11 +65,7 @@ import {
   loadRecords,
 } from '@/services/data'
 
-import {
-  preloadImageDimensionList,
-  rememberImageDimensions,
-  useImageDimensions,
-} from '@/services/image-metadata'
+import { rememberImageDimensions, useImageDimensions } from '@/services/image-metadata'
 import type { PageMessage, PageSupplement, RecordItem, RecordPage } from '@/types/domain'
 
 const recordViewItems = [
@@ -159,11 +158,19 @@ function WrittenRecordPages({
   if (!page)
     return <EmptyState title={hidden ? '没有可展示的隐藏书面页' : '当前条件下没有手写页'} />
 
-  const pageRecords = matched.filter(
-    (record) => !record.recordType && withinPage(page, record, records),
+  const pageRecords = orderRecords(
+    matched.filter((record) => !record.recordType && withinPage(page, record, records)),
+    'ascending',
+    compareRecordNumber,
   )
   const pageMessage = messages.find((item) => item.page === page.page)
-  const pageSupplements = supplements.filter((item) => item.page === page.page)
+  const pageSupplements = supplements
+    .filter((item) => item.page === page.page)
+    .sort(
+      (left, right) =>
+        left.supplementIndex - right.supplementIndex ||
+        left.id.localeCompare(right.id, 'zh-CN', { numeric: true }),
+    )
   const previousPath = visiblePages[safeIndex - 1]?.imagePath || ''
   const nextPath = visiblePages[safeIndex + 1]?.imagePath || ''
 
@@ -219,19 +226,11 @@ function WrittenRecordPages({
           className="grid items-start gap-5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow) lg:grid-cols-[minmax(20rem,42%)_minmax(0,1fr)]"
         >
           <div className="min-h-0 self-start lg:sticky lg:top-20">
-            <ImageViewer
+            <SignedPageImage
+              key={page.imagePath}
               path={page.imagePath}
-              alt={`${hidden ? '隐藏' : '手写'}记录第 ${page.page} 页`}
-              trigger={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-auto w-full overflow-hidden rounded-lg border border-border/70 bg-transparent p-0 shadow-none group app-interactive-surface app-interactive-media"
-                  aria-label={`查看${hidden ? '隐藏' : '手写'}记录第 ${page.page} 页大图`}
-                >
-                  <SignedPageImage key={page.imagePath} path={page.imagePath} page={page.page} />
-                </Button>
-              }
+              page={page.page}
+              hidden={hidden}
             />
           </div>
           <div className="grid content-start gap-4">
@@ -286,13 +285,13 @@ function WrittenRecordPages({
   )
 }
 
-function SignedPageImage({ path, page }: { path: string; page: string }) {
-  const image = useSignedAsset(path)
+function SignedPageImage({ path, page, hidden }: { path: string; page: string; hidden: boolean }) {
+  const image = useSignedAsset(path, { variant: 'preview', width: 1200 })
   const imageFailure = useBoundedImageRetry(path, image.retry)
-  const dimensions = useImageDimensions(path) || { width: 2856, height: 4282 }
+  const dimensions = useImageDimensions(path, true, 1200) || { width: 2856, height: 4282 }
   const [ready, setReady] = useState(false)
   const ratio = dimensions.width / dimensions.height
-  return (
+  const preview = (
     <div
       className="relative mx-auto grid max-w-full place-items-center overflow-hidden rounded-md bg-transparent"
       style={{
@@ -334,6 +333,23 @@ function SignedPageImage({ path, page }: { path: string; page: string }) {
       )}
     </div>
   )
+  return (
+    <ImageViewer
+      path={path}
+      initialUrl={image.src}
+      alt={`${hidden ? '隐藏' : '手写'}记录第 ${page} 页`}
+      trigger={
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-auto w-full overflow-hidden rounded-lg border border-border/70 bg-transparent p-0 shadow-none group app-interactive-surface app-interactive-media"
+          aria-label={`查看${hidden ? '隐藏' : '手写'}记录第 ${page} 页大图`}
+        >
+          {preview}
+        </Button>
+      }
+    />
+  )
 }
 
 function PageImagePreloader({
@@ -343,8 +359,8 @@ function PageImagePreloader({
   previousPath: string
   nextPath: string
 }) {
-  const previous = useSignedAsset(previousPath)
-  const next = useSignedAsset(nextPath)
+  const previous = useSignedAsset(previousPath, { variant: 'preview', width: 1200 })
+  const next = useSignedAsset(nextPath, { variant: 'preview', width: 1200 })
   useEffect(() => {
     for (const src of [previous.src, next.src].filter(Boolean)) {
       const image = new Image()
@@ -364,6 +380,7 @@ export function RecordsPage() {
     params.get('view') === 'written' ? 'written' : 'list',
   )
   const [criteria, setCriteria] = useState<RecordCriteria>(() => criteriaFromSearch(params))
+  const [recordOrder, setRecordOrder] = useState<RecordOrder>('descending')
   const [hidden, setHidden] = useState(false)
   const [hiddenRecords, setHiddenRecords] = useState<RecordItem[]>([])
   const [hiddenError, setHiddenError] = useState('')
@@ -407,9 +424,7 @@ export function RecordsPage() {
     return { pages, messages, supplements }
   }, [hidden, view])
 
-  useEffect(() => {
-    document.title = '编日史 · 记录'
-  }, [])
+  useDocumentTitle('记录')
   useLayoutEffect(() => {
     if (initialJumpCaptured.current) return
     initialJumpCaptured.current = true
@@ -469,36 +484,6 @@ export function RecordsPage() {
     return () => window.removeEventListener('keydown', listener)
   }, [replaceRouteState, view])
 
-  useEffect(() => {
-    const records = recordsResource.data
-    if (!records?.length) return
-    let active = true
-    let timeoutId: number | undefined
-    let idleId: number | undefined
-    const warmVisibleIllustrations = () => {
-      if (!active) return
-      const paths = new Set<string>()
-      for (let index = records.length - 1; index >= 0 && paths.size < 16; index -= 1) {
-        const record = records[index]
-        if (!record) continue
-        extractMarkupReferences(record.content).illustrationPaths.forEach((path) => {
-          paths.add(path)
-        })
-      }
-      void preloadImageDimensionList(paths, 3)
-    }
-    if ('requestIdleCallback' in window) {
-      idleId = window.requestIdleCallback(warmVisibleIllustrations, { timeout: 1800 })
-    } else {
-      timeoutId = setTimeout(warmVisibleIllustrations, 650)
-    }
-    return () => {
-      active = false
-      if (timeoutId !== undefined) clearTimeout(timeoutId)
-      if (idleId !== undefined) window.cancelIdleCallback(idleId)
-    }
-  }, [recordsResource.data])
-
   const records = hidden ? hiddenRecords : recordsResource.data || []
   const extras = useMemo(
     () =>
@@ -509,9 +494,10 @@ export function RecordsPage() {
     () => (view === 'written' ? [...records, ...extras] : records),
     [extras, records, view],
   )
+  const matched = useMemo(() => filterRecords(sources, criteria), [criteria, sources])
   const filtered = useMemo(
-    () => filterRecords(sources, criteria).sort((a, b) => b.id.localeCompare(a.id)),
-    [criteria, sources],
+    () => orderRecords(matched, recordOrder, compareRecordId),
+    [matched, recordOrder],
   )
   const activeFilter = Object.values(criteria).some(Boolean)
   const recordNavigation = useRef({
@@ -814,15 +800,20 @@ export function RecordsPage() {
         title="记录"
         description="按日期、关键词与重要程度浏览班级共同经历；列表与原始手写页可以随时切换。"
         actions={
-          <Tabs
-            value={view}
-            onValueChange={(value) => {
-              replaceRouteState(value as 'list' | 'written', criteria)
-              setPageIndex(0)
-            }}
-          >
-            <SegmentedTabsList value={view} items={recordViewItems} ariaLabel="记录显示模式" />
-          </Tabs>
+          <>
+            <Tabs
+              value={view}
+              onValueChange={(value) => {
+                replaceRouteState(value as 'list' | 'written', criteria)
+                setPageIndex(0)
+              }}
+            >
+              <SegmentedTabsList value={view} items={recordViewItems} ariaLabel="记录显示模式" />
+            </Tabs>
+            {view === 'list' && (
+              <RecordOrderToggle value={recordOrder} onValueChange={setRecordOrder} />
+            )}
+          </>
         }
       />
       {hidden && (
@@ -891,7 +882,7 @@ export function RecordsPage() {
           <WrittenRecordPages
             pages={written.data.pages}
             records={records}
-            matched={filtered}
+            matched={matched}
             messages={written.data.messages}
             supplements={written.data.supplements}
             activeFilter={activeFilter}

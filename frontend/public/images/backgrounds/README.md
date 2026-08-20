@@ -17,5 +17,6 @@ Tips:
 Usage:
 
 1. Put files in `images/backgrounds/`
-2. Add the relative path and credit to `src/components/layout/background-root.tsx`
-3. Keep the matching startup filename in `public/theme-bootstrap.js` so the selected image appears before React mounts
+2. Add a 640 px-wide, quality 65–75 `*-preview.jpg` beside each original for the chooser
+3. Add both the original `image` and compressed `preview` paths plus credit to `src/components/layout/background-root.tsx`
+4. Keep the matching original startup filename in `public/theme-bootstrap.js` so only the already-selected background appears before React mounts

@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useArchive } from '@/features/archive/archive-context'
+import { useDocumentTitle } from '@/hooks/use-document-title'
 
 const tips = [
   '小提示：Logo 仅作为导览标识。',
@@ -64,8 +65,8 @@ export function HomePage() {
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * tips.length))
   const [logoFailed, setLogoFailed] = useState(false)
 
+  useDocumentTitle('导览')
   useEffect(() => {
-    document.title = '编日史 · 导览'
     const resetScroll = () => window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
     resetScroll()
     window.addEventListener('pageshow', resetScroll)
@@ -112,7 +113,7 @@ export function HomePage() {
                 </span>
               ) : (
                 <img
-                  src={`${import.meta.env.BASE_URL}logo-guide.png`}
+                  src={`${import.meta.env.BASE_URL}logo-guide-preview.png`}
                   alt="编日史"
                   width="1035"
                   height="462"
@@ -236,7 +237,7 @@ export function HomePage() {
                 },
               ].map(({ to, label, value, description, icon: Icon }) => (
                 <Link to={to} key={to} className={interactiveSurfaceVariants({ kind: 'card' })}>
-                  <article className="grid h-full min-h-40 content-between rounded-xl border border-border/70 bg-background/38 p-4 sm:p-5">
+                  <Card className="grid h-full min-h-40 content-between gap-0 rounded-xl border border-border/70 bg-background/38 p-4 py-4 ring-0 sm:p-5 sm:py-5">
                     <div className="flex items-center justify-between gap-3">
                       <span className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">
                         <Icon className="size-5" />
@@ -252,7 +253,7 @@ export function HomePage() {
                       </div>
                       <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
                     </div>
-                  </article>
+                  </Card>
                 </Link>
               ))}
             </div>

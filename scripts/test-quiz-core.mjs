@@ -32,7 +32,17 @@ assert.match(quiz, /loadSupplementalRecords/, 'written messages and supplements 
 assert.match(engine, /entryId = recordDisplayNumber\(record\)/, 'quiz source labels must use shared visible record numbers')
 assert.doesNotMatch(quiz, /fileName: item\.fileName/, 'quiz source labels must not expose supplement file names')
 assert.match(quiz, /secretProgress/, 'secret fill questions must retain correct character positions')
-assert.match(quiz, /preloadImageDimensionList\(imagePaths\)/, 'all secret image dimensions must be ready before the pool opens')
+assert.doesNotMatch(
+  quiz,
+  /preloadImageDimensionList|preloadQuizImage|quizImagePreloadCache/,
+  'opening the hidden pool must not request images before the active question renders',
+)
+assert.match(
+  quiz,
+  /useSignedAsset\(path, \{ variant: 'preview', width: 960 \}\)/,
+  'an active hidden image must request only its compressed rendition',
+)
+assert.match(quiz, /<ImageViewer[\s\S]*initialUrl=\{resource\.src\}/, 'hidden images must reuse the shared large viewer')
 assert.match(quiz, /getImageDimensions\(path\)/, 'secret images must reserve their intrinsic ratio')
 assert.match(quiz, /aspectRatio:/, 'secret image loading must use a stable frame')
 assert.match(quiz, /pendingQuestionTop/, 'question changes must preserve the prompt viewport position')

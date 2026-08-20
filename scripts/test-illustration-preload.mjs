@@ -81,14 +81,14 @@ const pointerCaptureSource = illustrationSource.slice(
 )
 assert.doesNotMatch(pointerCaptureSource, /set[A-Z]/, 'pointer movement must not issue React state updates')
 assert.match(component, /onFocus=\{\(event\) => \{[\s\S]*requestPreview\(\)/, 'keyboard focus must start image loading early')
-assert.match(component, /useImageDimensions\(path\)/, 'decoded illustration geometry must be reused')
+assert.match(component, /useImageDimensions\(path, requested, 720\)/, 'decoded preview geometry must be reused only after interaction')
 assert.match(component, /lockedDimensions/, 'an open tooltip must keep one immutable frame size')
 assert.match(
   component,
   /setLockedAlignOffset\([\s\S]*pointerX - \(bounds\.left \+ bounds\.width \/ 2\)/,
   'the first popup center must be offset from the trigger center to the captured pointer clientX',
 )
-assert.match(component, /preloadImageDimensions\(path\)/, 'metadata must be ready before opening')
+assert.match(component, /preloadImageDimensions\(path, 720\)/, 'preview metadata must be ready before opening')
 assert.match(component, /<HoverCard open={open}/, 'metadata-gated hover cards must be controlled')
 assert.match(
   component,
@@ -111,12 +111,12 @@ assert.doesNotMatch(
   /ImageMetadataPreloader/,
   'protected routes must not start an unrelated cross-page metadata crawl',
 )
-assert.match(
+assert.doesNotMatch(
   recordsPage,
-  /paths\.size < 16[\s\S]*preloadImageDimensionList\(paths, 3\)/,
-  'the records page should only idle-warm a bounded first-screen illustration set',
+  /warmVisibleIllustrations|preloadImageDimensionList/,
+  'opening records must not speculatively request illustrations that are still hidden in text',
 )
-assert.match(recordsPage, /useImageDimensions\(path\)/, 'written pages must reserve their real ratio')
+assert.match(recordsPage, /useImageDimensions\(path, true, 1200\)/, 'written previews must reserve their real ratio')
 assert.match(
   mapPage,
   /<figure className="[^"]*min-h-0 flex-1[^"]*overflow-hidden/,

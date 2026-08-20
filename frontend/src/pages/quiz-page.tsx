@@ -1,4 +1,4 @@
-import { BrainCircuit, Check, RefreshCw, RotateCcw, X } from 'lucide-react'
+import { BrainCircuit, Check, Expand, RefreshCw, RotateCcw, X } from 'lucide-react'
 import {
   type FormEvent,
   useCallback,
@@ -11,6 +11,11 @@ import {
 
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/archive/async-state'
 import { FilterToggle } from '@/components/archive/filter-toggle'
+import { ImageViewer } from '@/components/archive/image-viewer'
+import {
+  interactiveSurfaceVariants,
+  mediaAffordanceClassName,
+} from '@/components/archive/interaction'
 import { QuizMarkupContent } from '@/components/archive/markup-content'
 import { PageHeading } from '@/components/archive/page-heading'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -32,21 +37,13 @@ import {
   pickQuestion,
 } from '@/features/quiz/quiz-engine'
 import { useAsyncData } from '@/hooks/use-async-data'
+import { useDocumentTitle } from '@/hooks/use-document-title'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { normalizeText } from '@/lib/archive'
 import { stripMarkup } from '@/lib/markup'
 import { cn } from '@/lib/utils'
-import {
-  hasAdminAccess,
-  loadQuizQuestions,
-  loadSupplementalRecords,
-  signAssetUrl,
-} from '@/services/data'
-import {
-  getImageDimensions,
-  preloadImageDimensionList,
-  rememberImageDimensions,
-} from '@/services/image-metadata'
+import { hasAdminAccess, loadQuizQuestions, loadSupplementalRecords } from '@/services/data'
+import { getImageDimensions, rememberImageDimensions } from '@/services/image-metadata'
 
 const TYPE_LABELS: Record<PlayQuestion['type'], string> = {
   choice: '选择题',
@@ -109,37 +106,14 @@ function QuestionSource({ question, revealed }: { question: PlayQuestion; reveal
   )
 }
 
-const quizImagePreloadCache = new Map<string, Promise<void>>()
-
-function preloadQuizImage(path: string) {
-  const existing = quizImagePreloadCache.get(path)
-  if (existing) return existing
-  const promise = (async () => {
-    const src = await signAssetUrl(path)
-    if (!src) return
-    await new Promise<void>((resolve) => {
-      const image = new Image()
-      image.decoding = 'async'
-      image.fetchPriority = 'low'
-      image.onload = () => resolve()
-      image.onerror = () => resolve()
-      image.src = src
-      if (image.complete) resolve()
-    })
-  })()
-  quizImagePreloadCache.set(path, promise)
-  promise.catch(() => quizImagePreloadCache.delete(path))
-  return promise
-}
-
 function SecretImage({ path }: { path: string }) {
-  const resource = useSignedAsset(path)
+  const resource = useSignedAsset(path, { variant: 'preview', width: 960 })
   const [frameDimensions] = useState(() => getImageDimensions(path) || { width: 4, height: 3 })
   const [ready, setReady] = useState(false)
   const [decodeFailed, setDecodeFailed] = useState(false)
   const ratio = frameDimensions.width / frameDimensions.height
 
-  return (
+  const frame = (
     <div
       className="relative mx-auto grid w-full place-items-center overflow-hidden rounded-xl bg-muted/60 text-sm text-muted-foreground"
       style={{
@@ -201,6 +175,30 @@ function SecretImage({ path }: { path: string }) {
         />
       )}
     </div>
+  )
+  if (!resource.src || decodeFailed) return frame
+  return (
+    <ImageViewer
+      path={path}
+      initialUrl={resource.src}
+      alt="题目插图"
+      trigger={
+        <Button
+          type="button"
+          variant="ghost"
+          className={`${interactiveSurfaceVariants({ kind: 'media' })} relative mx-auto h-auto w-full max-w-3xl overflow-hidden rounded-xl p-0`}
+          aria-label="查看题目插图大图"
+        >
+          {frame}
+          <span
+            className={`${mediaAffordanceClassName} absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/90 px-3 py-2 text-xs font-medium text-foreground shadow-sm backdrop-blur`}
+          >
+            <Expand className="size-3.5" />
+            查看大图
+          </span>
+        </Button>
+      }
+    />
   )
 }
 
@@ -267,9 +265,7 @@ export function QuizPage() {
     if (Math.abs(offset) > 0.5) window.scrollBy({ top: offset, left: 0, behavior: 'auto' })
   })
 
-  useEffect(() => {
-    document.title = '答题 · 编日史'
-  }, [])
+  useDocumentTitle('答题')
   useEffect(() => {
     if (!current && candidates.length) next()
   }, [candidates, current, next])
@@ -293,12 +289,6 @@ export function QuizPage() {
         const rows = await loadQuizQuestions(true)
         const extra = rows.filter((item) => item.answer).map(normalizeSecretQuestion)
         if (!extra.length) throw new Error('题库为空')
-        const imagePaths = [
-          ...new Set(
-            extra.map((question) => question.image).filter((path): path is string => Boolean(path)),
-          ),
-        ]
-        await preloadImageDimensionList(imagePaths)
         if (!active) return
         setSecret(extra)
         setSecretError('')
@@ -314,28 +304,6 @@ export function QuizPage() {
       window.removeEventListener('keydown', listener)
     }
   }, [adminResource.data, secret.length])
-  useEffect(() => {
-    const paths = [
-      ...new Set(
-        secret.map((question) => question.image).filter((path): path is string => Boolean(path)),
-      ),
-    ].slice(0, 12)
-    if (!paths.length) return
-    let cancelled = false
-    const warm = async () => {
-      for (const path of paths) {
-        if (cancelled) return
-        await preloadQuizImage(path).catch(() => undefined)
-      }
-    }
-    const schedule = () => void warm()
-    const timeoutId = globalThis.setTimeout(schedule, 250)
-    return () => {
-      cancelled = true
-      globalThis.clearTimeout(timeoutId)
-    }
-  }, [secret])
-
   const answer = (value: string) => {
     if (!current || result || answerLocked.current) return
     if (current.content === 'secret') {

@@ -3,6 +3,7 @@ import { loadTypescriptModule, readFrontend } from './test-react-helpers.mjs'
 
 const markup = await loadTypescriptModule('src/lib/markup.ts')
 const markupContent = await readFrontend('src/components/archive/markup-content.tsx')
+const styles = await readFrontend('src/styles/tailwind.css')
 const source = '甲 [[person:p01|同学乙]] 说 [[quote:q01|[[red:今天真好]]]]，参见 [[record:2025-01-01-01|记录]]。'
 const refs = markup.extractMarkupReferences(source)
 assert.deepEqual(refs.participantIds, ['p01'])
@@ -108,5 +109,33 @@ assert.ok(
   nestedDelete[0].children.some(
     (node) => node.type === 'reference' && node.kind === 'person' && node.id === 'p01',
   ),
+)
+const nestedRedaction = markup.parseMarkup(
+  '[[hide:前 [[person:p01|同学乙]] [[under:[[quote:q01|嵌套名言]]]] [[anno:注释|说明]] 后]]',
+)
+assert.equal(nestedRedaction[0].type, 'style')
+assert.equal(nestedRedaction[0].style, 'hide')
+assert.deepEqual(markup.extractMarkupReferences('[[hide:[[person:p01|同学乙]][[quote:q01|名言]]]]'), {
+  participantIds: ['p01'],
+  extraAuthorIds: [],
+  quoteIds: ['q01'],
+  illustrationPaths: [],
+  personMarkers: [{ id: 'p01', label: '同学乙' }],
+  quoteMarkers: [{ id: 'q01', quote: '名言', label: '名言' }],
+})
+assert.match(
+  markupContent,
+  /node\.style === 'hide' \? 'redacted'/,
+  'nested redactions must continue through the shared recursive renderer',
+)
+assert.match(
+  styles,
+  /\.record-redacted:not\(:hover, :active, :focus-within\) :where\(\*\)[\s\S]*color: transparent;[\s\S]*text-decoration-color: transparent;/,
+  'a concealed redaction must suppress every recursively rendered descendant style',
+)
+assert.doesNotMatch(
+  styles,
+  /record-redacted[^}]+markup-(?:person|link)/,
+  'nested redaction styling must not special-case one marker type',
 )
 console.log('React record markup parser checks passed.')
