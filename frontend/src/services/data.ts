@@ -16,11 +16,12 @@ import type {
 } from '@/types/domain'
 
 type Row = Record<string, unknown>
-const signedUrls = new Map<string, { promise: Promise<string>; refreshAt: number }>()
+type SignedUrlEntry = { promise: Promise<string>; refreshAt: number; value: string }
+const signedUrls = new Map<string, SignedUrlEntry>()
 export const DEFAULT_ASSET_PREVIEW_WIDTH = 1280
 export const DEFAULT_ASSET_PREVIEW_QUALITY = 72
 export type AssetVariant = 'original' | 'preview'
-type AssetSignOptions = {
+export type AssetSignOptions = {
   expiresIn?: number
   forceRefresh?: boolean
   variant?: AssetVariant
@@ -417,9 +418,9 @@ function isSensitivePath(path: string) {
   )
 }
 
-export async function signAssetUrl(path: string, options: number | AssetSignOptions = {}) {
+function assetRequest(path: string, options: number | AssetSignOptions = {}) {
   const safePath = normalizePrivatePath(path)
-  if (!safePath) return ''
+  if (!safePath) return null
   const settings: AssetSignOptions = typeof options === 'number' ? { expiresIn: options } : options
   const variant = settings.variant || 'original'
   const width = Math.round(
@@ -431,10 +432,35 @@ export async function signAssetUrl(path: string, options: number | AssetSignOpti
   const configured = isSensitivePath(safePath) ? 180 : 600
   const expiresIn = Math.min(configured, Math.max(30, settings.expiresIn || configured))
   const key = `asset:${safePath}:${expiresIn}:${variant}:${variant === 'preview' ? `${width}:${quality}` : 'source'}`
+  return { expiresIn, key, quality, safePath, variant, width }
+}
+
+export function getCachedAssetUrl(path: string, options: number | AssetSignOptions = {}) {
+  const request = assetRequest(path, options)
+  if (!request) return ''
+  const cached = signedUrls.get(request.key)
+  if (!cached) return ''
+  if (cached.refreshAt <= Date.now()) {
+    signedUrls.delete(request.key)
+    return ''
+  }
+  return cached.value
+}
+
+export async function signAssetUrl(path: string, options: number | AssetSignOptions = {}) {
+  const request = assetRequest(path, options)
+  if (!request) return ''
+  const { expiresIn, key, quality, safePath, variant, width } = request
+  const settings: AssetSignOptions = typeof options === 'number' ? { expiresIn: options } : options
   if (settings.forceRefresh) signedUrls.delete(key)
   const cachedUrl = signedUrls.get(key)
   if (cachedUrl && cachedUrl.refreshAt > Date.now()) return cachedUrl.promise
-  const promise = (async () => {
+  const entry: SignedUrlEntry = {
+    promise: Promise.resolve(''),
+    refreshAt: Date.now() + expiresIn * 800,
+    value: '',
+  }
+  entry.promise = (async () => {
     // Storage transformations keep the original object path and RLS policy while
     // producing a separately cached, modern-format rendition for inline display.
     const { data, error } = await currentClient()
@@ -446,12 +472,17 @@ export async function signAssetUrl(path: string, options: number | AssetSignOpti
       )
     if (error) throw error
     return data.signedUrl
-  })().catch((error) => {
-    signedUrls.delete(key)
-    throw error
-  })
-  signedUrls.set(key, { promise, refreshAt: Date.now() + expiresIn * 800 })
-  return promise
+  })()
+    .then((url) => {
+      entry.value = url
+      return url
+    })
+    .catch((error) => {
+      if (signedUrls.get(key) === entry) signedUrls.delete(key)
+      throw error
+    })
+  signedUrls.set(key, entry)
+  return entry.promise
 }
 
 export function loadMealMapMetadata(force = false) {

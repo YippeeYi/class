@@ -909,7 +909,10 @@ try {
   assert.deepEqual(await studentNames(), ['人物二', '人物一'])
   await page.waitForTimeout(260)
   const settledStudentOrder = await orderControlState(studentOrderControl)
-  assert.ok(settledStudentOrder.centerDelta <= 1 && settledStudentOrder.sizeDelta <= 1)
+  assert.ok(
+    settledStudentOrder.centerDelta <= 1 && settledStudentOrder.sizeDelta <= 1,
+    `student order selection did not settle: ${JSON.stringify(settledStudentOrder)}`,
+  )
 
   const teacherOrderControl = peopleFixture.getByRole('tablist', { name: '老师显示顺序' })
   assert.equal((await orderControlState(teacherOrderControl)).active, '正序')
@@ -917,7 +920,10 @@ try {
   assert.equal((await orderControlState(teacherOrderControl)).switching, true)
   await page.waitForTimeout(260)
   const settledTeacherOrder = await orderControlState(teacherOrderControl)
-  assert.ok(settledTeacherOrder.centerDelta <= 1 && settledTeacherOrder.sizeDelta <= 1)
+  assert.ok(
+    settledTeacherOrder.centerDelta <= 1 && settledTeacherOrder.sizeDelta <= 1,
+    `teacher order selection did not settle: ${JSON.stringify(settledTeacherOrder)}`,
+  )
 
   await page.evaluate(() => window.__memoryNavigate('/person?id=p1'))
   await page.waitForFunction(() => document.title === '编日史 · 人物 · 人物一')
@@ -933,7 +939,10 @@ try {
   assert.deepEqual(movingPersonOrder.animationIds, ['app-selection-move'])
   await page.waitForTimeout(260)
   const settledPersonOrder = await orderControlState(personOrderControl)
-  assert.ok(settledPersonOrder.centerDelta <= 1 && settledPersonOrder.sizeDelta <= 1)
+  assert.ok(
+    settledPersonOrder.centerDelta <= 1 && settledPersonOrder.sizeDelta <= 1,
+    `person order selection did not settle: ${JSON.stringify(settledPersonOrder)}`,
+  )
   await page.evaluate(() => window.__memoryNavigate('/'))
   await page.waitForFunction(() => document.title === '编日史 · 导览')
 

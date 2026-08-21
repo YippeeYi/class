@@ -3,8 +3,8 @@
   const appearanceKey = 'classRecord:appearance:v1'
   const paletteKey = 'classRecord:backgroundPalette:v1'
   const images = {
-    mountain: { preview: 'mountain-preview.jpg', original: 'mountain.webp' },
-    cloud: { preview: 'cloud-preview.jpg', original: 'cloud.webp' },
+    mountain: 'mountain-preview.jpg',
+    cloud: 'cloud-preview.jpg',
   }
   const themes = new Set([
     'auto',
@@ -67,18 +67,12 @@
       }
     }
 
-    const files = images[id]
-    if (files) {
+    const preview = images[id]
+    if (preview) {
       const scriptUrl = document.currentScript?.src || document.baseURI
-      const previewUrl = new URL(`images/backgrounds/${files.preview}`, scriptUrl).href
-      const imageUrl = new URL(`images/backgrounds/${files.original}`, scriptUrl).href
+      const previewUrl = new URL(`images/backgrounds/${preview}`, scriptUrl).href
       root.style.background =
         `linear-gradient(to bottom, rgb(20 18 15 / .34), rgb(20 18 15 / .52)), url("${previewUrl}") center / cover fixed`
-      const preload = document.createElement('link')
-      preload.rel = 'preload'
-      preload.as = 'image'
-      preload.href = imageUrl
-      document.head.appendChild(preload)
     }
   } catch {
     // The regular React background loader remains the fallback.

@@ -365,6 +365,7 @@ function PageImagePreloader({
     for (const src of [previous.src, next.src].filter(Boolean)) {
       const image = new Image()
       image.decoding = 'async'
+      image.fetchPriority = 'low'
       image.src = src
     }
   }, [next.src, previous.src])

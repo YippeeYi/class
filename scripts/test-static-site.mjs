@@ -65,6 +65,11 @@ assert.match(index, /<script vite-ignore src="%BASE_URL%theme-bootstrap\.js"/, '
 assert.match(themeBootstrap, /backgroundPalette:v1/, 'the first paint must reuse the cached background palette')
 assert.match(themeBootstrap, /classRecord:appearance:v1/, 'the first paint must restore the unified appearance preference')
 assert.match(themeBootstrap, /dataset\.themePreset/, 'the selected theme preset must be applied before React starts')
+assert.doesNotMatch(
+  themeBootstrap,
+  /rel = 'preload'|\.webp/,
+  'the synchronous bootstrap must paint only the thumbnail and leave original loading to React',
+)
 assert.match(main, /BrowserRouter basename/, 'router basename must follow the Pages project path')
 assert.match(home, /BASE_URL.*logo-guide-preview\.png/, 'logo must use the compressed Vite asset')
 assert.doesNotMatch(home, /tapLogo|logoAnimation|logoTapCount|logoTapTimer/, 'the guide logo must not retain click or animation state')
@@ -171,7 +176,7 @@ assert.match(backgroundsPage, /noopener noreferrer/, 'external background credit
 assert.match(backgroundsPage, /<RadioGroup/, 'background choices must use a radio-group contract')
 assert.doesNotMatch(backgroundsPage, /hover:-translate-y/, 'background choices must not jump on hover')
 assert.doesNotMatch(styles, /\.appearance-choice:hover\s*\{[^}]*transform:/, 'appearance choice hover must preserve its exact control bounds')
-assert.match(styles, /\.appearance-choice:has\(\[data-slot="radio-group-item"\]:focus\)[\s\S]*outline: 2px solid/, 'appearance choices must expose focus with a non-shadow boundary')
+assert.match(styles, /\.appearance-choice:has\(\[data-slot="radio-group-item"\]:focus-visible\)[\s\S]*outline: 2px solid/, 'appearance choices must expose keyboard focus with a non-shadow boundary')
 assert.match(backgroundsPage, /ratio=\{4 \/ 3\}/, 'background cards must expose a substantial preview area')
 assert.match(backgroundsPage, /backdrop-blur-md/, 'background metadata must remain readable on a restrained translucent surface')
 assert.match(backgroundsPage, /data-background-swatch/, 'background palette swatches must be integrated with their metadata')
@@ -223,10 +228,25 @@ assert.match(
 )
 assert.match(
   backgrounds,
-  /setPendingPreview\(selected\.preview \? current : null\)[\s\S]*decodeBackground\(selected\.image\)\.then\(commit/,
+  /setPendingPreview\(selected\.preview \? current : null\)[\s\S]*decodeBackground\(selected\.image, 'high'\)\.then/,
   'a selected thumbnail must remain visible until its original has decoded',
 )
-assert.match(themeBootstrap, /mountain\.webp/, 'the first-paint background path must match React')
+assert.match(
+  backgrounds,
+  /key=\{`\$\{visible\}:\$\{visibleOriginalReady \? 'original' : 'preview'\}`\}/,
+  'the decoded original must crossfade over the retained thumbnail instead of replacing it in place',
+)
+assert.match(themeBootstrap, /mountain-preview\.jpg/, 'the first paint must use the dedicated background thumbnail')
+assert.match(
+  backgrounds,
+  /extractPalette\(visibleBackground\.preview \|\| visibleBackground\.image\)/,
+  'automatic palette extraction must prefer the already-small background thumbnail',
+)
+assert.match(
+  vercel,
+  /logo-guide-preview\\\\\.png/,
+  'the deployed guide thumbnail needs the same explicit static cache policy as other public images',
+)
 assert.match(styles, /@import "@fontsource-variable\/geist"/, 'the interface must use the installed compressed variable-font package')
 assert.doesNotMatch(styles, /Google Sans Flex|GoogleSansFlex/, 'the obsolete multi-megabyte public font must not be requested')
 assert.equal(

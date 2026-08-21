@@ -257,6 +257,17 @@ html[data-box-style="rounded"] {
     border-radius: var(--scrollbar-thumb-radius);
     background: color-mix(in oklch, var(--foreground) 28%, var(--border));
     background-clip: padding-box;
+    transition: background-color var(--interaction-duration-fast) var(--interaction-ease-standard);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    :where(html, body, #root, body *)::-webkit-scrollbar-thumb:hover {
+      background-color: color-mix(in oklch, var(--foreground) 42%, var(--border));
+    }
+  }
+
+  :where(html, body, #root, body *)::-webkit-scrollbar-thumb:active {
+    background-color: color-mix(in oklch, var(--foreground) 54%, var(--border));
   }
   html[data-viewport-locked="true"],
   body[data-viewport-locked="true"],
@@ -606,6 +617,17 @@ body [data-slot="scroll-area-thumb"] {
   border-radius: var(--scrollbar-thumb-radius);
   background: color-mix(in oklch, var(--foreground) 28%, var(--border));
   background-clip: padding-box;
+  transition: background-color var(--interaction-duration-fast) var(--interaction-ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  body [data-slot="scroll-area-thumb"]:hover {
+    background-color: color-mix(in oklch, var(--foreground) 42%, var(--border));
+  }
+}
+
+body [data-slot="scroll-area-thumb"]:active {
+  background-color: color-mix(in oklch, var(--foreground) 54%, var(--border));
 }
 
 body
@@ -1661,7 +1683,7 @@ body [data-slot="switch-thumb"] {
 .appearance-choice [data-slot="radio-group-item"] {
   flex: none;
 }
-.appearance-choice:has([data-slot="radio-group-item"]:focus) {
+.appearance-choice:has([data-slot="radio-group-item"]:focus-visible) {
   border-color: var(--ring);
   outline: 2px solid color-mix(in oklch, var(--ring) 58%, transparent);
   outline-offset: 2px;

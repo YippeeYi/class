@@ -16,6 +16,16 @@ assert.match(
   /signAssetUrl\(path, \{ forceRefresh, variant, width, quality \}\)/,
   'the image hook must sign an explicit cached image variant',
 )
+assert.match(
+  signedAssetHook,
+  /getCachedAssetUrl\(path, \{ variant, width, quality \}\)/,
+  'route re-entry must synchronously reuse a still-valid signed rendition',
+)
+assert.match(
+  data,
+  /getCachedAssetUrl[\s\S]*cached\.refreshAt <= Date\.now\(\)[\s\S]*return cached\.value/,
+  'synchronous rendition reuse must reject expired signed URLs',
+)
 assert.doesNotMatch(
   signedAssetHook,
   /setInterval/,
@@ -65,6 +75,11 @@ assert.match(
   imageViewer,
   /useSignedAsset\(open \? path : ''\)/,
   'the original URL must only be requested while the shared viewer is open',
+)
+assert.match(
+  imageViewer,
+  /image\.fetchPriority = 'high'/,
+  'an explicitly opened original must decode at high priority',
 )
 assert.match(
   imageViewer,

@@ -21,11 +21,12 @@ const THEME_PROPERTIES = [
 
 const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`
 
-function decodeBackground(src: string) {
+function decodeBackground(src: string, priority: 'high' | 'low' = 'low') {
   const cached = decodedBackgrounds.get(src)
   if (cached) return cached
   const image = new Image()
   image.decoding = 'async'
+  image.fetchPriority = priority
   image.src = src
   const promise = image.decode().then(() => image)
   decodedBackgrounds.set(src, promise)
@@ -412,7 +413,10 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
   const [visibleOriginalReady, setVisibleOriginalReady] = useState(
     () => !backgrounds.find((item) => item.id === visible)?.image,
   )
-  const [previous, setPrevious] = useState<BackgroundId | null>(null)
+  const [previous, setPrevious] = useState<{
+    id: BackgroundId
+    originalReady: boolean
+  } | null>(null)
   const [pendingPreview, setPendingPreview] = useState<BackgroundId | null>(null)
   const transitionTimer = useRef<number | null>(null)
   useEffect(() => {
@@ -429,9 +433,16 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       setPendingPreview(null)
       if (!selected?.image || visibleOriginalReady) return
       let active = true
-      void decodeBackground(selected.image).then(
+      void decodeBackground(selected.image, 'low').then(
         () => {
-          if (active) setVisibleOriginalReady(true)
+          if (!active) return
+          setPrevious({ id: visible, originalReady: false })
+          setVisibleOriginalReady(true)
+          if (transitionTimer.current) window.clearTimeout(transitionTimer.current)
+          transitionTimer.current = window.setTimeout(() => {
+            setPrevious(null)
+            transitionTimer.current = null
+          }, 560)
         },
         () => undefined,
       )
@@ -440,11 +451,15 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       }
     }
     let active = true
-    const commit = () => {
+    const commit = (originalReady: boolean) => {
       if (!active) return
-      setPrevious(visible)
+      setPrevious(
+        selected?.image
+          ? { id: current, originalReady: false }
+          : { id: visible, originalReady: visibleOriginalReady },
+      )
       setVisible(current)
-      setVisibleOriginalReady(true)
+      setVisibleOriginalReady(originalReady)
       setPendingPreview(null)
       if (transitionTimer.current) window.clearTimeout(transitionTimer.current)
       transitionTimer.current = window.setTimeout(() => {
@@ -453,14 +468,16 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       }, 560)
     }
     if (!selected?.image) {
-      setVisibleOriginalReady(true)
-      commit()
+      commit(true)
       return () => {
         active = false
       }
     }
     setPendingPreview(selected.preview ? current : null)
-    void decodeBackground(selected.image).then(commit, () => undefined)
+    void decodeBackground(selected.image, 'high').then(
+      () => commit(true),
+      () => commit(false),
+    )
     return () => {
       active = false
     }
@@ -520,7 +537,7 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
         active = false
       }
     }
-    void extractPalette(visibleBackground.image)
+    void extractPalette(visibleBackground.preview || visibleBackground.image)
       .then((palette) => {
         if (!active || !palette) return
         applyPalette(palette)
@@ -545,11 +562,15 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
         <div
           aria-hidden="true"
           className="background-layer pointer-events-none fixed inset-0 z-0 bg-cover bg-center"
-          style={backgroundLayerStyle(previous)}
+          style={
+            previous.originalReady
+              ? backgroundLayerStyle(previous.id)
+              : backgroundPreviewLayerStyle(previous.id)
+          }
         />
       )}
       <div
-        key={visible}
+        key={`${visible}:${visibleOriginalReady ? 'original' : 'preview'}`}
         aria-hidden="true"
         className="background-layer pointer-events-none fixed inset-0 z-0 bg-cover bg-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-scene)"
         style={

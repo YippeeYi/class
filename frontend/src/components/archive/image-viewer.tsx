@@ -63,6 +63,7 @@ function decodeOriginal(path: string, src: string) {
   if (pending) return pending
   const image = new Image()
   image.decoding = 'async'
+  image.fetchPriority = 'high'
   const promise = new Promise<void>((resolve, reject) => {
     image.onload = async () => {
       try {
@@ -538,6 +539,7 @@ export function ImageViewer({
               alt={alt}
               draggable={false}
               decoding="async"
+              fetchPriority="high"
               onLoad={(event) => {
                 if (!open) return
                 if (!usingPreviewFallback) imageFailure.markLoaded()

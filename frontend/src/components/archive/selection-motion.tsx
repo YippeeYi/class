@@ -125,12 +125,17 @@ export function useSelectionMotion<T extends HTMLElement>(
     )
     moving.id = 'app-selection-move'
     animation.current = moving
-    settleTimer.current = window.setTimeout(() => {
+    const settle = () => {
+      if (animation.current !== moving) return
+      if (settleTimer.current !== null) window.clearTimeout(settleTimer.current)
+      animation.current = null
+      moving.cancel()
       if (target.isConnected) setRestingGeometry(container, selectionRect(container, target))
       delete container.dataset.selectionSwitching
-      animation.current = null
       settleTimer.current = null
-    }, duration + 34)
+    }
+    moving.addEventListener('finish', settle, { once: true })
+    settleTimer.current = window.setTimeout(settle, duration + 34)
   }, [activeIndex, itemCount, targetSelector])
 
   useLayoutEffect(() => {

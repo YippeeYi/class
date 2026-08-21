@@ -251,6 +251,7 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
                     aria-busy={clearing || undefined}
                     onClick={() => void clearAccess()}
                   >
+                    {clearing && <Spinner />}
                     {clearing ? '正在移除…' : '移除并清理'}
                   </AlertDialogAction>
                 </AlertDialogFooter>

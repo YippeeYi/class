@@ -4,6 +4,7 @@ import {
   type AssetVariant,
   DEFAULT_ASSET_PREVIEW_QUALITY,
   DEFAULT_ASSET_PREVIEW_WIDTH,
+  getCachedAssetUrl,
   signAssetUrl,
 } from '@/services/data'
 
@@ -18,11 +19,13 @@ export function useSignedAsset(
   }: { variant?: AssetVariant; width?: number; quality?: number } = {},
 ) {
   const assetKey = path ? `${path}\u0000${variant}\u0000${width}\u0000${quality}` : ''
-  const [state, setState] = useState<AssetState>({
-    key: assetKey,
-    src: '',
-    loading: Boolean(path),
-    error: null,
+  const readCached = useCallback(
+    () => getCachedAssetUrl(path, { variant, width, quality }),
+    [path, quality, variant, width],
+  )
+  const [state, setState] = useState<AssetState>(() => {
+    const src = readCached()
+    return { key: assetKey, src, loading: Boolean(path && !src), error: null }
   })
   const revision = useRef(0)
 
@@ -34,7 +37,8 @@ export function useSignedAsset(
         return ''
       }
       setState((current) => {
-        const src = current.key === assetKey ? current.src : ''
+        const src =
+          (current.key === assetKey ? current.src : '') || (!forceRefresh ? readCached() : '')
         return { key: assetKey, src, loading: !src, error: null }
       })
       try {
@@ -59,7 +63,7 @@ export function useSignedAsset(
         return ''
       }
     },
-    [assetKey, path, quality, variant, width],
+    [assetKey, path, quality, readCached, variant, width],
   )
 
   useEffect(() => {
@@ -74,9 +78,10 @@ export function useSignedAsset(
   }, [load, path])
 
   const current = state.key === assetKey
+  const cachedSrc = current ? '' : readCached()
   return {
-    src: current ? state.src : '',
-    loading: current ? state.loading : Boolean(path),
+    src: current ? state.src : cachedSrc,
+    loading: current ? state.loading : Boolean(path && !cachedSrc),
     error: current ? state.error : null,
     retry: () => load(true),
   }

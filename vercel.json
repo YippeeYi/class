@@ -23,7 +23,7 @@
       ]
     },
     {
-      "source": "/(logo-guide\\.png|favicon\\.ico)",
+      "source": "/(logo-guide\\.png|logo-guide-preview\\.png|favicon\\.ico)",
       "headers": [
         {
           "key": "Cache-Control",
