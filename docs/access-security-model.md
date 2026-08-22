@@ -34,7 +34,16 @@ token 是 bearer credential：攻击者取得原始 token 后，可以在另一�
 
 ## 5. 管理员如何检查和撤销
 
-以下函数只授权 `service_role`，应在 Supabase SQL Editor 或受保护的后台环境执行。返回结果不包含原始 token、token hash 或来源 hash。
+以下操作只授权 `service_role`，应通过本地管理命令或受保护的后台环境执行。返回结果不包含原始 token、token hash 或来源 hash。
+
+```bash
+npm run admin -- sessions overview
+npm run admin -- sessions list
+npm run admin -- sessions revoke --id <UUID> --confirm-revoke
+npm run admin -- sessions revoke-all --confirm-revoke-all
+```
+
+需要在 Supabase SQL Editor 直接排障时，对应函数为：
 
 ```sql
 select public.get_invite_access_session_overview();

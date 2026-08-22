@@ -271,11 +271,10 @@ begin
     if recent_failures >= 20
        or recent_code_failures >= 10
        or recent_global_attempts >= 300 then
-        insert into public.invite_code_attempts (attempt_hash, success)
-        values
-            (attempt_hash_value, false),
-            (code_attempt_hash_value, false),
-            (global_attempt_hash_value, false);
+        -- Do not append more rows after a limiter has opened. Continuing to
+        -- write three rows per rejected request would turn the limiter itself
+        -- into a write-amplification and table-growth path under sustained
+        -- abuse. Existing rows already preserve the evidence that opened it.
         return jsonb_build_object('ok', false);
     end if;
 
@@ -895,4 +894,3 @@ using (
 
 -- Refresh Supabase PostgREST schema cache so /rpc/verify_invite_code appears.
 notify pgrst, 'reload schema';
-

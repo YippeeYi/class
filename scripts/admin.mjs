@@ -21,12 +21,15 @@
  * explicitly references them.
  *
  * Cross-platform commands (configuration is loaded from the ignored .env file):
+ *   npm run admin -- audit
+ *   npm run admin -- publish
+ *   npm run admin -- publish --confirm-publish
  *   npm run admin -- upload --dry-run
- *   npm run admin -- upload
- *   npm run admin -- upload --prune --confirm-prune
  *   npm run admin -- invites generate --count 30 --expires-days 14
  *   npm run admin -- invites list
  *   npm run admin -- invites check --code CR-ABCD-EFGH-2345
+ *   npm run admin -- sessions overview
+ *   npm run admin -- attempts cleanup --confirm-cleanup
  *
  * Invite-code values are displayed only at generation time. List/check output
  * never includes invite-code hashes or access-session tokens.
@@ -35,6 +38,13 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+
+import {
+    auditPublication,
+    buildPublicationDiff,
+    publicationSummary,
+    safeSnapshotPath
+} from './archive-governance.mjs';
 
 const root = process.cwd();
 const contentRoot = 'private-assets/content';
@@ -60,8 +70,9 @@ const bucket = process.env.CLASS_RECORD_BUCKET || 'classrecord-private';
 const command = process.argv[2] || 'help';
 const commandArgs = process.argv.slice(3);
 const argv = new Set(commandArgs);
-const shouldPrune = argv.has('--prune');
-const validateOnly = argv.has('--validate-only');
+const confirmPublish = argv.has('--confirm-publish');
+const shouldPrune = command === 'publish' || argv.has('--prune');
+const validateOnly = command === 'audit' || (command === 'publish' && !confirmPublish) || argv.has('--validate-only');
 const dryRun = argv.has('--dry-run');
 const confirmPrune = argv.has('--confirm-prune');
 const concurrencyArg = commandArgs.find((value) => value.startsWith('--concurrency='));
@@ -71,6 +82,9 @@ const hiddenStoragePrefix = 'hidden/';
 const allowedStorageRoots = ['data/attachments/', 'images/record-pages/', 'images/quiz/'];
 const mealMapStoragePath = 'images/private/meal-map.png';
 const protectedStorageObjects = new Set([mealMapStoragePath]);
+const publicationTables = new Map();
+const publicationPruneKeys = new Map();
+let collectingPublication = false;
 const allowedStorageExtensions = new Set([
     '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg',
     '.pdf', '.txt', '.zip', '.mp3', '.wav', '.ogg', '.mp4', '.webm'
@@ -87,13 +101,22 @@ const requiredDatabaseColumns = {
 const printUsage = () => {
     console.log(`Usage:
   node scripts/admin.mjs upload [--dry-run|--validate-only] [--concurrency=3] [--prune --confirm-prune]
+  node scripts/admin.mjs audit [--json]
+  node scripts/admin.mjs publish [--json]
+  node scripts/admin.mjs publish --confirm-publish
   node scripts/admin.mjs invites generate --count N [--expires-days N] [--access-level normal|admin] [--note TEXT]
   node scripts/admin.mjs invites list
   node scripts/admin.mjs invites check --code CODE
+  node scripts/admin.mjs sessions overview
+  node scripts/admin.mjs sessions list
+  node scripts/admin.mjs sessions revoke --id UUID --confirm-revoke
+  node scripts/admin.mjs sessions revoke-all --confirm-revoke-all
+  node scripts/admin.mjs attempts cleanup --confirm-cleanup
 
-All commands use SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. Invite generation
-and single-code checks also require INVITE_CODE_PEPPER. .env is loaded locally
-when present and is never uploaded or logged.`);
+The local audit command does not need credentials. Other commands use
+SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. Invite generation and single-code
+checks also require INVITE_CODE_PEPPER. .env is loaded locally when present and
+is never uploaded or logged.`);
 };
 
 if (command === 'help' || command === '--help' || command === '-h') {
@@ -101,13 +124,13 @@ if (command === 'help' || command === '--help' || command === '-h') {
     process.exit(0);
 }
 
-if (!['upload', 'invites'].includes(command)) {
+if (!['audit', 'publish', 'upload', 'invites', 'sessions', 'attempts'].includes(command)) {
     console.error(`Unknown command: ${command}`);
     printUsage();
     process.exit(1);
 }
 
-if (!url || !serviceRoleKey) {
+if (command !== 'audit' && (!url || !serviceRoleKey)) {
     console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.');
     process.exit(1);
 }
@@ -117,7 +140,7 @@ if (command === 'upload' && shouldPrune && !confirmPrune) {
     process.exit(1);
 }
 
-const baseUrl = url.replace(/\/$/, '');
+const baseUrl = String(url || '').replace(/\/$/, '');
 const authHeaders = {
     apikey: serviceRoleKey,
     Authorization: `Bearer ${serviceRoleKey}`
@@ -160,7 +183,16 @@ const validateDatabaseSchema = async () => {
     const definitions = specification?.definitions || specification?.components?.schemas || {};
     const missing = [];
 
-    for (const [table, requiredColumns] of Object.entries(requiredDatabaseColumns)) {
+    const required = new Map(
+        Object.entries(requiredDatabaseColumns).map(([table, columns]) => [table, new Set(columns)])
+    );
+    for (const [table, plan] of publicationTables) {
+        const columns = required.get(table) || new Set();
+        for (const row of plan.rows) Object.keys(row).forEach((column) => columns.add(column));
+        required.set(table, columns);
+    }
+
+    for (const [table, requiredColumns] of required) {
         const properties = definitions?.[table]?.properties || {};
         for (const column of requiredColumns) {
             if (!Object.prototype.hasOwnProperty.call(properties, column)) {
@@ -278,6 +310,12 @@ const registerStorageAsset = (value, { hidden = false, fallbackRoot = '', localP
     }
     const remotePath = hidden ? `${hiddenStoragePrefix}${storagePath}` : storagePath;
     const sourcePath = normalizeSlash(localPath || getDefaultLocalAssetPath(storagePath));
+    const existing = storageUploadManifest.get(remotePath);
+    if (existing && existing.localPath !== sourcePath) {
+        throw new Error(
+            `Storage path collision: ${remotePath} maps to both ${existing.localPath} and ${sourcePath}`
+        );
+    }
     storageUploadManifest.set(remotePath, { localPath: sourcePath, remotePath });
     return remotePath;
 };
@@ -387,6 +425,11 @@ const upsert = async (table, rows, onConflict) => {
 
     assertUnique(rows, onConflict, table);
 
+    if (collectingPublication) {
+        publicationTables.set(table, { rows, onConflict });
+        return;
+    }
+
     if (validateOnly || dryRun) {
         console.log(`Validated table write: ${table}, rows=${rows.length}, mode=${validateOnly ? 'validate-only' : 'dry-run'}`);
         return;
@@ -411,6 +454,10 @@ const upsert = async (table, rows, onConflict) => {
 };
 
 const pruneTable = async (table, keyColumn, keepValues) => {
+    if (collectingPublication) {
+        publicationPruneKeys.set(table, { keyColumn, keepValues });
+        return;
+    }
     if (!shouldPrune) return;
 
     if (validateOnly || dryRun) {
@@ -491,7 +538,7 @@ const importPeople = async () => {
 
     const rows = [];
 
-    for (const [index, file] of files.entries()) {
+    for (const file of files) {
         const raw = await readJson(file);
         const fileName = relativeFromDir(`${contentRoot}/people`, file);
         const aliases = Array.isArray(raw.aliases) ? raw.aliases : (raw.alias ? [raw.alias] : []);
@@ -509,7 +556,6 @@ const importPeople = async () => {
             avatar_url: avatarSource
                 ? registerStorageAsset(avatarSource, { fallbackRoot: 'data/attachments/' })
                 : null,
-            sort_order: index,
             raw
         });
     }
@@ -770,6 +816,11 @@ const pruneStorage = async (allowedRemoteFiles) => {
 
     const stale = remoteFiles.filter((file) => !keep.has(file));
 
+    if (validateOnly || dryRun) {
+        console.log(`Validated Storage prune: stale=${stale.length}, mode=${validateOnly ? 'validate-only' : 'dry-run'}`);
+        return;
+    }
+
     if (!stale.length) {
         console.log('Storage prune skipped: no stale files.');
         return;
@@ -794,13 +845,13 @@ const pruneStorage = async (allowedRemoteFiles) => {
     }
 };
 
-const uploadPrivateFiles = async () => {
+const uploadPrivateFiles = async ({ prune = true } = {}) => {
     const uploadable = [...storageUploadManifest.values()].filter((item) => !item.uploaded)
         .sort((a, b) => a.remotePath.localeCompare(b.remotePath, 'en'));
 
     if (!uploadable.length) {
         console.warn('Skipped private file upload: no referenced binary assets were found.');
-        await pruneStorage([...storageUploadManifest.values()].map((item) => item.remotePath));
+        if (prune) await pruneStorage([...storageUploadManifest.values()].map((item) => item.remotePath));
         return;
     }
 
@@ -853,7 +904,7 @@ const uploadPrivateFiles = async () => {
     }
     console.log(`Private assets: uploaded=${summary.uploaded}, validated/skipped=${summary.skipped}, failed=0.`);
 
-    await pruneStorage([...storageUploadManifest.values()].map((item) => item.remotePath));
+    if (prune) await pruneStorage([...storageUploadManifest.values()].map((item) => item.remotePath));
 };
 
 const findMealMapSource = async () => {
@@ -869,7 +920,7 @@ const findMealMapSource = async () => {
     return files[0];
 };
 
-const uploadMealMap = async () => {
+const readMealMap = async () => {
     const source = await findMealMapSource();
     const body = await fs.readFile(source);
     const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -879,6 +930,11 @@ const uploadMealMap = async () => {
     const width = body.readUInt32BE(16);
     const height = body.readUInt32BE(20);
     if (!width || !height) throw new Error('map.png has invalid dimensions. No map upload was attempted.');
+    return { body, height, source, width };
+};
+
+const uploadMealMap = async (mealMap = null) => {
+    const { body, height, width } = mealMap || await readMealMap();
     if (!validateOnly && !dryRun) {
         await request(`/storage/v1/object/${bucket}/${mealMapStoragePath}`, {
             method: 'POST',
@@ -892,6 +948,161 @@ const uploadMealMap = async () => {
         });
     }
     console.log(`${validateOnly ? 'Validated' : dryRun ? 'Would upload' : 'Uploaded'} meal map (${width}×${height}, image/png).`);
+};
+
+const buildPublication = async () => {
+    publicationTables.clear();
+    publicationPruneKeys.clear();
+    storageUploadManifest.clear();
+    collectingPublication = true;
+    try {
+        await importRecords();
+        await importPeople();
+        await importRecordPages();
+        await importPageMessages();
+        await importPageSupplements();
+        await importMaterials();
+        await importQuiz();
+        await importCreditsPage();
+    } finally {
+        collectingPublication = false;
+    }
+};
+
+const validatePublicationAssets = async () => {
+    const missingAssets = [];
+    for (const item of storageUploadManifest.values()) {
+        const absoluteSource = path.resolve(root, item.localPath);
+        const relativeSource = normalizeSlash(path.relative(root, absoluteSource));
+        if (relativeSource.startsWith('../') || path.isAbsolute(relativeSource)) {
+            throw new Error(`Storage source escaped the project root: ${item.localPath}`);
+        }
+        const info = await fs.stat(absoluteSource).catch(() => null);
+        if (!info?.isFile()) missingAssets.push(item);
+    }
+    const mealMap = await readMealMap();
+    return { mealMap, missingAssets };
+};
+
+const printGovernanceReport = (report, { json = false } = {}) => {
+    if (json) {
+        console.log(JSON.stringify(report, null, 2));
+        return;
+    }
+    console.log(`Content audit: ${report.ok ? 'PASS' : 'FAIL'}; errors=${report.errors.length}; warnings=${report.warnings.length}.`);
+    console.log(`Content inventory: ${Object.entries(report.summary).map(([key, value]) => `${key}=${value}`).join(', ')}.`);
+    report.errors.forEach((issue) => console.error(`ERROR [${issue.code}] ${issue.message}`));
+    report.warnings.forEach((issue) => console.warn(`WARN [${issue.code}] ${issue.message}`));
+};
+
+const runGovernanceAudit = async ({ json = false, print = true } = {}) => {
+    await buildPublication();
+    const assets = await validatePublicationAssets();
+    const report = auditPublication({
+        tables: publicationTables,
+        storageAssets: storageUploadManifest,
+        missingAssets: assets.missingAssets
+    });
+    if (print || !report.ok) printGovernanceReport(report, { json });
+    if (!report.ok) throw new Error('Content audit failed. No remote data was changed.');
+    return { ...assets, report };
+};
+
+const loadRemoteTable = async (table) => {
+    const rows = [];
+    for (let offset = 0; ; offset += 1000) {
+        const page = await request(`/rest/v1/${table}?select=*&limit=1000&offset=${offset}`) || [];
+        rows.push(...page);
+        if (page.length < 1000) return rows;
+    }
+};
+
+const loadRemotePublication = async () => {
+    const tables = new Map();
+    for (const table of publicationTables.keys()) {
+        tables.set(table, await loadRemoteTable(table));
+    }
+    const privateAssets = await loadRemoteTable('class_private_assets');
+    const storage = await listStorageObjects();
+    return { privateAssets, storage, tables };
+};
+
+const desiredStorageAssets = () => {
+    return new Map([
+        ...storageUploadManifest,
+        [mealMapStoragePath, { localPath: 'private-assets/meal-map/map.png', remotePath: mealMapStoragePath }]
+    ]);
+};
+
+const compactPublicationChanges = (diff) => ({
+    database: Object.fromEntries(
+        Object.entries(diff.database).map(([table, changes]) => [table, {
+            added: changes.added,
+            updated: changes.updated,
+            removed: changes.removed
+        }])
+    ),
+    storage: {
+        added: diff.storage.added,
+        existingUploadCount: diff.storage.replaced.length,
+        removed: diff.storage.removed
+    }
+});
+
+const printPublicationPlan = (diff, { audit = null, json = false } = {}) => {
+    const summary = publicationSummary(diff);
+    if (json) {
+        console.log(JSON.stringify({ audit, summary, changes: compactPublicationChanges(diff) }, null, 2));
+        return;
+    }
+    console.log('Publication plan:');
+    for (const [table, counts] of Object.entries(summary.database)) {
+        console.log(`  ${table}: add=${counts.added}, update=${counts.updated}, unchanged=${counts.unchanged}, remove=${counts.removed}`);
+    }
+    console.log(`  Storage: add=${summary.storage.added}, upload-existing=${summary.storage.replaced}, remove=${summary.storage.removed}`);
+};
+
+const createPublicationSnapshot = async ({ diff, remote }) => {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const snapshotRoot = `private-exports/publish-snapshots/${stamp}`;
+    const databaseRoot = safeSnapshotPath(root, snapshotRoot, 'database');
+    await fs.mkdir(databaseRoot, { recursive: true });
+    for (const [table, rows] of remote.tables) {
+        const target = safeSnapshotPath(root, snapshotRoot, `database/${table}.json`);
+        await fs.writeFile(target, `${JSON.stringify(rows, null, 2)}\n`, 'utf8');
+    }
+    await fs.writeFile(
+        safeSnapshotPath(root, snapshotRoot, 'database/class_private_assets.json'),
+        `${JSON.stringify(remote.privateAssets, null, 2)}\n`,
+        'utf8'
+    );
+    await fs.writeFile(
+        safeSnapshotPath(root, snapshotRoot, 'storage-manifest.json'),
+        `${JSON.stringify(remote.storage, null, 2)}\n`,
+        'utf8'
+    );
+    await fs.writeFile(
+        safeSnapshotPath(root, snapshotRoot, 'publication-plan.json'),
+        `${JSON.stringify({ createdAt: new Date().toISOString(), summary: publicationSummary(diff), diff }, null, 2)}\n`,
+        'utf8'
+    );
+    console.log(`Created pre-publication snapshot: ${snapshotRoot}`);
+    return snapshotRoot;
+};
+
+const applyPublication = async ({ mealMap }) => {
+    // Upload new binaries first. Extra orphan objects are recoverable if a
+    // later table write fails, while publishing table references before their
+    // objects exist would create broken reader-visible content.
+    await uploadPrivateFiles({ prune: false });
+    await uploadMealMap(mealMap);
+    for (const [table, plan] of publicationTables) {
+        await upsert(table, plan.rows, plan.onConflict);
+    }
+    for (const [table, plan] of publicationPruneKeys) {
+        await pruneTable(table, plan.keyColumn, plan.keepValues);
+    }
+    await pruneStorage([...storageUploadManifest.values()].map((item) => item.remotePath));
 };
 
 const invitePepper = () => {
@@ -1010,25 +1221,117 @@ const checkInvite = async () => {
 };
 
 const runUpload = async () => {
+    const { mealMap } = await runGovernanceAudit();
     await validateDatabaseSchema();
-    await importRecords();
-    await importPeople();
-    await importRecordPages();
-    await importPageMessages();
-    await importPageSupplements();
-    await importMaterials();
-    await importQuiz();
-    await importCreditsPage();
-    await uploadPrivateFiles();
-    await uploadMealMap();
+    await applyPublication({ mealMap });
     console.log(shouldPrune ? 'Upload complete. Remote stale data/files were pruned.' : 'Upload complete.');
 };
 
+const assertFlagArguments = (allowed) => {
+    for (const value of commandArgs) {
+        if (value.startsWith('--') && !allowed.has(value)) throw new Error(`Unknown option: ${value}`);
+    }
+};
+
+const runAudit = async () => {
+    assertFlagArguments(new Set(['--json']));
+    await runGovernanceAudit({ json: argv.has('--json') });
+};
+
+const runPublish = async () => {
+    assertFlagArguments(new Set(['--json', '--confirm-publish']));
+    const json = argv.has('--json');
+    if (json && confirmPublish) throw new Error('--json is only available for the read-only publication plan.');
+    const { mealMap, report } = await runGovernanceAudit({ json, print: !json });
+    await validateDatabaseSchema();
+    const remote = await loadRemotePublication();
+    const diff = buildPublicationDiff({
+        tables: publicationTables,
+        remoteTables: remote.tables,
+        storageAssets: desiredStorageAssets(),
+        remoteStorage: remote.storage
+    });
+    printPublicationPlan(diff, { audit: report, json });
+    if (!confirmPublish) {
+        if (!json) {
+            console.log('Plan only: no remote data was changed. Re-run with --confirm-publish to create a snapshot and publish this exact local source.');
+        }
+        return;
+    }
+    await createPublicationSnapshot({ diff, remote });
+    await applyPublication({ mealMap });
+    console.log('Publication complete. Remote tables and private Storage now match the audited local source.');
+};
+
+const callRpc = (name, body = {}) => request(`/rest/v1/rpc/${name}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+});
+
+const runSessions = async () => {
+    const action = commandArgs[0] || '';
+    if (action === 'overview') {
+        assertFlagArguments(new Set());
+        console.log(JSON.stringify(await callRpc('get_invite_access_session_overview'), null, 2));
+        return;
+    }
+    if (action === 'list') {
+        assertFlagArguments(new Set());
+        const rows = await callRpc('list_invite_access_sessions') || [];
+        console.log(`Access sessions: total=${rows.length}.`);
+        rows.forEach((row) => console.log(JSON.stringify({
+            id: row.id,
+            createdAt: row.created_at,
+            lastUsedAt: row.last_used_at,
+            expiresAt: row.expires_at,
+            revokedAt: row.revoked_at,
+            accessLevel: row.access_level,
+            riskFlags: row.risk_flags,
+            riskFlaggedAt: row.risk_flagged_at,
+            recentRefreshCount: row.recent_refresh_count
+        })));
+        return;
+    }
+    if (action === 'revoke') {
+        assertFlagArguments(new Set(['--id', '--confirm-revoke']));
+        const id = readOption('--id', { required: true });
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+            throw new Error('--id must be a UUID.');
+        }
+        if (!argv.has('--confirm-revoke')) throw new Error('Session revoke requires --confirm-revoke. No session was changed.');
+        const revoked = await callRpc('revoke_invite_access_session', { target_session_id: id });
+        console.log(revoked === true ? `Revoked access session: ${id}.` : `Access session was not found: ${id}.`);
+        return;
+    }
+    if (action === 'revoke-all') {
+        assertFlagArguments(new Set(['--confirm-revoke-all']));
+        if (!argv.has('--confirm-revoke-all')) throw new Error('Revoke-all requires --confirm-revoke-all. No session was changed.');
+        const count = await callRpc('revoke_all_invite_access_sessions');
+        console.log(`Revoked all active access sessions: count=${count}.`);
+        return;
+    }
+    throw new Error('Use sessions overview, sessions list, sessions revoke, or sessions revoke-all.');
+};
+
+const runAttempts = async () => {
+    const action = commandArgs[0] || '';
+    if (action !== 'cleanup') throw new Error('Use attempts cleanup --confirm-cleanup.');
+    assertFlagArguments(new Set(['--confirm-cleanup']));
+    if (!argv.has('--confirm-cleanup')) throw new Error('Attempt cleanup requires --confirm-cleanup. No rows were deleted.');
+    const count = await callRpc('cleanup_invite_code_attempts');
+    console.log(`Deleted expired invite attempt rows: count=${count}.`);
+};
+
 try {
-    if (command === 'upload') await runUpload();
-    else if (commandArgs[0] === 'generate') await createInvites();
-    else if (commandArgs[0] === 'list') await listInvites();
-    else if (commandArgs[0] === 'check') await checkInvite();
+    if (command === 'audit') await runAudit();
+    else if (command === 'publish') await runPublish();
+    else if (command === 'upload') await runUpload();
+    else if (command === 'invites' && commandArgs[0] === 'generate') await createInvites();
+    else if (command === 'invites' && commandArgs[0] === 'list') await listInvites();
+    else if (command === 'invites' && commandArgs[0] === 'check') await checkInvite();
+    else if (command === 'sessions') await runSessions();
+    else if (command === 'attempts') await runAttempts();
     else throw new Error('Use invites generate, invites list, or invites check.');
 } catch (error) {
     console.error(`Admin command failed: ${error.message}`);

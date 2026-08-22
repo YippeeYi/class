@@ -68,10 +68,11 @@ JSON 字符串还需要转义反斜杠。例如正文中的 `A|B` 可写为：
 
 ## 迁移和检查
 
-在上传前使用 `npm run admin -- upload --dry-run` 进行结构与引用预检查；正式上传时脚本会保留现有标记语法并只上传实际引用的资源。
+在发布前先运行本地内容审计，再查看只读线上差异；正式发布会保留现有标记语法并只上传实际引用的资源。
 
 ```bash
-npm run admin -- upload --dry-run
+npm run content:audit
+npm run admin -- publish
 node scripts/test-record-markup.mjs
 npm run test:layout
 ```

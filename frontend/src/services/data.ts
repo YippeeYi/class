@@ -84,9 +84,7 @@ export function loadRecords({ hidden = false, force = false } = {}) {
         .from(supabaseConfig.tables.records)
         .select('*')
         .order('record_index', { ascending: true })
-      query = hidden
-        ? query.eq('raw->>hidden', 'true')
-        : query.or('raw->>hidden.is.null,raw->>hidden.neq.true')
+      query = query.eq('hidden', hidden)
       const { data, error } = await query
       if (error) throw error
       return ((data || []) as Row[])
@@ -114,7 +112,7 @@ export function loadRecords({ hidden = false, force = false } = {}) {
             attachments: attachments.filter((item): item is { file: string; name?: string } => {
               return Boolean(item && typeof item === 'object' && text((item as Row).file))
             }),
-            hidden: bool(Object.hasOwn(raw, 'hidden') ? raw.hidden : row.hidden),
+            hidden: bool(row.hidden ?? raw.hidden),
             imagePath: text(row.image_path || raw.imagePath || raw.image || raw.pageImage),
           } satisfies RecordItem
         })

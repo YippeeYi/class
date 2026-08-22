@@ -226,6 +226,7 @@ npm run doctor             # Node/依赖/跨平台原生包检查
 npm run typecheck          # TypeScript project build
 npm run lint               # Biome 只读检查
 npm test                   # 安全、缓存、路由、正文、记录、答题、搜索等回归
+npm run content:audit      # 本地档案、引用关系和私有资源完整性审计
 npm run test:layout        # 可选：真实 Chromium 正文/响应式布局回归
 npm run build              # 输出 frontend/dist
 npm run preview            # http://127.0.0.1:4173/
@@ -292,18 +293,30 @@ private-assets/
 
 页补充文件名必须是 `页面-编号.json`；上传脚本以文件名解析页码与排序。资料 ID 默认使用文件名去掉 `.json` 的部分，也可在 JSON 中提供业务 `id`；`sortOrder` 控制排序。详细页箴言格式见 [书面记录页箴言](docs/page-messages.md)，地图操作见 [地图部署说明](docs/meal-map-operation.md)。
 
-### 校验、上传与清理
+### 内容治理、发布与清理
 
 ```bash
-npm run admin -- upload --validate-only
-npm run admin -- upload --dry-run
-npm run admin -- upload --concurrency=3
-npm run admin -- upload --prune --confirm-prune
+npm run content:audit
+npm run admin -- publish
+npm --silent run admin -- publish --json
+npm run admin -- publish --confirm-publish
 ```
 
-上传流程扫描源 JSON、重写受控资源引用、校验数据库 schema、批量 upsert 表行，并只上传最终数据库行实际引用且位于白名单根目录的二进制对象。网络请求最多重试三次，并限制 1–8 个上传并发。
+`content:audit` 只检查本地内容，不需要凭据；它会验证日期、唯一 ID、正文引用、书面页范围、hidden 一致性以及私有资源存在性。`publish` 默认只读取线上 schema、表和 Storage 并显示新增、更新、未变与删除差异。只有 `--confirm-publish` 会创建发布前数据库/对象清单快照并执行完整同步与清理。
 
-`--prune` 会根据本次完整导入清单删除远端陈旧表行和 bucket 对象，必须同时传入 `--confirm-prune`。专用 bucket 不应混放其他系统文件；执行前先 dry-run 并保留备份。
+正式发布会把本地完整源作为唯一清单，删除线上陈旧表行和 bucket 对象。快照不包含旧 Storage 二进制内容，因此确认前必须在仓库外备份 `private-assets/` 或使用可靠的对象版本/外部备份。详细检查、回退和旧命令边界见 [档案内容治理与发布流程](docs/content-governance-and-publishing.md)。
+
+### 会话与限流运维
+
+```bash
+npm run admin -- sessions overview
+npm run admin -- sessions list
+npm run admin -- sessions revoke --id <UUID> --confirm-revoke
+npm run admin -- sessions revoke-all --confirm-revoke-all
+npm run admin -- attempts cleanup --confirm-cleanup
+```
+
+查询结果不包含访问 token、token hash 或来源 hash；撤销与清理都需要显式确认参数。更完整的判断标准见 [访问权限安全模型](docs/access-security-model.md)。
 
 ## 部署
 

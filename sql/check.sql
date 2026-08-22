@@ -556,7 +556,7 @@ union all
 select
     'invite_schema.attempts_cleanup_index',
     case when attempts_cleanup_index_exists then 'PASS' else 'FAIL' end,
-    'invite_code_attempts_cleanup_idx must support scheduled cleanup'
+    'invite_code_attempts_cleanup_idx must support operational cleanup'
 from invite_schema
 
 union all
@@ -612,6 +612,18 @@ from invite_hardening
 
 union all
 select
+    'invite.rate_limit_no_write_amplification',
+    case when split_part(
+                   split_part(verify_definition, 'if recent_failures', 2),
+                   'end if;',
+                   1
+               ) not ilike '%insert into public.invite_code_attempts%'
+         then 'PASS' else 'FAIL' end,
+    'an already-open invite limiter must reject without appending more attempt rows'
+from invite_hardening
+
+union all
+select
     'invite.no_inline_history_cleanup',
     case when verify_definition not ilike '%delete from public.invite_code_attempts%' then 'PASS' else 'FAIL' end,
     'verify_invite_code must not delete historical attempts on every request'
@@ -621,7 +633,7 @@ union all
 select
     'invite.service_revocation_and_cleanup',
     case when service_can_revoke_one and service_can_revoke_all and service_can_cleanup then 'PASS' else 'FAIL' end,
-    'service_role must be able to revoke one/all sessions and run scheduled attempt cleanup'
+    'service_role must be able to revoke one/all sessions and run explicit attempt cleanup'
 from invite_hardening
 
 order by check_item;

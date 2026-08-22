@@ -23,26 +23,24 @@ CLASS_RECORD_BUCKET=classrecord-private
 
 `SUPABASE_SERVICE_ROLE_KEY` 只供 Node 上传/迁移脚本使用，绝不能放进 `frontend/src/`、HTML、浏览器环境变量或部署配置。
 
-## 上传步骤
+## 发布步骤
 
 1. 将原图置于 `private-assets/meal-map/map.png`（也兼容 `map.PNG`；两者不能同时存在）。
 2. 确认私密目录被 Git 忽略：`git check-ignore -v private-assets/meal-map/map.png`。
-3. 保存 `.env` 或加载上述本地环境变量后执行：
+3. 保存 `.env` 或加载上述本地环境变量后，先审计并查看只读差异：
 
    ```bash
-   npm run admin -- upload
+   npm run content:audit
+   npm run admin -- publish
    ```
 
-   脚本校验 PNG 签名与尺寸，以 `image/png` 和 `private, max-age=180` 上传，并使用 upsert 覆盖同一私有对象；
-   然后更新无路径的元数据行。它不会输出密钥、对象路径或 URL。
-
-4. 完整内容迁移也会处理该图：
+4. 备份 `private-assets/` 并确认差异后执行：
 
    ```bash
-   npm run admin -- upload
+   npm run admin -- publish --confirm-publish
    ```
 
-   迁移的 `--prune` 模式会把蹭饭图列为保护对象，不会因为它不属于普通内容清单而删除它。
+   脚本校验 PNG 签名与尺寸，以 `image/png` 和 `private, max-age=180` 上传，并使用 upsert 覆盖同一私有对象；然后更新无路径的元数据行。它不会输出密钥或 URL。完整发布会把蹭饭图列入清单，不会把它当成陈旧对象删除。发布前快照不包含旧图片字节，详细备份和回退要求见 [档案内容治理与发布流程](content-governance-and-publishing.md)。
 
 ## 缓存与失效
 
