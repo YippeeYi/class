@@ -1,0 +1,8 @@
+project_id = "class-record"
+
+[db.migrations]
+enabled = true
+
+[db.seed]
+enabled = false
+sql_paths = []

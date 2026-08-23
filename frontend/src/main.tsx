@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 
 import { App } from '@/app'
+import { AppErrorBoundary } from '@/components/layout/app-error-boundary'
 import { AuthProvider } from '@/features/auth/auth-context'
 import { installRecordJumpGuard } from '@/lib/record-navigation'
 import '@/styles/tailwind.css'
@@ -16,10 +17,12 @@ installRecordJumpGuard()
 
 createRoot(container).render(
   <StrictMode>
-    <BrowserRouter basename={basename}>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </BrowserRouter>
+    <AppErrorBoundary>
+      <BrowserRouter basename={basename}>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </BrowserRouter>
+    </AppErrorBoundary>
   </StrictMode>,
 )

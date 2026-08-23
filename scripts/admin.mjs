@@ -35,7 +35,6 @@
  * never includes invite-code hashes or access-session tokens.
  */
 
-import { createHash, randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
@@ -45,6 +44,7 @@ import {
     publicationSummary,
     safeSnapshotPath
 } from './archive-governance.mjs';
+import { createAccessAdmin } from './admin-access.mjs';
 
 const root = process.cwd();
 const contentRoot = 'private-assets/content';
@@ -84,6 +84,16 @@ const mealMapStoragePath = 'images/private/meal-map.png';
 const protectedStorageObjects = new Set([mealMapStoragePath]);
 const publicationTables = new Map();
 const publicationPruneKeys = new Map();
+const publicationTableKeys = new Map([
+    ['class_records', 'file_name'],
+    ['class_people', 'id'],
+    ['class_record_pages', 'page'],
+    ['class_page_messages', 'page'],
+    ['class_page_supplements', 'file_name'],
+    ['class_materials', 'id'],
+    ['class_quiz_questions', 'id'],
+    ['class_credits_page', 'id']
+]);
 let collectingPublication = false;
 const allowedStorageExtensions = new Set([
     '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg',
@@ -104,6 +114,7 @@ const printUsage = () => {
   node scripts/admin.mjs audit [--json]
   node scripts/admin.mjs publish [--json]
   node scripts/admin.mjs publish --confirm-publish
+  node scripts/admin.mjs rollback --snapshot TIMESTAMP --confirm-rollback
   node scripts/admin.mjs invites generate --count N [--expires-days N] [--access-level normal|admin] [--note TEXT]
   node scripts/admin.mjs invites list
   node scripts/admin.mjs invites check --code CODE
@@ -124,7 +135,7 @@ if (command === 'help' || command === '--help' || command === '-h') {
     process.exit(0);
 }
 
-if (!['audit', 'publish', 'upload', 'invites', 'sessions', 'attempts'].includes(command)) {
+if (!['audit', 'publish', 'rollback', 'upload', 'invites', 'sessions', 'attempts'].includes(command)) {
     console.error(`Unknown command: ${command}`);
     printUsage();
     process.exit(1);
@@ -149,21 +160,23 @@ const authHeaders = {
 const normalizeSlash = (value) => String(value || '').replace(/\\/g, '/');
 
 const request = async (endpoint, options = {}) => {
+    const { responseType = 'json', ...fetchOptions } = options;
     let lastError;
     for (let attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt += 1) {
         try {
             const response = await fetch(`${baseUrl}${endpoint}`, {
-                ...options,
-                headers: { ...authHeaders, ...(options.headers || {}) }
+                ...fetchOptions,
+                headers: { ...authHeaders, ...(fetchOptions.headers || {}) }
             });
             if (!response.ok) {
                 const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
                 if (!retryable || attempt === MAX_REQUEST_ATTEMPTS) {
-                    throw new Error(`${options.method || 'GET'} request failed (HTTP ${response.status}).`);
+                    throw new Error(`${fetchOptions.method || 'GET'} request failed (HTTP ${response.status}).`);
                 }
                 lastError = new Error(`HTTP ${response.status}`);
             } else {
                 if (response.status === 204) return null;
+                if (responseType === 'buffer') return Buffer.from(await response.arrayBuffer());
                 const text = await response.text();
                 return text ? JSON.parse(text) : null;
             }
@@ -175,6 +188,12 @@ const request = async (endpoint, options = {}) => {
     }
     throw lastError || new Error('Network request failed.');
 };
+
+const { createInvites, listInvites, checkInvite, runSessions, runAttempts } = createAccessAdmin({
+    request,
+    commandArgs,
+    argv
+});
 
 const validateDatabaseSchema = async () => {
     const specification = await request('/rest/v1/', {
@@ -453,24 +472,27 @@ const upsert = async (table, rows, onConflict) => {
     }
 };
 
-const pruneTable = async (table, keyColumn, keepValues) => {
+const pruneTable = async (table, keyColumn, keepValues, { force = false, allowEmpty = false } = {}) => {
     if (collectingPublication) {
         publicationPruneKeys.set(table, { keyColumn, keepValues });
         return;
     }
-    if (!shouldPrune) return;
+    if (!shouldPrune && !force) return;
 
     if (validateOnly || dryRun) {
         console.log(`Validated table prune: ${table}, keep=${keepValues.length}, mode=${validateOnly ? 'validate-only' : 'dry-run'}`);
         return;
     }
 
-    if (!keepValues.length) {
+    if (!keepValues.length && !allowEmpty) {
         console.warn(`Skipped pruning ${table}: keep list is empty.`);
         return;
     }
 
-    await request(`/rest/v1/${table}?${keyColumn}=not.in.${encodeURIComponent(quoteList(keepValues))}`, {
+    const filter = keepValues.length
+        ? `${keyColumn}=not.in.${encodeURIComponent(quoteList(keepValues))}`
+        : `${keyColumn}=not.is.null`;
+    await request(`/rest/v1/${table}?${filter}`, {
         method: 'DELETE',
         headers: {
             Prefer: 'return=minimal'
@@ -765,6 +787,41 @@ const importCreditsPage = async () => {
     }], 'id');
 };
 
+const encodeStoragePath = (value) => normalizeSlash(value)
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+
+const downloadStorageObject = (remotePath) => request(
+    `/storage/v1/object/${encodeURIComponent(bucket)}/${encodeStoragePath(remotePath)}`,
+    { responseType: 'buffer' }
+);
+
+const uploadStorageObject = (remotePath, body) => request(
+    `/storage/v1/object/${encodeURIComponent(bucket)}/${encodeStoragePath(remotePath)}`,
+    {
+        method: 'POST',
+        headers: {
+            'Content-Type': contentTypeFor(remotePath),
+            'Cache-Control': '3600',
+            'x-upsert': 'true'
+        },
+        body
+    }
+);
+
+const deleteStorageObjects = async (remotePaths) => {
+    const batchSize = 100;
+    for (let index = 0; index < remotePaths.length; index += batchSize) {
+        const batch = remotePaths.slice(index, index + batchSize);
+        await request(`/storage/v1/object/${bucket}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prefixes: batch })
+        });
+    }
+};
+
 const listStorageObjects = async (prefix = '') => {
     const rows = [];
     const pageSize = 1000;
@@ -826,23 +883,8 @@ const pruneStorage = async (allowedRemoteFiles) => {
         return;
     }
 
-    const batchSize = 100;
-
-    for (let i = 0; i < stale.length; i += batchSize) {
-        const batch = stale.slice(i, i + batchSize);
-
-        await request(`/storage/v1/object/${bucket}`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                prefixes: batch
-            })
-        });
-
-        console.log(`Deleted stale Storage files: ${Math.min(i + batch.length, stale.length)} / ${stale.length}`);
-    }
+    await deleteStorageObjects(stale);
+    console.log(`Deleted stale Storage files: ${stale.length} / ${stale.length}`);
 };
 
 const uploadPrivateFiles = async ({ prune = true } = {}) => {
@@ -1019,7 +1061,7 @@ const loadRemoteTable = async (table) => {
 
 const loadRemotePublication = async () => {
     const tables = new Map();
-    for (const table of publicationTables.keys()) {
+    for (const table of publicationTableKeys.keys()) {
         tables.set(table, await loadRemoteTable(table));
     }
     const privateAssets = await loadRemoteTable('class_private_assets');
@@ -1062,7 +1104,7 @@ const printPublicationPlan = (diff, { audit = null, json = false } = {}) => {
     console.log(`  Storage: add=${summary.storage.added}, upload-existing=${summary.storage.replaced}, remove=${summary.storage.removed}`);
 };
 
-const createPublicationSnapshot = async ({ diff, remote }) => {
+const createPublicationSnapshot = async ({ diff = null, remote, reason = 'pre-publication' }) => {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const snapshotRoot = `private-exports/publish-snapshots/${stamp}`;
     const databaseRoot = safeSnapshotPath(root, snapshotRoot, 'database');
@@ -1081,13 +1123,142 @@ const createPublicationSnapshot = async ({ diff, remote }) => {
         `${JSON.stringify(remote.storage, null, 2)}\n`,
         'utf8'
     );
+    let nextStorageIndex = 0;
+    const snapshotStorageWorker = async () => {
+        while (nextStorageIndex < remote.storage.length) {
+            const remotePath = remote.storage[nextStorageIndex++];
+            const target = safeSnapshotPath(root, snapshotRoot, `storage/${remotePath}`);
+            await fs.mkdir(path.dirname(target), { recursive: true });
+            await fs.writeFile(target, await downloadStorageObject(remotePath));
+        }
+    };
+    await Promise.all(
+        Array.from(
+            { length: Math.min(uploadConcurrency, Math.max(1, remote.storage.length)) },
+            snapshotStorageWorker
+        )
+    );
     await fs.writeFile(
         safeSnapshotPath(root, snapshotRoot, 'publication-plan.json'),
-        `${JSON.stringify({ createdAt: new Date().toISOString(), summary: publicationSummary(diff), diff }, null, 2)}\n`,
+        `${JSON.stringify({
+            formatVersion: 2,
+            createdAt: new Date().toISOString(),
+            reason,
+            storageIncluded: true,
+            summary: diff ? publicationSummary(diff) : null,
+            diff
+        }, null, 2)}\n`,
         'utf8'
     );
-    console.log(`Created pre-publication snapshot: ${snapshotRoot}`);
+    console.log(`Created ${reason} snapshot (complete): ${snapshotRoot}; storage=${remote.storage.length}.`);
     return snapshotRoot;
+};
+
+const resolveRollbackSnapshot = (value) => {
+    const snapshotsRoot = path.resolve(root, 'private-exports/publish-snapshots');
+    const normalized = normalizeSlash(value);
+    const candidate = normalized.includes('/')
+        ? path.resolve(root, normalized)
+        : path.resolve(snapshotsRoot, normalized);
+    if (candidate === snapshotsRoot || !candidate.startsWith(`${snapshotsRoot}${path.sep}`)) {
+        throw new Error('--snapshot must name one directory below private-exports/publish-snapshots.');
+    }
+    return {
+        absolute: candidate,
+        relative: normalizeSlash(path.relative(root, candidate))
+    };
+};
+
+const readSnapshotJson = async (snapshotRoot, relativePath) => {
+    const target = safeSnapshotPath(root, snapshotRoot, relativePath);
+    return JSON.parse(await fs.readFile(target, 'utf8'));
+};
+
+const loadRollbackSnapshot = async (snapshotRoot) => {
+    const plan = await readSnapshotJson(snapshotRoot, 'publication-plan.json');
+    if (plan?.formatVersion !== 2 || plan?.storageIncluded !== true) {
+        throw new Error('This snapshot predates complete Storage backups and cannot be used for automatic rollback.');
+    }
+    const storage = await readSnapshotJson(snapshotRoot, 'storage-manifest.json');
+    if (!Array.isArray(storage) || new Set(storage).size !== storage.length) {
+        throw new Error('Snapshot Storage manifest is invalid or contains duplicate paths.');
+    }
+    for (const remotePath of storage) {
+        if (typeof remotePath !== 'string' || !remotePath) throw new Error('Snapshot Storage path is invalid.');
+        const source = safeSnapshotPath(root, snapshotRoot, `storage/${remotePath}`);
+        const info = await fs.stat(source).catch(() => null);
+        if (!info?.isFile()) throw new Error(`Snapshot Storage object is missing: ${remotePath}`);
+    }
+    const tables = new Map();
+    for (const table of publicationTableKeys.keys()) {
+        const rows = await readSnapshotJson(snapshotRoot, `database/${table}.json`);
+        if (!Array.isArray(rows)) throw new Error(`Snapshot table is invalid: ${table}`);
+        tables.set(table, rows);
+    }
+    const privateAssets = await readSnapshotJson(snapshotRoot, 'database/class_private_assets.json');
+    if (!Array.isArray(privateAssets)) throw new Error('Snapshot table is invalid: class_private_assets');
+    return { privateAssets, storage, tables };
+};
+
+const restoreSnapshotStorage = async (snapshotRoot, storage) => {
+    let nextIndex = 0;
+    const worker = async () => {
+        while (nextIndex < storage.length) {
+            const remotePath = storage[nextIndex++];
+            const source = safeSnapshotPath(root, snapshotRoot, `storage/${remotePath}`);
+            await uploadStorageObject(remotePath, await fs.readFile(source));
+        }
+    };
+    await Promise.all(
+        Array.from({ length: Math.min(uploadConcurrency, Math.max(1, storage.length)) }, worker)
+    );
+};
+
+const runRollback = async () => {
+    const allowed = new Set(['--snapshot', '--confirm-rollback']);
+    for (let index = 0; index < commandArgs.length; index += 1) {
+        const value = commandArgs[index];
+        if (!allowed.has(value)) throw new Error(`Unknown rollback option: ${value}`);
+        if (value === '--snapshot') index += 1;
+    }
+    const optionIndex = commandArgs.indexOf('--snapshot');
+    const snapshotValue = optionIndex >= 0 ? commandArgs[optionIndex + 1] : '';
+    if (!snapshotValue || snapshotValue.startsWith('--')) throw new Error('--snapshot requires a timestamp or snapshot path.');
+    if (!argv.has('--confirm-rollback')) {
+        throw new Error('Rollback requires --confirm-rollback. No remote data was changed.');
+    }
+
+    const snapshot = resolveRollbackSnapshot(snapshotValue);
+    const restore = await loadRollbackSnapshot(snapshot.relative);
+    await validateDatabaseSchema();
+    const current = await loadRemotePublication();
+    const safetySnapshot = await createPublicationSnapshot({
+        remote: current,
+        reason: 'pre-rollback'
+    });
+    console.log(`Rollback safety snapshot ready: ${safetySnapshot}`);
+
+    await restoreSnapshotStorage(snapshot.relative, restore.storage);
+    for (const [table, keyColumn] of publicationTableKeys) {
+        const rows = restore.tables.get(table) || [];
+        await upsert(table, rows, keyColumn);
+        await pruneTable(table, keyColumn, rows.map((row) => row[keyColumn]), {
+            force: true,
+            allowEmpty: true
+        });
+    }
+    await upsert('class_private_assets', restore.privateAssets, 'asset_key');
+    await pruneTable(
+        'class_private_assets',
+        'asset_key',
+        restore.privateAssets.map((row) => row.asset_key),
+        { force: true, allowEmpty: true }
+    );
+
+    const keepStorage = new Set(restore.storage);
+    const staleStorage = (await listStorageObjects()).filter((remotePath) => !keepStorage.has(remotePath));
+    await deleteStorageObjects(staleStorage);
+    console.log(`Rollback complete from ${snapshot.relative}; removed-extra-storage=${staleStorage.length}.`);
 };
 
 const applyPublication = async ({ mealMap }) => {
@@ -1103,121 +1274,6 @@ const applyPublication = async ({ mealMap }) => {
         await pruneTable(table, plan.keyColumn, plan.keepValues);
     }
     await pruneStorage([...storageUploadManifest.values()].map((item) => item.remotePath));
-};
-
-const invitePepper = () => {
-    const pepper = String(process.env.INVITE_CODE_PEPPER || '');
-    if (!pepper) throw new Error('INVITE_CODE_PEPPER is required for invite-code generation and checks.');
-    return pepper;
-};
-
-const normalizeInviteCode = (value) => String(value || '').trim().toUpperCase().replace(/\s+/g, '');
-const hashInviteCode = (code) => createHash('sha256')
-    .update(`${invitePepper()}:${normalizeInviteCode(code)}`, 'utf8')
-    .digest('hex');
-
-const createInviteCode = () => {
-    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    const bytes = randomBytes(12);
-    let value = '';
-    for (const byte of bytes) value += alphabet[byte % alphabet.length];
-    return `CR-${value.slice(0, 4)}-${value.slice(4, 8)}-${value.slice(8, 12)}`;
-};
-
-const readOption = (name, { required = false } = {}) => {
-    const index = commandArgs.indexOf(name);
-    if (index < 0) {
-        if (required) throw new Error(`${name} is required.`);
-        return null;
-    }
-    const value = commandArgs[index + 1];
-    if (!value || value.startsWith('--')) throw new Error(`${name} requires a value.`);
-    return value;
-};
-
-const assertInviteArguments = (allowed) => {
-    for (let index = 1; index < commandArgs.length; index += 1) {
-        const value = commandArgs[index];
-        if (!value.startsWith('--')) continue;
-        if (!allowed.has(value)) throw new Error(`Unknown invite option: ${value}`);
-        index += 1;
-    }
-};
-
-const createInvites = async () => {
-    assertInviteArguments(new Set(['--count', '--expires-days', '--access-level', '--note']));
-    const count = Number(readOption('--count', { required: true }));
-    const expiresDays = readOption('--expires-days');
-    const accessLevel = String(readOption('--access-level') || 'normal').toLowerCase();
-    const note = readOption('--note') || null;
-    if (!Number.isInteger(count) || count < 1 || count > 500) throw new Error('--count must be an integer between 1 and 500.');
-    if (expiresDays !== null && (!Number.isFinite(Number(expiresDays)) || Number(expiresDays) <= 0)) {
-        throw new Error('--expires-days must be a positive number.');
-    }
-    if (!['normal', 'admin'].includes(accessLevel)) throw new Error('--access-level must be normal or admin.');
-
-    const expiresAt = expiresDays ? new Date(Date.now() + Number(expiresDays) * 86400_000).toISOString() : null;
-    const codes = Array.from({ length: count }, createInviteCode);
-    const rows = codes.map((code) => ({
-        code_hash: hashInviteCode(code), expires_at: expiresAt, note, access_level: accessLevel, used: false
-    }));
-    await request('/rest/v1/invite_codes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-        body: JSON.stringify(rows)
-    });
-    console.log(`Generated ${codes.length} one-time invite code(s); expires=${expiresAt || 'never'}; access=${accessLevel}.`);
-    console.log('Store the following codes securely. They cannot be recovered from the database later:');
-    codes.forEach((code) => console.log(code));
-};
-
-const loadInviteRows = async () => {
-    const select = 'id,used,used_at,expires_at,access_level,note,created_at';
-    const rows = [];
-    for (let offset = 0; ; offset += 1000) {
-        const page = await request(`/rest/v1/invite_codes?select=${encodeURIComponent(select)}&order=created_at.desc&limit=1000&offset=${offset}`);
-        rows.push(...(page || []));
-        if (!page || page.length < 1000) return rows;
-    }
-};
-
-const inviteState = (row) => {
-    if (row.used) return 'used';
-    if (row.expires_at && Date.parse(row.expires_at) <= Date.now()) return 'expired';
-    return 'available';
-};
-
-const listInvites = async () => {
-    assertInviteArguments(new Set());
-    const rows = await loadInviteRows();
-    const summary = rows.reduce((result, row) => {
-        result[inviteState(row)] += 1;
-        return result;
-    }, { available: 0, used: 0, expired: 0 });
-    console.log(`Invite codes: total=${rows.length}, available=${summary.available}, used=${summary.used}, expired=${summary.expired}.`);
-    rows.forEach((row) => {
-        console.log(JSON.stringify({
-            id: row.id, state: inviteState(row), usedAt: row.used_at || null,
-            expiresAt: row.expires_at || null, accessLevel: row.access_level, note: row.note || null,
-            createdAt: row.created_at || null
-        }));
-    });
-};
-
-const checkInvite = async () => {
-    assertInviteArguments(new Set(['--code']));
-    const code = readOption('--code', { required: true });
-    const rows = await request(`/rest/v1/invite_codes?select=${encodeURIComponent('id,used,used_at,expires_at,access_level,note,created_at')}&code_hash=eq.${encodeURIComponent(hashInviteCode(code))}&limit=1`);
-    const row = rows?.[0];
-    if (!row) {
-        console.log('Invite code not found.');
-        return;
-    }
-    console.log(JSON.stringify({
-        found: true, state: inviteState(row), usedAt: row.used_at || null,
-        expiresAt: row.expires_at || null, accessLevel: row.access_level, note: row.note || null,
-        createdAt: row.created_at || null
-    }));
 };
 
 const runUpload = async () => {
@@ -1263,69 +1319,10 @@ const runPublish = async () => {
     console.log('Publication complete. Remote tables and private Storage now match the audited local source.');
 };
 
-const callRpc = (name, body = {}) => request(`/rest/v1/rpc/${name}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-});
-
-const runSessions = async () => {
-    const action = commandArgs[0] || '';
-    if (action === 'overview') {
-        assertFlagArguments(new Set());
-        console.log(JSON.stringify(await callRpc('get_invite_access_session_overview'), null, 2));
-        return;
-    }
-    if (action === 'list') {
-        assertFlagArguments(new Set());
-        const rows = await callRpc('list_invite_access_sessions') || [];
-        console.log(`Access sessions: total=${rows.length}.`);
-        rows.forEach((row) => console.log(JSON.stringify({
-            id: row.id,
-            createdAt: row.created_at,
-            lastUsedAt: row.last_used_at,
-            expiresAt: row.expires_at,
-            revokedAt: row.revoked_at,
-            accessLevel: row.access_level,
-            riskFlags: row.risk_flags,
-            riskFlaggedAt: row.risk_flagged_at,
-            recentRefreshCount: row.recent_refresh_count
-        })));
-        return;
-    }
-    if (action === 'revoke') {
-        assertFlagArguments(new Set(['--id', '--confirm-revoke']));
-        const id = readOption('--id', { required: true });
-        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
-            throw new Error('--id must be a UUID.');
-        }
-        if (!argv.has('--confirm-revoke')) throw new Error('Session revoke requires --confirm-revoke. No session was changed.');
-        const revoked = await callRpc('revoke_invite_access_session', { target_session_id: id });
-        console.log(revoked === true ? `Revoked access session: ${id}.` : `Access session was not found: ${id}.`);
-        return;
-    }
-    if (action === 'revoke-all') {
-        assertFlagArguments(new Set(['--confirm-revoke-all']));
-        if (!argv.has('--confirm-revoke-all')) throw new Error('Revoke-all requires --confirm-revoke-all. No session was changed.');
-        const count = await callRpc('revoke_all_invite_access_sessions');
-        console.log(`Revoked all active access sessions: count=${count}.`);
-        return;
-    }
-    throw new Error('Use sessions overview, sessions list, sessions revoke, or sessions revoke-all.');
-};
-
-const runAttempts = async () => {
-    const action = commandArgs[0] || '';
-    if (action !== 'cleanup') throw new Error('Use attempts cleanup --confirm-cleanup.');
-    assertFlagArguments(new Set(['--confirm-cleanup']));
-    if (!argv.has('--confirm-cleanup')) throw new Error('Attempt cleanup requires --confirm-cleanup. No rows were deleted.');
-    const count = await callRpc('cleanup_invite_code_attempts');
-    console.log(`Deleted expired invite attempt rows: count=${count}.`);
-};
-
 try {
     if (command === 'audit') await runAudit();
     else if (command === 'publish') await runPublish();
+    else if (command === 'rollback') await runRollback();
     else if (command === 'upload') await runUpload();
     else if (command === 'invites' && commandArgs[0] === 'generate') await createInvites();
     else if (command === 'invites' && commandArgs[0] === 'list') await listInvites();

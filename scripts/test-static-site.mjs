@@ -3,18 +3,24 @@ import { readdir } from 'node:fs/promises'
 import { existsFrontend, readFrontend } from './test-react-helpers.mjs'
 
 const vercel = await readFrontend('../vercel.json')
+const pagesWorkflow = await readFrontend('../.github/workflows/deploy-pages.yml')
 
 const packageJson = JSON.parse(await readFrontend('package.json'))
+const rootPackageJson = JSON.parse(await readFrontend('../package.json'))
+const bundleBudget = await readFrontend('../bundle-budget.json')
+const bundleBudgetCheck = await readFrontend('../scripts/check-bundle-budget.mjs')
 const components = JSON.parse(await readFrontend('components.json'))
 const index = await readFrontend('index.html')
 const app = await readFrontend('src/app.tsx')
 const main = await readFrontend('src/main.tsx')
+const errorBoundary = await readFrontend('src/components/layout/app-error-boundary.tsx')
 const home = await readFrontend('src/pages/home-page.tsx')
 const auth = await readFrontend('src/pages/auth-page.tsx')
 const materials = await readFrontend('src/pages/materials-page.tsx')
 const credits = await readFrontend('src/pages/credits-page.tsx')
 const backgroundsPage = await readFrontend('src/pages/backgrounds-page.tsx')
 const records = await readFrontend('src/pages/records-page.tsx')
+const writtenRecordPages = await readFrontend('src/features/records/written-record-pages.tsx')
 const recordFilters = await readFrontend('src/components/archive/record-filters.tsx')
 const filterToggle = await readFrontend('src/components/archive/filter-toggle.tsx')
 const markupContent = await readFrontend('src/components/archive/markup-content.tsx')
@@ -25,6 +31,7 @@ const quotes = await readFrontend('src/pages/quotes-page.tsx')
 const quiz = await readFrontend('src/pages/quiz-page.tsx')
 const search = await readFrontend('src/pages/search-page.tsx')
 const timeline = await readFrontend('src/pages/timeline-page.tsx')
+const timelineModel = await readFrontend('src/features/timeline/timeline-model.ts')
 const quoteNavigation = await readFrontend('src/lib/quote-navigation.ts')
 const recordIdentity = await readFrontend('src/lib/record-identity.ts')
 const routePreload = await readFrontend('src/lib/route-preload.ts')
@@ -47,6 +54,11 @@ const redirects = await readFrontend('public/_redirects')
 const ui = (await readdir(new URL('../frontend/src/components/ui/', import.meta.url))).filter((file) => file.endsWith('.tsx'))
 
 assert.match(packageJson.dependencies.react, /^\^19\./)
+assert.equal(rootPackageJson.scripts.budget, 'node scripts/check-bundle-budget.mjs')
+assert.equal(rootPackageJson.scripts['db:check'], 'node scripts/check-migrations.mjs')
+assert.match(rootPackageJson.devDependencies.supabase, /^\^2\./, 'the database CLI must be release-locked')
+assert.match(bundleBudget, /maxJavaScriptChunkGzipBytes/, 'the release needs an explicit JS chunk budget')
+assert.match(bundleBudgetCheck, /totalJavaScriptGzipBytes/, 'the build budget must cover aggregate JS growth')
 assert.match(packageJson.dependencies['react-router'], /^\^8\./)
 assert.equal(
   packageJson.dependencies['react-router-dom'],
@@ -59,6 +71,22 @@ assert.ok(packageJson.dependencies['@base-ui/react'])
 assert.equal(components.style, 'base-nova')
 assert.ok(ui.length >= 55, `expected all shadcn components, found ${ui.length}`)
 assert.match(index, /src\/main\.tsx/)
+assert.match(
+  index,
+  /http-equiv="Content-Security-Policy"[\s\S]*connect-src 'self' https:\/\/xyeftofxlxbpqctuuqup\.supabase\.co/,
+  'static hosts must enforce the application CSP from the document itself',
+)
+assert.match(index, /object-src 'none'/, 'the document CSP must block plugins')
+assert.match(index, /base-uri 'none'/, 'the document CSP must block base URL injection')
+const documentCsp = /http-equiv="Content-Security-Policy"[\s\S]*?content="([^"]+)"/.exec(index)?.[1]
+const vercelCsp = JSON.parse(vercel)
+  .headers.flatMap((rule) => rule.headers)
+  .find((header) => header.key === 'Content-Security-Policy')?.value
+assert.ok(documentCsp && vercelCsp, 'both formal hosts need an explicit CSP')
+for (const directive of documentCsp.split(';').map((value) => value.trim()).filter(Boolean)) {
+  assert.ok(vercelCsp.includes(directive), `Vercel CSP drifted from the static-host policy: ${directive}`)
+}
+assert.match(vercelCsp, /frame-ancestors 'none'/, 'Vercel must add the response-only frame policy')
 assert.match(index, /theme-bootstrap\.js/, 'the selected background must be restored before React starts')
 assert.doesNotMatch(index, /preload[^>]+logo-guide\.png/, 'non-guide routes must not preload the guide illustration')
 assert.match(index, /<script vite-ignore src="%BASE_URL%theme-bootstrap\.js"/, 'the synchronous theme bootstrap must bypass module bundling without a build warning')
@@ -71,6 +99,21 @@ assert.doesNotMatch(
   'the synchronous bootstrap must paint only the thumbnail and leave original loading to React',
 )
 assert.match(main, /BrowserRouter basename/, 'router basename must follow the Pages project path')
+assert.match(main, /<AppErrorBoundary>/, 'the application root must recover from render and lazy chunk errors')
+assert.match(errorBoundary, /getDerivedStateFromError/, 'the root error boundary must render a fallback')
+assert.match(errorBoundary, /componentDidCatch/, 'the root error boundary must capture diagnostics')
+assert.match(errorBoundary, /classRecord:lastError:v1/, 'the latest diagnostic must remain inspectable in this tab')
+assert.match(errorBoundary, /window\.location\.pathname/, 'diagnostics may retain only the route path')
+assert.doesNotMatch(
+  errorBoundary,
+  /window\.location\.(search|hash)/,
+  'diagnostics must not retain query parameters or fragments',
+)
+assert.match(
+  errorBoundary,
+  /Failed to fetch dynamically imported module[\s\S]*重新加载/,
+  'lazy chunk failures need a dedicated reload recovery path',
+)
 assert.match(home, /BASE_URL.*logo-guide-preview\.png/, 'logo must use the compressed Vite asset')
 assert.doesNotMatch(home, /tapLogo|logoAnimation|logoTapCount|logoTapTimer/, 'the guide logo must not retain click or animation state')
 assert.doesNotMatch(home, /<Button[\s\S]{0,500}logo-guide\.png/, 'the guide logo must not be wrapped in a button')
@@ -265,8 +308,8 @@ assert.equal(await existsFrontend('public/images/backgrounds/mountain.jpg'), fal
 assert.equal(await existsFrontend('public/images/backgrounds/cloud.jpg'), false)
 assert.match(records, /criteriaFromSearch\(params\)/, 'record filters must restore from URL changes')
 assert.match(records, /function recordsSearch[\s\S]*replaceRouteState/, 'record view and filters must commit through one URL-state boundary')
-assert.doesNotMatch(records, /value=\{String\(safeIndex\)\}/, 'the written page selector must not expose a zero-based index')
-assert.match(records, /value=\{page\.page\}[\s\S]*item\.page === value[\s\S]*value=\{item\.page\}/, 'the written page selector must use the real page identity end to end')
+assert.doesNotMatch(writtenRecordPages, /value=\{String\(safeIndex\)\}/, 'the written page selector must not expose a zero-based index')
+assert.match(writtenRecordPages, /value=\{page\.page\}[\s\S]*item\.page === value[\s\S]*value=\{item\.page\}/, 'the written page selector must use the real page identity end to end')
 assert.match(recordFilters, /normalizeText\(stripMarkup\(record\.content\)\)/, 'record-list search must index only record body text')
 assert.doesNotMatch(recordFilters, /record\.author[\s\S]*recordBodySearchTextCache/, 'record-list search must not index author metadata')
 assert.match(recordFilters, /placeholder="仅搜索记录正文"/, 'record-list search must explain its body-only scope')
@@ -285,7 +328,7 @@ assert.match(
 )
 assert.match(records, /clampWindowScrollTop\(pending\.scrollY\)/, 'record return restoration must respect the current document height')
 assert.doesNotMatch(records, /target\.scrollIntoView/, 'record location must not delegate near-bottom positioning to browser centering')
-assert.match(records, /lg:sticky lg:top-20/, 'written record images must keep the baseline sticky behavior')
+assert.match(writtenRecordPages, /lg:sticky lg:top-20/, 'written record images must keep the baseline sticky behavior')
 assert.match(recordCard, /gap-0 py-0/, 'record cards must use the compact reading density')
 assert.match(recordCard, /record-surface/, 'record cards must expose one business-level material boundary contract')
 assert.match(records, /target\.dataset\.recordJumpHighlight = 'true'[\s\S]*scrollTargetIntoView/, 'record location must publish its semantic highlight before the target starts moving')
@@ -333,10 +376,10 @@ assert.doesNotMatch(
   /strokeDasharray|strokeDashoffset|pathLength="100"/,
   'daily pies must use contiguous sectors instead of accumulated dashed-circle segments',
 )
-assert.match(timeline, /fixedTimelineChartScale/, 'timeline charts must preserve the baseline fixed-step scale')
+assert.match(timelineModel, /fixedTimelineChartScale/, 'timeline charts must preserve the baseline fixed-step scale')
 assert.match(timeline, /openQuoteSource/, 'timeline quote chips must resolve the original record directly')
-assert.match(timeline, /recordDateCache/, 'timeline date parsing must be cached per immutable record')
-assert.match(timeline, /recordCharacterCache/, 'timeline character totals must be cached per immutable record')
+assert.match(timelineModel, /recordDateCache/, 'timeline date parsing must be cached per immutable record')
+assert.match(timelineModel, /recordCharacterCache/, 'timeline character totals must be cached per immutable record')
 assert.match(timeline, /aria-label="年度统计与年份选择"/, 'the baseline year pie and year controls must share one period layout')
 assert.match(timeline, /aria-label="月度统计与月份选择"/, 'the baseline month pie and month controls must share one period layout')
 assert.match(timeline, /grid-cols-4 gap-1 sm:grid-cols-7 lg:grid-cols-10 2xl:grid-cols-14/, 'the daily calendar must provide a denser responsive layout')
@@ -579,6 +622,19 @@ for (const route of ['records', 'people', 'person', 'quotes', 'timeline', 'searc
   assert.match(app, new RegExp(`path="${route}"`), `${route} route is missing`)
 }
 assert.match(redirects, /\/\* \/index\.html 200/, 'SPA fallback is missing')
+assert.match(pagesWorkflow, /pull_request:[\s\S]*branches:[\s\S]*- main/, 'PR checks must run for main')
+assert.match(pagesWorkflow, /npm run db:check/, 'CI must validate database migration history')
+assert.match(
+  pagesWorkflow,
+  /playwright install --with-deps chromium[\s\S]*npm run test:layout/,
+  'CI must install Chromium and run the browser layout regression',
+)
+assert.match(pagesWorkflow, /npm run build[\s\S]*npm run budget/, 'CI must enforce the bundle budget')
+assert.match(
+  pagesWorkflow,
+  /deploy:[\s\S]*if: github\.event_name != 'pull_request'/,
+  'pull requests must verify without deploying GitHub Pages',
+)
 assert.match(
   vercel,
   /\/assets\/\(\.\*\)[\s\S]*max-age=31536000, immutable/,

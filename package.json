@@ -9,13 +9,18 @@
     "doctor": "node scripts/check-environment.mjs",
     "dev": "npm run dev --workspace frontend",
     "build": "npm run build --workspace frontend",
+    "budget": "node scripts/check-bundle-budget.mjs",
     "preview": "npm run preview --workspace frontend",
     "typecheck": "npm run typecheck --workspace frontend",
     "lint": "npm run lint --workspace frontend",
-    "check": "npm run doctor && npm run typecheck && npm run lint && npm test && npm run build",
+    "check": "npm run doctor && npm run db:check && npm run typecheck && npm run lint && npm test && npm run build && npm run budget",
     "admin": "node scripts/admin.mjs",
     "content:audit": "node scripts/admin.mjs audit",
     "verify-security-live": "node scripts/verify-live-security.mjs",
+    "db:check": "node scripts/check-migrations.mjs",
+    "db:new": "supabase migration new",
+    "db:reset": "supabase db reset",
+    "db:push": "supabase db push",
     "test": "node scripts/test-security-boundaries.mjs && node scripts/test-content-governance.mjs && node scripts/test-secure-images.mjs && node scripts/test-image-loader.mjs && node scripts/test-auth-gate-loader.mjs && node scripts/test-cache-loader.mjs && node scripts/test-illustration-preload.mjs && node scripts/test-record-markup.mjs && node scripts/test-record-identity.mjs && node scripts/test-scroll-target.mjs && node scripts/test-record-view.mjs && node scripts/test-quiz-core.mjs && node scripts/test-search.mjs && node scripts/test-app-routing.mjs && node scripts/test-static-site.mjs",
     "test:layout": "node scripts/test-markup-layout.mjs"
   },
@@ -23,7 +28,8 @@
     "@supabase/supabase-js": "^2.110.1"
   },
   "devDependencies": {
-    "playwright": "^1.61.1"
+    "playwright": "^1.61.1",
+    "supabase": "^2.115.0"
   },
   "engines": {
     "node": ">=22.12.0"

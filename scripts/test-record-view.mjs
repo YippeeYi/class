@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { loadTypescriptModule, readFrontend } from './test-react-helpers.mjs'
 
 const page = await readFrontend('src/pages/records-page.tsx')
+const writtenData = await readFrontend('src/features/records/written-record-data.ts')
+const writtenPages = await readFrontend('src/features/records/written-record-pages.tsx')
 const card = await readFrontend('src/components/archive/record-card.tsx')
 const filters = await readFrontend('src/components/archive/record-filters.tsx')
 const navigation = await readFrontend('src/lib/record-navigation.ts')
@@ -30,22 +32,22 @@ assert.match(
   'list mode must expose the shared order control',
 )
 assert.doesNotMatch(
-  page.slice(page.indexOf('function WrittenRecordPages'), page.indexOf('function SignedPageImage')),
+  writtenPages,
   /RecordOrderToggle/,
   'written mode must never expose a reversible order control',
 )
 assert.match(
-  page,
+  writtenPages,
   /pageMessage[\s\S]*pageSupplements[\s\S]*pageRecords\.map/,
   'written mode must render proverbs, supplements, then ordinary records as continuous sections',
 )
 assert.match(
-  page,
+  writtenPages,
   /pageSupplements = supplements[\s\S]*supplementIndex - right\.supplementIndex/,
   'written supplements must be ordered by their record number',
 )
 assert.match(
-  page,
+  writtenPages,
   /orderRecords\([\s\S]*'ascending',[\s\S]*compareRecordNumber/,
   'written ordinary records must be fixed to ascending record number',
 )
@@ -68,16 +70,31 @@ assert.match(search, /<RecordOrderToggle[\s\S]*搜索记录结果显示顺序/, 
 assert.match(page, /<SegmentedTabsList[\s\S]*items=\{recordViewItems\}/, 'record modes must restore the shared shadcn Tabs selection motion')
 assert.match(page, /function recordsSearch/, 'record navigation state needs one URL serializer')
 assert.match(page, /replaceRouteState\(value as 'list' \| 'written', criteria\)/, 'view tabs must update state and URL exactly once')
-assert.match(page, /value=\{page\.page\}/, 'the written page selector must use the visible page identity')
-assert.match(page, /value=\{item\.page\}/, 'written page options must use one-based domain page identities')
-assert.doesNotMatch(page, /value=\{String\(safeIndex\)\}/, 'zero-based page indexes must stay internal')
+assert.match(writtenPages, /value=\{page\.page\}/, 'the written page selector must use the visible page identity')
+assert.match(writtenPages, /value=\{item\.page\}/, 'written page options must use one-based domain page identities')
+assert.doesNotMatch(writtenPages, /value=\{String\(safeIndex\)\}/, 'zero-based page indexes must stay internal')
 assert.match(filters, /year.*month.*day.*important.*excludeDaily.*query/s, 'record filters are incomplete')
-assert.match(page, /loadPageMessages/, 'written messages must be restored')
-assert.match(page, /loadPageSupplements/, 'written supplements must be restored')
+assert.match(writtenData, /loadPageMessages/, 'written messages must be restored')
+assert.match(writtenData, /loadPageSupplements/, 'written supplements must be restored')
 assert.match(
   page,
-  /if \(view !== 'written'\) return null[\s\S]*Promise\.all\(\[/,
+  /if \(view !== 'written'\) return null[\s\S]*loadWrittenRecordData\(hidden\)/,
   'written-only data must not block the list-view first screen',
+)
+assert.match(
+  writtenData,
+  /Promise\.allSettled\([\s\S]*if \(pagesResult\.status === 'rejected'\) throw pagesResult\.reason/,
+  'written pages must remain required while auxiliary requests settle independently',
+)
+assert.match(
+  writtenData,
+  /messagesResult\.status === 'fulfilled' \? messagesResult\.value : \[\][\s\S]*supplementsResult\.status === 'fulfilled' \? supplementsResult\.value : \[\]/,
+  'failed written auxiliaries must degrade to empty collections',
+)
+assert.match(
+  page,
+  /written\.data\.failures\.length > 0[\s\S]*部分辅助内容暂未加载[\s\S]*onClick=\{written\.retry\}/,
+  'partial written failures must stay visible and retryable without replacing the page',
 )
 assert.match(page, /recordsResource = useAsyncData\(\(\) => loadRecords\(\)\)/, 'the list view must own its minimal record request')
 assert.doesNotMatch(page, /useArchive/, 'the record list must not wait for unrelated people and quote data')
@@ -110,7 +127,7 @@ assert.match(
   'record filters must not stack the card and content top padding above the search field',
 )
 assert.match(
-  page,
+  writtenPages,
   /buildSupplementalRecords\(\[pageMessage\], \[\]\)\.map[\s\S]*<RecordCard/,
   'written-page proverbs must reuse the shared record card',
 )
@@ -120,7 +137,7 @@ assert.doesNotMatch(card, /日期未记录/, 'record cards must omit absent date
 assert.match(card, /recordWrittenHref\(record\)/, 'record cards must expose the written-source jump')
 assert.match(card, /onSourceAction\(record, event\.currentTarget\)/, 'record cards must let the records page coordinate same-route source jumps')
 assert.match(card, /record-source-action/, 'record source actions must remain quiet until hover or focus')
-assert.match(page, /showSourceAction=\{false\}/, 'written-mode cards must not show a redundant source action')
+assert.match(writtenPages, /showSourceAction=\{false\}/, 'written-mode cards must not show a redundant source action')
 assert.match(
   page,
   /navigateToWrittenSource = useCallback[\s\S]*origin:[\s\S]*view: state\.view,[\s\S]*criteria: \{ \.\.\.state\.criteria \}[\s\S]*setView\('written'\)/,
@@ -156,11 +173,11 @@ assert.match(
 )
 assert.doesNotMatch(page, /<Card className="bg-muted\/45">/, 'proverbs must not keep a separate heavy card treatment')
 assert.match(
-  page,
+  writtenPages,
   /className="h-auto w-full overflow-hidden rounded-lg border border-border\/70 bg-transparent p-0/,
   'written images must not retain a padded gray trigger frame',
 )
-assert.doesNotMatch(page, /bg-muted\/40 p-2|bg-muted\/55/, 'written images must not keep nested gray backgrounds')
+assert.doesNotMatch(writtenPages, /bg-muted\/40 p-2|bg-muted\/55/, 'written images must not keep nested gray backgrounds')
 assert.doesNotMatch(
   page,
   /key=\{`\$\{criteria\.year\}/,

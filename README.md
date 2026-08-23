@@ -42,6 +42,7 @@
 - 顶栏统一包含侧栏触发器、面包屑、页面级操作和全屏切换。人物详情会在顶栏显示当前人物名，同时侧栏仍选中“人物”。
 - 路由前进时统一回到顶部，浏览器后退/前进保留原生 POP 位置；记录引用跳转由记录页独占一次测量滚动，避免二次回弹。
 - 导航项在 pointer/focus 意图出现时预加载对应按需 chunk；页面仍由 React Router lazy route 拆分。
+- 根级错误边界会接管渲染异常和 lazy chunk 下载失败，提供重新加载/返回导览恢复入口；仅在当前标签页保存诊断编号、故障类型、构建模式、路径和时间，不记录查询参数、fragment、正文或访问凭证。
 - 提供“跳到主要内容”链接、focus-visible、键盘可操作浮层、可读 loading/empty/error 状态，并尊重 `prefers-reduced-motion`。
 
 ### 记录与书面页
@@ -56,7 +57,7 @@
 | `important=1` | 仅显示重要记录。 |
 | `excludeDaily=1` | 排除文件名以 `-00` 结尾的每日例行记录。 |
 
-书面模式按 `class_record_pages` 的起止文件映射记录，显示原始页图、对应文字记录、页箴言和页补充；支持上一页、下一页、页码 Select，以及相邻页图片预热。筛选条件同样作用于书面页及补充记录。
+书面模式按 `class_record_pages` 的起止文件映射记录，显示原始页图、对应文字记录、页箴言和页补充；支持上一页、下一页、页码 Select，以及相邻页图片预热。筛选条件同样作用于书面页及补充记录。书面页清单加载失败时显示整页错误；页箴言或页补录单独失败时降级为空集合，保留书面页和其余已成功内容，并显示可重试的部分失败提示。
 
 正文中的记录/名言引用会先清理筛选并定位目标，完成后可返回跳转前的视图、筛选、页码和滚动位置。损坏或恶意 fragment 会安全忽略，不会让页面抛出 URI 错误。附件只在用户展开并点击时请求签名 URL。
 
@@ -165,6 +166,8 @@
 │  │  ├─ components/layout/      # AppShell、页头、背景根层
 │  │  ├─ features/auth/          # 邀请门禁与凭证生命周期
 │  │  ├─ features/archive/       # 全站档案数据 Context
+│  │  ├─ features/records/       # 书面页数据、映射与呈现
+│  │  ├─ features/timeline/      # 时间线统计模型
 │  │  ├─ features/quiz/          # 题目生成、筛选与抽样规则
 │  │  ├─ hooks/                  # 异步、图片、浮层、图表交互 hooks
 │  │  ├─ lib/                    # 标记、路由跳转、统计和纯工具函数
@@ -175,6 +178,8 @@
 │  ├─ components.json            # shadcn Base UI / Nova 配置
 │  └─ vite.config.ts             # Vite、React、Tailwind 与 Pages base
 ├─ scripts/                      # 环境检查、管理 CLI、安全与回归测试
+├─ supabase/migrations/          # Supabase CLI 版本化数据库迁移
+├─ supabase/rollbacks/           # 与迁移配套、需人工执行的 down SQL
 ├─ sql/setup.sql                 # 表、RPC、RLS、Storage policy
 ├─ sql/check.sql                 # 生产 Supabase 只读漂移检查
 ├─ docs/                         # 现行专题文档与历史审查快照
@@ -190,9 +195,9 @@
 - React 19、React DOM 19、TypeScript 7、React Router 8
 - Vite 8、Tailwind CSS 4、Biome 2
 - shadcn CLI 4、Base UI、class-variance-authority、tailwind-merge
-- Supabase JS 2（PostgREST、RPC、Storage）
+- Supabase JS 2（PostgREST、RPC、Storage）与锁定版本的 Supabase CLI
 - Recharts 3、Lucide React、Geist Variable Font
-- Node.js 内建测试脚本；Playwright 用于可选真实布局回归
+- Node.js 内建测试脚本；Playwright Chromium 用于 CI 强制真实布局回归
 
 依赖版本以根 `package-lock.json` 为发布锁定来源，不应手工推断或在文档中维护另一份精确版本表。
 
@@ -223,17 +228,19 @@ anon key 不是 service role 密钥，但新项目仍必须执行同一套 RLS/S
 
 ```bash
 npm run doctor             # Node/依赖/跨平台原生包检查
+npm run db:check           # 迁移顺序、命名、基线与回滚配对检查
 npm run typecheck          # TypeScript project build
 npm run lint               # Biome 只读检查
 npm test                   # 安全、缓存、路由、正文、记录、答题、搜索等回归
 npm run content:audit      # 本地档案、引用关系和私有资源完整性审计
-npm run test:layout        # 可选：真实 Chromium 正文/响应式布局回归
+npm run test:layout        # 真实 Chromium 正文/响应式布局回归
 npm run build              # 输出 frontend/dist
+npm run budget             # 检查单 chunk、CSS、总 JS 与 dist 体积预算
 npm run preview            # http://127.0.0.1:4173/
-npm run check              # doctor + typecheck + lint + test + build
+npm run check              # doctor + db:check + typecheck + lint + test + build + budget
 ```
 
-`npm test` 覆盖安全边界、私有图片、签名/重试、门禁、三级缓存、插图尺寸、标记 AST、记录身份与跳转、滚动边界、记录视图、答题/统计算法、搜索、尾斜杠路由和静态 UI/部署契约。`test:layout` 需要本机已有兼容 Playwright Chromium。
+`npm test` 覆盖安全边界、私有图片、签名/重试、门禁、三级缓存、插图尺寸、标记 AST、记录身份与跳转、滚动边界、记录视图、答题/统计算法、搜索、尾斜杠路由和静态 UI/部署契约。`test:layout` 需要本机已有兼容 Playwright Chromium；CI 会显式安装后执行。
 
 可选在线安全检查：
 
@@ -248,8 +255,8 @@ CLASS_RECORD_ACCESS_TOKEN=64字符访问token npm run verify-security-live
 
 ## Supabase 初始化与本地管理
 
-1. 在 Supabase SQL Editor 以 owner 身份完整执行 `sql/setup.sql`。
-2. 执行 `sql/check.sql`，确认表、函数权限、RLS、private bucket 和唯一 Storage SELECT policy 没有漂移。
+1. 新项目可在 Supabase SQL Editor 以 owner 身份完整执行 `sql/setup.sql`；受管理项目使用 `supabase/migrations/` 与 `npm run db:push`，不要重复执行基线。
+2. 执行 `npm run db:check`，再执行 `sql/check.sql`，确认迁移历史、表、函数权限、RLS、private bucket 和唯一 Storage SELECT policy 没有漂移。完整流程见 [`supabase/README.md`](supabase/README.md)。
 3. 复制 `.env.example` 为仓库根 `.env`，填入本地管理变量：
 
 ```text
@@ -300,11 +307,12 @@ npm run content:audit
 npm run admin -- publish
 npm --silent run admin -- publish --json
 npm run admin -- publish --confirm-publish
+npm run admin -- rollback --snapshot <时间戳> --confirm-rollback
 ```
 
-`content:audit` 只检查本地内容，不需要凭据；它会验证日期、唯一 ID、正文引用、书面页范围、hidden 一致性以及私有资源存在性。`publish` 默认只读取线上 schema、表和 Storage 并显示新增、更新、未变与删除差异。只有 `--confirm-publish` 会创建发布前数据库/对象清单快照并执行完整同步与清理。
+`content:audit` 只检查本地内容，不需要凭据；它会验证日期、唯一 ID、正文引用、书面页范围、hidden 一致性以及私有资源存在性。`publish` 默认只读取线上 schema、表和 Storage 并显示新增、更新、未变与删除差异。只有 `--confirm-publish` 会创建发布前完整快照并执行同步与清理。
 
-正式发布会把本地完整源作为唯一清单，删除线上陈旧表行和 bucket 对象。快照不包含旧 Storage 二进制内容，因此确认前必须在仓库外备份 `private-assets/` 或使用可靠的对象版本/外部备份。详细检查、回退和旧命令边界见 [档案内容治理与发布流程](docs/content-governance-and-publishing.md)。
+正式发布会把本地完整源作为唯一清单，删除线上陈旧表行和 bucket 对象。发布前快照包含数据库 JSON、Storage 清单及每个旧二进制对象；任一对象下载失败都会在远端写入前终止。回滚命令先验证快照完整性，再为当前线上状态创建第二份安全快照，最后恢复表和 Storage。详细检查和操作边界见 [档案内容治理与发布流程](docs/content-governance-and-publishing.md)。
 
 ### 会话与限流运维
 
@@ -320,11 +328,15 @@ npm run admin -- attempts cleanup --confirm-cleanup
 
 ## 部署
 
+Vercel 与 GitHub Pages 都是正式入口，不区分主站与预览站：它们发布同一 Git 提交、连接同一 Supabase 项目，并遵守同一邀请码和数据权限模型。GitHub Pages 的固定入口为 <https://yippeeyi.github.io/class/>；Vercel 使用项目绑定的正式域名。发布验收必须同时覆盖两个入口，任一入口不得包含私有源文件或绕过授权的数据副本。
+
 ### GitHub Pages
 
-`.github/workflows/deploy-pages.yml` 在推送 `main` 或手动触发时执行 `npm ci`、typecheck、lint、test 和 build，将 `frontend/dist` 部署到 Pages，并复制 `index.html` 为 `404.html` 支持 SPA 回退。Vite 根据 `GITHUB_REPOSITORY` 自动设置项目子路径，BrowserRouter 使用同一 `BASE_URL` 作为 basename。
+`.github/workflows/deploy-pages.yml` 对指向 `main` 的 PR、`main` 推送和手动触发执行 `npm ci`、doctor、typecheck、lint、Node 回归、Playwright Chromium 布局回归和 build。PR 只验证不部署；`main` 推送和手动触发会将 `frontend/dist` 部署到 Pages，并复制 `index.html` 为 `404.html` 支持 SPA 回退。Vite 根据 `GITHUB_REPOSITORY` 自动设置项目子路径，BrowserRouter 使用同一 `BASE_URL` 作为 basename。
 
 首次部署需在仓库 `Settings → Pages → Build and deployment` 选择 GitHub Actions。
+
+GitHub Pages 不允许仓库配置任意 HTTP 响应头，因此 `frontend/index.html` 内置 CSP 与 referrer policy，覆盖脚本、连接、图片、表单、frame、worker、object 和 base URL 等浏览器可由文档策略控制的边界。HSTS、`frame-ancestors`、nosniff、Permissions-Policy、COOP 和 Origin-Agent-Cluster 只能由托管平台作为响应头设置，Pages 入口无法与 Vercel 在这些响应头上完全等价；这项平台差异不能通过客户端脚本补偿。
 
 ### Vercel
 
@@ -335,6 +347,8 @@ npm run admin -- attempts cleanup --confirm-cleanup
 - `/data/*`、书面页、题图、私有图等敏感公开路径返回 404。
 - 其余路径 rewrite 到 `index.html`，由 React Router 处理。
 
+Vercel 的响应头 CSP 与 HTML CSP 保持同一资源白名单；更换 Supabase 项目时必须同时更新两处，避免某个正式入口出现策略漂移。
+
 ## 维护约定
 
 - 禁止直接编辑 `frontend/src/components/ui/`；通过业务组合、`className`、variant、设计 token 或公共业务组件扩展。
@@ -343,4 +357,4 @@ npm run admin -- attempts cleanup --confirm-cleanup
 - 新增异步操作必须同时处理 loading、disabled/aria-busy、empty、error 和可重试状态；图片失败必须有界。
 - 生产数据行为以 `services/data.ts`、`features/quiz/quiz-engine.ts`、`lib/markup.ts`、SQL 与管理脚本为准；修改规则时同步更新测试和本文档。
 - `.env`、`private-assets/`、邀请码、service role key、访问 token 和管理命令输出不得提交到 Git。
-- 发布前至少执行 `npm run check`；有可用浏览器环境时再执行 `npm run test:layout`、公开入口控制台检查，以及普通/管理员合法 token 的完整人工回归。
+- 发布前至少执行 `npm run check` 和 `npm run test:layout`；CI 会为 PR 安装 Chromium 并强制执行二者。正式发布还需检查 Vercel 与 GitHub Pages 两个公开入口，并完成普通/管理员合法 token 的完整人工回归。

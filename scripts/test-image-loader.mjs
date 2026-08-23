@@ -4,6 +4,7 @@ import { readFrontend } from './test-react-helpers.mjs'
 const markupComponent = await readFrontend('src/components/archive/markup-content.tsx')
 const mapPage = await readFrontend('src/pages/meal-map-page.tsx')
 const recordsPage = await readFrontend('src/pages/records-page.tsx')
+const writtenRecordPages = await readFrontend('src/features/records/written-record-pages.tsx')
 const quizPage = await readFrontend('src/pages/quiz-page.tsx')
 const data = await readFrontend('src/services/data.ts')
 const signedAssetHook = await readFrontend('src/hooks/use-signed-asset.ts')
@@ -60,9 +61,10 @@ assert.doesNotMatch(
   'meal-map metadata and signed URLs must not compete as two image sources',
 )
 assert.match(mapPage, /ImageViewer/, 'meal map must use the shared zoom and pan viewer')
-assert.match(recordsPage, /SignedPageImage/, 'written record pages need a signed image component')
+assert.match(recordsPage, /WrittenRecordPages/, 'the records route must compose its written-page module')
+assert.match(writtenRecordPages, /SignedPageImage/, 'written record pages need a signed image component')
 assert.match(
-  recordsPage,
+  writtenRecordPages,
   /useSignedAsset\(path, \{ variant: 'preview', width: 1200 \}\)/,
   'written pages must render a transformed preview before opening the original',
 )

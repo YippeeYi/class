@@ -1,0 +1,6 @@
+{
+  "maxJavaScriptChunkGzipBytes": 131072,
+  "maxStylesheetGzipBytes": 51200,
+  "maxTotalJavaScriptGzipBytes": 471040,
+  "maxTotalDistBytes": 2621440
+}

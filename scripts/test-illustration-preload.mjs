@@ -7,6 +7,7 @@ const component = await readFrontend('src/components/archive/markup-content.tsx'
 const service = await readFrontend('src/services/image-metadata.ts')
 const app = await readFrontend('src/app.tsx')
 const recordsPage = await readFrontend('src/pages/records-page.tsx')
+const writtenRecordPages = await readFrontend('src/features/records/written-record-pages.tsx')
 const mapPage = await readFrontend('src/pages/meal-map-page.tsx')
 const valid = markup.extractMarkupReferences('查看 [[illu:photo.webp|这张图片]]。')
 const invalid = markup.extractMarkupReferences('拒绝 [[illu:../secret.png|越界图片]]。')
@@ -116,7 +117,11 @@ assert.doesNotMatch(
   /warmVisibleIllustrations|preloadImageDimensionList/,
   'opening records must not speculatively request illustrations that are still hidden in text',
 )
-assert.match(recordsPage, /useImageDimensions\(path, true, 1200\)/, 'written previews must reserve their real ratio')
+assert.match(
+  writtenRecordPages,
+  /useImageDimensions\(path, true, 1200\)/,
+  'written previews must reserve their real ratio',
+)
 assert.match(
   mapPage,
   /<figure className="[^"]*min-h-0 flex-1[^"]*overflow-hidden/,
