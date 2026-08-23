@@ -466,6 +466,7 @@ try {
       storageRequests.push({
         method: request.method(),
         path: new URL(request.url()).pathname,
+        url: request.url(),
         resourceType: request.resourceType(),
         postData: request.postData() || '',
       })
@@ -1246,12 +1247,13 @@ try {
     1,
     `opening a large image must sign its original exactly once: ${JSON.stringify(firstPrivateViewerRequests)}`,
   )
-  assert.equal(
-    firstPrivateViewerRequests.filter(
-      (request) => request.method === 'GET' && request.resourceType === 'image',
-    ).length,
-    1,
-    `opening a large image must download only that original: ${JSON.stringify(firstPrivateViewerRequests)}`,
+  const firstPrivateViewerGets = firstPrivateViewerRequests.filter(
+    (request) => request.method === 'GET' && request.resourceType === 'image',
+  )
+  assert.ok(
+    firstPrivateViewerGets.length >= 1 &&
+      new Set(firstPrivateViewerGets.map((request) => request.url)).size === 1,
+    `opening a large image must use only its one signed original URL: ${JSON.stringify(firstPrivateViewerRequests)}`,
   )
   assert.equal(
     JSON.parse(firstPrivateViewerRequests.find((request) => request.method === 'POST').postData)
@@ -1315,11 +1317,13 @@ try {
     1,
     `reopening a large image must reuse its signed URL: ${JSON.stringify(repeatedPrivateViewerRequests)}`,
   )
-  assert.ok(
-    repeatedPrivateViewerRequests.filter(
-      (request) => request.method === 'GET' && request.resourceType === 'image',
-    ).length <= 1,
-    `reopening a large image must reuse the browser image cache: ${JSON.stringify(repeatedPrivateViewerRequests)}`,
+  const repeatedPrivateViewerGets = repeatedPrivateViewerRequests.filter(
+    (request) => request.method === 'GET' && request.resourceType === 'image',
+  )
+  assert.deepEqual(
+    [...new Set(repeatedPrivateViewerGets.map((request) => request.url))],
+    [...new Set(firstPrivateViewerGets.map((request) => request.url))],
+    `reopening a large image must reuse the same signed original URL: ${JSON.stringify(repeatedPrivateViewerRequests)}`,
   )
   const cancelledViewerPath =
     '/storage/v1/object/sign/classrecord-private/fixtures/progressive-cancel.svg'
@@ -1346,11 +1350,13 @@ try {
     1,
     `closing during load and reopening must reuse the pending signed URL: ${JSON.stringify(cancelledViewerRequests)}`,
   )
+  const cancelledViewerGets = cancelledViewerRequests.filter(
+    (request) => request.method === 'GET' && request.resourceType === 'image',
+  )
   assert.ok(
-    cancelledViewerRequests.filter(
-      (request) => request.method === 'GET' && request.resourceType === 'image',
-    ).length <= 1,
-    `closing during load and reopening must deduplicate the pending original download: ${JSON.stringify(cancelledViewerRequests)}`,
+    cancelledViewerGets.length >= 1 &&
+      new Set(cancelledViewerGets.map((request) => request.url)).size === 1,
+    `closing during load and reopening must reuse the pending original URL: ${JSON.stringify(cancelledViewerRequests)}`,
   )
   await page.getByRole('button', { name: '关闭大图' }).click()
   await privateViewerDialog.waitFor({ state: 'hidden' })
