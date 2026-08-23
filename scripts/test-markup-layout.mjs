@@ -28,7 +28,7 @@ const harness = String.raw`<!doctype html>
       import { SegmentedTabsList } from '/src/components/archive/segmented-tabs.tsx'
       import { SelectionMotionLayer, useSelectionMotion } from '/src/components/archive/selection-motion.tsx'
       import { TooltipProvider } from '/src/components/ui/tooltip.tsx'
-      import { DailyDistributionCell } from '/src/pages/timeline-page.tsx'
+      import { DailyDistributionCell } from '/src/features/timeline/daily-distribution.tsx'
       import { BackgroundsPage } from '/src/pages/backgrounds-page.tsx'
       import { HomePage } from '/src/pages/home-page.tsx'
       import { PeoplePage } from '/src/pages/people-page.tsx'

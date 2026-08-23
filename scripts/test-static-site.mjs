@@ -31,6 +31,8 @@ const quotes = await readFrontend('src/pages/quotes-page.tsx')
 const quiz = await readFrontend('src/pages/quiz-page.tsx')
 const search = await readFrontend('src/pages/search-page.tsx')
 const timeline = await readFrontend('src/pages/timeline-page.tsx')
+const dailyDistribution = await readFrontend('src/features/timeline/daily-distribution.tsx')
+const timelineCharts = await readFrontend('src/features/timeline/timeline-charts.tsx')
 const timelineModel = await readFrontend('src/features/timeline/timeline-model.ts')
 const quoteNavigation = await readFrontend('src/lib/quote-navigation.ts')
 const recordIdentity = await readFrontend('src/lib/record-identity.ts')
@@ -369,15 +371,15 @@ assert.match(search, /setQuery\(\(current\)/, 'search input must restore from UR
 assert.match(timeline, /params\.get\('year'\)/, 'timeline selection must restore from URL changes')
 assert.match(timeline, /AuthorDistributionChart/, 'the author distribution chart is missing')
 assert.ok(
-  (timeline.match(/isAnimationActive=\{false\}/g) || []).length >= 3,
+  (timelineCharts.match(/isAnimationActive=\{false\}/g) || []).length >= 3,
   'pie and bar charts must avoid bespoke entrance motion',
 )
 assert.match(timeline, /整体记录人/, 'the global author distribution was lost during the React migration')
 assert.match(timeline, /全档案月度/, 'the chronological all-month trend is missing')
 assert.match(timeline, /yearAuthorPie/, 'the selected-year author distribution is missing')
-assert.match(timeline, /MiniAuthorPie/, 'daily author composition markers are missing')
+assert.match(dailyDistribution, /MiniAuthorPie/, 'daily author composition markers are missing')
 assert.match(
-  timeline,
+  `${timeline}\n${timelineCharts}`,
   /usePersistentHighlight/,
   'all statistics legends must reuse the container-level highlight state contract',
 )
@@ -387,7 +389,7 @@ assert.doesNotMatch(
   'the redundant daily author legend heading must remain removed',
 )
 assert.doesNotMatch(
-  timeline,
+  dailyDistribution,
   /strokeDasharray|strokeDashoffset|pathLength="100"/,
   'daily pies must use contiguous sectors instead of accumulated dashed-circle segments',
 )
@@ -399,28 +401,29 @@ assert.match(timeline, /aria-label="年度统计与年份选择"/, 'the baseline
 assert.match(timeline, /aria-label="月度统计与月份选择"/, 'the baseline month pie and month controls must share one period layout')
 assert.match(timeline, /grid-cols-4 gap-1 sm:grid-cols-7 lg:grid-cols-10 2xl:grid-cols-14/, 'the daily calendar must provide a denser responsive layout')
 assert.match(
-  timeline,
+  dailyDistribution,
   /aspect-square h-auto min-h-0[\s\S]*grid-rows-\[auto_1fr\]/,
   'daily cells must restore a stable square frame without a fixed stretched height',
 )
-assert.match(timeline, /flex-col items-center justify-center gap-0\.5/, 'daily pie and value must use one dense, stable visual stack')
-assert.match(timeline, /w-\[58%\][\s\S]*max-w-12/, 'daily pies must occupy a larger responsive share of their square')
-assert.match(timeline, /daily-distribution-pie/, 'daily author pies need a dedicated responsive geometry')
-assert.match(timeline, /compactStatistic\(item\.value\)/, 'large daily values must use a compact non-overflowing display')
-assert.match(timeline, /daily-distribution-important-marker/, 'important days need a compact non-text visual marker')
-assert.doesNotMatch(timeline, />\s*(?:重|重要) \{compactStatistic\(item\.important\)\}/, 'daily cells must not print a redundant important label')
-assert.doesNotMatch(timeline, /daily-distribution-unit/, 'daily cards must not repeat the selected metric unit')
-assert.match(timeline, /nativeButton=\{!item\.records\.length\}/, 'daily record links must preserve native link semantics')
-assert.doesNotMatch(timeline, /style=\{\{ minWidth:/, 'timeline charts must not force a horizontal scrollbar')
-assert.doesNotMatch(timeline, /overflow-x-auto/, 'timeline controls and charts must fit or reflow instead of scrolling sideways')
+assert.match(dailyDistribution, /flex-col items-center justify-center gap-0\.5/, 'daily pie and value must use one dense, stable visual stack')
+assert.match(dailyDistribution, /w-\[58%\][\s\S]*max-w-12/, 'daily pies must occupy a larger responsive share of their square')
+assert.match(dailyDistribution, /daily-distribution-pie/, 'daily author pies need a dedicated responsive geometry')
+assert.match(dailyDistribution, /compactStatistic\(item\.value\)/, 'large daily values must use a compact non-overflowing display')
+assert.match(dailyDistribution, /daily-distribution-important-marker/, 'important days need a compact non-text visual marker')
+assert.doesNotMatch(dailyDistribution, />\s*(?:重|重要) \{compactStatistic\(item\.important\)\}/, 'daily cells must not print a redundant important label')
+assert.doesNotMatch(dailyDistribution, /daily-distribution-unit/, 'daily cards must not repeat the selected metric unit')
+assert.match(dailyDistribution, /nativeButton=\{!item\.records\.length\}/, 'daily record links must preserve native link semantics')
+assert.doesNotMatch(`${timeline}\n${timelineCharts}`, /style=\{\{ minWidth:/, 'timeline charts must not force a horizontal scrollbar')
+assert.doesNotMatch(`${timeline}\n${timelineCharts}`, /overflow-x-auto/, 'timeline controls and charts must fit or reflow instead of scrolling sideways')
 assert.doesNotMatch(timeline, /key=\{`\$\{metric\}-\$\{year\}-\$\{month\}`\}/, 'timeline selection must not remount every chart')
-const authorChartSource = timeline.slice(
-  timeline.indexOf('function AuthorDistributionChart'),
-  timeline.indexOf('function TimelineBarChart'),
+assert.ok(timeline.split('\n').length < 700, 'the timeline route must remain focused on page orchestration')
+const authorChartSource = timelineCharts.slice(
+  timelineCharts.indexOf('function AuthorDistributionChart'),
+  timelineCharts.indexOf('function TimelineBarChart'),
 )
-const authorTooltipSource = timeline.slice(
-  timeline.indexOf('function AuthorPieTooltip'),
-  timeline.indexOf('function MiniAuthorPie'),
+const authorTooltipSource = timelineCharts.slice(
+  timelineCharts.indexOf('function AuthorPieTooltip'),
+  timelineCharts.indexOf('export function buildAuthorPie'),
 )
 assert.match(authorChartSource, /AuthorPieTooltip/, 'author pie sectors must expose their measured tooltip')
 assert.match(authorTooltipSource, /记录条数[\s\S]*记录字数[\s\S]*占比/, 'author pie tooltips must expose the selected category statistics')
@@ -429,10 +432,10 @@ assert.doesNotMatch(authorChartSource, /position=\{\{/, 'author pie tooltips mus
 assert.match(authorChartSource, /cx="50%"[\s\S]*cy="50%"/, 'the author pie must use its true geometric center')
 assert.match(authorChartSource, /absolute inset-0[\s\S]*<strong/, 'the numeric pie total must share the chart geometry')
 assert.match(authorChartSource, /sm:grid-cols-\[9\.25rem_minmax\(0,1fr\)\]/, 'the author legend must retain the baseline right-hand layout')
-assert.match(timeline, /function choosePieTooltipPosition/, 'author pie tooltips must choose a position from the active sector direction')
-assert.match(timeline, /overlapWidth \* overlapHeight/, 'author pie tooltip placement must avoid covering the chart')
-assert.match(timeline, /createPortal\([\s\S]*<ChartTooltipContent/, 'pie and bar tooltips must reuse the same shadcn chart tooltip content')
-assert.match(timeline, /ResizeObserver[\s\S]*observer\.disconnect\(\)/, 'pie tooltip geometry listeners must be cleaned up')
+assert.match(timelineCharts, /function choosePieTooltipPosition/, 'author pie tooltips must choose a position from the active sector direction')
+assert.match(timelineCharts, /overlapWidth \* overlapHeight/, 'author pie tooltip placement must avoid covering the chart')
+assert.match(timelineCharts, /createPortal\([\s\S]*<ChartTooltipContent/, 'pie and bar tooltips must reuse the same shadcn chart tooltip content')
+assert.match(timelineCharts, /ResizeObserver[\s\S]*observer\.disconnect\(\)/, 'pie tooltip geometry listeners must be cleaned up')
 assert.doesNotMatch(authorChartSource, /max-h-|overflow-y-auto/, 'normal author legends must expand instead of creating an internal scrollbar')
 assert.match(
   authorChartSource,
@@ -444,7 +447,7 @@ assert.doesNotMatch(
   /<Button[\s\S]{0,500}onPointerLeave=/,
   'individual author legend items must not clear highlight while crossing an internal gap',
 )
-assert.match(timeline, /isAnimationActive=\{false\}/, 'bar tooltips and bars must avoid first-measure position animation')
+assert.match(timelineCharts, /isAnimationActive=\{false\}/, 'bar tooltips and bars must avoid first-measure position animation')
 assert.match(shell, /wideContentPaths = new Set\(\['\/timeline'\]\)/, 'the statistics workspace needs the wide desktop content lane')
 for (const [name, source] of [
   ['shell', shell],
