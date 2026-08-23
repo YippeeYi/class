@@ -236,14 +236,12 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
     if (dismissedByScroll.current) return
     requestPreview()
     const request = ++openRequest.current
-    const known = getImageDimensions(path)
-    if (known) {
-      showAtLockedPointer(known)
-      return
-    }
+    const known = getImageDimensions(path) || dimensions
+    showAtLockedPointer(known || { width: 240, height: 180 })
+    if (known) return
     void preloadImageDimensions(path, 720).then((loaded) => {
-      if (request !== openRequest.current) return
-      showAtLockedPointer(loaded || { width: 240, height: 180 })
+      if (request !== openRequest.current || !openRef.current || !loaded) return
+      setLockedDimensions(loaded)
     })
   }
 
@@ -254,6 +252,7 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
   return (
     <HoverCard open={open} onOpenChange={changeOpen}>
       <HoverCardTrigger
+        delay={0}
         render={
           <span className="inline">
             <ImageViewer

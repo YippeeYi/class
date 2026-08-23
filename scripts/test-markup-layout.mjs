@@ -2598,36 +2598,50 @@ try {
   assert.equal(await guide.getByRole('link', { name: /记录/ }).count() > 0, true, 'guide must expose the primary records entry')
   assert.equal(await guide.getByRole('link', { name: /致谢/ }).count(), 1, 'guide must restore the baseline credits entry')
   assert.equal(await guide.getByRole('button', { name: /历史上的今天/ }).count(), 1, 'guide must retain the date-matched history entry')
-  const guideRecordCardLink = guide.locator('a.app-interactive-card[href="/records"]').last()
-  const readGuideCardState = () =>
-    guideRecordCardLink.evaluate((link) => {
-      const card = link.querySelector('[data-slot="card"]')
-      const bounds = card.getBoundingClientRect()
-      const styles = getComputedStyle(card)
+  const guideRecordItem = guide.locator('a.app-interactive-item[href="/records"]').last()
+  const guideTimelineItem = guide.locator('a.app-interactive-item[href="/timeline"]')
+  const readGuideItemState = (item) =>
+    item.evaluate((link) => {
+      const bounds = link.getBoundingClientRect()
+      const styles = getComputedStyle(link)
       return {
         bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
         background: styles.backgroundColor,
         border: styles.borderColor,
       }
     })
-  const guideCardBefore = await readGuideCardState()
-  await guideRecordCardLink.hover()
+  const guideItemBefore = await readGuideItemState(guideRecordItem)
+  await guideRecordItem.hover()
   await page.waitForTimeout(220)
-  const guideCardAfter = await readGuideCardState()
+  const guidePrimaryAfter = await readGuideItemState(guideRecordItem)
   assert.deepEqual(
-    guideCardAfter.bounds,
-    guideCardBefore.bounds,
-    'guide entry hover must not move or resize the shared interactive card',
+    guidePrimaryAfter.bounds,
+    guideItemBefore.bounds,
+    'guide entry hover must not move or resize the shared interactive item',
   )
   assert.ok(
-    guideCardAfter.background !== guideCardBefore.background ||
-      guideCardAfter.border !== guideCardBefore.border,
-    `guide entry hover must expose the shared card feedback: ${JSON.stringify({ guideCardBefore, guideCardAfter })}`,
+    guidePrimaryAfter.background !== guideItemBefore.background ||
+      guidePrimaryAfter.border !== guideItemBefore.border,
+    `guide entry hover must expose the shared item feedback: ${JSON.stringify({ guideItemBefore, guidePrimaryAfter })}`,
+  )
+  await guideTimelineItem.hover()
+  await page.waitForTimeout(220)
+  const guideSecondaryAfter = await readGuideItemState(guideTimelineItem)
+  assert.deepEqual(
+    {
+      background: guidePrimaryAfter.background,
+      border: guidePrimaryAfter.border,
+    },
+    {
+      background: guideSecondaryAfter.background,
+      border: guideSecondaryAfter.border,
+    },
+    'primary and secondary guide entries must share the same hover colors',
   )
   await page.keyboard.press('Tab')
-  await guideRecordCardLink.focus()
+  await guideRecordItem.focus()
   assert.notEqual(
-    await guideRecordCardLink.evaluate((link) => getComputedStyle(link).boxShadow),
+    await guideRecordItem.evaluate((link) => getComputedStyle(link).boxShadow),
     'none',
     'guide entry keyboard focus must expose the shared focus-visible ring',
   )
@@ -2816,7 +2830,7 @@ try {
   const initialPointerX = triggerBox.x + Math.min(12, triggerBox.width / 3)
   await page.mouse.move(initialPointerX, triggerBox.y + triggerBox.height / 2)
   const illustrationPopup = page.locator('.record-illustration-popup[data-open]')
-  await illustrationPopup.waitFor({ state: 'visible' })
+  await illustrationPopup.waitFor({ state: 'visible', timeout: 300 })
   const firstPopup = await illustrationPopup.boundingBox()
   assert.ok(firstPopup)
   assert.ok(Math.abs(firstPopup.x + firstPopup.width / 2 - initialPointerX) <= 2, 'illustration popup must initially center on pointer clientX')
@@ -2824,7 +2838,10 @@ try {
   await page.waitForTimeout(80)
   const movedPopup = await illustrationPopup.boundingBox()
   assert.ok(movedPopup)
-  assert.ok(Math.abs(movedPopup.x - firstPopup.x) <= 1, 'an open illustration popup must not follow later pointer movement')
+  assert.ok(
+    Math.abs(movedPopup.x + movedPopup.width / 2 - initialPointerX) <= 2,
+    'an open illustration popup must remain anchored to the pointer position that opened it',
+  )
   await page.locator('.record-illustration-popup').evaluate((element) => {
     window.__illustrationScrollCloseCount = 0
     const observer = new MutationObserver(() => {

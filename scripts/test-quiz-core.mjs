@@ -43,7 +43,11 @@ assert.match(
   'an active hidden image must request only its compressed rendition',
 )
 assert.match(quiz, /<ImageViewer[\s\S]*initialUrl=\{resource\.src\}/, 'hidden images must reuse the shared large viewer')
-assert.match(quiz, /getImageDimensions\(path\)/, 'secret images must reserve their intrinsic ratio')
+assert.match(
+  quiz,
+  /useImageDimensions\(path, true, 960\)/,
+  'secret images must reserve their intrinsic ratio before rendering the frame',
+)
 assert.match(quiz, /aspectRatio:/, 'secret image loading must use a stable frame')
 assert.match(quiz, /pendingQuestionTop/, 'question changes must preserve the prompt viewport position')
 assert.match(

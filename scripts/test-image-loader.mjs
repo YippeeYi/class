@@ -109,6 +109,26 @@ assert.match(
   /useSignedAsset\(path, \{ variant: 'preview', width: 960 \}\)/,
   'quiz images must first request a compressed rendition',
 )
+assert.match(
+  quizPage,
+  /useImageDimensions\(path, true, 960\)/,
+  'quiz image frames must use the same intrinsic-dimension pipeline as record illustrations',
+)
+assert.doesNotMatch(
+  quizPage,
+  /getImageDimensions\(path\) \|\| \{ width: 960, height: 720 \}/,
+  'quiz images must not expose a guessed 4:3 frame before their intrinsic dimensions are known',
+)
+assert.match(
+  quizPage,
+  /if \(!frameDimensions\)[\s\S]*data-secret-image-dimensions-pending[\s\S]*正在读取题图尺寸/,
+  'quiz images must keep the visual frame hidden while intrinsic dimensions are pending',
+)
+assert.match(
+  quizPage,
+  /aspectRatio: `\$\{frameDimensions\.width\} \/ \$\{frameDimensions\.height\}`[\s\S]*data-secret-image-frame/,
+  'quiz loading and decoded states must share one intrinsic-ratio frame',
+)
 assert.doesNotMatch(
   quizPage,
   /preloadQuizImage|quizImagePreloadCache/,

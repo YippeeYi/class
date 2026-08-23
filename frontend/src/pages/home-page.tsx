@@ -234,25 +234,33 @@ export function HomePage() {
                   icon: MessageSquareQuote,
                 },
               ].map(({ to, label, value, description, icon: Icon }) => (
-                <Link to={to} key={to} className={interactiveSurfaceVariants({ kind: 'card' })}>
-                  <Card className="grid h-full min-h-40 content-between gap-0 rounded-xl border border-border/70 bg-background/38 p-4 py-4 ring-0 sm:p-5 sm:py-5">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">
-                        <Icon className="size-5" />
-                      </span>
+                <Item
+                  key={to}
+                  variant="outline"
+                  className={`${interactiveSurfaceVariants({ kind: 'item' })} grid h-full min-h-40 content-between gap-0 bg-background/32 p-4 sm:p-5`}
+                  render={<Link to={to} />}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <ItemMedia
+                      variant="icon"
+                      className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary"
+                    >
+                      <Icon className="size-5" />
+                    </ItemMedia>
+                    <ItemActions>
                       <ArrowRight className="size-4 text-muted-foreground" />
+                    </ItemActions>
+                  </div>
+                  <div className="mt-5">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <h2 className="font-heading text-lg font-semibold">{label}</h2>
+                      <strong className="font-heading text-2xl font-semibold tracking-tight tabular-nums">
+                        {value.toLocaleString()}
+                      </strong>
                     </div>
-                    <div className="mt-5">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <h2 className="font-heading text-lg font-semibold">{label}</h2>
-                        <strong className="font-heading text-2xl font-semibold tracking-tight tabular-nums">
-                          {value.toLocaleString()}
-                        </strong>
-                      </div>
-                      <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
-                    </div>
-                  </Card>
-                </Link>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
+                  </div>
+                </Item>
               ))}
             </div>
           )}

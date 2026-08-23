@@ -42,7 +42,11 @@ import { normalizeText } from '@/lib/archive'
 import { stripMarkup } from '@/lib/markup'
 import { cn } from '@/lib/utils'
 import { hasAdminAccess, loadQuizQuestions, loadSupplementalRecords } from '@/services/data'
-import { getImageDimensions, rememberImageDimensions } from '@/services/image-metadata'
+import {
+  preloadImageDimensions,
+  rememberImageDimensions,
+  useImageDimensions,
+} from '@/services/image-metadata'
 
 const TYPE_LABELS: Record<PlayQuestion['type'], string> = {
   choice: '选择题',
@@ -107,11 +111,39 @@ function QuestionSource({ question, revealed }: { question: PlayQuestion; reveal
 
 export function SecretImage({ path }: { path: string }) {
   const resource = useSignedAsset(path, { variant: 'preview', width: 960 })
-  const [frameDimensions, setFrameDimensions] = useState(
-    () => getImageDimensions(path) || { width: 960, height: 720 },
-  )
+  const frameDimensions = useImageDimensions(path, true, 960)
   const [ready, setReady] = useState(false)
   const [decodeFailed, setDecodeFailed] = useState(false)
+
+  const retryPreview = () => {
+    setDecodeFailed(false)
+    void preloadImageDimensions(path, 960)
+    void resource.retry()
+  }
+
+  if (!frameDimensions) {
+    const failed = !resource.loading && !resource.src
+    return (
+      <div
+        className="mx-auto flex min-h-10 max-w-full items-center justify-center text-sm text-muted-foreground"
+        data-secret-image-dimensions-pending=""
+        role="status"
+        aria-live="polite"
+      >
+        {failed ? (
+          <Button size="sm" variant="outline" onClick={retryPreview}>
+            题图加载失败，重试
+          </Button>
+        ) : (
+          <span className="flex items-center gap-2">
+            <Spinner aria-hidden="true" />
+            正在读取题图尺寸
+          </span>
+        )}
+      </div>
+    )
+  }
+
   const ratio = frameDimensions.width / frameDimensions.height
   const hasViewerTrigger = Boolean(resource.src && !decodeFailed)
   const sizingStyle = {
@@ -122,6 +154,8 @@ export function SecretImage({ path }: { path: string }) {
   const frame = (
     <div
       className={`relative grid place-items-center overflow-hidden rounded-xl bg-muted/60 text-sm text-muted-foreground ${hasViewerTrigger ? 'size-full' : 'mx-auto max-w-full'}`}
+      data-secret-image-frame=""
+      data-image-ready={ready ? 'true' : 'false'}
       style={hasViewerTrigger ? undefined : sizingStyle}
       aria-busy={!ready && !decodeFailed}
     >
@@ -139,10 +173,7 @@ export function SecretImage({ path }: { path: string }) {
             variant="outline"
             disabled={resource.loading}
             aria-busy={resource.loading || undefined}
-            onClick={() => {
-              setDecodeFailed(false)
-              void resource.retry()
-            }}
+            onClick={retryPreview}
           >
             {resource.loading ? (
               <>
@@ -169,7 +200,6 @@ export function SecretImage({ path }: { path: string }) {
               height: event.currentTarget.naturalHeight,
             }
             rememberImageDimensions(path, dimensions)
-            setFrameDimensions(dimensions)
             setReady(true)
           }}
           onError={() => {

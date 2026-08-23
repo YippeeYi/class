@@ -182,6 +182,21 @@ assert.match(
   /<Button variant="outline" nativeButton=\{false\} render=\{<Link to="\/search" \/>\}>/,
   'guide search navigation must declare link semantics to the shared shadcn Button',
 )
+assert.equal(
+  home.match(/interactiveSurfaceVariants\(\{ kind: 'item' \}\)/g)?.length,
+  2,
+  'primary and secondary guide entries must call the same interactive item contract',
+)
+assert.doesNotMatch(
+  home,
+  /interactiveSurfaceVariants\(\{ kind: 'card' \}\)/,
+  'guide entries must not keep a separate card hover implementation',
+)
+assert.match(
+  markupContent,
+  /<HoverCardTrigger\s+delay=\{0\}/,
+  'illustration references must opt out of the hover-card opening delay',
+)
 assert.match(shell, /viewportLockedPaths/, 'workspace routes must share one viewport-lock contract')
 for (const route of ['/materials', '/quiz', '/map']) {
   assert.match(shell, new RegExp(`'${route}'`), `${route} must lock the outer viewport`)
