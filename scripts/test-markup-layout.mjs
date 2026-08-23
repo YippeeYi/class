@@ -970,6 +970,29 @@ try {
     )
   }
   const scrollBeforeDialogClose = await page.evaluate(() => window.scrollY)
+  await recordsFixture.locator('#record-r3').evaluate((target) => {
+    const transitions = []
+    const capture = () => {
+      transitions.push({
+        at: performance.now(),
+        highlight: target.getAttribute('data-record-jump-highlight'),
+        pending: target.getAttribute('data-record-jump-pending-fade'),
+        fading: target.getAttribute('data-record-jump-fading'),
+      })
+    }
+    const observer = new MutationObserver(capture)
+    observer.observe(target, {
+      attributes: true,
+      attributeFilter: [
+        'data-record-jump-highlight',
+        'data-record-jump-pending-fade',
+        'data-record-jump-fading',
+      ],
+    })
+    window.__recordJumpFadeObserver = observer
+    window.__recordJumpFadeTransitions = transitions
+    capture()
+  })
   await page.getByRole('button', { name: '留在此处' }).click()
   await page.getByRole('alertdialog').waitFor({ state: 'hidden' })
   const dialogCloseState = await page.evaluate(() => ({
@@ -997,10 +1020,26 @@ try {
     'true',
     'closing the jump dialog must expose a fresh visible target highlight',
   )
-  assert.equal(
-    dialogCloseState.highlightPending,
-    'true',
-    'the visible record highlight must hold briefly before its fade begins',
+  await page.waitForFunction(
+    () =>
+      document.querySelector('#record-r3')?.getAttribute('data-record-jump-fading') === 'true',
+  )
+  const highlightTransitions = await page.evaluate(() => {
+    window.__recordJumpFadeObserver?.disconnect()
+    const transitions = window.__recordJumpFadeTransitions || []
+    delete window.__recordJumpFadeObserver
+    delete window.__recordJumpFadeTransitions
+    return transitions
+  })
+  const pendingTransition = highlightTransitions.find((transition) => transition.pending === 'true')
+  const fadingTransition = highlightTransitions.find((transition) => transition.fading === 'true')
+  assert.ok(
+    pendingTransition,
+    `the visible record highlight must enter its hold state: ${JSON.stringify(highlightTransitions)}`,
+  )
+  assert.ok(
+    fadingTransition && fadingTransition.at - pendingTransition.at >= 500,
+    `the visible record highlight must hold before its fade begins: ${JSON.stringify(highlightTransitions)}`,
   )
   const postJumpScroll = dialogCloseState.scrollY
   const postJumpAnnotation = recordsFixture
