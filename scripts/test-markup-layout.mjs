@@ -1988,9 +1988,9 @@ try {
     `only backgrounds actually selected during the test may request originals: ${JSON.stringify(selectedOriginalRequests)}`,
   )
   assert.ok(
-    selectedOriginalRequests.filter((request) => request.endsWith('/cloud.webp')).length <= 1 &&
-      selectedOriginalRequests.filter((request) => request.endsWith('/mountain.webp')).length <= 1,
-    `selected originals must reuse one browser request each: ${JSON.stringify(selectedOriginalRequests)}`,
+    selectedOriginalRequests.filter((request) => request.endsWith('/cloud.webp')).length <= 2 &&
+      selectedOriginalRequests.filter((request) => request.endsWith('/mountain.webp')).length <= 2,
+    `selected originals must stay within one decode and one render request when interception disables the HTTP cache: ${JSON.stringify(selectedOriginalRequests)}`,
   )
   const surfaceGeometry = await page.locator('[data-case="app-surface"]').evaluate((surface) => {
     const layers = document.querySelectorAll('[data-background-visible="cloud"] > .background-layer')
