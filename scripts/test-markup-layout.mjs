@@ -9,6 +9,11 @@ import { assertFullscreenImageViewer } from './layout/assert-image-viewer.mjs'
 import { findSystemChromium } from './layout/browser-runtime.mjs'
 import { frontend } from './test-react-helpers.mjs'
 
+function withoutDeploymentBase(assetPath) {
+  const publicAssetStart = assetPath.indexOf('/images/')
+  return publicAssetStart >= 0 ? assetPath.slice(publicAssetStart) : assetPath
+}
+
 const harness = String.raw`<!doctype html>
 <html lang="zh-CN">
   <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><script src="/theme-bootstrap.js"></script></head>
@@ -531,7 +536,7 @@ try {
     if (message.type() === 'error' || message.type() === 'warning')
       consoleProblems.push(`${message.type()}: ${message.text()}`)
   })
-  await page.goto(origin, { waitUntil: 'networkidle' })
+  await page.goto(origin, { waitUntil: 'domcontentloaded' })
   await page.waitForFunction(() => window.__markupLayoutReady === true)
   assert.deepEqual(pageErrors, [], `browser page errors during initial render: ${pageErrors.join('; ')}`)
   assert.equal(await page.title(), '编日史 · 导览')
@@ -1851,7 +1856,7 @@ try {
     /\/images\/backgrounds\/(?:mountain|cloud)(?:-preview)?\.(?:jpg|webp)$/u.test(request),
   )
   assert.deepEqual(
-    [...new Set(chooserImageRequests)].sort(),
+    [...new Set(chooserImageRequests.map(withoutDeploymentBase))].sort(),
     ['/images/backgrounds/cloud-preview.jpg', '/images/backgrounds/mountain-preview.jpg'],
     `opening the chooser must request only its two compressed previews: ${JSON.stringify(chooserImageRequests)}`,
   )
@@ -1978,7 +1983,7 @@ try {
     /\/images\/backgrounds\/(?:mountain|cloud)\.webp$/u.test(request),
   )
   assert.deepEqual(
-    [...new Set(selectedOriginalRequests)].sort(),
+    [...new Set(selectedOriginalRequests.map(withoutDeploymentBase))].sort(),
     ['/images/backgrounds/cloud.webp', '/images/backgrounds/mountain.webp'],
     `only backgrounds actually selected during the test may request originals: ${JSON.stringify(selectedOriginalRequests)}`,
   )
@@ -2927,7 +2932,7 @@ try {
   const touchPage = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true })
   const touchErrors = []
   touchPage.on('pageerror', (error) => touchErrors.push(error.message))
-  await touchPage.goto(origin, { waitUntil: 'networkidle' })
+  await touchPage.goto(origin, { waitUntil: 'domcontentloaded' })
   await touchPage.waitForFunction(() => window.__markupLayoutReady === true)
   const touchLongTrigger = touchPage.getByRole('button', { name: '长注触发' })
   await touchLongTrigger.scrollIntoViewIfNeeded()
@@ -2949,7 +2954,7 @@ try {
     })
     const densityErrors = []
     densityPage.on('pageerror', (error) => densityErrors.push(error.message))
-    await densityPage.goto(origin, { waitUntil: 'networkidle' })
+    await densityPage.goto(origin, { waitUntil: 'domcontentloaded' })
     await densityPage.waitForFunction(() => window.__markupLayoutReady === true)
     await densityPage.getByRole('tab', { name: /^方框/ }).click()
     await densityPage.locator('[data-box-style-id="rounded"]').click()
