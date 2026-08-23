@@ -9,6 +9,7 @@ const quizPage = await readFrontend('src/pages/quiz-page.tsx')
 const data = await readFrontend('src/services/data.ts')
 const signedAssetHook = await readFrontend('src/hooks/use-signed-asset.ts')
 const imageViewer = await readFrontend('src/components/archive/image-viewer.tsx')
+const imageMetadata = await readFrontend('src/services/image-metadata.ts')
 const boundedRetryHook = await readFrontend('src/hooks/use-bounded-image-retry.ts')
 assert.match(markupComponent, /useSignedAsset\(requested \? path : ''/, 'record illustrations must be signed only on demand')
 assert.match(markupComponent, /preview\.loading/, 'illustrations need an explicit loading state')
@@ -44,6 +45,11 @@ assert.match(
 )
 assert.match(boundedRetryHook, /automaticRetryUsed/, 'decode failures need a bounded automatic retry budget')
 assert.match(boundedRetryHook, /setFailed\(true\)/, 'exhausted image retries must expose a stable error state')
+assert.match(
+  imageMetadata,
+  /state\.path === path \? state\.value : getImageDimensions\(path\)/,
+  'image dimension hooks must never expose the previous path geometry during a source change',
+)
 assert.match(mapPage, /loadMealMapMetadata/, 'meal map must load its gated intrinsic metadata')
 assert.match(
   mapPage,

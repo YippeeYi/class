@@ -113,12 +113,15 @@ export function useImageDimensions(
   enabled = true,
   previewWidth = DEFAULT_ASSET_PREVIEW_WIDTH,
 ) {
-  const [value, setValue] = useState<ImageDimensions | null>(() => getImageDimensions(path))
+  const [state, setState] = useState<{ path: string; value: ImageDimensions | null }>(() => ({
+    path,
+    value: getImageDimensions(path),
+  }))
   useEffect(() => {
-    setValue(getImageDimensions(path))
+    const update = () => setState({ path, value: getImageDimensions(path) })
+    update()
     if (!path || !enabled) return
     const pathListeners = listeners.get(path) || new Set<() => void>()
-    const update = () => setValue(getImageDimensions(path))
     pathListeners.add(update)
     listeners.set(path, pathListeners)
     void preloadImageDimensions(path, previewWidth)
@@ -127,7 +130,7 @@ export function useImageDimensions(
       if (!pathListeners.size) listeners.delete(path)
     }
   }, [enabled, path, previewWidth])
-  return value
+  return state.path === path ? state.value : getImageDimensions(path)
 }
 
 if (typeof window !== 'undefined') {
