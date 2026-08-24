@@ -27,6 +27,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Tabs } from '@/components/ui/tabs'
 import { recordWithinPage as withinPage } from '@/features/records/record-page-mapping'
+import { useRecordJumpHighlight } from '@/features/records/use-record-jump-highlight'
 import { loadWrittenRecordData, writtenFailureLabel } from '@/features/records/written-record-data'
 import { WrittenRecordPages } from '@/features/records/written-record-pages'
 import { useAsyncData } from '@/hooks/use-async-data'
@@ -54,9 +55,6 @@ const recordViewItems = [
   { value: 'list', label: '按条记录', icon: List },
   { value: 'written', label: '书面记录', icon: FileImage },
 ] as const
-
-const JUMP_HIGHLIGHT_HOLD_MS = 520
-const JUMP_HIGHLIGHT_FADE_MS = 680
 
 function criteriaFromSearch(params: URLSearchParams): RecordCriteria {
   return {
@@ -131,10 +129,13 @@ export function RecordsPage() {
   const [jumpOrigin, setJumpOrigin] = useState<PendingRecordJump['origin']>()
   const [jumpError, setJumpError] = useState('')
   const pendingReturn = useRef<{ scrollY: number; anchorId: string } | null>(null)
-  const jumpFocusTarget = useRef<HTMLElement | null>(null)
-  const jumpHighlightTarget = useRef<HTMLElement | null>(null)
-  const jumpHighlightTimer = useRef<number | undefined>(undefined)
   const suppressNextLocationJump = useRef(false)
+  const {
+    focusTarget: jumpFocusTarget,
+    clearHighlight: clearJumpHighlight,
+    beginHighlight: beginJumpHighlight,
+    fadeHighlight: fadeJumpHighlight,
+  } = useRecordJumpHighlight()
   const written = useAsyncData(async () => {
     if (view !== 'written') return null
     return loadWrittenRecordData(hidden)
@@ -321,75 +322,6 @@ export function RecordsPage() {
   )
 
   const loading = !hidden && recordsResource.loading
-
-  const clearJumpHighlight = useCallback((target?: HTMLElement | null) => {
-    const current = target || jumpHighlightTarget.current
-    if (!current) return
-    if (jumpHighlightTimer.current !== undefined) {
-      window.clearTimeout(jumpHighlightTimer.current)
-      jumpHighlightTimer.current = undefined
-    }
-    delete current.dataset.recordJumpHighlight
-    delete current.dataset.recordJumpFading
-    delete current.dataset.recordJumpPendingFade
-    if (jumpHighlightTarget.current === current) jumpHighlightTarget.current = null
-  }, [])
-
-  const beginJumpHighlight = useCallback((target: HTMLElement) => {
-    if (jumpHighlightTimer.current !== undefined) {
-      window.clearTimeout(jumpHighlightTimer.current)
-      jumpHighlightTimer.current = undefined
-    }
-    const previous = jumpHighlightTarget.current
-    if (previous && previous !== target) {
-      delete previous.dataset.recordJumpHighlight
-      delete previous.dataset.recordJumpFading
-      delete previous.dataset.recordJumpPendingFade
-    }
-    delete target.dataset.recordJumpFading
-    delete target.dataset.recordJumpPendingFade
-    target.dataset.recordJumpHighlight = 'true'
-    jumpHighlightTarget.current = target
-  }, [])
-
-  const fadeJumpHighlight = useCallback((target?: HTMLElement | null) => {
-    const current = target || jumpHighlightTarget.current
-    if (current?.dataset.recordJumpHighlight !== 'true') return
-    if (jumpHighlightTimer.current !== undefined) window.clearTimeout(jumpHighlightTimer.current)
-    delete current.dataset.recordJumpFading
-    current.dataset.recordJumpPendingFade = 'true'
-    jumpHighlightTimer.current = window.setTimeout(() => {
-      if (
-        jumpHighlightTarget.current !== current ||
-        current.dataset.recordJumpHighlight !== 'true'
-      ) {
-        delete current.dataset.recordJumpPendingFade
-        jumpHighlightTimer.current = undefined
-        return
-      }
-      delete current.dataset.recordJumpPendingFade
-      current.dataset.recordJumpFading = 'true'
-      jumpHighlightTimer.current = window.setTimeout(() => {
-        delete current.dataset.recordJumpHighlight
-        delete current.dataset.recordJumpFading
-        delete current.dataset.recordJumpPendingFade
-        if (jumpHighlightTarget.current === current) jumpHighlightTarget.current = null
-        jumpHighlightTimer.current = undefined
-      }, JUMP_HIGHLIGHT_FADE_MS)
-    }, JUMP_HIGHLIGHT_HOLD_MS)
-  }, [])
-
-  useEffect(
-    () => () => {
-      if (jumpHighlightTimer.current !== undefined) window.clearTimeout(jumpHighlightTimer.current)
-      if (jumpHighlightTarget.current) {
-        delete jumpHighlightTarget.current.dataset.recordJumpHighlight
-        delete jumpHighlightTarget.current.dataset.recordJumpFading
-        delete jumpHighlightTarget.current.dataset.recordJumpPendingFade
-      }
-    },
-    [],
-  )
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: jumpRevision re-runs the locator after a same-page route stores a new pending jump in the ref.
   useLayoutEffect(() => {
