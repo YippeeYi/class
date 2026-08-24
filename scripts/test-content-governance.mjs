@@ -159,21 +159,22 @@ assert.throws(
   /escaped its root/,
 )
 
-const [adminSource, adminAccessSource, dataSource, setupSql, checkSql] = await Promise.all([
+const [adminSource, adminAccessSource, adminRuntimeSource, dataSource, setupSql, checkSql] = await Promise.all([
   fs.readFile(path.join(root, 'scripts/admin.mjs'), 'utf8'),
   fs.readFile(path.join(root, 'scripts/admin-access.mjs'), 'utf8'),
+  fs.readFile(path.join(root, 'scripts/admin-runtime.mjs'), 'utf8'),
   fs.readFile(path.join(root, 'frontend/src/services/data.ts'), 'utf8'),
   fs.readFile(path.join(root, 'sql/setup.sql'), 'utf8'),
   fs.readFile(path.join(root, 'sql/check.sql'), 'utf8'),
 ])
 
-assert.match(adminSource, /publish --confirm-publish/)
+assert.match(adminRuntimeSource, /publish --confirm-publish/)
 assert.match(adminSource, /Created \$\{reason\} snapshot \(complete\)/)
 assert.match(adminSource, /storageIncluded: true/, 'publication snapshots must include binary Storage content')
 assert.match(adminSource, /downloadStorageObject/, 'publication must download old Storage before mutation')
-assert.match(adminSource, /rollback --snapshot TIMESTAMP --confirm-rollback/)
+assert.match(adminRuntimeSource, /rollback --snapshot TIMESTAMP --confirm-rollback/)
 assert.match(adminSource, /reason: 'pre-rollback'/, 'rollback must first preserve the current remote state')
-assert.match(adminSource, /sessions revoke --id UUID --confirm-revoke/)
+assert.match(adminRuntimeSource, /sessions revoke --id UUID --confirm-revoke/)
 assert.match(adminSource, /createAccessAdmin/, 'the formal admin entry point must compose access operations')
 assert.match(adminAccessSource, /confirm-revoke/, 'session revocation safeguards must live in the access module')
 const storagePruner = adminSource.slice(
