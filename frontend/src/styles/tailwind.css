@@ -1120,6 +1120,9 @@ body .app-interactive-media:not(:disabled):active {
     --quiz-error-foreground: oklch(0.44 0.16 25);
     --quiz-error-emphasis: oklch(0.55 0.19 25);
     --quiz-error-emphasis-foreground: oklch(0.985 0.006 25);
+    --quiz-hint-surface: oklch(0.96 0.026 82);
+    --quiz-hint-foreground: oklch(0.42 0.075 67);
+    --quiz-hint-emphasis: oklch(0.59 0.105 76);
     --quiz-option-surface: color-mix(in oklch, var(--card) 92%, var(--muted));
     --quiz-option-hover-surface: color-mix(in oklch, var(--quiz-type-accent) 8%, var(--card));
     --quiz-option-pressed-surface: color-mix(in oklch, var(--quiz-type-accent) 13%, var(--card));
@@ -1154,6 +1157,9 @@ body .app-interactive-media:not(:disabled):active {
     --quiz-error-foreground: oklch(0.85 0.1 25);
     --quiz-error-emphasis: oklch(0.68 0.16 25);
     --quiz-error-emphasis-foreground: oklch(0.16 0.035 25);
+    --quiz-hint-surface: oklch(0.295 0.042 72);
+    --quiz-hint-foreground: oklch(0.9 0.065 78);
+    --quiz-hint-emphasis: oklch(0.76 0.105 78);
   }
   .dark .quiz-question-card[data-question-type="fill"] {
     --quiz-type-accent: oklch(0.76 0.105 78);
@@ -1406,17 +1412,71 @@ body .app-interactive-media:not(:disabled):active {
   opacity: 1;
 }
 .quiz-result-feedback {
-  animation: quiz-result-feedback-in var(--interaction-duration-slow)
-    var(--interaction-ease-standard) both;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+  border-color: color-mix(in oklch, var(--quiz-type-accent) 30%, var(--border));
+  background: color-mix(in oklch, var(--quiz-type-surface) 62%, var(--card));
+  box-shadow: var(--elevation-subtle);
+}
+.quiz-result-feedback[data-state="correct"] {
+  border-color: color-mix(in oklch, var(--quiz-success-emphasis) 44%, var(--border));
+  background: color-mix(in oklch, var(--quiz-success-surface) 82%, var(--card));
+  color: var(--quiz-success-foreground);
+}
+.quiz-result-feedback[data-state="wrong"] {
+  border-color: color-mix(in oklch, var(--quiz-error-emphasis) 40%, var(--border));
+  background: color-mix(in oklch, var(--quiz-error-surface) 82%, var(--card));
+  color: var(--quiz-error-foreground);
+}
+.quiz-result-feedback[data-state="hint"] {
+  border-color: color-mix(in oklch, var(--quiz-hint-emphasis) 42%, var(--border));
+  background: color-mix(in oklch, var(--quiz-hint-surface) 82%, var(--card));
+  color: var(--quiz-hint-foreground);
 }
 .quiz-result-icon {
-  background: currentColor;
+  transition:
+    background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
+    border-color var(--interaction-duration-standard) var(--interaction-ease-standard),
+    color var(--interaction-duration-standard) var(--interaction-ease-standard);
 }
-.quiz-result-icon > svg {
-  width: 0.75rem;
-  height: 0.75rem;
-  color: var(--background);
-  stroke-width: 2.5;
+.quiz-result-feedback .quiz-result-icon {
+  border: 1px solid currentColor;
+  background: color-mix(in oklch, currentColor 10%, transparent);
+}
+.quiz-result-feedback .quiz-result-icon > svg {
+  width: 1rem;
+  height: 1rem;
+  stroke-width: 2.25;
+}
+.quiz-result-feedback [data-slot="alert-title"] {
+  margin-bottom: 0.18rem;
+  color: currentColor;
+  font-weight: 650;
+}
+.quiz-result-feedback [data-slot="alert-description"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+  color: color-mix(in oklch, currentColor 84%, var(--muted-foreground));
+}
+.quiz-result-answer {
+  white-space: normal;
+}
+.quiz-result-answer strong {
+  color: currentColor;
+  font-weight: 650;
+}
+.quiz-secret-preload-notice {
+  border-color: color-mix(in oklch, var(--quiz-type-accent) 34%, var(--border));
+  background: color-mix(in oklch, var(--quiz-type-surface) 64%, var(--card));
+}
+@media (prefers-reduced-motion: no-preference) {
+  .quiz-result-feedback {
+    animation: quiz-result-feedback-in var(--interaction-duration-slow)
+      var(--interaction-ease-standard) both;
+  }
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -1471,7 +1531,7 @@ body .app-interactive-media:not(:disabled):active {
 @keyframes quiz-result-feedback-in {
   from {
     opacity: 0;
-    transform: translateY(0.2rem);
+    transform: translateY(0.3rem) scale(0.99);
   }
 }
 

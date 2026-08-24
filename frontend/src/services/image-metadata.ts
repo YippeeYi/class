@@ -95,17 +95,36 @@ export function preloadImageDimensions(path: string, previewWidth = DEFAULT_ASSE
   return request
 }
 
-export async function preloadImageDimensionList(paths: Iterable<string>, concurrency = 4) {
+export type ImageDimensionPreloadProgress = {
+  completed: number
+  failed: number
+  total: number
+}
+
+export async function preloadImageDimensionList(
+  paths: Iterable<string>,
+  concurrency = 4,
+  onProgress?: (progress: ImageDimensionPreloadProgress) => void,
+) {
   const queue = [...new Set(paths)].filter(Boolean)
   let cursor = 0
+  let completed = 0
+  let failed = 0
+  const results = new Array<ImageDimensions | null>(queue.length).fill(null)
   const worker = async () => {
     while (cursor < queue.length) {
-      const path = queue[cursor]
+      const index = cursor
+      const path = queue[index]
       cursor += 1
-      if (path) await preloadImageDimensions(path)
+      const dimensions = path ? await preloadImageDimensions(path) : null
+      results[index] = dimensions
+      completed += 1
+      if (!dimensions) failed += 1
+      onProgress?.({ completed, failed, total: queue.length })
     }
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, worker))
+  return results
 }
 
 export function useImageDimensions(

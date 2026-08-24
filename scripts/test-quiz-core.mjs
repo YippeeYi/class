@@ -32,10 +32,15 @@ assert.match(quiz, /loadSupplementalRecords/, 'written messages and supplements 
 assert.match(engine, /entryId = recordDisplayNumber\(record\)/, 'quiz source labels must use shared visible record numbers')
 assert.doesNotMatch(quiz, /fileName: item\.fileName/, 'quiz source labels must not expose supplement file names')
 assert.match(quiz, /secretProgress/, 'secret fill questions must retain correct character positions')
-assert.doesNotMatch(
+assert.match(
   quiz,
-  /preloadImageDimensionList|preloadQuizImage|quizImagePreloadCache/,
-  'opening the hidden pool must not request images before the active question renders',
+  /await preloadImageDimensionList\(imagePaths, 4,[\s\S]*dimensions\.some\([\s\S]*setSecret\(extra\)/,
+  'opening the hidden pool must finish every image-dimension preload before exposing questions',
+)
+assert.match(
+  quiz,
+  /setSecretPreparation\(\{ phase: 'questions', completed: 0, total: 0 \}\)[\s\S]*disabled=\{quizInteractionLocked/,
+  'hidden pool preparation must expose progress and reuse disabled selection controls',
 )
 assert.match(
   quiz,
