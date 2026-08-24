@@ -15,6 +15,22 @@ function withoutDeploymentBase(assetPath) {
   return publicAssetStart >= 0 ? assetPath.slice(publicAssetStart) : assetPath
 }
 
+const layoutReadyTimeoutMs = 90_000
+
+async function waitForMarkupLayoutReady(
+  page,
+  { pageErrors = [], consoleProblems = [] } = {},
+) {
+  await page
+    .waitForFunction(() => window.__markupLayoutReady === true, undefined, {
+      timeout: layoutReadyTimeoutMs,
+    })
+    .catch((error) => {
+      error.message += `\nBrowser page errors: ${pageErrors.join('; ') || 'none'}\nBrowser console problems: ${consoleProblems.join('; ') || 'none'}`
+      throw error
+    })
+}
+
 const vite = await createServer({
   configFile: path.join(frontend, 'vite.config.ts'),
   root: frontend,
@@ -141,7 +157,7 @@ try {
       consoleProblems.push(`${message.type()}: ${message.text()}`)
   })
   await page.goto(origin, { waitUntil: 'domcontentloaded' })
-  await page.waitForFunction(() => window.__markupLayoutReady === true)
+  await waitForMarkupLayoutReady(page, { pageErrors, consoleProblems })
   assert.deepEqual(pageErrors, [], `browser page errors during initial render: ${pageErrors.join('; ')}`)
   assert.equal(await page.title(), '编日史 · 导览')
   for (const [route, title] of [
@@ -1437,7 +1453,7 @@ try {
   await page.locator('[data-theme-preset-option="pine"]').click()
   await page.waitForFunction(() => JSON.parse(localStorage.getItem('classRecord:appearance:v1') || 'null')?.theme === 'pine')
   await page.reload({ waitUntil: 'networkidle' })
-  await page.waitForFunction(() => window.__markupLayoutReady === true)
+  await waitForMarkupLayoutReady(page, { pageErrors, consoleProblems })
   await page.waitForFunction(() => document.documentElement.dataset.themePreset === 'pine' && document.documentElement.classList.contains('dark'))
   assert.equal(await page.locator('[data-theme-preset-option="pine"]').getAttribute('data-selected'), 'true', 'the selected dark preset must survive a full bootstrap and React remount')
   await page.locator('[data-theme-preset-option="auto"]').click()
@@ -2341,7 +2357,7 @@ try {
     const samples = []
     window.__annotationExitSamples = samples
     const started = performance.now()
-    const capture = () => {
+    const sample = () => {
       if (element.isConnected) {
         const bounds = element.parentElement?.getBoundingClientRect()
         samples.push({
@@ -2350,13 +2366,25 @@ try {
           top: bounds?.top || 0,
         })
       }
+    }
+    const capture = () => {
+      sample()
       if (element.isConnected && performance.now() - started < 2000) requestAnimationFrame(capture)
     }
+    window.__annotationExitObserver = new MutationObserver(sample)
+    window.__annotationExitObserver.observe(element, {
+      attributes: true,
+      attributeFilter: ['data-closed'],
+    })
     requestAnimationFrame(capture)
   })
   await page.mouse.move(4, 4)
   await annotationPopup.waitFor({ state: 'hidden' })
-  const annotationExitSamples = await page.evaluate(() => window.__annotationExitSamples || [])
+  const annotationExitSamples = await page.evaluate(() => {
+    window.__annotationExitObserver?.disconnect()
+    delete window.__annotationExitObserver
+    return window.__annotationExitSamples || []
+  })
   const closedAnnotationSamples = annotationExitSamples.filter((sample) => sample.closed)
   assert.ok(closedAnnotationSamples.length > 0, 'annotation popup must retain a real exit-animation phase')
   assert.ok(
@@ -2554,7 +2582,7 @@ try {
   const touchErrors = []
   touchPage.on('pageerror', (error) => touchErrors.push(error.message))
   await touchPage.goto(origin, { waitUntil: 'domcontentloaded' })
-  await touchPage.waitForFunction(() => window.__markupLayoutReady === true)
+  await waitForMarkupLayoutReady(touchPage, { pageErrors: touchErrors })
   const touchLongTrigger = touchPage.getByRole('button', { name: '长注触发' })
   await touchLongTrigger.scrollIntoViewIfNeeded()
   await touchPage.waitForTimeout(80)
@@ -2576,7 +2604,7 @@ try {
     const densityErrors = []
     densityPage.on('pageerror', (error) => densityErrors.push(error.message))
     await densityPage.goto(origin, { waitUntil: 'domcontentloaded' })
-    await densityPage.waitForFunction(() => window.__markupLayoutReady === true)
+    await waitForMarkupLayoutReady(densityPage, { pageErrors: densityErrors })
     await densityPage.getByRole('tab', { name: /^方框/ }).click()
     await densityPage.locator('[data-box-style-id="rounded"]').click()
     await densityPage.waitForFunction(
