@@ -2457,18 +2457,32 @@ try {
   assert.ok(edgeAnnotationPopup.x >= 4 && edgeAnnotationPopup.x + edgeAnnotationPopup.width <= 1276, 'annotation collision handling must keep edge-anchored popups fully visible')
 
   const illustration = page.getByRole('button', { name: '从这里查看插图' })
+  await illustration.scrollIntoViewIfNeeded()
   const triggerBox = await illustration.boundingBox()
   assert.ok(triggerBox)
-  const initialPointerX = triggerBox.x + Math.min(12, triggerBox.width / 3)
-  await page.mouse.move(initialPointerX, triggerBox.y + triggerBox.height / 2)
+  const pointerOffsetX = Math.min(12, triggerBox.width / 3)
+  const initialPointerX = triggerBox.x + pointerOffsetX
+  await illustration.hover({
+    position: { x: pointerOffsetX, y: triggerBox.height / 2 },
+  })
   const illustrationPopup = page.locator('.record-illustration-popup[data-open]')
   await illustrationPopup.waitFor({ state: 'visible', timeout: 300 })
-  const firstPopup = await illustrationPopup.boundingBox()
+  const readIllustrationPosition = () =>
+    illustrationPopup.evaluate((element) => {
+      const bounds = element.parentElement?.getBoundingClientRect()
+      return bounds
+        ? { x: bounds.x, width: bounds.width }
+        : null
+    })
+  const firstPopup = await readIllustrationPosition()
   assert.ok(firstPopup)
-  assert.ok(Math.abs(firstPopup.x + firstPopup.width / 2 - initialPointerX) <= 2, 'illustration popup must initially center on pointer clientX')
+  assert.ok(
+    Math.abs(firstPopup.x + firstPopup.width / 2 - initialPointerX) <= 2,
+    `illustration popup must initially center on pointer clientX: ${JSON.stringify({ firstPopup, initialPointerX })}`,
+  )
   await page.mouse.move(triggerBox.x + triggerBox.width - 3, triggerBox.y + triggerBox.height / 2)
   await page.waitForTimeout(80)
-  const movedPopup = await illustrationPopup.boundingBox()
+  const movedPopup = await readIllustrationPosition()
   assert.ok(movedPopup)
   assert.ok(
     Math.abs(movedPopup.x + movedPopup.width / 2 - initialPointerX) <= 2,
