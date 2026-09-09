@@ -7,6 +7,7 @@ import { createServer } from 'vite'
 
 import { assertFullscreenImageViewer } from './layout/assert-image-viewer.mjs'
 import { findSystemChromium } from './layout/browser-runtime.mjs'
+import { markupLayoutHarness } from './layout/markup-layout-harness.mjs'
 import { frontend } from './test-react-helpers.mjs'
 
 function withoutDeploymentBase(assetPath) {
@@ -426,7 +427,7 @@ const server = http.createServer(async (request, response) => {
   const url = new URL(request.url || '/', 'http://127.0.0.1')
   if (url.pathname === '/' && !url.searchParams.has('html-proxy')) {
     try {
-      const html = await vite.transformIndexHtml('/', harness)
+      const html = await vite.transformIndexHtml('/', markupLayoutHarness)
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
       response.end(html)
     } catch (error) {
@@ -540,7 +541,7 @@ try {
       consoleProblems.push(`${message.type()}: ${message.text()}`)
   })
   await page.goto(origin, { waitUntil: 'domcontentloaded' })
-  await page.waitForFunction(() => window.__markupLayoutReady === true)
+  await waitForMarkupLayoutReady(page, { pageErrors, consoleProblems })
   assert.deepEqual(pageErrors, [], `browser page errors during initial render: ${pageErrors.join('; ')}`)
   assert.equal(await page.title(), '编日史')
   for (const route of ['/records', '/person?id=p01', '/credits', '/unknown', '/']) {
@@ -1917,7 +1918,7 @@ try {
   await page.locator('[data-theme-preset-option="pine"]').click()
   await page.waitForFunction(() => JSON.parse(localStorage.getItem('classRecord:appearance:v1') || 'null')?.theme === 'pine')
   await page.reload({ waitUntil: 'networkidle' })
-  await page.waitForFunction(() => window.__markupLayoutReady === true)
+  await waitForMarkupLayoutReady(page, { pageErrors, consoleProblems })
   await page.waitForFunction(() => document.documentElement.dataset.themePreset === 'pine' && document.documentElement.classList.contains('dark'))
   assert.equal(await page.locator('[data-theme-preset-option="pine"]').getAttribute('data-selected'), 'true', 'the selected dark preset must survive a full bootstrap and React remount')
   await page.locator('[data-theme-preset-option="auto"]').click()
@@ -2462,36 +2463,50 @@ try {
   assert.equal(await guide.getByRole('link', { name: /记录/ }).count() > 0, true, 'guide must expose the primary records entry')
   assert.equal(await guide.getByRole('link', { name: /致谢/ }).count(), 1, 'guide must restore the baseline credits entry')
   assert.equal(await guide.getByRole('button', { name: /历史上的今天/ }).count(), 1, 'guide must retain the date-matched history entry')
-  const guideRecordCardLink = guide.locator('a.app-interactive-card[href="/records"]').last()
-  const readGuideCardState = () =>
-    guideRecordCardLink.evaluate((link) => {
-      const card = link.querySelector('[data-slot="card"]')
-      const bounds = card.getBoundingClientRect()
-      const styles = getComputedStyle(card)
+  const guideRecordItem = guide.locator('a.app-interactive-item[href="/records"]').last()
+  const guideTimelineItem = guide.locator('a.app-interactive-item[href="/timeline"]')
+  const readGuideItemState = (item) =>
+    item.evaluate((link) => {
+      const bounds = link.getBoundingClientRect()
+      const styles = getComputedStyle(link)
       return {
         bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
         background: styles.backgroundColor,
         border: styles.borderColor,
       }
     })
-  const guideCardBefore = await readGuideCardState()
-  await guideRecordCardLink.hover()
+  const guideItemBefore = await readGuideItemState(guideRecordItem)
+  await guideRecordItem.hover()
   await page.waitForTimeout(220)
-  const guideCardAfter = await readGuideCardState()
+  const guidePrimaryAfter = await readGuideItemState(guideRecordItem)
   assert.deepEqual(
-    guideCardAfter.bounds,
-    guideCardBefore.bounds,
-    'guide entry hover must not move or resize the shared interactive card',
+    guidePrimaryAfter.bounds,
+    guideItemBefore.bounds,
+    'guide entry hover must not move or resize the shared interactive item',
   )
   assert.ok(
-    guideCardAfter.background !== guideCardBefore.background ||
-      guideCardAfter.border !== guideCardBefore.border,
-    `guide entry hover must expose the shared card feedback: ${JSON.stringify({ guideCardBefore, guideCardAfter })}`,
+    guidePrimaryAfter.background !== guideItemBefore.background ||
+      guidePrimaryAfter.border !== guideItemBefore.border,
+    `guide entry hover must expose the shared item feedback: ${JSON.stringify({ guideItemBefore, guidePrimaryAfter })}`,
+  )
+  await guideTimelineItem.hover()
+  await page.waitForTimeout(220)
+  const guideSecondaryAfter = await readGuideItemState(guideTimelineItem)
+  assert.deepEqual(
+    {
+      background: guidePrimaryAfter.background,
+      border: guidePrimaryAfter.border,
+    },
+    {
+      background: guideSecondaryAfter.background,
+      border: guideSecondaryAfter.border,
+    },
+    'primary and secondary guide entries must share the same hover colors',
   )
   await page.keyboard.press('Tab')
-  await guideRecordCardLink.focus()
+  await guideRecordItem.focus()
   assert.notEqual(
-    await guideRecordCardLink.evaluate((link) => getComputedStyle(link).boxShadow),
+    await guideRecordItem.evaluate((link) => getComputedStyle(link).boxShadow),
     'none',
     'guide entry keyboard focus must expose the shared focus-visible ring',
   )
@@ -2587,7 +2602,7 @@ try {
     const samples = []
     window.__annotationExitSamples = samples
     const started = performance.now()
-    const capture = () => {
+    const sample = () => {
       if (element.isConnected) {
         const bounds = element.parentElement?.getBoundingClientRect()
         samples.push({
@@ -2596,13 +2611,25 @@ try {
           top: bounds?.top || 0,
         })
       }
+    }
+    const capture = () => {
+      sample()
       if (element.isConnected && performance.now() - started < 2000) requestAnimationFrame(capture)
     }
+    window.__annotationExitObserver = new MutationObserver(sample)
+    window.__annotationExitObserver.observe(element, {
+      attributes: true,
+      attributeFilter: ['data-closed'],
+    })
     requestAnimationFrame(capture)
   })
   await page.mouse.move(4, 4)
   await annotationPopup.waitFor({ state: 'hidden' })
-  const annotationExitSamples = await page.evaluate(() => window.__annotationExitSamples || [])
+  const annotationExitSamples = await page.evaluate(() => {
+    window.__annotationExitObserver?.disconnect()
+    delete window.__annotationExitObserver
+    return window.__annotationExitSamples || []
+  })
   const closedAnnotationSamples = annotationExitSamples.filter((sample) => sample.closed)
   assert.ok(closedAnnotationSamples.length > 0, 'annotation popup must retain a real exit-animation phase')
   assert.ok(
@@ -2675,20 +2702,37 @@ try {
   assert.ok(edgeAnnotationPopup.x >= 4 && edgeAnnotationPopup.x + edgeAnnotationPopup.width <= 1276, 'annotation collision handling must keep edge-anchored popups fully visible')
 
   const illustration = page.getByRole('button', { name: '从这里查看插图' })
+  await illustration.scrollIntoViewIfNeeded()
   const triggerBox = await illustration.boundingBox()
   assert.ok(triggerBox)
-  const initialPointerX = triggerBox.x + Math.min(12, triggerBox.width / 3)
-  await page.mouse.move(initialPointerX, triggerBox.y + triggerBox.height / 2)
+  const pointerOffsetX = Math.min(12, triggerBox.width / 3)
+  const initialPointerX = triggerBox.x + pointerOffsetX
+  await illustration.hover({
+    position: { x: pointerOffsetX, y: triggerBox.height / 2 },
+  })
   const illustrationPopup = page.locator('.record-illustration-popup[data-open]')
-  await illustrationPopup.waitFor({ state: 'visible' })
-  const firstPopup = await illustrationPopup.boundingBox()
+  await illustrationPopup.waitFor({ state: 'visible', timeout: 300 })
+  const readIllustrationPosition = () =>
+    illustrationPopup.evaluate((element) => {
+      const bounds = element.parentElement?.getBoundingClientRect()
+      return bounds
+        ? { x: bounds.x, width: bounds.width }
+        : null
+    })
+  const firstPopup = await readIllustrationPosition()
   assert.ok(firstPopup)
-  assert.ok(Math.abs(firstPopup.x + firstPopup.width / 2 - initialPointerX) <= 2, 'illustration popup must initially center on pointer clientX')
+  assert.ok(
+    Math.abs(firstPopup.x + firstPopup.width / 2 - initialPointerX) <= 2,
+    `illustration popup must initially center on pointer clientX: ${JSON.stringify({ firstPopup, initialPointerX })}`,
+  )
   await page.mouse.move(triggerBox.x + triggerBox.width - 3, triggerBox.y + triggerBox.height / 2)
   await page.waitForTimeout(80)
-  const movedPopup = await illustrationPopup.boundingBox()
+  const movedPopup = await readIllustrationPosition()
   assert.ok(movedPopup)
-  assert.ok(Math.abs(movedPopup.x - firstPopup.x) <= 1, 'an open illustration popup must not follow later pointer movement')
+  assert.ok(
+    Math.abs(movedPopup.x + movedPopup.width / 2 - initialPointerX) <= 2,
+    'an open illustration popup must remain anchored to the pointer position that opened it',
+  )
   await page.locator('.record-illustration-popup').evaluate((element) => {
     window.__illustrationScrollCloseCount = 0
     const observer = new MutationObserver(() => {
@@ -2797,7 +2841,7 @@ try {
   const touchErrors = []
   touchPage.on('pageerror', (error) => touchErrors.push(error.message))
   await touchPage.goto(origin, { waitUntil: 'domcontentloaded' })
-  await touchPage.waitForFunction(() => window.__markupLayoutReady === true)
+  await waitForMarkupLayoutReady(touchPage, { pageErrors: touchErrors })
   const touchLongTrigger = touchPage.getByRole('button', { name: '长注触发' })
   await touchLongTrigger.scrollIntoViewIfNeeded()
   await touchPage.waitForTimeout(80)

@@ -45,39 +45,32 @@ import {
     safeSnapshotPath
 } from './archive-governance.mjs';
 import { createAccessAdmin } from './admin-access.mjs';
+import {
+    createAdminRequest,
+    loadAdminDotEnv,
+    parseAdminArguments,
+    printAdminUsage
+} from './admin-runtime.mjs';
 
 const root = process.cwd();
 const contentRoot = 'private-assets/content';
 
-const loadDotEnv = async () => {
-    try {
-        const text = await fs.readFile(path.join(root, '.env'), 'utf8');
-        text.split(/\r?\n/).forEach((line) => {
-            const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
-            if (!match || match[1].startsWith('#') || process.env[match[1]]) return;
-            process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, '');
-        });
-    } catch {
-        // .env is optional. CI and production should pass real environment variables.
-    }
-};
-
-await loadDotEnv();
+await loadAdminDotEnv(root);
 
 const url = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const bucket = process.env.CLASS_RECORD_BUCKET || 'classrecord-private';
-const command = process.argv[2] || 'help';
-const commandArgs = process.argv.slice(3);
-const argv = new Set(commandArgs);
-const confirmPublish = argv.has('--confirm-publish');
-const shouldPrune = command === 'publish' || argv.has('--prune');
-const validateOnly = command === 'audit' || (command === 'publish' && !confirmPublish) || argv.has('--validate-only');
-const dryRun = argv.has('--dry-run');
-const confirmPrune = argv.has('--confirm-prune');
-const concurrencyArg = commandArgs.find((value) => value.startsWith('--concurrency='));
-const uploadConcurrency = Math.min(8, Math.max(1, Number(concurrencyArg?.split('=')[1]) || 3));
-const MAX_REQUEST_ATTEMPTS = 3;
+const {
+    argv,
+    command,
+    commandArgs,
+    confirmPrune,
+    confirmPublish,
+    dryRun,
+    shouldPrune,
+    uploadConcurrency,
+    validateOnly
+} = parseAdminArguments(process.argv.slice(2));
 const hiddenStoragePrefix = 'hidden/';
 const allowedStorageRoots = ['data/attachments/', 'images/record-pages/', 'images/quiz/'];
 const mealMapStoragePath = 'images/private/meal-map.png';
@@ -108,36 +101,14 @@ const requiredDatabaseColumns = {
     class_private_assets: ['asset_key', 'width', 'height', 'updated_at']
 };
 
-const printUsage = () => {
-    console.log(`Usage:
-  node scripts/admin.mjs upload [--dry-run|--validate-only] [--concurrency=3] [--prune --confirm-prune]
-  node scripts/admin.mjs audit [--json]
-  node scripts/admin.mjs publish [--json]
-  node scripts/admin.mjs publish --confirm-publish
-  node scripts/admin.mjs rollback --snapshot TIMESTAMP --confirm-rollback
-  node scripts/admin.mjs invites generate --count N [--expires-days N] [--access-level normal|admin] [--note TEXT]
-  node scripts/admin.mjs invites list
-  node scripts/admin.mjs invites check --code CODE
-  node scripts/admin.mjs sessions overview
-  node scripts/admin.mjs sessions list
-  node scripts/admin.mjs sessions revoke --id UUID --confirm-revoke
-  node scripts/admin.mjs sessions revoke-all --confirm-revoke-all
-  node scripts/admin.mjs attempts cleanup --confirm-cleanup
-
-The local audit command does not need credentials. Other commands use
-SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. Invite generation and single-code
-checks also require INVITE_CODE_PEPPER. .env is loaded locally when present and
-is never uploaded or logged.`);
-};
-
 if (command === 'help' || command === '--help' || command === '-h') {
-    printUsage();
+    printAdminUsage();
     process.exit(0);
 }
 
 if (!['audit', 'publish', 'rollback', 'upload', 'invites', 'sessions', 'attempts'].includes(command)) {
     console.error(`Unknown command: ${command}`);
-    printUsage();
+    printAdminUsage();
     process.exit(1);
 }
 
@@ -151,43 +122,7 @@ if (command === 'upload' && shouldPrune && !confirmPrune) {
     process.exit(1);
 }
 
-const baseUrl = String(url || '').replace(/\/$/, '');
-const authHeaders = {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`
-};
-
-const normalizeSlash = (value) => String(value || '').replace(/\\/g, '/');
-
-const request = async (endpoint, options = {}) => {
-    const { responseType = 'json', ...fetchOptions } = options;
-    let lastError;
-    for (let attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt += 1) {
-        try {
-            const response = await fetch(`${baseUrl}${endpoint}`, {
-                ...fetchOptions,
-                headers: { ...authHeaders, ...(fetchOptions.headers || {}) }
-            });
-            if (!response.ok) {
-                const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
-                if (!retryable || attempt === MAX_REQUEST_ATTEMPTS) {
-                    throw new Error(`${fetchOptions.method || 'GET'} request failed (HTTP ${response.status}).`);
-                }
-                lastError = new Error(`HTTP ${response.status}`);
-            } else {
-                if (response.status === 204) return null;
-                if (responseType === 'buffer') return Buffer.from(await response.arrayBuffer());
-                const text = await response.text();
-                return text ? JSON.parse(text) : null;
-            }
-        } catch (error) {
-            lastError = error;
-            if (attempt === MAX_REQUEST_ATTEMPTS) break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** (attempt - 1)));
-    }
-    throw lastError || new Error('Network request failed.');
-};
+const request = createAdminRequest({ url, serviceRoleKey });
 
 const { createInvites, listInvites, checkInvite, runSessions, runAttempts } = createAccessAdmin({
     request,

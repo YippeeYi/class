@@ -112,27 +112,15 @@ export async function preloadImageDimensionList(
 ) {
   const queue = [...new Set(paths)].filter(Boolean)
   let cursor = 0
-  let loaded = 0
-  let failed = 0
   const worker = async () => {
     while (cursor < queue.length) {
-      const path = queue[cursor]
+      const index = cursor
+      const path = queue[index]
       cursor += 1
-      if (!path) continue
-      let timeout = 0
-      const result = await Promise.race([
-        preloadImageDimensions(path),
-        new Promise<null>((resolve) => {
-          timeout = window.setTimeout(() => resolve(null), timeoutMs)
-        }),
-      ])
-      window.clearTimeout(timeout)
-      if (result) loaded += 1
-      else failed += 1
+      if (path) await preloadImageDimensions(path)
     }
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, worker))
-  return { total: queue.length, loaded, failed }
 }
 
 export function useImageDimensions(
@@ -140,12 +128,15 @@ export function useImageDimensions(
   enabled = true,
   previewWidth = DEFAULT_ASSET_PREVIEW_WIDTH,
 ) {
-  const [value, setValue] = useState<ImageDimensions | null>(() => getImageDimensions(path))
+  const [state, setState] = useState<{ path: string; value: ImageDimensions | null }>(() => ({
+    path,
+    value: getImageDimensions(path),
+  }))
   useEffect(() => {
-    setValue(getImageDimensions(path))
+    const update = () => setState({ path, value: getImageDimensions(path) })
+    update()
     if (!path || !enabled) return
     const pathListeners = listeners.get(path) || new Set<() => void>()
-    const update = () => setValue(getImageDimensions(path))
     pathListeners.add(update)
     listeners.set(path, pathListeners)
     void preloadImageDimensions(path, previewWidth)
@@ -154,7 +145,7 @@ export function useImageDimensions(
       if (!pathListeners.size) listeners.delete(path)
     }
   }, [enabled, path, previewWidth])
-  return value
+  return state.path === path ? state.value : getImageDimensions(path)
 }
 
 if (typeof window !== 'undefined') {

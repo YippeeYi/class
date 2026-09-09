@@ -9,6 +9,7 @@ const quizPage = await readFrontend('src/pages/quiz-page.tsx')
 const data = await readFrontend('src/services/data.ts')
 const signedAssetHook = await readFrontend('src/hooks/use-signed-asset.ts')
 const imageViewer = await readFrontend('src/components/archive/image-viewer.tsx')
+const imageMetadata = await readFrontend('src/services/image-metadata.ts')
 const boundedRetryHook = await readFrontend('src/hooks/use-bounded-image-retry.ts')
 assert.match(markupComponent, /useSignedAsset\(requested \? path : ''/, 'record illustrations must be signed only on demand')
 assert.match(markupComponent, /preview\.loading/, 'illustrations need an explicit loading state')
@@ -44,6 +45,11 @@ assert.match(
 )
 assert.match(boundedRetryHook, /automaticRetryUsed/, 'decode failures need a bounded automatic retry budget')
 assert.match(boundedRetryHook, /setFailed\(true\)/, 'exhausted image retries must expose a stable error state')
+assert.match(
+  imageMetadata,
+  /state\.path === path \? state\.value : getImageDimensions\(path\)/,
+  'image dimension hooks must never expose the previous path geometry during a source change',
+)
 assert.match(mapPage, /loadMealMapMetadata/, 'meal map must load its gated intrinsic metadata')
 assert.match(
   mapPage,
@@ -108,6 +114,26 @@ assert.match(
   quizPage,
   /useSignedAsset\(path, \{ variant: 'preview', width: 960 \}\)/,
   'quiz images must first request a compressed rendition',
+)
+assert.match(
+  quizPage,
+  /useImageDimensions\(path, true, 960\)/,
+  'quiz image frames must use the same intrinsic-dimension pipeline as record illustrations',
+)
+assert.doesNotMatch(
+  quizPage,
+  /getImageDimensions\(path\) \|\| \{ width: 960, height: 720 \}/,
+  'quiz images must not expose a guessed 4:3 frame before their intrinsic dimensions are known',
+)
+assert.match(
+  quizPage,
+  /if \(!frameDimensions\)[\s\S]*data-secret-image-dimensions-pending[\s\S]*正在读取题图尺寸/,
+  'quiz images must keep the visual frame hidden while intrinsic dimensions are pending',
+)
+assert.match(
+  quizPage,
+  /aspectRatio: `\$\{frameDimensions\.width\} \/ \$\{frameDimensions\.height\}`[\s\S]*data-secret-image-frame/,
+  'quiz loading and decoded states must share one intrinsic-ratio frame',
 )
 assert.doesNotMatch(
   quizPage,

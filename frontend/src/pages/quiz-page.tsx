@@ -1,4 +1,4 @@
-import { BrainCircuit, Check, Expand, RefreshCw, RotateCcw, X } from 'lucide-react'
+import { BrainCircuit, Check, Expand, Lightbulb, RefreshCw, RotateCcw, X } from 'lucide-react'
 import {
   type FormEvent,
   useCallback,
@@ -113,23 +113,95 @@ function QuestionSource({ question, revealed }: { question: PlayQuestion; reveal
   )
 }
 
+function QuizAnswerFeedback({
+  current,
+  result,
+  secretHint,
+}: {
+  current: PlayQuestion
+  result: 'correct' | 'wrong' | null
+  secretHint: string
+}) {
+  const state = result || (secretHint ? 'hint' : null)
+  if (!state) return <span className="text-muted-foreground">选择答案或填写完整内容后提交。</span>
+
+  const Icon = state === 'correct' ? Check : state === 'wrong' ? X : Lightbulb
+  const title = state === 'correct' ? '回答正确' : state === 'wrong' ? '回答错误' : '继续作答'
+
+  return (
+    <Alert className="quiz-result-feedback" data-state={state} role="status" aria-live="polite">
+      <span
+        className="quiz-result-icon grid size-8 shrink-0 place-items-center rounded-lg"
+        aria-hidden="true"
+      >
+        <Icon />
+      </span>
+      <div className="min-w-0">
+        <AlertTitle>{title}</AlertTitle>
+        <AlertDescription>
+          {state === 'correct' && (current.explanation || '本题回答正确。')}
+          {state === 'wrong' && (
+            <>
+              <span className="quiz-result-answer">
+                正确答案 <strong>{current.answer}</strong>
+              </span>
+              {current.explanation && <span>{current.explanation}</span>}
+            </>
+          )}
+          {state === 'hint' && secretHint}
+        </AlertDescription>
+      </div>
+    </Alert>
+  )
+}
+
 export function SecretImage({ path }: { path: string }) {
   const resource = useSignedAsset(path, { variant: 'preview', width: 960 })
-  const [frameDimensions, setFrameDimensions] = useState(
-    () => getImageDimensions(path) || { width: 960, height: 720 },
-  )
+  const frameDimensions = useImageDimensions(path, true, 960)
   const [ready, setReady] = useState(false)
   const [decodeFailed, setDecodeFailed] = useState(false)
+
+  const retryPreview = () => {
+    setDecodeFailed(false)
+    void preloadImageDimensions(path, 960)
+    void resource.retry()
+  }
+
+  if (!frameDimensions) {
+    const failed = !resource.loading && !resource.src
+    return (
+      <div
+        className="mx-auto flex min-h-10 max-w-full items-center justify-center text-sm text-muted-foreground"
+        data-secret-image-dimensions-pending=""
+        role="status"
+        aria-live="polite"
+      >
+        {failed ? (
+          <Button size="sm" variant="outline" onClick={retryPreview}>
+            题图加载失败，重试
+          </Button>
+        ) : (
+          <span className="flex items-center gap-2">
+            <Spinner aria-hidden="true" />
+            正在读取题图尺寸
+          </span>
+        )}
+      </div>
+    )
+  }
+
   const ratio = frameDimensions.width / frameDimensions.height
   const hasViewerTrigger = Boolean(resource.src && !decodeFailed)
   const sizingStyle = {
     aspectRatio: `${frameDimensions.width} / ${frameDimensions.height}`,
-    width: `min(100%, ${frameDimensions.width}px, 48rem, calc(52svh * ${ratio}))`,
+    width: `min(100%, 48rem, calc(52svh * ${ratio}))`,
   }
 
   const frame = (
     <div
       className={`relative grid place-items-center overflow-hidden rounded-xl bg-muted/60 text-sm text-muted-foreground ${hasViewerTrigger ? 'size-full' : 'mx-auto max-w-full'}`}
+      data-secret-image-frame=""
+      data-image-ready={ready ? 'true' : 'false'}
       style={hasViewerTrigger ? undefined : sizingStyle}
       aria-busy={!ready && !decodeFailed}
     >
@@ -147,10 +219,7 @@ export function SecretImage({ path }: { path: string }) {
             variant="outline"
             disabled={resource.loading}
             aria-busy={resource.loading || undefined}
-            onClick={() => {
-              setDecodeFailed(false)
-              void resource.retry()
-            }}
+            onClick={retryPreview}
           >
             {resource.loading ? (
               <>
@@ -177,14 +246,13 @@ export function SecretImage({ path }: { path: string }) {
               height: event.currentTarget.naturalHeight,
             }
             rememberImageDimensions(path, dimensions)
-            setFrameDimensions(dimensions)
             setReady(true)
           }}
           onError={() => {
             setReady(false)
             setDecodeFailed(true)
           }}
-          className={`absolute inset-0 size-full object-contain transition-opacity duration-(--interaction-duration-slow) ${ready ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute inset-0 size-full object-contain object-center transition-opacity duration-(--interaction-duration-slow) ${ready ? 'opacity-100' : 'opacity-0'}`}
         />
       )}
     </div>
@@ -235,6 +303,11 @@ export function QuizPage() {
   const [secretProgress, setSecretProgress] = useState<string[]>([])
   const [secretHint, setSecretHint] = useState('')
   const [secretError, setSecretError] = useState('')
+  const [secretPreparation, setSecretPreparation] = useState<{
+    completed: number
+    phase: 'questions' | 'dimensions'
+    total: number
+  } | null>(null)
   const [score, setScore] = useState({ correct: 0, total: 0 })
   const visiblePrompt = useFilteredText(current?.prompt || '')
   const visibleAnswer = useFilteredText(current?.answer || '')
@@ -258,6 +331,7 @@ export function QuizPage() {
     () => filteredQuestions(questions, enabledTypes, enabledContent),
     [enabledContent, enabledTypes, questions],
   )
+  const quizInteractionLocked = Boolean(secretPreparation)
 
   const captureQuestionPosition = useCallback(() => {
     if (current && questionAnchorRef.current) {
@@ -266,6 +340,7 @@ export function QuizPage() {
   }, [current])
 
   const next = useCallback(() => {
+    if (quizInteractionLocked || secretUnlocking.current) return
     captureQuestionPosition()
     answerLocked.current = false
     setCurrent(pickQuestion(candidates))
@@ -273,7 +348,7 @@ export function QuizPage() {
     setResult(null)
     setSecretProgress([])
     setSecretHint('')
-  }, [candidates, captureQuestionPosition])
+  }, [candidates, captureQuestionPosition, quizInteractionLocked])
 
   useLayoutEffect(() => {
     const previousTop = pendingQuestionTop.current
@@ -302,8 +377,11 @@ export function QuizPage() {
       buffer = (buffer + event.key.toLowerCase()).slice(-6)
       if (buffer !== 'lamian' || secret.length || secretUnlocking.current) return
       secretUnlocking.current = true
-      try {
+      if (active) {
         setSecretError('')
+        setSecretPreparation({ phase: 'questions', completed: 0, total: 0 })
+      }
+      try {
         const rows = await loadQuizQuestions(true)
         const extra = rows.filter((item) => item.answer).map(normalizeSecretQuestion)
         if (!extra.length) throw new Error('题库为空')
@@ -311,6 +389,26 @@ export function QuizPage() {
           extra.map((item) => item.image).filter((path): path is string => Boolean(path)),
           3,
         )
+        const imagePaths = [
+          ...new Set(
+            extra.map((question) => question.image).filter((path): path is string => Boolean(path)),
+          ),
+        ]
+        if (active) {
+          setSecretPreparation({ phase: 'dimensions', completed: 0, total: imagePaths.length })
+        }
+        const dimensions = await preloadImageDimensionList(imagePaths, 4, (progress) => {
+          if (active) {
+            setSecretPreparation({
+              phase: 'dimensions',
+              completed: progress.completed,
+              total: progress.total,
+            })
+          }
+        })
+        if (dimensions.some((value) => !value)) {
+          throw new Error('题图尺寸读取失败')
+        }
         if (!active) return
         setSecret(extra)
         setSecretError('')
@@ -318,6 +416,7 @@ export function QuizPage() {
         if (active) setSecretError('隐藏题库暂时无法加载，请稍后重试。')
       } finally {
         secretUnlocking.current = false
+        if (active) setSecretPreparation(null)
       }
     }
     window.addEventListener('keydown', listener)
@@ -327,7 +426,14 @@ export function QuizPage() {
     }
   }, [adminResource.data, secret.length])
   const answer = (value: string) => {
-    if (!current || result || answerLocked.current) return
+    if (
+      !current ||
+      result ||
+      answerLocked.current ||
+      quizInteractionLocked ||
+      secretUnlocking.current
+    )
+      return
     if (current.content === 'secret') {
       const answerChars = splitAnswerCharacters(current.answer)
       const inputChars = splitAnswerCharacters(value)
@@ -365,6 +471,7 @@ export function QuizPage() {
     answer(input)
   }
   const toggleType = (type: PlayQuestion['type']) => {
+    if (quizInteractionLocked || secretUnlocking.current) return
     const next = new Set(enabledTypes)
     if (next.has(type)) next.delete(type)
     else next.add(type)
@@ -374,6 +481,7 @@ export function QuizPage() {
     setCurrent(null)
   }
   const toggleContent = (content: PlayQuestion['content']) => {
+    if (quizInteractionLocked || secretUnlocking.current) return
     const next = new Set(enabledContent)
     if (next.has(content)) next.delete(content)
     else next.add(content)
@@ -406,7 +514,7 @@ export function QuizPage() {
     enabledContent.size === (secret.length ? 5 : 4) &&
     (!secret.length || enabledContent.has('secret'))
   const selectAllAvailable = () => {
-    if (allAvailableSelected) return
+    if (allAvailableSelected || quizInteractionLocked || secretUnlocking.current) return
     captureQuestionPosition()
     setEnabledTypes(new Set(['choice', 'fill', 'judge']))
     setEnabledContent(
@@ -429,7 +537,11 @@ export function QuizPage() {
         className="shrink-0"
         compact
         actions={
-          <Button variant="outline" onClick={next} disabled={!candidates.length}>
+          <Button
+            variant="outline"
+            onClick={next}
+            disabled={!candidates.length || quizInteractionLocked}
+          >
             <RefreshCw data-icon="inline-start" />
             换一题
           </Button>
@@ -445,6 +557,36 @@ export function QuizPage() {
               <AlertDescription>{secretError}</AlertDescription>
             </Alert>
           )}
+          {secretPreparation && (
+            <Alert
+              className="quiz-secret-preload-notice mb-3 shrink-0"
+              role="status"
+              aria-live="polite"
+            >
+              <Spinner aria-hidden="true" />
+              <AlertTitle>
+                {secretPreparation.phase === 'questions' ? '正在读取隐藏题库' : '正在准备隐藏题图'}
+              </AlertTitle>
+              <AlertDescription className="grid gap-2">
+                {secretPreparation.phase === 'questions' ? (
+                  <span>正在读取题库，随后会预加载全部题图尺寸。</span>
+                ) : (
+                  <span>
+                    正在读取题图尺寸（{secretPreparation.completed} / {secretPreparation.total}
+                    ），完成后开放选择。
+                  </span>
+                )}
+                <Progress
+                  value={
+                    secretPreparation.phase === 'dimensions' && secretPreparation.total
+                      ? (secretPreparation.completed / secretPreparation.total) * 100
+                      : 0
+                  }
+                  aria-label="隐藏题图尺寸读取进度"
+                />
+              </AlertDescription>
+            </Alert>
+          )}
           <Card
             aria-label="答题筛选"
             className="content-frame quiz-filter-bar mb-4 shrink-0 gap-0 py-0"
@@ -457,7 +599,7 @@ export function QuizPage() {
                     <FilterToggle
                       key={type}
                       pressed={enabledTypes.has(type)}
-                      disabled={typeCannotBeRemoved(type)}
+                      disabled={quizInteractionLocked || typeCannotBeRemoved(type)}
                       onPressedChange={() => toggleType(type)}
                     >
                       {TYPE_LABELS[type]}
@@ -474,13 +616,13 @@ export function QuizPage() {
                       'date',
                       'person',
                       'quote',
-                      ...(secret.length ? ['secret' as const] : []),
+                      ...(secret.length || secretPreparation ? ['secret' as const] : []),
                     ] as const
                   ).map((content) => (
                     <FilterToggle
                       key={content}
                       pressed={enabledContent.has(content)}
-                      disabled={contentCannotBeRemoved(content)}
+                      disabled={quizInteractionLocked || contentCannotBeRemoved(content)}
                       onPressedChange={() => toggleContent(content)}
                     >
                       {CONTENT_LABELS[content]}
@@ -491,7 +633,7 @@ export function QuizPage() {
                   className="ml-auto"
                   size="sm"
                   variant="ghost"
-                  disabled={allAvailableSelected}
+                  disabled={quizInteractionLocked || allAvailableSelected}
                   onClick={selectAllAvailable}
                 >
                   <RotateCcw data-icon="inline-start" />
@@ -504,6 +646,8 @@ export function QuizPage() {
             className="content-frame quiz-question-card min-h-0 flex-1 gap-0 overflow-hidden py-0"
             data-question-type={current?.type || 'choice'}
             data-answer-result={result || 'pending'}
+            data-preparing={quizInteractionLocked || undefined}
+            aria-busy={quizInteractionLocked || undefined}
           >
             <CardHeader className="quiz-question-header shrink-0 rounded-none border-b px-4 py-3.5 sm:px-5">
               <div className="flex items-center justify-between gap-3">
@@ -578,7 +722,7 @@ export function QuizPage() {
                               )}
                               value={input}
                               onChange={(event) => setInput(event.target.value)}
-                              disabled={Boolean(result)}
+                              disabled={Boolean(result) || quizInteractionLocked}
                               aria-invalid={result === 'wrong' || undefined}
                               aria-describedby="quiz-answer-feedback"
                               autoComplete="off"
@@ -592,7 +736,7 @@ export function QuizPage() {
                                 result === 'correct' && 'is-correct',
                                 result === 'wrong' && 'is-wrong',
                               )}
-                              disabled={!input.trim() || Boolean(result)}
+                              disabled={!input.trim() || Boolean(result) || quizInteractionLocked}
                               aria-describedby="quiz-answer-feedback"
                             >
                               {result ? (
@@ -623,7 +767,7 @@ export function QuizPage() {
                                 result && isSelected && !isAnswer && 'is-wrong',
                               )}
                               aria-pressed={isSelected}
-                              disabled={Boolean(result)}
+                              disabled={Boolean(result) || quizInteractionLocked}
                               onClick={() => {
                                 setInput(choice)
                                 answer(choice)
@@ -662,12 +806,11 @@ export function QuizPage() {
               )}
             </CardContent>
             {current && (
-              <CardFooter className="min-h-16 shrink-0 justify-between gap-4 border-t bg-transparent px-4 py-3 sm:px-5">
+              <CardFooter className="min-h-16 shrink-0 flex-col items-stretch gap-3 border-t bg-transparent px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5">
                 <div
                   id="quiz-answer-feedback"
                   className={cn(
                     'min-w-0 flex-1 text-sm leading-6',
-                    !result && !secretHint && 'text-muted-foreground',
                     !result && secretHint && 'quiz-result-progress',
                     result === 'correct' && 'quiz-result-correct',
                     result === 'wrong' && 'quiz-result-wrong',
@@ -697,7 +840,15 @@ export function QuizPage() {
                     '选择答案或填写完整内容后提交。'
                   )}
                 </div>
-                {result && <Button onClick={next}>下一题</Button>}
+                {result && (
+                  <Button
+                    className="self-end sm:self-auto"
+                    onClick={next}
+                    disabled={quizInteractionLocked}
+                  >
+                    下一题
+                  </Button>
+                )}
               </CardFooter>
             )}
           </Card>
