@@ -36,6 +36,7 @@ export type MarkupReferences = {
   participantIds: string[]
   extraAuthorIds: string[]
   quoteIds: string[]
+  materialIds: string[]
   illustrationPaths: string[]
   personMarkers: Array<{ id: string; label: string }>
   quoteMarkers: Array<{ id: string; quote: string; label: string }>
@@ -328,6 +329,7 @@ export function extractMarkupReferences(value: unknown) {
   const participants = new Set<string>()
   const authors = new Set<string>()
   const quotes = new Set<string>()
+  const materials = new Set<string>()
   const illustrations = new Set<string>()
   const personMarkers: MarkupReferences['personMarkers'] = []
   const quoteMarkers: MarkupReferences['quoteMarkers'] = []
@@ -343,6 +345,7 @@ export function extractMarkupReferences(value: unknown) {
           quotes.add(node.id)
           quoteMarkers.push({ id: node.id, quote: node.labelSource, label: node.labelSource })
         }
+        if (node.kind === 'material') materials.add(node.id)
         visit(node.children)
       } else if (node.type === 'illustration') {
         illustrations.add(node.path)
@@ -359,6 +362,7 @@ export function extractMarkupReferences(value: unknown) {
     participantIds: [...participants],
     extraAuthorIds: [...authors],
     quoteIds: [...quotes],
+    materialIds: [...materials],
     illustrationPaths: [...illustrations],
     personMarkers,
     quoteMarkers,

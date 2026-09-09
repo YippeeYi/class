@@ -26,6 +26,8 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Tabs } from '@/components/ui/tabs'
+import { preloadMarkupIllustrationDimensions } from '@/features/illustrations/route-illustration-gate'
+import { useContentPreferences } from '@/features/preferences/content-preferences'
 import { recordWithinPage as withinPage } from '@/features/records/record-page-mapping'
 import { loadWrittenRecordData, writtenFailureLabel } from '@/features/records/written-record-data'
 import { WrittenRecordPages } from '@/features/records/written-record-pages'
@@ -57,6 +59,66 @@ const recordViewItems = [
 
 const JUMP_HIGHLIGHT_HOLD_MS = 520
 const JUMP_HIGHLIGHT_FADE_MS = 680
+
+function RecordViewControls({
+  view,
+  recordOrder,
+  onViewChange,
+  onRecordOrderChange,
+}: {
+  view: 'list' | 'written'
+  recordOrder: RecordOrder
+  onViewChange: (value: 'list' | 'written') => void
+  onRecordOrderChange: (value: RecordOrder) => void
+}) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const modeRef = useRef<HTMLDivElement>(null)
+  const orderRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    const mode = modeRef.current
+    const order = orderRef.current
+    if (!root || !mode || !order) return
+    const update = () => {
+      root.style.setProperty('--record-view-shift-x', `${order.offsetLeft - mode.offsetLeft}px`)
+      root.style.setProperty('--record-view-shift-y', `${order.offsetTop - mode.offsetTop}px`)
+      root.style.setProperty(
+        '--record-view-controls-height',
+        `${Math.max(mode.offsetTop + mode.offsetHeight, order.offsetTop + order.offsetHeight)}px`,
+      )
+    }
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(root)
+    observer.observe(mode)
+    observer.observe(order)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div ref={rootRef} className="record-view-controls" data-view={view}>
+      <div ref={modeRef} className="record-view-mode-control">
+        <Tabs value={view} onValueChange={(value) => onViewChange(value as 'list' | 'written')}>
+          <SegmentedTabsList
+            value={view}
+            items={recordViewItems}
+            ariaLabel="记录显示模式"
+            triggerClassName="px-2 sm:px-3"
+          />
+        </Tabs>
+      </div>
+      <div
+        ref={orderRef}
+        className="record-view-order-control"
+        aria-hidden={view === 'written' || undefined}
+        inert={view === 'written' || undefined}
+      >
+        <RecordOrderToggle value={recordOrder} onValueChange={onRecordOrderChange} />
+      </div>
+    </div>
+  )
+}
 
 function criteriaFromSearch(params: URLSearchParams): RecordCriteria {
   return {
@@ -93,6 +155,7 @@ function recordsSearch(view: 'list' | 'written', criteria: RecordCriteria) {
 }
 
 export function RecordsPage() {
+  const { hideProfanity } = useContentPreferences()
   const recordsResource = useAsyncData(() => loadRecords())
   const location = useLocation()
   const navigate = useNavigate()
@@ -187,7 +250,15 @@ export function RecordsPage() {
       try {
         setHiddenError('')
         if (!(await hasAdminAccess())) return
-        setHiddenRecords(await loadRecords({ hidden: true }))
+        const [nextHiddenRecords, hiddenWritten] = await Promise.all([
+          loadRecords({ hidden: true }),
+          view === 'written' ? loadWrittenRecordData(true) : Promise.resolve(null),
+        ])
+        await preloadMarkupIllustrationDimensions([
+          ...nextHiddenRecords.map((record) => record.content),
+          ...(hiddenWritten?.supplements || []).map((supplement) => supplement.content),
+        ])
+        setHiddenRecords(nextHiddenRecords)
         setHidden(true)
         setHiddenError('')
         replaceRouteState(view, EMPTY_RECORD_CRITERIA)
@@ -209,7 +280,10 @@ export function RecordsPage() {
     () => (view === 'written' ? [...records, ...extras] : records),
     [extras, records, view],
   )
-  const matched = useMemo(() => filterRecords(sources, criteria), [criteria, sources])
+  const matched = useMemo(
+    () => filterRecords(sources, criteria, hideProfanity),
+    [criteria, hideProfanity, sources],
+  )
   const filtered = useMemo(
     () => orderRecords(matched, recordOrder, compareRecordId),
     [matched, recordOrder],
@@ -515,20 +589,15 @@ export function RecordsPage() {
         title="记录"
         description="按日期、关键词与重要程度浏览班级共同经历；列表与原始手写页可以随时切换。"
         actions={
-          <>
-            <Tabs
-              value={view}
-              onValueChange={(value) => {
-                replaceRouteState(value as 'list' | 'written', criteria)
-                setPageIndex(0)
-              }}
-            >
-              <SegmentedTabsList value={view} items={recordViewItems} ariaLabel="记录显示模式" />
-            </Tabs>
-            {view === 'list' && (
-              <RecordOrderToggle value={recordOrder} onValueChange={setRecordOrder} />
-            )}
-          </>
+          <RecordViewControls
+            view={view}
+            recordOrder={recordOrder}
+            onViewChange={(value) => {
+              replaceRouteState(value, criteria)
+              setPageIndex(0)
+            }}
+            onRecordOrderChange={setRecordOrder}
+          />
         }
       />
       {hidden && (

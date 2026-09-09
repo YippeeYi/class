@@ -5,6 +5,7 @@ import { BackgroundRoot } from '@/components/layout/background-root'
 import { Spinner } from '@/components/ui/spinner'
 import { ArchiveProvider } from '@/features/archive/archive-context'
 import { AccessGate } from '@/features/auth/access-gate'
+import { ContentPreferenceProvider } from '@/features/preferences/content-preferences'
 import { DocumentTitleProvider } from '@/hooks/use-document-title'
 import { normalizeAppPathname } from '@/lib/app-route'
 import { routeModuleLoaders } from '@/lib/route-preload'
@@ -60,24 +61,26 @@ export function App() {
       pathname={location.pathname}
       locationKey={`${location.pathname}${location.search}`}
     >
-      <BackgroundRoot>
-        <Suspense
-          fallback={
-            <div className="grid min-h-svh place-items-center text-sm text-muted-foreground">
-              <div className="flex items-center gap-3" role="status">
-                <Spinner className="size-5" />
-                正在打开档案…
+      <ContentPreferenceProvider>
+        <BackgroundRoot>
+          <Suspense
+            fallback={
+              <div className="grid min-h-svh place-items-center text-sm text-muted-foreground">
+                <div className="flex items-center gap-3" role="status">
+                  <Spinner className="size-5" />
+                  正在打开档案…
+                </div>
               </div>
-            </div>
-          }
-        >
-          <Routes>
-            <Route path="/auth" element={<AuthPage />} />
-            <Route path="/404" element={<NotFoundPage />} />
-            <Route path="*" element={<AppEntry />} />
-          </Routes>
-        </Suspense>
-      </BackgroundRoot>
+            }
+          >
+            <Routes>
+              <Route path="/auth" element={<AuthPage />} />
+              <Route path="/404" element={<NotFoundPage />} />
+              <Route path="*" element={<AppEntry />} />
+            </Routes>
+          </Suspense>
+        </BackgroundRoot>
+      </ContentPreferenceProvider>
     </DocumentTitleProvider>
   )
 }

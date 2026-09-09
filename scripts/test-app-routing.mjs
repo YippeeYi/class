@@ -23,30 +23,30 @@ try {
   assert.equal(normalizeAppPathname('/records///'), '/records')
   assert.equal(normalizeAppPathname('/records/unknown'), '/records/unknown')
   const expectedTitles = {
-    '/': '编日史 · 导览',
-    '/records': '编日史 · 记录',
-    '/people': '编日史 · 人物',
-    '/person': '编日史 · 人物',
-    '/quotes': '编日史 · 名言',
-    '/timeline': '编日史 · 统计',
-    '/search': '编日史 · 搜索',
-    '/quiz': '编日史 · 答题',
-    '/materials': '编日史 · 资料',
-    '/map': '编日史 · 地图',
-    '/backgrounds': '编日史 · 风格',
-    '/credits': '编日史 · 致谢',
-    '/auth': '编日史 · 验证',
-    '/404': '编日史 · 错误',
-    '/unknown': '编日史 · 错误',
+    '/': '编日史',
+    '/records': '编日史',
+    '/people': '编日史',
+    '/person': '编日史',
+    '/quotes': '编日史',
+    '/timeline': '编日史',
+    '/search': '编日史',
+    '/quiz': '编日史',
+    '/materials': '编日史',
+    '/map': '编日史',
+    '/backgrounds': '编日史',
+    '/credits': '编日史',
+    '/auth': '编日史',
+    '/404': '编日史',
+    '/unknown': '编日史',
   }
-  assert.equal(formatDocumentTitle('/person', '张三'), '编日史 · 人物 · 张三')
+  assert.equal(formatDocumentTitle('/person', '张三'), '编日史')
   for (const [route, title] of Object.entries(expectedTitles)) {
     assert.equal(formatRouteDocumentTitle(route), title)
-    assert.equal(Array.from(pageNameForPath(route)).length, 2, `${route} must use a two-character page name`)
+    assert.ok(pageNameForPath(route), `${route} must retain a visible information-architecture name`)
   }
   assert.deepEqual(
     Object.values(NAVIGATION_PAGE_NAMES),
-    ['导览', '记录', '人物', '名言', '统计', '搜索', '答题', '资料', '地图', '风格', '致谢'],
+    ['编日史', '记录', '人物', '名言', '统计', '搜索', '答题', '资料', '地图', '风格', '致谢'],
   )
   const app = await readFrontend('src/app.tsx')
   assert.match(app, /<DocumentTitleProvider/, 'the router must own title updates')
@@ -57,7 +57,7 @@ try {
     'route title changes must commit before the next page paint',
   )
   const indexHtml = await readFrontend('index.html')
-  assert.match(indexHtml, /<title>编日史 · 导览<\/title>/, 'the no-script default title must follow the same rule')
+  assert.match(indexHtml, /<title>编日史<\/title>/, 'the no-script default title must follow the same rule')
   const pageFiles = (await readdir(path.join(frontend, 'src/pages'))).filter((file) =>
     file.endsWith('-page.tsx'),
   )

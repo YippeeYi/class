@@ -37,7 +37,6 @@ function decodeBackground(src: string, priority: 'high' | 'low' = 'low') {
 }
 
 export type BackgroundId = 'default' | 'mountain' | 'cloud'
-export type BoxStyleId = 'compact' | 'default' | 'rounded'
 export type ThemePresetId =
   | 'auto'
   | 'paper'
@@ -53,7 +52,6 @@ export type ThemePresetId =
 export type AppearancePreference = {
   background: BackgroundId
   theme: ThemePresetId
-  box: BoxStyleId
 }
 
 export const themePresets: Array<{
@@ -146,28 +144,6 @@ export const themePresets: Array<{
   },
 ]
 
-export const boxStyles: Array<{
-  id: BoxStyleId
-  label: string
-  description: string
-}> = [
-  {
-    id: 'compact',
-    label: '利落小角',
-    description: '接近直角的克制倒角，信息密度高、边界最清晰。',
-  },
-  {
-    id: 'default',
-    label: '标准圆角',
-    description: '沿用清晰、稳重的 shadcn 比例，适合大多数界面。',
-  },
-  {
-    id: 'rounded',
-    label: '圆角方框',
-    description: '采用更舒展的普通圆角，保持清晰边界与稳定的交互反馈。',
-  },
-]
-
 export const backgrounds: Array<{
   id: BackgroundId
   label: string
@@ -222,10 +198,6 @@ function isThemePresetId(value: unknown): value is ThemePresetId {
   return themePresets.some((item) => item.id === value)
 }
 
-function isBoxStyleId(value: unknown): value is BoxStyleId {
-  return boxStyles.some((item) => item.id === value)
-}
-
 export function readAppearance(): AppearancePreference {
   if (volatileAppearance) return volatileAppearance
   try {
@@ -240,10 +212,9 @@ export function readAppearance(): AppearancePreference {
           ? legacyBackground
           : 'default',
       theme: isThemePresetId(stored?.theme) ? stored.theme : 'auto',
-      box: isBoxStyleId(stored?.box) ? stored.box : 'default',
     }
   } catch {
-    return { background: 'default', theme: 'auto', box: 'default' }
+    return { background: 'default', theme: 'auto' }
   }
 }
 
@@ -252,7 +223,6 @@ function updateAppearance(next: Partial<AppearancePreference>) {
   const appearance: AppearancePreference = {
     background: isBackgroundId(next.background) ? next.background : previous.background,
     theme: isThemePresetId(next.theme) ? next.theme : previous.theme,
-    box: isBoxStyleId(next.box) ? next.box : previous.box,
   }
   volatileAppearance = appearance
   try {
@@ -275,10 +245,6 @@ export function setBackground(id: BackgroundId) {
 
 export function setThemePreset(id: ThemePresetId) {
   updateAppearance({ theme: id })
-}
-
-export function setBoxStyle(id: BoxStyleId) {
-  updateAppearance({ box: id })
 }
 
 type Palette = Record<(typeof THEME_PROPERTIES)[number], string>
@@ -379,10 +345,6 @@ function applyThemePreset(id: ThemePresetId) {
   root.classList.toggle('dark', preset?.mode === 'dark')
   if (preset?.themeColor)
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', preset.themeColor)
-}
-
-function applyBoxStyle(id: BoxStyleId) {
-  document.documentElement.dataset.boxStyle = id
 }
 
 function backgroundLayerStyle(id: BackgroundId): CSSProperties {
@@ -495,10 +457,6 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
   }, [appearance.theme])
 
   useEffect(() => {
-    applyBoxStyle(appearance.box)
-  }, [appearance.box])
-
-  useEffect(() => {
     const root = document.documentElement
     const layer = visibleOriginalReady
       ? backgroundLayerStyle(visible)
@@ -556,7 +514,6 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
       data-background={current}
       data-background-visible={visible}
       data-theme-preset={appearance.theme}
-      data-box-style={appearance.box}
     >
       {previous && (
         <div

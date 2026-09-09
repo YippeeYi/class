@@ -84,7 +84,7 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, AppErro
               onClick={() => window.location.assign(import.meta.env.BASE_URL)}
             >
               <House data-icon="inline-start" />
-              返回导览
+              返回主页
             </Button>
           </div>
         </section>

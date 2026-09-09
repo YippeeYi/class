@@ -136,22 +136,6 @@
   --scrollbar-thumb-radius: var(--radius-sm);
 }
 
-html[data-box-style="compact"] {
-  --radius: 0.42rem;
-  --scrollbar-edge-inset: 2px;
-}
-
-html[data-box-style="default"] {
-  --radius: 0.78rem;
-  --scrollbar-edge-inset: 4px;
-}
-
-html[data-box-style="rounded"] {
-  --radius: 1.12rem;
-  --scrollbar-edge-inset: 7px;
-  --scrollbar-thumb-radius: var(--radius-md);
-}
-
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
@@ -588,6 +572,52 @@ body
   .app-segmented-control[data-segmented-control="true"][data-selection-switching]
   > .app-selection-indicator {
   will-change: transform;
+}
+
+/* The record mode and ordering controls stay mounted in one measured frame.
+   The outer mode control crosses the exact measured gap while its existing
+   inner selection indicator performs the original, independent movement. */
+.record-view-controls {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+  min-height: var(--record-view-controls-height, 2.25rem);
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.record-view-mode-control {
+  position: relative;
+  z-index: 2;
+  transform: translate3d(0, 0, 0);
+  transition: transform var(--interaction-duration-slow) var(--interaction-ease-standard);
+}
+
+.record-view-order-control {
+  position: relative;
+  z-index: 1;
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  transition:
+    opacity var(--interaction-duration-slow) var(--interaction-ease-standard),
+    transform var(--interaction-duration-slow) var(--interaction-ease-standard);
+}
+
+.record-view-controls[data-view="written"] .record-view-mode-control {
+  transform: translate3d(var(--record-view-shift-x, 0), var(--record-view-shift-y, 0), 0);
+}
+
+.record-view-controls[data-view="written"] .record-view-order-control {
+  opacity: 0;
+  transform: translate3d(0.35rem, 0, 0);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .record-view-mode-control,
+  .record-view-order-control {
+    transition-duration: 0.01ms;
+  }
 }
 
 .app-tabs-content {
@@ -1518,6 +1548,10 @@ body .app-interactive-media:not(:disabled):active {
   isolation: isolate;
 }
 
+body .app-sidebar-navigation[data-no-active="true"] > .app-selection-indicator {
+  opacity: 0;
+}
+
 body .app-sidebar-navigation[data-slot="sidebar-menu"] > .app-selection-indicator {
   position: absolute;
   z-index: 0;
@@ -1698,87 +1732,6 @@ body [data-slot="switch-thumb"] {
   transition: opacity var(--interaction-duration-slow) var(--interaction-ease-standard);
 }
 
-.box-style-preview {
-  --box-preview-surface-radius: calc(var(--box-preview-base-radius) * 1.4);
-  --box-preview-control-radius: calc(var(--box-preview-base-radius) * 0.8);
-  background:
-    linear-gradient(145deg, color-mix(in oklch, var(--primary) 6%, transparent), transparent 54%),
-    color-mix(in oklch, var(--muted) 72%, var(--background));
-}
-
-.box-style-preview-surface,
-.box-style-preview-control {
-  border-radius: var(--box-preview-surface-radius);
-}
-
-.box-style-preview-inset {
-  border-radius: var(--box-preview-control-radius);
-}
-
-.box-style-preview-surface,
-.box-style-preview-control {
-  box-shadow: var(--elevation-subtle);
-  transition:
-    border-radius var(--interaction-duration-slow) var(--interaction-ease-standard),
-    background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
-    border-color var(--interaction-duration-standard) var(--interaction-ease-standard),
-    box-shadow var(--interaction-duration-standard) var(--interaction-ease-standard);
-}
-
-.box-style-preview-surface--compact {
-  top: 10%;
-  left: 8%;
-  width: 72%;
-  height: 7rem;
-}
-
-.box-style-preview-control--compact {
-  right: 8%;
-  bottom: 9%;
-  width: 4rem;
-  height: 4rem;
-}
-
-.box-style-preview-surface--default {
-  top: 16%;
-  left: 12%;
-  width: 64%;
-  height: 6rem;
-}
-
-.box-style-preview-control--default {
-  right: 10%;
-  bottom: 12%;
-  width: 4.5rem;
-  height: 4.5rem;
-}
-
-.box-style-preview-surface--rounded {
-  top: 9%;
-  left: 10%;
-  width: 68%;
-  height: 7rem;
-}
-
-.box-style-preview-control--rounded {
-  right: 7%;
-  bottom: 7%;
-  width: 5rem;
-  height: 5rem;
-}
-
-[data-box-style-id="compact"] {
-  --box-preview-base-radius: 0.42rem;
-}
-
-[data-box-style-id="default"] {
-  --box-preview-base-radius: 0.78rem;
-}
-
-[data-box-style-id="rounded"] {
-  --box-preview-base-radius: 1.12rem;
-}
-
 .quiz-filter-bar [data-slot="button"]:disabled {
   opacity: 0.72;
 }
@@ -1906,12 +1859,32 @@ body [data-slot="switch-thumb"] {
   background: transparent;
 }
 
-.image-viewer-image {
+.image-viewer-image-stage {
   z-index: 1;
   transform-origin: center;
   backface-visibility: hidden;
-  filter: none;
   will-change: transform;
+}
+
+.image-viewer-image {
+  filter: none;
+}
+
+.privacy-mask {
+  overflow: hidden;
+  border: 1px solid rgb(119 109 91 / 16%);
+  border-radius: clamp(2px, 0.22vw, 5px);
+  background:
+    repeating-linear-gradient(
+      176deg,
+      transparent 0 11px,
+      rgb(95 84 66 / 2.8%) 12px,
+      transparent 13px 23px
+    ),
+    linear-gradient(92deg, rgb(226 222 211 / 99%), rgb(218 214 203 / 99%));
+  box-shadow:
+    inset 0 0 1.1rem rgb(97 86 68 / 7%),
+    0 0 0.3rem rgb(76 67 54 / 10%);
 }
 
 .image-viewer-toolbar {

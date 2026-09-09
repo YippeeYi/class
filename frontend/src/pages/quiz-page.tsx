@@ -29,6 +29,7 @@ import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Spinner } from '@/components/ui/spinner'
 import { useArchive } from '@/features/archive/archive-context'
+import { useContentPreferences, useFilteredText } from '@/features/preferences/content-preferences'
 import {
   buildQuestions,
   filteredQuestions,
@@ -40,9 +41,14 @@ import { useAsyncData } from '@/hooks/use-async-data'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { normalizeText } from '@/lib/archive'
 import { stripMarkup } from '@/lib/markup'
+import { filterProfanity } from '@/lib/profanity'
 import { cn } from '@/lib/utils'
 import { hasAdminAccess, loadQuizQuestions, loadSupplementalRecords } from '@/services/data'
-import { getImageDimensions, rememberImageDimensions } from '@/services/image-metadata'
+import {
+  getImageDimensions,
+  preloadImageDimensionList,
+  rememberImageDimensions,
+} from '@/services/image-metadata'
 
 const TYPE_LABELS: Record<PlayQuestion['type'], string> = {
   choice: '选择题',
@@ -75,6 +81,8 @@ function splitAnswerCharacters(value: string) {
 }
 
 function QuestionSource({ question, revealed }: { question: PlayQuestion; revealed: boolean }) {
+  const sideText = useFilteredText(question.sideText || '')
+  const correctedSideText = useFilteredText(question.sideCorrection?.correctText || '')
   if (!question.body && !question.sideText) return null
   return (
     <div className="mt-5 grid gap-3">
@@ -93,11 +101,11 @@ function QuestionSource({ question, revealed }: { question: PlayQuestion; reveal
           <span className="quiz-question-side-label">{question.sideLabel}</span>
           {revealed && question.sideCorrection ? (
             <span className="quiz-question-side-value quiz-judge-correction">
-              <span className="quiz-judge-wrong">{question.sideText}</span>
-              <span className="quiz-judge-answer">{question.sideCorrection.correctText}</span>
+              <span className="quiz-judge-wrong">{sideText}</span>
+              <span className="quiz-judge-answer">{correctedSideText}</span>
             </span>
           ) : (
-            <span className="quiz-question-side-value">{question.sideText}</span>
+            <span className="quiz-question-side-value">{sideText}</span>
           )}
         </div>
       )}
@@ -211,6 +219,7 @@ export function SecretImage({ path }: { path: string }) {
 
 export function QuizPage() {
   const resource = useArchive()
+  const { hideProfanity } = useContentPreferences()
   const adminResource = useAsyncData(() => hasAdminAccess())
   const supplementalResource = useAsyncData(() => loadSupplementalRecords())
   const [enabledTypes, setEnabledTypes] = useState<Set<PlayQuestion['type']>>(
@@ -227,6 +236,9 @@ export function QuizPage() {
   const [secretHint, setSecretHint] = useState('')
   const [secretError, setSecretError] = useState('')
   const [score, setScore] = useState({ correct: 0, total: 0 })
+  const visiblePrompt = useFilteredText(current?.prompt || '')
+  const visibleAnswer = useFilteredText(current?.answer || '')
+  const visibleExplanation = useFilteredText(current?.explanation || '')
   const questionAnchorRef = useRef<HTMLDivElement>(null)
   const pendingQuestionTop = useRef<number | null>(null)
   const secretUnlocking = useRef(false)
@@ -295,6 +307,10 @@ export function QuizPage() {
         const rows = await loadQuizQuestions(true)
         const extra = rows.filter((item) => item.answer).map(normalizeSecretQuestion)
         if (!extra.length) throw new Error('题库为空')
+        await preloadImageDimensionList(
+          extra.map((item) => item.image).filter((path): path is string => Boolean(path)),
+          3,
+        )
         if (!active) return
         setSecret(extra)
         setSecretError('')
@@ -527,7 +543,7 @@ export function QuizPage() {
                     className="min-h-full px-4 py-5 pr-7 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow) sm:px-6 sm:py-6 sm:pr-9"
                   >
                     <h2 className="quiz-question-prompt font-heading text-section-title font-semibold text-foreground">
-                      {current.prompt}
+                      {visiblePrompt}
                     </h2>
                     <QuestionSource question={current} revealed={Boolean(result)} />
                     {current.image && (
@@ -628,7 +644,7 @@ export function QuizPage() {
                                   String.fromCharCode(65 + index)
                                 )}
                               </span>
-                              <span>{choice}</span>
+                              <span>{filterProfanity(choice, hideProfanity)}</span>
                             </Button>
                           )
                         })}
@@ -669,8 +685,8 @@ export function QuizPage() {
                       </span>
                       <span>
                         <strong>{result === 'correct' ? '回答正确' : '回答错误'}</strong>
-                        {result === 'wrong' && <> · 正确答案：{current.answer}。</>}
-                        {current.explanation && ` ${current.explanation}`}
+                        {result === 'wrong' && <> · 正确答案：{visibleAnswer}。</>}
+                        {visibleExplanation && ` ${visibleExplanation}`}
                       </span>
                     </span>
                   ) : current.content === 'secret' && secretHint ? (

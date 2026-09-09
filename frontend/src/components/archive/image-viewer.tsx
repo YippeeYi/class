@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
-
+import { PrivacyMaskLayer } from '@/components/archive/privacy-mask-layer'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -23,10 +23,12 @@ import {
 } from '@/components/ui/dialog'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useBackgroundScrollLock } from '@/hooks/use-background-scroll-lock'
 import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { type ImageDimensions, validImageDimensions } from '@/lib/image-metadata'
 import { getImageDimensions, rememberImageDimensions } from '@/services/image-metadata'
+import type { PrivacyMask } from '@/types/domain'
 
 const MIN_SCALE = 1
 const MAX_SCALE = 8
@@ -132,12 +134,14 @@ export function ImageViewer({
   trigger,
   initialUrl = '',
   initialDimensions,
+  privacyMasks = [],
 }: {
   path: string
   alt: string
   trigger: ReactElement
   initialUrl?: string
   initialDimensions?: ImageDimensions | null
+  privacyMasks?: PrivacyMask[]
 }) {
   const [open, setOpen] = useState(false)
   const asset = useSignedAsset(open ? path : '')
@@ -186,6 +190,7 @@ export function ImageViewer({
       : availableDimensions
   const usingPreviewFallback = Boolean(initialUrl && !originalSrc)
   const originalUnavailable = Boolean(imageFailure.failed || asset.error)
+  useBackgroundScrollLock(open)
 
   useEffect(() => {
     const clear = () => setLoadedOriginal({ path, src: '' })
@@ -322,6 +327,7 @@ export function ImageViewer({
     >
       <DialogTrigger render={trigger} />
       <DialogContent
+        data-image-viewer-dialog="true"
         showCloseButton={false}
         className="image-viewer-dialog inset-0! top-0! left-0! z-50! flex! h-dvh! min-h-0! w-screen! min-w-0 max-w-none! translate-x-0! translate-y-0! flex-col gap-3 overflow-hidden rounded-none! bg-transparent! p-[max(0.75rem,env(safe-area-inset-top))_max(0.75rem,env(safe-area-inset-right))_max(0.75rem,env(safe-area-inset-bottom))_max(0.75rem,env(safe-area-inset-left))] text-sm text-foreground ring-0! outline-none sm:max-w-none!"
       >
@@ -533,42 +539,46 @@ export function ImageViewer({
             </div>
           )}
           {src && (!imageFailure.failed || usingPreviewFallback) && (
-            <img
-              key={src}
-              src={src}
-              alt={alt}
-              draggable={false}
-              decoding="async"
-              fetchPriority="high"
-              onLoad={(event) => {
-                if (!open) return
-                if (!usingPreviewFallback) imageFailure.markLoaded()
-                const nextDimensions = {
-                  width: event.currentTarget.naturalWidth,
-                  height: event.currentTarget.naturalHeight,
-                }
-                if (validImageDimensions(nextDimensions)) {
-                  rememberImageDimensions(path, nextDimensions)
-                  setMeasuredDimensions({ path, value: nextDimensions })
-                }
-              }}
-              onError={() => {
-                if (!open) return
-                if (!usingPreviewFallback) {
-                  forgetLoadedOriginal(path, src)
-                  setLoadedOriginal({ path, src: '' })
-                  imageFailure.markFailed()
-                }
-              }}
-              className="image-viewer-image absolute left-1/2 top-1/2 max-w-none select-none"
+            <div
+              className="image-viewer-image-stage absolute left-1/2 top-1/2 max-w-none select-none"
               style={{
                 width: base.width ? `${base.width}px` : `calc(100% - ${VIEWPORT_PADDING}px)`,
                 height: base.height ? `${base.height}px` : `calc(100% - ${VIEWPORT_PADDING}px)`,
-                objectFit: 'contain',
                 transform: `translate3d(calc(-50% + ${viewTransform.x}px), calc(-50% + ${viewTransform.y}px), 0) scale(${viewTransform.scale})`,
                 transformOrigin: 'center',
               }}
-            />
+            >
+              <img
+                key={src}
+                src={src}
+                alt={alt}
+                draggable={false}
+                decoding="async"
+                fetchPriority="high"
+                onLoad={(event) => {
+                  if (!open) return
+                  if (!usingPreviewFallback) imageFailure.markLoaded()
+                  const nextDimensions = {
+                    width: event.currentTarget.naturalWidth,
+                    height: event.currentTarget.naturalHeight,
+                  }
+                  if (validImageDimensions(nextDimensions)) {
+                    rememberImageDimensions(path, nextDimensions)
+                    setMeasuredDimensions({ path, value: nextDimensions })
+                  }
+                }}
+                onError={() => {
+                  if (!open) return
+                  if (!usingPreviewFallback) {
+                    forgetLoadedOriginal(path, src)
+                    setLoadedOriginal({ path, src: '' })
+                    imageFailure.markFailed()
+                  }
+                }}
+                className="image-viewer-image absolute inset-0 size-full object-contain"
+              />
+              <PrivacyMaskLayer masks={privacyMasks} />
+            </div>
           )}
           {originalUnavailable && src && (
             <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4 text-center">

@@ -3,7 +3,6 @@ import {
   BrainCircuit,
   ChartNoAxesCombined,
   FileText,
-  Home,
   Image,
   LogOut,
   Map as MapIcon,
@@ -59,6 +58,7 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAuth } from '@/features/auth/auth-context'
+import { RouteIllustrationGate } from '@/features/illustrations/route-illustration-gate'
 import { normalizeAppPathname } from '@/lib/app-route'
 import { NAVIGATION_PAGE_NAMES } from '@/lib/page-title'
 import { completeRecordJump, isRecordJumpActive } from '@/lib/record-navigation'
@@ -66,7 +66,6 @@ import { preloadRoute } from '@/lib/route-preload'
 import { cn } from '@/lib/utils'
 
 const navigation = [
-  { to: '/', label: NAVIGATION_PAGE_NAMES['/'], icon: Home },
   { to: '/records', label: NAVIGATION_PAGE_NAMES['/records'], icon: BookOpenText },
   { to: '/people', label: NAVIGATION_PAGE_NAMES['/people'], icon: Users },
   { to: '/quotes', label: NAVIGATION_PAGE_NAMES['/quotes'], icon: MessageSquareQuote },
@@ -142,10 +141,7 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
   const location = useLocation()
   const activePath = navigationPath(location.pathname)
   const [clearing, setClearing] = useState(false)
-  const activeIndex = Math.max(
-    0,
-    navigation.findIndex(({ to }) => isNavigationActive(activePath, to)),
-  )
+  const activeIndex = navigation.findIndex(({ to }) => isNavigationActive(activePath, to))
   const navigationMotion = useSelectionMotion<HTMLUListElement>(activeIndex, navigation.length, {
     targetSelector: ':scope > [data-slot="sidebar-menu-item"] > [data-slot="sidebar-menu-button"]',
   })
@@ -189,7 +185,11 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
         <SidebarGroup>
           <SidebarGroupLabel>主要导航</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu ref={navigationMotion.ref} className="app-sidebar-navigation">
+            <SidebarMenu
+              ref={navigationMotion.ref}
+              className="app-sidebar-navigation"
+              data-no-active={activeIndex < 0 ? 'true' : undefined}
+            >
               <SelectionMotionLayer listItem />
               {navigation.map(({ to, label, icon: Icon }) => {
                 const isActive = isNavigationActive(activePath, to)
@@ -297,6 +297,7 @@ export function AppShell() {
   const pageTitle = isPersonPage
     ? personName || NAVIGATION_PAGE_NAMES['/people']
     : sectionTitle?.label || '档案'
+  const isHomePage = normalizeAppPathname(location.pathname) === '/'
 
   useEffect(() => {
     const root = document.documentElement
@@ -399,21 +400,25 @@ export function AppShell() {
                       编日史
                     </BreadcrumbLink>
                   </BreadcrumbItem>
-                  <BreadcrumbSeparator className="shrink-0 text-muted-foreground/70" />
-                  <BreadcrumbItem className="min-w-0">
-                    {isPersonPage && personName ? (
-                      <BreadcrumbLink
-                        render={<Link to="/people" />}
-                        className="truncate text-sm font-medium sm:text-base"
-                      >
-                        {NAVIGATION_PAGE_NAMES['/people']}
-                      </BreadcrumbLink>
-                    ) : (
-                      <BreadcrumbPage className="truncate text-sm font-medium sm:text-base">
-                        {pageTitle}
-                      </BreadcrumbPage>
-                    )}
-                  </BreadcrumbItem>
+                  {!isHomePage && (
+                    <>
+                      <BreadcrumbSeparator className="shrink-0 text-muted-foreground/70" />
+                      <BreadcrumbItem className="min-w-0">
+                        {isPersonPage && personName ? (
+                          <BreadcrumbLink
+                            render={<Link to="/people" />}
+                            className="truncate text-sm font-medium sm:text-base"
+                          >
+                            {NAVIGATION_PAGE_NAMES['/people']}
+                          </BreadcrumbLink>
+                        ) : (
+                          <BreadcrumbPage className="truncate text-sm font-medium sm:text-base">
+                            {pageTitle}
+                          </BreadcrumbPage>
+                        )}
+                      </BreadcrumbItem>
+                    </>
+                  )}
                   {isPersonPage && personName && (
                     <>
                       <BreadcrumbSeparator className="shrink-0 text-muted-foreground/70" />
@@ -459,7 +464,9 @@ export function AppShell() {
                 !isViewportLocked && (isWideContent ? 'max-w-[90rem]' : 'max-w-6xl'),
               )}
             >
-              <Outlet />
+              <RouteIllustrationGate>
+                <Outlet />
+              </RouteIllustrationGate>
             </div>
           </SidebarInset>
         </SidebarProvider>

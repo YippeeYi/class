@@ -119,6 +119,7 @@ assert.deepEqual(markup.extractMarkupReferences('[[hide:[[person:p01|同学乙]]
   participantIds: ['p01'],
   extraAuthorIds: [],
   quoteIds: ['q01'],
+  materialIds: [],
   illustrationPaths: [],
   personMarkers: [{ id: 'p01', label: '同学乙' }],
   quoteMarkers: [{ id: 'q01', quote: '名言', label: '名言' }],

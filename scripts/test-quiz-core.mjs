@@ -32,10 +32,15 @@ assert.match(quiz, /loadSupplementalRecords/, 'written messages and supplements 
 assert.match(engine, /entryId = recordDisplayNumber\(record\)/, 'quiz source labels must use shared visible record numbers')
 assert.doesNotMatch(quiz, /fileName: item\.fileName/, 'quiz source labels must not expose supplement file names')
 assert.match(quiz, /secretProgress/, 'secret fill questions must retain correct character positions')
+assert.match(
+  quiz,
+  /loadQuizQuestions\(true\)[\s\S]*await preloadImageDimensionList\([\s\S]*setSecret\(extra\)/,
+  'the admin pool must gate rendering on intrinsic dimensions without preloading original pixels',
+)
 assert.doesNotMatch(
   quiz,
-  /preloadImageDimensionList|preloadQuizImage|quizImagePreloadCache/,
-  'opening the hidden pool must not request images before the active question renders',
+  /preloadQuizImage|quizImagePreloadCache/,
+  'the dimension gate must not restore hidden original-image preloading',
 )
 assert.match(
   quiz,

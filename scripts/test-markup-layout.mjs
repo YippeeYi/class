@@ -43,6 +43,7 @@ const harness = String.raw`<!doctype html>
       import { Sidebar, SidebarContent, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger } from '/src/components/ui/sidebar.tsx'
       import { Tabs } from '/src/components/ui/tabs.tsx'
       import { ArchiveProvider } from '/src/features/archive/archive-context.tsx'
+      import { ContentPreferenceProvider } from '/src/features/preferences/content-preferences.tsx'
       import { DocumentTitleProvider } from '/src/hooks/use-document-title.ts'
       import { rememberImageDimensions } from '/src/services/image-metadata.ts'
       import { installRecordJumpGuard } from '/src/lib/record-navigation.ts'
@@ -352,6 +353,7 @@ const harness = String.raw`<!doctype html>
       function App() {
         return e(MemoryRouter, null,
           e(TitleBoundary, null,
+          e(ContentPreferenceProvider, null,
           e(BackgroundRoot, null,
             e(React.Fragment, null,
               e(LocationProbe),
@@ -399,6 +401,7 @@ const harness = String.raw`<!doctype html>
                 ),
               ),
             ),
+          ),
           ),
           ),
         )
@@ -539,16 +542,11 @@ try {
   await page.goto(origin, { waitUntil: 'domcontentloaded' })
   await page.waitForFunction(() => window.__markupLayoutReady === true)
   assert.deepEqual(pageErrors, [], `browser page errors during initial render: ${pageErrors.join('; ')}`)
-  assert.equal(await page.title(), '编日史 · 导览')
-  for (const [route, title] of [
-    ['/records', '编日史 · 记录'],
-    ['/person?id=p01', '编日史 · 人物'],
-    ['/credits', '编日史 · 致谢'],
-    ['/unknown', '编日史 · 错误'],
-    ['/', '编日史 · 导览'],
-  ]) {
+  assert.equal(await page.title(), '编日史')
+  for (const route of ['/records', '/person?id=p01', '/credits', '/unknown', '/']) {
     await page.evaluate((nextRoute) => window.__memoryNavigate(nextRoute), route)
-    await page.waitForFunction((expected) => document.title === expected, title)
+    await page.waitForFunction((expected) => window.__memoryLocation === expected, route)
+    await page.waitForFunction(() => document.title === '编日史')
   }
 
   await page.waitForFunction(() =>
@@ -791,7 +789,8 @@ try {
   )
 
   await page.evaluate(() => window.__memoryNavigate('/person?id=p1'))
-  await page.waitForFunction(() => document.title === '编日史 · 人物 · 人物一')
+  await page.waitForFunction(() => window.__memoryLocation === '/person?id=p1')
+  await page.waitForFunction(() => document.title === '编日史')
   const personFixture = page.locator('[data-case="person"]')
   const personOrderControl = personFixture.getByRole('tablist', {
     name: '人物相关记录显示顺序',
@@ -809,7 +808,8 @@ try {
     `person order selection did not settle: ${JSON.stringify(settledPersonOrder)}`,
   )
   await page.evaluate(() => window.__memoryNavigate('/'))
-  await page.waitForFunction(() => document.title === '编日史 · 导览')
+  await page.waitForFunction(() => window.__memoryLocation === '/')
+  await page.waitForFunction(() => document.title === '编日史')
 
   const nestedRedaction = page.locator('[data-case="nested-redaction"] .record-redacted')
   const nestedRedactionLink = nestedRedaction.locator('.markup-link').first()
@@ -845,6 +845,90 @@ try {
   assert.deepEqual(await visibleRecordIds(), ['record-r1', 'record-r2', 'record-r3'])
   await recordOrderTabs.getByRole('tab', { name: '逆序' }).click()
   assert.deepEqual(await visibleRecordIds(), ['record-r3', 'record-r2', 'record-r1'])
+
+  const recordModeTabs = recordsFixture.getByRole('tablist', { name: '记录显示模式' })
+  const recordControlRoot = recordsFixture.locator('.record-view-controls')
+  const initialRecordControls = await recordControlRoot.evaluate((root) => {
+    const mode = root.querySelector('.record-view-mode-control')
+    const order = root.querySelector('.record-view-order-control')
+    return {
+      modeLeft: mode.getBoundingClientRect().left,
+      orderLeft: order.getBoundingClientRect().left,
+    }
+  })
+  await recordModeTabs.getByRole('tab', { name: '书面记录' }).click()
+  await recordControlRoot.waitFor({ state: 'visible' })
+  await page.waitForFunction(
+    () => document.querySelector('.record-view-controls')?.getAttribute('data-view') === 'written',
+  )
+  await page.waitForTimeout(32)
+  const forwardControlMotion = await recordControlRoot.evaluate((root) => {
+    const mode = root.querySelector('.record-view-mode-control')
+    const order = root.querySelector('.record-view-order-control')
+    const inner = root.querySelector('[aria-label="记录显示模式"]')
+    return {
+      orderMounted: Boolean(order),
+      orderDisplay: getComputedStyle(order).display,
+      orderOpacity: Number(getComputedStyle(order).opacity),
+      outerAnimations: mode.getAnimations().length,
+      orderAnimations: order.getAnimations().length,
+      innerAnimationIds: inner
+        .getAnimations({ subtree: true })
+        .map((animation) => animation.id)
+        .filter(Boolean),
+    }
+  })
+  assert.equal(forwardControlMotion.orderMounted, true, 'order controls must stay mounted while covered')
+  assert.notEqual(forwardControlMotion.orderDisplay, 'none', 'order controls must fade without display removal')
+  assert.ok(
+    forwardControlMotion.outerAnimations >= 1 && forwardControlMotion.orderAnimations >= 1,
+    `outer and order controls must animate together: ${JSON.stringify(forwardControlMotion)}`,
+  )
+  assert.deepEqual(
+    forwardControlMotion.innerAnimationIds,
+    ['app-selection-move'],
+    'the original inner selected-box animation must run at the same time',
+  )
+  await page.waitForTimeout(220)
+  const writtenRecordControls = await recordControlRoot.evaluate((root) => {
+    const mode = root.querySelector('.record-view-mode-control')
+    const order = root.querySelector('.record-view-order-control')
+    return {
+      modeLeft: mode.getBoundingClientRect().left,
+      orderOpacity: Number(getComputedStyle(order).opacity),
+    }
+  })
+  assert.ok(
+    Math.abs(writtenRecordControls.modeLeft - initialRecordControls.orderLeft) <= 1,
+    `the outer mode box must settle in the original order-control space: ${JSON.stringify({ initialRecordControls, writtenRecordControls })}`,
+  )
+  assert.equal(writtenRecordControls.orderOpacity, 0)
+  await recordModeTabs.getByRole('tab', { name: '按条记录' }).click()
+  await page.waitForFunction(
+    () => document.querySelector('.record-view-controls')?.getAttribute('data-view') === 'list',
+  )
+  await page.waitForTimeout(32)
+  const reverseControlMotion = await recordControlRoot.evaluate((root) => ({
+    outerAnimations: root.querySelector('.record-view-mode-control').getAnimations().length,
+    orderAnimations: root.querySelector('.record-view-order-control').getAnimations().length,
+    orderDisplay: getComputedStyle(root.querySelector('.record-view-order-control')).display,
+    innerAnimationIds: root
+      .querySelector('[aria-label="记录显示模式"]')
+      .getAnimations({ subtree: true })
+      .map((animation) => animation.id)
+      .filter(Boolean),
+  }))
+  assert.notEqual(reverseControlMotion.orderDisplay, 'none')
+  assert.ok(reverseControlMotion.outerAnimations >= 1 && reverseControlMotion.orderAnimations >= 1)
+  assert.deepEqual(reverseControlMotion.innerAnimationIds, ['app-selection-move'])
+  await page.waitForTimeout(220)
+  const restoredRecordControls = await recordControlRoot.evaluate((root) => ({
+    modeLeft: root.querySelector('.record-view-mode-control').getBoundingClientRect().left,
+    orderOpacity: Number(getComputedStyle(root.querySelector('.record-view-order-control')).opacity),
+  }))
+  assert.ok(Math.abs(restoredRecordControls.modeLeft - initialRecordControls.modeLeft) <= 1)
+  assert.equal(restoredRecordControls.orderOpacity, 1)
+
   await page.setViewportSize({ width: 1280, height: 1000 })
   await page.waitForTimeout(50)
   const sourceJump = recordsFixture.getByRole('button', {
@@ -2021,105 +2105,6 @@ try {
   assert.equal(surfaceGeometry.rootOverscroll, 'none', 'the root must contain vertical elastic overscroll')
   assert.equal(surfaceGeometry.bodyOverscroll, 'none', 'the body must not reveal a mismatched canvas at either edge')
 
-  await page.getByRole('tab', { name: /^方框/ }).click()
-  const boxStyleCards = page.locator('[data-box-style-id]')
-  assert.equal(await boxStyleCards.count(), 3, 'compact, standard, and rounded must be the only box styles')
-  const boxPreviewStyles = await boxStyleCards.evaluateAll((cards) =>
-    cards.map((card) => {
-      const preview = card.querySelector('.box-style-preview')
-      const surface = card.querySelector('.box-style-preview-surface')
-      const control = card.querySelector('.box-style-preview-control')
-      const inset = card.querySelector('.box-style-preview-inset')
-      const previewBounds = preview.getBoundingClientRect()
-      const surfaceStyle = getComputedStyle(surface)
-      return {
-        id: card.getAttribute('data-box-style-id'),
-        previewWidth: previewBounds.width,
-        previewHeight: previewBounds.height,
-        pattern: [...surface.classList].find((name) => name.startsWith('box-style-preview-surface--')),
-        surfaceRadius: Number.parseFloat(surfaceStyle.borderTopLeftRadius),
-        controlRadius: Number.parseFloat(getComputedStyle(control).borderTopLeftRadius),
-        insetRadius: Number.parseFloat(getComputedStyle(inset).borderTopLeftRadius),
-        borderWidth: Number.parseFloat(surfaceStyle.borderTopWidth),
-        background: surfaceStyle.backgroundColor,
-        shadow: surfaceStyle.boxShadow,
-      }
-    }),
-  )
-  assert.ok(
-    boxPreviewStyles[0].surfaceRadius < boxPreviewStyles[1].surfaceRadius &&
-      boxPreviewStyles[1].surfaceRadius < boxPreviewStyles[2].surfaceRadius,
-    `box previews must show the three real radius families: ${JSON.stringify(boxPreviewStyles)}`,
-  )
-  boxPreviewStyles.forEach((preview) => {
-    assert.ok(
-      preview.previewWidth >= 240 && preview.previewHeight >= 140,
-      preview.id + ' preview must remain visibly sized inside the shadcn Label: ' + JSON.stringify(preview),
-    )
-    assert.equal(preview.surfaceRadius, preview.controlRadius, `${preview.id} preview surfaces must share one radius family`)
-    assert.ok(preview.insetRadius < preview.surfaceRadius, `${preview.id} preview controls must use the corresponding smaller control radius`)
-    assert.ok(preview.borderWidth >= 1, `${preview.id} preview must retain a visible ordinary border`)
-    assert.notEqual(preview.background, 'rgba(0, 0, 0, 0)', `${preview.id} preview must retain its card background`)
-    assert.notEqual(preview.shadow, 'none', `${preview.id} preview must retain its restrained card elevation`)
-  })
-  assert.equal(
-    new Set(boxPreviewStyles.map((preview) => preview.pattern)).size,
-    3,
-    'every box style must expose a distinct real preview pattern: ' + JSON.stringify(boxPreviewStyles),
-  )
-  const radiusFamilies = []
-  for (const [id, expectedInset] of [
-    ['compact', 2],
-    ['default', 4],
-    ['rounded', 7],
-  ]) {
-    await page.locator(`[data-box-style-id="${id}"]`).click()
-    await page.waitForFunction(
-      (boxStyle) => document.documentElement.dataset.boxStyle === boxStyle,
-      id,
-    )
-    await page.waitForTimeout(220)
-    const geometry = await page.locator('[data-scroll-area-fixture]').evaluate((root) => {
-      const scrollbar = root.querySelector(
-        '[data-slot="scroll-area-scrollbar"][data-orientation="vertical"]',
-      )
-      const thumb = scrollbar?.querySelector('[data-slot="scroll-area-thumb"]')
-      const rootBounds = root.getBoundingClientRect()
-      const scrollbarBounds = scrollbar?.getBoundingClientRect()
-      const thumbBounds = thumb?.getBoundingClientRect()
-      const rootStyles = getComputedStyle(root)
-      return {
-        edgeInset: Number.parseFloat(rootStyles.getPropertyValue('--scrollbar-edge-inset')),
-        rootRadius: Number.parseFloat(rootStyles.borderTopLeftRadius),
-        rootOverflow: rootStyles.overflow,
-        scrollbarTopInset: scrollbarBounds ? scrollbarBounds.top - rootBounds.top : -1,
-        scrollbarBottomInset: scrollbarBounds ? rootBounds.bottom - scrollbarBounds.bottom : -1,
-        scrollbarWidth: scrollbarBounds?.width || 0,
-        thumbWidth: thumbBounds?.width || 0,
-        thumbRadius: thumb ? Number.parseFloat(getComputedStyle(thumb).borderTopLeftRadius) : 0,
-      }
-    })
-    assert.equal(geometry.edgeInset, expectedInset, `${id} scrollbars must use their radius-family edge inset`)
-    assert.equal(geometry.rootOverflow, 'clip', `${id} rounded scroll areas must clip edge leakage`)
-    assert.ok(
-      Math.abs(geometry.scrollbarTopInset - expectedInset) <= 1 &&
-        Math.abs(geometry.scrollbarBottomInset - expectedInset) <= 1,
-      `${id} scrollbar must stay clear of both rounded ends: ${JSON.stringify(geometry)}`,
-    )
-    assert.ok(
-      geometry.thumbWidth <= geometry.scrollbarWidth + 1,
-      `${id} vertical thumb must not widen beyond its track: ${JSON.stringify(geometry)}`,
-    )
-    assert.ok(geometry.thumbRadius > 0, `${id} scrollbar thumb must inherit a visible radius`)
-    radiusFamilies.push({ id, ...geometry })
-  }
-  assert.ok(
-    radiusFamilies[0].rootRadius < radiusFamilies[1].rootRadius &&
-      radiusFamilies[1].rootRadius < radiusFamilies[2].rootRadius,
-    `the three product radius families must remain visually distinct: ${JSON.stringify(radiusFamilies)}`,
-  )
-  await page.locator('[data-box-style-id="default"]').click()
-  await page.waitForFunction(() => document.documentElement.dataset.boxStyle === 'default')
   await page.getByRole('tab', { name: /^背景/ }).click()
   await page.locator('[data-background-id="mountain"]').click()
   await page.locator('[data-background-id="cloud"]').click()
@@ -2132,50 +2117,6 @@ try {
   })
   assert.deepEqual(backgroundSelectionState.selected, ['cloud'], 'background selection must update directly on the chosen label')
   assert.equal(backgroundSelectionState.movingLayers, 0, 'background selection must not mount a moving shared frame')
-  await page.getByRole('tab', { name: /^方框/ }).click()
-  await page.waitForTimeout(220)
-  const roundedChoice = page.locator('[data-box-style-id="rounded"]')
-  await roundedChoice.scrollIntoViewIfNeeded()
-  const readRoundedChoiceDocumentBounds = () => roundedChoice.evaluate((choice) => {
-    const bounds = choice.getBoundingClientRect()
-    return {
-      x: bounds.x + window.scrollX,
-      y: bounds.y + window.scrollY,
-      width: bounds.width,
-      height: bounds.height,
-    }
-  })
-  const roundedChoiceBoundsBefore = await readRoundedChoiceDocumentBounds()
-  await roundedChoice.hover()
-  await page.waitForTimeout(220)
-  const roundedChoiceBoundsAfter = await readRoundedChoiceDocumentBounds()
-  assert.ok(
-    roundedChoiceBoundsAfter.width === roundedChoiceBoundsBefore.width &&
-      roundedChoiceBoundsAfter.height === roundedChoiceBoundsBefore.height &&
-      Math.abs(roundedChoiceBoundsAfter.x - roundedChoiceBoundsBefore.x) <= 1 &&
-      Math.abs(roundedChoiceBoundsAfter.y - roundedChoiceBoundsBefore.y) <= 1,
-    `box-style hover must preserve selectable-card geometry: ${JSON.stringify({ roundedChoiceBoundsBefore, roundedChoiceBoundsAfter })}`,
-  )
-  const defaultQuizSizes = await page.locator('[data-quiz-theme-fixture]').evaluateAll((cards) =>
-    cards.map((card) => ({
-      type: card.getAttribute('data-question-type'),
-      width: card.getBoundingClientRect().width,
-      height: card.getBoundingClientRect().height,
-    })),
-  )
-  await roundedChoice.click()
-  await page.waitForFunction(() => {
-    const value = JSON.parse(localStorage.getItem('classRecord:appearance:v1') || 'null')
-    return value?.box === 'rounded' && document.documentElement.dataset.boxStyle === 'rounded'
-  })
-  const roundedCardBackdrop = await page
-    .locator('[data-case="app-surface"] [data-slot="card"]')
-    .evaluate((card) => getComputedStyle(card).backdropFilter)
-  assert.equal(
-    roundedCardBackdrop,
-    'none',
-    'rounded content cards must remain ordinary opaque card surfaces without a backdrop pass',
-  )
   await page.getByRole('tab', { name: /^配色/ }).click()
   await page.locator('[data-theme-preset-option="mist"]').click()
   await page.locator('[data-theme-preset-option="paper"]').click()
@@ -2203,7 +2144,7 @@ try {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.getByRole('tab', { name: /^配色/ }).click()
   await page.getByRole('tab', { name: /^背景/ }).click()
-  await page.getByRole('tab', { name: /^方框/ }).click()
+  await page.getByRole('tab', { name: /^配色/ }).click()
   const rapidSelectionState = await page.getByRole('tablist', { name: '风格设置分区' }).evaluate((list) => ({
     active: [...list.querySelectorAll('[data-slot="tabs-trigger"][data-active]')].map((trigger) => trigger.textContent?.trim()),
     transforms: [...list.querySelectorAll('[data-slot="tabs-trigger"]')].map((trigger) => getComputedStyle(trigger).transform),
@@ -2212,7 +2153,7 @@ try {
     animationIds: list.getAnimations({ subtree: true }).map((animation) => animation.id).filter(Boolean),
   }))
   assert.equal(rapidSelectionState.active.length, 1)
-  assert.match(rapidSelectionState.active[0] || '', /^方框/)
+  assert.match(rapidSelectionState.active[0] || '', /^配色/)
   assert.ok(rapidSelectionState.transforms.every((transform) => transform === 'none'))
   assert.equal(rapidSelectionState.movingLayers, 1, 'rapid tab switching must retain one shared selected frame')
   assert.equal(rapidSelectionState.switching, true)
@@ -2469,86 +2410,9 @@ try {
   }
   await page.locator('[data-theme-preset-option="auto"]').click()
   await page.waitForFunction(() => document.documentElement.dataset.themePreset === 'auto')
-  await page.getByRole('tab', { name: /^方框/ }).click()
-  await page.locator('[data-box-style-id="rounded"]').click()
-  await page.waitForFunction(() => document.documentElement.dataset.boxStyle === 'rounded')
-  const roundedSurfaceState = await page.locator('[data-case="app-surface"]').evaluate((surface) => {
-    const card = surface.querySelector('[data-slot="card"]')
-    const style = getComputedStyle(card)
-    return {
-      backdrop: style.backdropFilter,
-      backgroundImage: style.backgroundImage,
-      boxShadow: style.boxShadow,
-    }
-  })
-  assert.deepEqual(
-    roundedSurfaceState,
-    { backdrop: 'none', backgroundImage: 'none', boxShadow: 'none' },
-    'rounded mode must remain an ordinary card surface with no special material layer',
-  )
-  const roundedQuizGeometry = await page.locator('[data-quiz-theme-fixture]').evaluateAll((cards) =>
-    cards.map((card) => ({
-      type: card.getAttribute('data-question-type'),
-      width: card.getBoundingClientRect().width,
-      height: card.getBoundingClientRect().height,
-      overflowX: card.scrollWidth - card.clientWidth,
-      overflowY: card.scrollHeight - card.clientHeight,
-      backdrop: getComputedStyle(card).backdropFilter,
-      contain: getComputedStyle(card).contain,
-      outlineStyle: getComputedStyle(card).outlineStyle,
-      overflow: getComputedStyle(card).overflow,
-      cardRadius: getComputedStyle(card).borderStartStartRadius,
-      edgeContent: getComputedStyle(card, '::before').content,
-      backgroundImage: getComputedStyle(card).backgroundImage,
-      boxShadow: getComputedStyle(card).boxShadow,
-      borderWidths: [
-        getComputedStyle(card).borderTopWidth,
-        getComputedStyle(card).borderRightWidth,
-        getComputedStyle(card).borderBottomWidth,
-        getComputedStyle(card).borderLeftWidth,
-      ],
-      headerTopOffset:
-        card.querySelector('[data-slot="card-header"]').getBoundingClientRect().top -
-        card.getBoundingClientRect().top,
-      headerRadius: getComputedStyle(card.querySelector('[data-slot="card-header"]')).borderStartStartRadius,
-      footerRadius: getComputedStyle(card.querySelector('[data-slot="card-footer"]')).borderEndStartRadius,
-    })),
-  )
-  roundedQuizGeometry.forEach((card) => {
-    assert.ok(
-      card.overflowX <= 1 && card.overflowY <= 1,
-      `rounded mode must not clip or enlarge ${card.type} quiz content: ${JSON.stringify(card)}`,
-    )
-    assert.equal(card.backdrop, 'none', `rounded quiz cards must avoid backdrop sampling on ${card.type}`)
-    assert.equal(card.contain, 'none', `${card.type} quiz cards must not create an independent containment surface at their corners`)
-    assert.equal(card.outlineStyle, 'none', `${card.type} quiz cards must not rasterize a second rounded outline`)
-    assert.equal(card.overflow, 'hidden', `${card.type} quiz material layers must be clipped by one outer radius`)
-    assert.ok(Number.parseFloat(card.cardRadius) > 0, `${card.type} quiz card must retain its outer radius`)
-    assert.equal(card.edgeContent, 'none', `${card.type} quiz card must not add a second masked rim that can fracture at corners`)
-    assert.equal(card.backgroundImage, 'none', `${card.type} quiz card must not retain a second top-edge gradient layer`)
-    assert.equal(card.boxShadow, 'none', `${card.type} quiz card must not rely on a shadow that its locked viewport can clip`)
-    assert.equal(new Set(card.borderWidths).size, 1, `${card.type} quiz card must keep one continuous border around all four corners`)
-    assert.ok(card.headerTopOffset <= 2, `${card.type} quiz header must begin directly inside the single outer edge`)
-    assert.equal(Number.parseFloat(card.headerRadius), 0, `${card.type} quiz header must rely on the single outer top radius`)
-    assert.equal(Number.parseFloat(card.footerRadius), 0, `${card.type} quiz footer must rely on the single outer bottom radius`)
-  })
-  assert.deepEqual(
-    roundedQuizGeometry.map(({ type, width, height }) => ({ type, width, height })),
-    defaultQuizSizes,
-    'switching to rounded mode must not resize or reflow quiz cards',
-  )
-  if (process.env.CLASS_RECORD_ROUNDED_SCREENSHOT) {
-    await page.screenshot({ path: process.env.CLASS_RECORD_ROUNDED_SCREENSHOT, fullPage: true })
-  }
   await page.setViewportSize({ width: 390, height: 720 })
-  await assertFullscreenImageViewer(page, 'rounded 390px')
+  await assertFullscreenImageViewer(page, '390px')
   await page.setViewportSize({ width: 1280, height: 1000 })
-  await page.locator('[data-box-style-id="default"]').click()
-  await page.waitForFunction(() => document.documentElement.dataset.boxStyle === 'default')
-  const resetRoundedState = await page.locator('[data-case="app-surface"] [data-slot="card"]').evaluate((card) => ({
-    backdrop: getComputedStyle(card).backdropFilter,
-  }))
-  assert.deepEqual(resetRoundedState, { backdrop: 'none' }, 'default box mode must retain the same ordinary card material')
 
   await page.evaluate(() => window.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: 'auto' }))
   const bottomBoundary = await page.evaluate(() => {
@@ -2956,11 +2820,6 @@ try {
     densityPage.on('pageerror', (error) => densityErrors.push(error.message))
     await densityPage.goto(origin, { waitUntil: 'domcontentloaded' })
     await densityPage.waitForFunction(() => window.__markupLayoutReady === true)
-    await densityPage.getByRole('tab', { name: /^方框/ }).click()
-    await densityPage.locator('[data-box-style-id="rounded"]').click()
-    await densityPage.waitForFunction(
-      () => document.documentElement.dataset.boxStyle === 'rounded',
-    )
     const densityQuizEdges = await densityPage
       .locator('[data-quiz-theme-fixture]')
       .evaluateAll((cards) =>

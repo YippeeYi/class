@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { Spinner } from '@/components/ui/spinner'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
+import { useContentPreferences } from '@/features/preferences/content-preferences'
 import { useDismissOnVerticalScroll } from '@/hooks/use-dismiss-on-vertical-scroll'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import type { ImageDimensions } from '@/lib/image-metadata'
@@ -25,6 +26,7 @@ import {
   type QuizMarkupNode,
   recordAnchor,
 } from '@/lib/markup'
+import { filterProfanity } from '@/lib/profanity'
 import { isModifiedRecordClick, prepareRecordJump, recordClientHref } from '@/lib/record-navigation'
 import {
   getImageDimensions,
@@ -550,11 +552,13 @@ export function MarkupContent({
 }) {
   const tree = useMemo(() => parseMarkup(content), [content])
   const navigate = useNavigate()
+  const { hideProfanity } = useContentPreferences()
 
   const renderNodes = (nodes: MarkupNode[], path: string): ReactNode =>
     nodes.map((node, position) => {
       const key = `${path}-${node.type}-${position}`
-      if (node.type === 'text') return <Fragment key={key}>{node.value}</Fragment>
+      if (node.type === 'text')
+        return <Fragment key={key}>{filterProfanity(node.value, hideProfanity)}</Fragment>
       if (node.type === 'style') {
         const children = renderNodes(node.children, key)
         if (node.style === 'del')
@@ -762,16 +766,23 @@ export function QuizMarkupContent({
   revealed?: boolean
 }) {
   const tree = useMemo(() => parseQuizMarkup(content, blankReference), [blankReference, content])
+  const { hideProfanity } = useContentPreferences()
   const renderNodes = (nodes: QuizMarkupNode[], path: string): ReactNode =>
     nodes.map((node, position) => {
       const key = `${path}-${node.type}-${position}`
       if (node.type === 'blank')
-        return <QuizAnswerBlank key={key} answer={node.answer} revealed={revealed} />
+        return (
+          <QuizAnswerBlank
+            key={key}
+            answer={filterProfanity(node.answer, hideProfanity)}
+            revealed={revealed}
+          />
+        )
       if (node.type === 'text')
         return (
           <Fragment key={key}>
             {decorateQuizText({
-              value: node.value,
+              value: filterProfanity(node.value, hideProfanity),
               keyPrefix: key,
               corrections,
               revealed,

@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/chart'
 import { Tabs } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
+import { useContentPreferences } from '@/features/preferences/content-preferences'
 import {
   countTimelineBy as countBy,
   timelineDateParts as dateParts,
@@ -30,6 +31,7 @@ import {
 } from '@/features/timeline/timeline-model'
 import { usePersistentHighlight } from '@/hooks/use-persistent-highlight'
 import { stripMarkup } from '@/lib/markup'
+import { filterProfanity } from '@/lib/profanity'
 import { quoteRecordTarget } from '@/lib/quote-navigation'
 import { prepareRecordJump, recordClientHref } from '@/lib/record-navigation'
 import { buildPieSectorPaths } from '@/lib/stats'
@@ -573,6 +575,7 @@ function TimelineBarChart({
 }
 
 export function TimelinePage() {
+  const { hideProfanity } = useContentPreferences()
   const resource = useArchive()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
@@ -664,8 +667,13 @@ export function TimelinePage() {
   )
   const knownQuotes = useMemo(
     () =>
-      new Map((resource.data?.quotes || []).map((quote) => [quote.id, stripMarkup(quote.quote)])),
-    [resource.data?.quotes],
+      new Map(
+        (resource.data?.quotes || []).map((quote) => [
+          quote.id,
+          filterProfanity(stripMarkup(quote.quote), hideProfanity),
+        ]),
+      ),
+    [hideProfanity, resource.data?.quotes],
   )
   const quoteById = useMemo(
     () => new Map((resource.data?.quotes || []).map((quote) => [quote.id, quote])),

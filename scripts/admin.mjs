@@ -678,6 +678,9 @@ const importRecordPages = async () => {
             firstValue(raw.image_path, raw.imagePath, raw.image, raw.fileName, raw.file),
             page
         );
+        const localSourceImagePath = raw.sourceImage
+            ? getDefaultLocalAssetPath(normalizeRecordPageImagePath(raw.sourceImage, raw.sourceImage))
+            : '';
 
         return {
             page,
@@ -685,7 +688,9 @@ const importRecordPages = async () => {
             end_file: raw.end || raw.endFile || raw.to || null,
             sort_order: index,
             hidden: isHidden,
-            image_path: sourceImagePath ? registerStorageAsset(sourceImagePath, { hidden: isHidden }) : null,
+            image_path: sourceImagePath
+                ? registerStorageAsset(sourceImagePath, { hidden: isHidden, localPath: localSourceImagePath })
+                : null,
             raw
         };
     });

@@ -14,7 +14,10 @@ const STALE_TTL = 90 * 24 * 60 * 60 * 1000
 const dimensions = new Map<string, ImageDimensions>()
 const inflight = new Map<string, Promise<ImageDimensions | null>>()
 const listeners = new Map<string, Set<() => void>>()
+const failures = new Map<string, number>()
 let generation = 0
+const FAILURE_RETRY_MS = 5 * 60 * 1000
+const DEFAULT_GATE_TIMEOUT_MS = 8_000
 
 function notify(path: string) {
   listeners.get(path)?.forEach((listener) => {
@@ -27,6 +30,7 @@ export function rememberImageDimensions(path: string, value: ImageDimensions) {
   const current = dimensions.get(path)
   if (current?.width === value.width && current.height === value.height) return
   dimensions.set(path, value)
+  failures.delete(path)
   notify(path)
 }
 
@@ -74,6 +78,9 @@ export function preloadImageDimensions(path: string, previewWidth = DEFAULT_ASSE
   if (!normalized) return Promise.resolve(null)
   const current = dimensions.get(normalized)
   if (current) return Promise.resolve(current)
+  const failedAt = failures.get(normalized) || 0
+  if (failedAt && Date.now() - failedAt < FAILURE_RETRY_MS) return Promise.resolve(null)
+  failures.delete(normalized)
   const pending = inflight.get(normalized)
   if (pending) return pending
   const requestGeneration = generation
@@ -89,23 +96,43 @@ export function preloadImageDimensions(path: string, previewWidth = DEFAULT_ASSE
       rememberImageDimensions(normalized, value)
       return value
     })
-    .catch(() => null)
+    .catch(() => {
+      if (requestGeneration === generation) failures.set(normalized, Date.now())
+      return null
+    })
     .finally(() => inflight.delete(normalized))
   inflight.set(normalized, request)
   return request
 }
 
-export async function preloadImageDimensionList(paths: Iterable<string>, concurrency = 4) {
+export async function preloadImageDimensionList(
+  paths: Iterable<string>,
+  concurrency = 4,
+  timeoutMs = DEFAULT_GATE_TIMEOUT_MS,
+) {
   const queue = [...new Set(paths)].filter(Boolean)
   let cursor = 0
+  let loaded = 0
+  let failed = 0
   const worker = async () => {
     while (cursor < queue.length) {
       const path = queue[cursor]
       cursor += 1
-      if (path) await preloadImageDimensions(path)
+      if (!path) continue
+      let timeout = 0
+      const result = await Promise.race([
+        preloadImageDimensions(path),
+        new Promise<null>((resolve) => {
+          timeout = window.setTimeout(() => resolve(null), timeoutMs)
+        }),
+      ])
+      window.clearTimeout(timeout)
+      if (result) loaded += 1
+      else failed += 1
     }
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, worker))
+  return { total: queue.length, loaded, failed }
 }
 
 export function useImageDimensions(
@@ -135,6 +162,7 @@ if (typeof window !== 'undefined') {
     generation += 1
     dimensions.clear()
     inflight.clear()
+    failures.clear()
     listeners.forEach((pathListeners) => {
       pathListeners.forEach((listener) => {
         listener()

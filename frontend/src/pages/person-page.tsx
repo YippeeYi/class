@@ -23,6 +23,7 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
+import { useContentPreferences } from '@/features/preferences/content-preferences'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { usePersonDocumentTitle } from '@/hooks/use-document-title'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
@@ -108,6 +109,7 @@ function PersonAvatar({ person }: { person: Person }) {
 }
 
 export function PersonPage() {
+  const { hideProfanity } = useContentPreferences()
   const [params] = useSearchParams()
   const id = params.get('id') || ''
   const [mode, setMode] = useState('participated')
@@ -133,10 +135,10 @@ export function PersonPage() {
   const allRelated = mode === 'authored' ? authoredRecords : participatedRecords
   const related = useMemo(
     () =>
-      orderRecords(filterRecords(allRelated, criteria), recordOrder, (left, right) =>
+      orderRecords(filterRecords(allRelated, criteria, hideProfanity), recordOrder, (left, right) =>
         recordStableKey(left).localeCompare(recordStableKey(right)),
       ),
-    [allRelated, criteria, recordOrder],
+    [allRelated, criteria, hideProfanity, recordOrder],
   )
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: same-route person links must reset view-local controls when the URL id changes.

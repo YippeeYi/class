@@ -1,10 +1,8 @@
 import { normalizeAppPathname } from '@/lib/app-route'
 
 export const SITE_TITLE = '编日史'
-export const TITLE_SEPARATOR = ' · '
-
 export const NAVIGATION_PAGE_NAMES = {
-  '/': '导览',
+  '/': '编日史',
   '/records': '记录',
   '/people': '人物',
   '/quotes': '名言',
@@ -31,18 +29,12 @@ export function pageNameForPath(pathname: string) {
 }
 
 export function formatRouteDocumentTitle(pathname: string) {
-  return `${SITE_TITLE}${TITLE_SEPARATOR}${pageNameForPath(pathname)}`
+  void pathname
+  return SITE_TITLE
 }
 
 export function formatDocumentTitle(pathname: string, personName = '') {
-  const pageName = pageNameForPath(pathname)
-  const displayedPersonName = personName.trim()
-  if (
-    normalizeAppPathname(pathname) === '/person' &&
-    displayedPersonName &&
-    displayedPersonName !== NAVIGATION_PAGE_NAMES['/people']
-  ) {
-    return `${SITE_TITLE}${TITLE_SEPARATOR}${pageName}${TITLE_SEPARATOR}${displayedPersonName}`
-  }
-  return `${SITE_TITLE}${TITLE_SEPARATOR}${pageName}`
+  void pathname
+  void personName
+  return SITE_TITLE
 }

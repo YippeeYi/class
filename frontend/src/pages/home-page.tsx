@@ -4,6 +4,7 @@ import {
   BrainCircuit,
   CalendarDays,
   ChartNoAxesCombined,
+  EyeOff,
   FileText,
   Image,
   Map as MapIcon,
@@ -31,13 +32,15 @@ import {
   ItemTitle,
 } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import { useArchive } from '@/features/archive/archive-context'
+import { useContentPreferences } from '@/features/preferences/content-preferences'
 
 const tips = [
-  '小提示：Logo 仅作为导览标识。',
+  '小提示：Logo 会带你回到主页。',
   '小提示：图片均可点击查看大图。',
   '小提示：人名可点击跳转至个人界面。',
-  '小提示：可以在风格页分别调整配色、背景和方框。',
+  '小提示：可以在风格页分别调整配色和背景。',
   '小提示：看看注释吧！',
   '小提示：挑战一下答题吗？',
   '小提示：每天看看左上角吧。',
@@ -50,11 +53,11 @@ const secondary = [
     description: '按年月查看档案数据',
     icon: ChartNoAxesCombined,
   },
-  { to: '/search', label: '搜索', description: '搜索记录、人物与名言', icon: Search },
+  { to: '/search', label: '搜索', description: '搜索记录、人物、名言与资料', icon: Search },
   { to: '/quiz', label: '答题', description: '从共同记忆里抽一道题', icon: BrainCircuit },
   { to: '/materials', label: '资料', description: '阅读补充资料与专题', icon: FileText },
   { to: '/map', label: '地图', description: '查看班级成员内部地图', icon: MapIcon },
-  { to: '/backgrounds', label: '风格', description: '调整配色、背景与方框', icon: Image },
+  { to: '/backgrounds', label: '风格', description: '调整配色与背景', icon: Image },
   { to: '/credits', label: '致谢', description: '查看档案的制作与贡献者', icon: Sparkles },
 ]
 
@@ -63,6 +66,7 @@ export function HomePage() {
   const navigate = useNavigate()
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * tips.length))
   const [logoFailed, setLogoFailed] = useState(false)
+  const { hideProfanity, setHideProfanity } = useContentPreferences()
 
   useEffect(() => {
     const resetScroll = () => window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
@@ -168,6 +172,23 @@ export function HomePage() {
               <AlertTitle>仅供班级内部查看</AlertTitle>
               <AlertDescription>请尊重档案中的个人信息与共同记忆，不要外传。</AlertDescription>
             </Alert>
+            <div className="flex min-h-12 items-center gap-3 rounded-xl border border-border/65 bg-background/38 px-4 py-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                <EyeOff className="size-4" />
+              </span>
+              <label htmlFor="hide-profanity" className="min-w-0 flex-1 cursor-pointer">
+                <span className="block text-sm font-semibold">隐藏脏话</span>
+                <span className="block text-xs leading-5 text-muted-foreground">
+                  在全站正文中以 *** 替代粗俗用语
+                </span>
+              </label>
+              <Switch
+                id="hide-profanity"
+                checked={hideProfanity}
+                onCheckedChange={setHideProfanity}
+                aria-label="隐藏所有记录中的脏话"
+              />
+            </div>
             <div className="rounded-xl border border-border/65 bg-background/38 px-4 py-3">
               <p className="mb-1 text-xs font-semibold tracking-[0.14em] text-primary/70">小提示</p>
               <p

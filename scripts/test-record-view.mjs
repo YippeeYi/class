@@ -28,8 +28,13 @@ assert.deepEqual(
 )
 assert.match(
   page,
-  /view === 'list' && \([\s\S]*<RecordOrderToggle/,
-  'list mode must expose the shared order control',
+  /className="record-view-order-control"[\s\S]*inert=\{view === 'written' \|\| undefined\}[\s\S]*<RecordOrderToggle/,
+  'the shared order control must remain mounted and become inert only after the animated transition',
+)
+assert.match(
+  page,
+  /--record-view-shift-x[\s\S]*order\.offsetLeft - mode\.offsetLeft[\s\S]*--record-view-shift-y/,
+  'the outer mode control must animate to the measured order-control position',
 )
 assert.doesNotMatch(
   writtenPages,
@@ -69,7 +74,7 @@ assert.match(
 assert.match(search, /<RecordOrderToggle[\s\S]*搜索记录结果显示顺序/, 'record search results must reuse the order control')
 assert.match(page, /<SegmentedTabsList[\s\S]*items=\{recordViewItems\}/, 'record modes must restore the shared shadcn Tabs selection motion')
 assert.match(page, /function recordsSearch/, 'record navigation state needs one URL serializer')
-assert.match(page, /replaceRouteState\(value as 'list' \| 'written', criteria\)/, 'view tabs must update state and URL exactly once')
+assert.match(page, /replaceRouteState\(value, criteria\)/, 'view tabs must update state and URL exactly once')
 assert.match(writtenPages, /value=\{page\.page\}/, 'the written page selector must use the visible page identity')
 assert.match(writtenPages, /value=\{item\.page\}/, 'written page options must use one-based domain page identities')
 assert.doesNotMatch(writtenPages, /value=\{String\(safeIndex\)\}/, 'zero-based page indexes must stay internal')
@@ -119,7 +124,7 @@ assert.match(card, /memo\(function RecordCard/, 'record cards must skip unchange
 assert.match(page, /const navigateToRecord = useCallback\(/, 'record-reference callbacks must remain stable across list renders')
 assert.match(card, /onRecordReference/, 'record cards must forward internal record references')
 assert.match(card, /signAssetUrl\(attachment\.file\)/, 'attachments must be signed on demand')
-assert.match(filters, /WeakMap<RecordItem, string>/, 'record search text must be parsed once per record object')
+assert.match(filters, /WeakMap<RecordItem, Map<boolean, string>>/, 'record search text variants must be parsed once per record object')
 assert.match(filters, /const \{ years, months, days \} = useMemo/, 'date selector options must be memoized')
 assert.match(
   filters,

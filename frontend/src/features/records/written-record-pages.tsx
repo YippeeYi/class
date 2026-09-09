@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { EmptyState } from '@/components/archive/async-state'
 import { ImageViewer } from '@/components/archive/image-viewer'
+import { PrivacyMaskLayer } from '@/components/archive/privacy-mask-layer'
 import { RecordCard } from '@/components/archive/record-card'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -130,6 +131,7 @@ export function WrittenRecordPages({
               path={page.imagePath}
               page={page.page}
               hidden={hidden}
+              privacyMasks={hidden ? [] : page.privacyMasks || []}
             />
           </div>
           <div className="grid content-start gap-4">
@@ -184,7 +186,17 @@ export function WrittenRecordPages({
   )
 }
 
-function SignedPageImage({ path, page, hidden }: { path: string; page: string; hidden: boolean }) {
+function SignedPageImage({
+  path,
+  page,
+  hidden,
+  privacyMasks,
+}: {
+  path: string
+  page: string
+  hidden: boolean
+  privacyMasks: RecordPage['privacyMasks']
+}) {
   const image = useSignedAsset(path, { variant: 'preview', width: 1200 })
   const imageFailure = useBoundedImageRetry(path, image.retry)
   const dimensions = useImageDimensions(path, true, 1200) || { width: 2856, height: 4282 }
@@ -230,6 +242,7 @@ function SignedPageImage({ path, page, hidden }: { path: string; page: string; h
           className={`absolute inset-0 size-full object-contain transition-opacity duration-(--interaction-duration-slow) ${ready && !imageFailure.failed ? 'opacity-100' : 'opacity-0'}`}
         />
       )}
+      {image.src && <PrivacyMaskLayer masks={privacyMasks} />}
     </div>
   )
   return (
@@ -237,6 +250,7 @@ function SignedPageImage({ path, page, hidden }: { path: string; page: string; h
       path={path}
       initialUrl={image.src}
       initialDimensions={dimensions}
+      privacyMasks={privacyMasks}
       alt={`${hidden ? '隐藏' : '手写'}记录第 ${page} 页`}
       trigger={
         <Button

@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select'
 import { normalizeText, unique } from '@/lib/archive'
 import { stripMarkup } from '@/lib/markup'
+import { filterProfanity } from '@/lib/profanity'
 import type { RecordItem } from '@/types/domain'
 
 export type RecordCriteria = {
@@ -34,17 +35,23 @@ export const EMPTY_RECORD_CRITERIA: RecordCriteria = {
   query: '',
 }
 
-const recordBodySearchTextCache = new WeakMap<RecordItem, string>()
+const recordBodySearchTextCache = new WeakMap<RecordItem, Map<boolean, string>>()
 
-export function recordBodySearchText(record: RecordItem) {
-  const cached = recordBodySearchTextCache.get(record)
+export function recordBodySearchText(record: RecordItem, hideProfanity = false) {
+  const cached = recordBodySearchTextCache.get(record)?.get(hideProfanity)
   if (cached !== undefined) return cached
-  const value = normalizeText(stripMarkup(record.content))
-  recordBodySearchTextCache.set(record, value)
+  const value = normalizeText(filterProfanity(stripMarkup(record.content), hideProfanity))
+  const variants = recordBodySearchTextCache.get(record) || new Map<boolean, string>()
+  variants.set(hideProfanity, value)
+  recordBodySearchTextCache.set(record, variants)
   return value
 }
 
-export function filterRecords(records: RecordItem[], criteria: RecordCriteria) {
+export function filterRecords(
+  records: RecordItem[],
+  criteria: RecordCriteria,
+  hideProfanity = false,
+) {
   const needle = normalizeText(criteria.query)
   return records.filter((record) => {
     if (criteria.important && record.importance !== 'important') return false
@@ -59,7 +66,7 @@ export function filterRecords(records: RecordItem[], criteria: RecordCriteria) {
     if (criteria.year && year !== criteria.year) return false
     if (criteria.month && month !== criteria.month) return false
     if (criteria.day && day !== criteria.day) return false
-    return !needle || recordBodySearchText(record).includes(needle)
+    return !needle || recordBodySearchText(record, hideProfanity).includes(needle)
   })
 }
 

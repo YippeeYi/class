@@ -1,4 +1,4 @@
-import { Check, Image as ImageIcon, Moon, Palette, Sparkles, Square, Sun } from 'lucide-react'
+import { Check, Image as ImageIcon, Moon, Palette, Sparkles, Sun } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { textLinkClassName } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
@@ -6,12 +6,9 @@ import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
 import {
   type AppearancePreference,
   type BackgroundId,
-  type BoxStyleId,
   backgrounds,
-  boxStyles,
   readAppearance,
   setBackground,
-  setBoxStyle,
   setThemePreset,
   type ThemePresetId,
   themePresets,
@@ -45,7 +42,6 @@ const themeModeGroups = [
 const appearanceSections = [
   { value: 'palette', label: '配色', icon: Palette, description: '界面色彩' },
   { value: 'background', label: '背景', icon: ImageIcon, description: '底层画面' },
-  { value: 'box', label: '方框', icon: Square, description: '容器质感' },
 ] as const
 
 function ThemePresetOption({ preset, selected }: { preset: ThemePreset; selected: boolean }) {
@@ -146,108 +142,6 @@ function BackgroundPreview({ src, active }: { src: string; active: boolean }) {
   )
 }
 
-function BoxStyleOption({ id, selected }: { id: BoxStyleId; selected: boolean }) {
-  const option = boxStyles.find((item) => item.id === id)
-  if (!option) return null
-  return (
-    <Label
-      htmlFor={`box-style-${id}`}
-      data-box-style-id={id}
-      data-selected={selected ? 'true' : 'false'}
-      className="appearance-choice group/box flex-col items-stretch gap-0 overflow-hidden font-normal leading-normal"
-    >
-      <span
-        className="box-style-preview relative grid min-h-36 place-items-center overflow-hidden border-b border-border/60 sm:min-h-40"
-        aria-hidden="true"
-      >
-        <Card
-          className={`box-style-preview-surface box-style-preview-surface--${id} absolute z-10 gap-0 border border-border bg-card py-0 ring-0`}
-        >
-          <CardContent className="grid h-full content-between p-3">
-            {id === 'compact' && (
-              <span className="grid gap-1.5">
-                {[72, 88, 64].map((width, index) => (
-                  <span
-                    key={width}
-                    className="box-style-preview-inset flex h-5 items-center gap-2 border border-border/72 bg-muted/48 px-1.5"
-                  >
-                    <span className="block size-2 shrink-0 bg-primary/45" />
-                    <span
-                      className="block h-1 rounded-full bg-muted-foreground/38"
-                      style={{ width: `${width}%` }}
-                    />
-                    <span className="ml-auto text-[0.42rem] font-semibold text-muted-foreground/68">
-                      {index + 1}
-                    </span>
-                  </span>
-                ))}
-              </span>
-            )}
-            {id === 'default' && (
-              <>
-                <span className="grid gap-2">
-                  <span className="block h-2 w-2/3 rounded-full bg-foreground/72" />
-                  <span className="block h-1.5 w-full rounded-full bg-muted-foreground/35" />
-                  <span className="block h-1.5 w-4/5 rounded-full bg-muted-foreground/24" />
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className="box-style-preview-inset block h-5 w-14 border border-primary/35 bg-primary/12" />
-                  <span className="box-style-preview-inset block h-5 w-9 border border-border bg-muted/72" />
-                </span>
-              </>
-            )}
-            {id === 'rounded' && (
-              <>
-                <span className="box-style-preview-inset block h-10 border border-primary/18 bg-primary/10" />
-                <span className="grid gap-1.5">
-                  <span className="block h-2 w-3/5 rounded-full bg-foreground/68" />
-                  <span className="block h-1.5 w-5/6 rounded-full bg-muted-foreground/30" />
-                </span>
-              </>
-            )}
-          </CardContent>
-        </Card>
-        <Card
-          className={`box-style-preview-control box-style-preview-control--${id} absolute z-20 gap-0 border border-border bg-card py-0 ring-0`}
-        >
-          <CardContent className="grid size-full place-items-center p-2.5">
-            {id === 'compact' ? (
-              <span className="grid grid-cols-2 gap-1">
-                {['top-start', 'top-end', 'bottom-start', 'bottom-end'].map((position) => (
-                  <span
-                    key={position}
-                    className="box-style-preview-inset block size-3 border border-primary/30 bg-primary/10"
-                  />
-                ))}
-              </span>
-            ) : id === 'default' ? (
-              <span className="box-style-preview-inset grid size-9 place-items-center border border-primary/25 bg-primary/10">
-                <Square className="size-4 text-primary" strokeWidth={1.75} />
-              </span>
-            ) : (
-              <span className="box-style-preview-inset grid size-11 place-items-center border border-primary/22 bg-primary/10">
-                <span className="block size-4 rounded-full bg-primary/48 ring-4 ring-primary/10" />
-              </span>
-            )}
-          </CardContent>
-        </Card>
-      </span>
-      <span className="flex items-start gap-3 p-4">
-        <RadioGroupItem id={`box-style-${id}`} value={id} className="mt-0.5" />
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center justify-between gap-2 font-semibold">
-            {option.label}
-            {selected && <Check className="size-4 text-primary" />}
-          </span>
-          <span className="mt-1 block text-sm leading-5 text-muted-foreground">
-            {option.description}
-          </span>
-        </span>
-      </span>
-    </Label>
-  )
-}
-
 export function BackgroundsPage() {
   const [appearance, setAppearance] = useState<AppearancePreference>(readAppearance)
   const [section, setSection] = useState('palette')
@@ -262,12 +156,11 @@ export function BackgroundsPage() {
     setBackground(id)
   }
   const chooseTheme = (id: ThemePresetId) => setThemePreset(id)
-  const chooseBox = (id: BoxStyleId) => setBoxStyle(id)
   return (
     <div>
       <PageHeading
         title="风格"
-        description="配色、背景与方框彼此独立，共同组成全站视觉风格；所有选择都会保存在当前浏览器中。"
+        description="配色与背景共同组成全站视觉风格；所有选择都会保存在当前浏览器中。"
       />
       <Tabs value={section} onValueChange={setSection} className="gap-4">
         <SegmentedTabsList
@@ -353,7 +246,7 @@ export function BackgroundsPage() {
               <div className="min-w-0">
                 <CardTitle className="text-base">背景</CardTitle>
                 <p className="mt-0.5 text-sm leading-5 text-muted-foreground">
-                  选择页面底层画面；它会与配色及方框风格独立组合。
+                  选择页面底层画面；它会与配色方案自然组合。
                 </p>
               </div>
             </div>
@@ -435,38 +328,6 @@ export function BackgroundsPage() {
                       </p>
                     </div>
                   </div>
-                ))}
-              </RadioGroup>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="box" className="app-tabs-content">
-          <Card className="gap-0 overflow-hidden border-border/70 bg-card/88 py-0">
-            <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
-              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-                <Square className="size-4" />
-              </span>
-              <div className="min-w-0">
-                <CardTitle className="text-base">方框</CardTitle>
-                <p className="mt-0.5 text-sm leading-5 text-muted-foreground">
-                  统一控制记录卡片、统计卡片、筛选区与弹窗等视觉容器。
-                </p>
-              </div>
-            </div>
-            <CardContent className="p-3 sm:p-4">
-              <RadioGroup
-                aria-label="选择全站方框风格"
-                value={appearance.box}
-                onValueChange={(value) => chooseBox(value as BoxStyleId)}
-                className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
-              >
-                {boxStyles.map((style) => (
-                  <BoxStyleOption
-                    key={style.id}
-                    id={style.id}
-                    selected={appearance.box === style.id}
-                  />
                 ))}
               </RadioGroup>
             </CardContent>
