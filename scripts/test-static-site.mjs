@@ -572,6 +572,7 @@ assert.match(imageViewer, /useBackgroundScrollLock\(scrollLockActive\)/, 'all la
 assert.match(imageViewer, /onOpenChangeComplete[\s\S]*setScrollLockActive\(false\)/, 'large images must not unlock their background before the exit phase completes')
 assert.match(scrollLock, /scrollTop[\s\S]*overflow[\s\S]*touchAction[\s\S]*scrollTo/, 'scroll locking must restore every independent container')
 assert.match(scrollLock, /scrollX:[\s\S]*scrollY:[\s\S]*htmlOverflow:[\s\S]*bodyOverflow:/, 'scroll locking must snapshot document scrolling and both root overflow states')
+assert.doesNotMatch(scrollLock, /scrollbarGutter\s*=\s*'stable'/, 'fullscreen overlays must not inherit a reserved scrollbar gutter on Linux Chromium')
 assert.match(writtenRecordPages, /<PrivacyMaskLayer/, 'ordinary written pages must overlay privacy masks')
 assert.match(imageViewer, /<PrivacyMaskLayer/, 'large written images must retain the same privacy mask')
 assert.match(privacyMask, /masks\.map/, 'privacy masks must be independent overlay regions')

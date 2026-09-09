@@ -14,7 +14,6 @@ type LockedDocument = {
   scrollY: number
   htmlOverflow: string
   htmlOverscrollBehavior: string
-  htmlScrollbarGutter: string
   htmlTouchAction: string
   bodyOverflow: string
   bodyOverscrollBehavior: string
@@ -74,7 +73,6 @@ function lockBackgroundScrolling() {
     scrollY: window.scrollY,
     htmlOverflow: html.style.overflow,
     htmlOverscrollBehavior: html.style.overscrollBehavior,
-    htmlScrollbarGutter: html.style.scrollbarGutter,
     htmlTouchAction: html.style.touchAction,
     bodyOverflow: body.style.overflow,
     bodyOverscrollBehavior: body.style.overscrollBehavior,
@@ -82,7 +80,6 @@ function lockBackgroundScrolling() {
   }
   html.style.overflow = 'hidden'
   html.style.overscrollBehavior = 'none'
-  html.style.scrollbarGutter = 'stable'
   html.style.touchAction = 'none'
   body.style.overflow = 'hidden'
   body.style.overscrollBehavior = 'none'
@@ -127,7 +124,6 @@ function unlockBackgroundScrolling() {
     const snapshot = lockedDocument
     html.style.overflow = snapshot.htmlOverflow
     html.style.overscrollBehavior = snapshot.htmlOverscrollBehavior
-    html.style.scrollbarGutter = snapshot.htmlScrollbarGutter
     html.style.touchAction = snapshot.htmlTouchAction
     body.style.overflow = snapshot.bodyOverflow
     body.style.overscrollBehavior = snapshot.bodyOverscrollBehavior
