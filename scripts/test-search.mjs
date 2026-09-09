@@ -40,6 +40,8 @@ const vite = await createServer({
 })
 try {
   const { buildSearchIndex, scoreSearchResult } = await vite.ssrLoadModule('/src/lib/search-index.ts')
+  const { filterProfanity } = await vite.ssrLoadModule('/src/lib/profanity.ts')
+  const { parseMarkup } = await vite.ssrLoadModule('/src/lib/markup.ts')
   const records = [
     {
       id: 'R001',
@@ -72,6 +74,19 @@ try {
   assert.ok(scoreSearchResult(material, '校园历史正文') > 0, 'material body must be searchable')
   assert.ok(scoreSearchResult(material, '正常姓名') > 0, 'related record body must lead to its material')
   assert.equal(material.href, '/materials?id=m1')
+  assert.equal(
+    filterProfanity('cocktail 与 gearbox 保留，dick 与 傻逼 隐藏。', true),
+    'cocktail 与 gearbox 保留，*** 与 *** 隐藏。',
+    'Latin profanity must use word boundaries and avoid ordinary-word false positives',
+  )
+  assert.equal(
+    filterProfanity('出生日期与历史叙述保留，化身为出生与拉完屎隐藏。', true),
+    '出生日期与历史叙述保留，***与***隐藏。',
+    'ambiguous Chinese characters must only be filtered as maintained abusive phrases',
+  )
+  const [personReference] = parseMarkup('[[person:sb|傻逼]]')
+  assert.equal(personReference.id, 'sb', 'filtering must never rewrite a markup reference identifier')
+  assert.equal(filterProfanity(personReference.children[0].value, true), '***')
 } finally {
   await vite.close()
 }

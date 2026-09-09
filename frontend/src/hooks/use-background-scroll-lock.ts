@@ -9,8 +9,21 @@ type LockedElement = {
   touchAction: string
 }
 
+type LockedDocument = {
+  scrollX: number
+  scrollY: number
+  htmlOverflow: string
+  htmlOverscrollBehavior: string
+  htmlScrollbarGutter: string
+  htmlTouchAction: string
+  bodyOverflow: string
+  bodyOverscrollBehavior: string
+  bodyTouchAction: string
+}
+
 let lockCount = 0
 let lockedElements: LockedElement[] = []
+let lockedDocument: LockedDocument | null = null
 
 function isScrollable(element: HTMLElement) {
   const style = getComputedStyle(element)
@@ -27,7 +40,9 @@ function viewerEvent(event: Event) {
 }
 
 function stopBackgroundGesture(event: Event) {
-  if (!viewerEvent(event)) event.preventDefault()
+  const insideViewport =
+    event.target instanceof Element && Boolean(event.target.closest('.image-viewer-viewport'))
+  if (!insideViewport) event.preventDefault()
 }
 
 function stopBackgroundKey(event: KeyboardEvent) {
@@ -52,6 +67,26 @@ function stopBackgroundKey(event: KeyboardEvent) {
 function lockBackgroundScrolling() {
   lockCount += 1
   if (lockCount > 1) return
+  const html = document.documentElement
+  const body = document.body
+  lockedDocument = {
+    scrollX: window.scrollX,
+    scrollY: window.scrollY,
+    htmlOverflow: html.style.overflow,
+    htmlOverscrollBehavior: html.style.overscrollBehavior,
+    htmlScrollbarGutter: html.style.scrollbarGutter,
+    htmlTouchAction: html.style.touchAction,
+    bodyOverflow: body.style.overflow,
+    bodyOverscrollBehavior: body.style.overscrollBehavior,
+    bodyTouchAction: body.style.touchAction,
+  }
+  html.style.overflow = 'hidden'
+  html.style.overscrollBehavior = 'none'
+  html.style.scrollbarGutter = 'stable'
+  html.style.touchAction = 'none'
+  body.style.overflow = 'hidden'
+  body.style.overscrollBehavior = 'none'
+  body.style.touchAction = 'none'
   const elements = Array.from(document.querySelectorAll<HTMLElement>('body *')).filter(
     (element) => !element.closest('[data-image-viewer-dialog]') && isScrollable(element),
   )
@@ -86,6 +121,20 @@ function unlockBackgroundScrolling() {
     item.element.scrollTo({ left: item.scrollLeft, top: item.scrollTop, behavior: 'auto' })
   }
   lockedElements = []
+  if (lockedDocument) {
+    const html = document.documentElement
+    const body = document.body
+    const snapshot = lockedDocument
+    html.style.overflow = snapshot.htmlOverflow
+    html.style.overscrollBehavior = snapshot.htmlOverscrollBehavior
+    html.style.scrollbarGutter = snapshot.htmlScrollbarGutter
+    html.style.touchAction = snapshot.htmlTouchAction
+    body.style.overflow = snapshot.bodyOverflow
+    body.style.overscrollBehavior = snapshot.bodyOverscrollBehavior
+    body.style.touchAction = snapshot.bodyTouchAction
+    window.scrollTo({ left: snapshot.scrollX, top: snapshot.scrollY, behavior: 'auto' })
+    lockedDocument = null
+  }
 }
 
 export function useBackgroundScrollLock(active: boolean) {

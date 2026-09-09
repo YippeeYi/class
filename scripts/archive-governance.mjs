@@ -144,6 +144,11 @@ export function auditPublication({ tables, storageAssets, missingAssets = [] }) 
     if (page && !pageIds.has(page)) {
       add('warning', 'page.unmapped-content', `页 ${page} 有箴言或补充，但不在书面页清单中。`)
     }
+    const rawHidden = row.raw?.hidden === true
+    if (rawHidden !== (row.hidden === true)) {
+      const kind = messages.includes(row) ? '箴言' : '补充'
+      add('error', 'page-content.hidden-drift', `${kind} hidden 列与 raw.hidden 不一致：${page}`)
+    }
   }
 
   const quoteOwners = new Map()

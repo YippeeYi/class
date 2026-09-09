@@ -144,6 +144,7 @@ export function ImageViewer({
   privacyMasks?: PrivacyMask[]
 }) {
   const [open, setOpen] = useState(false)
+  const [scrollLockActive, setScrollLockActive] = useState(false)
   const asset = useSignedAsset(open ? path : '')
   const imageFailure = useBoundedImageRetry(open ? path : '', asset.retry)
   const [loadedOriginal, setLoadedOriginal] = useState(() => ({
@@ -190,7 +191,7 @@ export function ImageViewer({
       : availableDimensions
   const usingPreviewFallback = Boolean(initialUrl && !originalSrc)
   const originalUnavailable = Boolean(imageFailure.failed || asset.error)
-  useBackgroundScrollLock(open)
+  useBackgroundScrollLock(scrollLockActive)
 
   useEffect(() => {
     const clear = () => setLoadedOriginal({ path, src: '' })
@@ -311,6 +312,7 @@ export function ImageViewer({
           !(lockedDimensions.path === path && validImageDimensions(lockedDimensions.value))
         )
           setLockedDimensions({ path, value: availableDimensions })
+        if (nextOpen) setScrollLockActive(true)
         setOpen(nextOpen)
       }}
       onOpenChangeComplete={(nextOpen) => {
@@ -320,6 +322,7 @@ export function ImageViewer({
         setViewTransform(nextTransform)
         setViewportSize({ width: 0, height: 0 })
         setLockedDimensions({ path: '', value: null })
+        setScrollLockActive(false)
         pointers.current.clear()
         drag.current = null
         pinch.current = null

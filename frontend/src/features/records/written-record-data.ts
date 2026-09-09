@@ -13,7 +13,7 @@ export type WrittenRecordData = {
 export async function loadWrittenRecordData(hidden: boolean): Promise<WrittenRecordData> {
   const [pagesResult, messagesResult, supplementsResult] = await Promise.allSettled([
     loadRecordPages(hidden),
-    hidden ? Promise.resolve<PageMessage[]>([]) : loadPageMessages(),
+    loadPageMessages({ hidden }),
     loadPageSupplements({ hidden }),
   ])
 

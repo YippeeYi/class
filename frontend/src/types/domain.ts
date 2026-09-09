@@ -90,6 +90,7 @@ export type PageMessage = {
   page: string
   content: string
   author: string
+  hidden: boolean
   [key: string]: unknown
 }
 

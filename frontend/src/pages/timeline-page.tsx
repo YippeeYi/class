@@ -12,6 +12,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs } from '@/components/ui/tabs'
 import { useArchive } from '@/features/archive/archive-context'
 import { useContentPreferences } from '@/features/preferences/content-preferences'
+import { DailyDistributionCell, dailyAuthorColor } from '@/features/timeline/daily-distribution'
+import {
+  AuthorDistributionChart,
+  buildAuthorPie,
+  TimelineBarChart,
+} from '@/features/timeline/timeline-charts'
 import {
   countTimelineBy as countBy,
   timelineDateParts as dateParts,

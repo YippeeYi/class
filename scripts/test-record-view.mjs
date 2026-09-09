@@ -3,6 +3,7 @@ import { loadTypescriptModule, readFrontend } from './test-react-helpers.mjs'
 
 const page = await readFrontend('src/pages/records-page.tsx')
 const writtenData = await readFrontend('src/features/records/written-record-data.ts')
+const recordIdentity = await readFrontend('src/lib/record-identity.ts')
 const writtenPages = await readFrontend('src/features/records/written-record-pages.tsx')
 const card = await readFrontend('src/components/archive/record-card.tsx')
 const filters = await readFrontend('src/components/archive/record-filters.tsx')
@@ -80,6 +81,16 @@ assert.match(writtenPages, /value=\{item\.page\}/, 'written page options must us
 assert.doesNotMatch(writtenPages, /value=\{String\(safeIndex\)\}/, 'zero-based page indexes must stay internal')
 assert.match(filters, /year.*month.*day.*important.*excludeDaily.*query/s, 'record filters are incomplete')
 assert.match(writtenData, /loadPageMessages/, 'written messages must be restored')
+assert.match(
+  writtenData,
+  /loadPageMessages\(\{ hidden \}\)/,
+  'written page messages must follow the selected public or administrator-hidden partition',
+)
+assert.match(
+  recordIdentity,
+  /recordType: 'message'[\s\S]*hidden: item\.hidden/,
+  'page-message records must retain their hidden state throughout shared rendering',
+)
 assert.match(writtenData, /loadPageSupplements/, 'written supplements must be restored')
 assert.match(
   page,

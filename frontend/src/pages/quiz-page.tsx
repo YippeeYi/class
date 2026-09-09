@@ -45,9 +45,10 @@ import { filterProfanity } from '@/lib/profanity'
 import { cn } from '@/lib/utils'
 import { hasAdminAccess, loadQuizQuestions, loadSupplementalRecords } from '@/services/data'
 import {
-  getImageDimensions,
   preloadImageDimensionList,
+  preloadImageDimensions,
   rememberImageDimensions,
+  useImageDimensions,
 } from '@/services/image-metadata'
 
 const TYPE_LABELS: Record<PlayQuestion['type'], string> = {
@@ -114,11 +115,13 @@ function QuestionSource({ question, revealed }: { question: PlayQuestion; reveal
 }
 
 function QuizAnswerFeedback({
-  current,
+  answer,
+  explanation,
   result,
   secretHint,
 }: {
-  current: PlayQuestion
+  answer: string
+  explanation: string
   result: 'correct' | 'wrong' | null
   secretHint: string
 }) {
@@ -139,13 +142,13 @@ function QuizAnswerFeedback({
       <div className="min-w-0">
         <AlertTitle>{title}</AlertTitle>
         <AlertDescription>
-          {state === 'correct' && (current.explanation || '本题回答正确。')}
+          {state === 'correct' && (explanation || '本题回答正确。')}
           {state === 'wrong' && (
             <>
               <span className="quiz-result-answer">
-                正确答案 <strong>{current.answer}</strong>
+                正确答案 <strong>{answer}</strong>
               </span>
-              {current.explanation && <span>{current.explanation}</span>}
+              {explanation && <span>{explanation}</span>}
             </>
           )}
           {state === 'hint' && secretHint}
@@ -312,6 +315,7 @@ export function QuizPage() {
   const visiblePrompt = useFilteredText(current?.prompt || '')
   const visibleAnswer = useFilteredText(current?.answer || '')
   const visibleExplanation = useFilteredText(current?.explanation || '')
+  const visibleSecretHint = useFilteredText(secretHint)
   const questionAnchorRef = useRef<HTMLDivElement>(null)
   const pendingQuestionTop = useRef<number | null>(null)
   const secretUnlocking = useRef(false)
@@ -385,10 +389,6 @@ export function QuizPage() {
         const rows = await loadQuizQuestions(true)
         const extra = rows.filter((item) => item.answer).map(normalizeSecretQuestion)
         if (!extra.length) throw new Error('题库为空')
-        await preloadImageDimensionList(
-          extra.map((item) => item.image).filter((path): path is string => Boolean(path)),
-          3,
-        )
         const imagePaths = [
           ...new Set(
             extra.map((question) => question.image).filter((path): path is string => Boolean(path)),
@@ -397,7 +397,7 @@ export function QuizPage() {
         if (active) {
           setSecretPreparation({ phase: 'dimensions', completed: 0, total: imagePaths.length })
         }
-        const dimensions = await preloadImageDimensionList(imagePaths, 4, (progress) => {
+        const dimensionSummary = await preloadImageDimensionList(imagePaths, 4, (progress) => {
           if (active) {
             setSecretPreparation({
               phase: 'dimensions',
@@ -406,7 +406,7 @@ export function QuizPage() {
             })
           }
         })
-        if (dimensions.some((value) => !value)) {
+        if (dimensionSummary.failed > 0) {
           throw new Error('题图尺寸读取失败')
         }
         if (!active) return
@@ -815,30 +815,13 @@ export function QuizPage() {
                     result === 'correct' && 'quiz-result-correct',
                     result === 'wrong' && 'quiz-result-wrong',
                   )}
-                  role="status"
-                  aria-live="polite"
                 >
-                  {result ? (
-                    <span
-                      key={`${current.id}-${result}`}
-                      className="quiz-result-feedback inline-flex items-start gap-2"
-                    >
-                      <span className="quiz-result-icon mt-0.5 grid size-5 shrink-0 place-items-center rounded-full">
-                        {result === 'correct' ? <Check /> : <X />}
-                      </span>
-                      <span>
-                        <strong>{result === 'correct' ? '回答正确' : '回答错误'}</strong>
-                        {result === 'wrong' && <> · 正确答案：{visibleAnswer}。</>}
-                        {visibleExplanation && ` ${visibleExplanation}`}
-                      </span>
-                    </span>
-                  ) : current.content === 'secret' && secretHint ? (
-                    <>
-                      <strong>继续作答</strong> · {secretHint}
-                    </>
-                  ) : (
-                    '选择答案或填写完整内容后提交。'
-                  )}
+                  <QuizAnswerFeedback
+                    answer={visibleAnswer}
+                    explanation={visibleExplanation}
+                    result={result}
+                    secretHint={visibleSecretHint}
+                  />
                 </div>
                 {result && (
                   <Button

@@ -1695,7 +1695,7 @@ body
 }
 
 /* Appearance choices are controls, not content cards. A shared selection
-   contract keeps palette, background, and box options aligned while allowing
+   contract keeps palette and background options aligned while allowing
    their previews to use different natural proportions. */
 .appearance-choice {
   position: relative;

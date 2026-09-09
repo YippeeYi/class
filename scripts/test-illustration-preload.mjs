@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
-import { loadTypescriptModule, readFrontend } from './test-react-helpers.mjs'
+import path from 'node:path'
+import { createServer } from 'vite'
+import { frontend, loadTypescriptModule, readFrontend } from './test-react-helpers.mjs'
 
 const markup = await loadTypescriptModule('src/lib/markup.ts')
 const imageMetadata = await loadTypescriptModule('src/lib/image-metadata.ts')
@@ -107,6 +109,8 @@ assert.doesNotMatch(component, /<img[^>]+data-secure-src/, 'signed paths must no
 assert.match(service, /Range: `bytes=0-\$\{METADATA_RANGE_BYTES - 1\}`/, 'metadata should use a bounded Range request')
 assert.match(service, /image-dimensions:/, 'intrinsic geometry needs an access-scoped persistent cache')
 assert.match(service, /30 \* 24 \* 60 \* 60 \* 1000/, 'dimension metadata should remain fresh for 30 days')
+assert.match(service, /Promise\.race\([\s\S]*timeoutMs/, 'a failed dimension request must not block route entry forever')
+assert.match(service, /onProgress\?\.\(/, 'bulk dimension loading must retain progress reporting')
 assert.doesNotMatch(
   app,
   /ImageMetadataPreloader/,
@@ -128,4 +132,30 @@ assert.match(
   'the meal map must keep one stable viewport frame while loading',
 )
 assert.match(mapPage, /object-contain/, 'the meal map must remain fully visible in its stable frame')
+
+const vite = await createServer({
+  configFile: false,
+  root: frontend,
+  resolve: { alias: { '@': path.join(frontend, 'src') } },
+  server: { middlewareMode: true },
+  appType: 'custom',
+  logLevel: 'silent',
+})
+try {
+  const runtime = await vite.ssrLoadModule('/src/services/image-metadata.ts')
+  runtime.rememberImageDimensions('data/attachments/a.png', { width: 640, height: 360 })
+  runtime.rememberImageDimensions('data/attachments/b.png', { width: 800, height: 600 })
+  const progress = []
+  const summary = await runtime.preloadImageDimensionList(
+    [' data/attachments/a.png ', 'data/attachments/a.png', 'data/attachments/b.png'],
+    2,
+    (value) => progress.push(value),
+    25,
+  )
+  assert.deepEqual(summary, { total: 2, loaded: 2, failed: 0 })
+  assert.equal(progress.length, 2, 'deduplicated cached dimensions should report exactly once each')
+  assert.deepEqual(progress.at(-1), { completed: 2, failed: 0, total: 2 })
+} finally {
+  await vite.close()
+}
 console.log('React illustration checks passed.')

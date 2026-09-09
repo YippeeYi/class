@@ -289,13 +289,17 @@ export function loadRecordPages(hidden = false) {
   })
 }
 
-export function loadPageMessages(force = false) {
-  return cached<PageMessage[]>(
-    'page-messages',
-    async () => {
+export function loadPageMessages({ hidden = false, force = false } = {}) {
+  return loadCached<PageMessage[]>({
+    key: `page-messages:${hidden}`,
+    force,
+    persistent: !hidden,
+    sessionTtl: hidden ? 0 : undefined,
+    loader: async () => {
       const { data, error } = await currentClient()
         .from(supabaseConfig.tables.pageMessages)
         .select('*')
+        .eq('hidden', hidden)
         .order('page', { ascending: true })
       if (error) throw error
       return ((data || []) as Row[])
@@ -306,12 +310,12 @@ export function loadPageMessages(force = false) {
             page: text(row.page ?? raw.page).trim(),
             content: text(row.content || raw.content || raw.text),
             author: text(row.author || raw.author || raw.recorder),
+            hidden: bool(row.hidden ?? raw.hidden),
           } as PageMessage
         })
-        .filter((item) => item.page && item.content)
+        .filter((item) => item.page && item.content && item.hidden === hidden)
     },
-    force,
-  )
+  })
 }
 
 export function loadPageSupplements({ hidden = false, force = false } = {}) {
@@ -353,7 +357,7 @@ export function loadPageSupplements({ hidden = false, force = false } = {}) {
 
 export async function loadSupplementalRecords({ hidden = false, force = false } = {}) {
   const [messages, supplements] = await Promise.all([
-    hidden ? Promise.resolve([]) : loadPageMessages(force),
+    loadPageMessages({ hidden, force }),
     loadPageSupplements({ hidden, force }),
   ])
   return buildSupplementalRecords(messages, supplements)

@@ -20,7 +20,7 @@ try {
     recordStableKey,
     recordWrittenHref,
   } = await vite.ssrLoadModule('/src/lib/record-identity.ts')
-  const message = { page: '7', content: '箴言正文', author: 'alice' }
+  const message = { page: '7', content: '箴言正文', author: 'alice', hidden: true }
   const supplement = {
     id: 'private-source.json',
     fileName: 'private-source.json',
@@ -41,13 +41,14 @@ try {
   assert.equal(supplementRecord.fileName, '')
   assert.doesNotMatch(JSON.stringify([messageRecord.id, supplementRecord.id]), /\.json/i)
   assert.equal(messageRecord.date, '', 'a missing proverb date must stay absent')
+  assert.equal(messageRecord.hidden, true, 'a hidden proverb must remain hidden after normalization')
   assert.equal(supplementRecord.date, '', 'a missing supplement date must stay absent')
   assert.notEqual(recordStableKey(messageRecord), recordStableKey(supplementRecord))
   assert.notEqual(recordAnchorId(messageRecord), recordAnchorId(supplementRecord))
   assert.match(recordWrittenHref(supplementRecord), /^\/records\?view=written#record-/)
 
   const [, sameMessage] = buildSupplementalRecords(
-    [{ page: '1', content: '新增正文', author: 'alice' }, message],
+    [{ page: '1', content: '新增正文', author: 'alice', hidden: false }, message],
     [],
   )
   assert.equal(

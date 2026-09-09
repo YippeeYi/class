@@ -170,6 +170,20 @@ const [adminSource, adminAccessSource, adminRuntimeSource, dataSource, setupSql,
 
 assert.match(adminRuntimeSource, /publish --confirm-publish/)
 assert.match(adminSource, /Created \$\{reason\} snapshot \(complete\)/)
+assert.match(
+  adminSource,
+  /generatedIdPrefix = isHidden \? 'H' : 'R'/,
+  'protected records must use a distinct ID namespace without renumbering public records',
+)
+const messageImporter = adminSource.slice(
+  adminSource.indexOf('const importPageMessages'),
+  adminSource.indexOf('const importQuiz'),
+)
+assert.match(
+  messageImporter,
+  /rewriteMarkupAssets\(raw\.content \|\| '', \{ hidden: isHidden \}\)/,
+  'protected page-message illustrations must remain in the protected asset namespace',
+)
 assert.match(adminSource, /storageIncluded: true/, 'publication snapshots must include binary Storage content')
 assert.match(adminSource, /downloadStorageObject/, 'publication must download old Storage before mutation')
 assert.match(adminRuntimeSource, /rollback --snapshot TIMESTAMP --confirm-rollback/)

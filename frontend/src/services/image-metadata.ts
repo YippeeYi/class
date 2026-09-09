@@ -105,22 +105,65 @@ export function preloadImageDimensions(path: string, previewWidth = DEFAULT_ASSE
   return request
 }
 
+export type ImageDimensionPreloadProgress = {
+  completed: number
+  failed: number
+  total: number
+}
+
+export type ImageDimensionPreloadSummary = {
+  failed: number
+  loaded: number
+  total: number
+}
+
+export function preloadImageDimensionList(
+  paths: Iterable<string>,
+  concurrency?: number,
+  timeoutMs?: number,
+): Promise<ImageDimensionPreloadSummary>
+export function preloadImageDimensionList(
+  paths: Iterable<string>,
+  concurrency: number,
+  onProgress: (progress: ImageDimensionPreloadProgress) => void,
+  timeoutMs?: number,
+): Promise<ImageDimensionPreloadSummary>
 export async function preloadImageDimensionList(
   paths: Iterable<string>,
   concurrency = 4,
-  timeoutMs = DEFAULT_GATE_TIMEOUT_MS,
-) {
-  const queue = [...new Set(paths)].filter(Boolean)
+  progressOrTimeout:
+    | number
+    | ((progress: ImageDimensionPreloadProgress) => void) = DEFAULT_GATE_TIMEOUT_MS,
+  callbackTimeoutMs = DEFAULT_GATE_TIMEOUT_MS,
+): Promise<ImageDimensionPreloadSummary> {
+  const queue = [...new Set([...paths].map((path) => path.trim()).filter(Boolean))]
+  const onProgress = typeof progressOrTimeout === 'function' ? progressOrTimeout : undefined
+  const timeoutMs = typeof progressOrTimeout === 'number' ? progressOrTimeout : callbackTimeoutMs
   let cursor = 0
+  let loaded = 0
+  let failed = 0
   const worker = async () => {
     while (cursor < queue.length) {
       const index = cursor
       const path = queue[index]
       cursor += 1
-      if (path) await preloadImageDimensions(path)
+      if (!path) continue
+      let timeout: ReturnType<typeof setTimeout> | undefined
+      const result = await Promise.race([
+        preloadImageDimensions(path),
+        new Promise<null>((resolve) => {
+          timeout = setTimeout(() => resolve(null), timeoutMs)
+        }),
+      ])
+      if (timeout) clearTimeout(timeout)
+      if (result) loaded += 1
+      else failed += 1
+      onProgress?.({ completed: loaded + failed, failed, total: queue.length })
     }
   }
-  await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, worker))
+  const workerCount = Math.min(Math.max(1, Math.floor(concurrency)), queue.length)
+  await Promise.all(Array.from({ length: workerCount }, worker))
+  return { total: queue.length, loaded, failed }
 }
 
 export function useImageDimensions(

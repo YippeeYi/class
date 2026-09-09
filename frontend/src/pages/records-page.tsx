@@ -58,9 +58,6 @@ const recordViewItems = [
   { value: 'written', label: '书面记录', icon: FileImage },
 ] as const
 
-const JUMP_HIGHLIGHT_HOLD_MS = 520
-const JUMP_HIGHLIGHT_FADE_MS = 680
-
 function RecordViewControls({
   view,
   recordOrder,
@@ -260,6 +257,7 @@ export function RecordsPage() {
         ])
         await preloadMarkupIllustrationDimensions([
           ...nextHiddenRecords.map((record) => record.content),
+          ...(hiddenWritten?.messages || []).map((message) => message.content),
           ...(hiddenWritten?.supplements || []).map((supplement) => supplement.content),
         ])
         setHiddenRecords(nextHiddenRecords)

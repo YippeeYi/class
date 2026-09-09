@@ -17,7 +17,7 @@ export const markupLayoutHarness = String.raw`<!doctype html>
       import { HomePage } from '/src/pages/home-page.tsx'
       import { PeoplePage } from '/src/pages/people-page.tsx'
       import { PersonPage } from '/src/pages/person-page.tsx'
-      import { SecretImage } from '/src/pages/quiz-page.tsx'
+      import { QuizPage, SecretImage } from '/src/pages/quiz-page.tsx'
       import { RecordsPage } from '/src/pages/records-page.tsx'
       import { BackgroundRoot } from '/src/components/layout/background-root.tsx'
       import { Badge } from '/src/components/ui/badge.tsx'
@@ -27,6 +27,7 @@ export const markupLayoutHarness = String.raw`<!doctype html>
       import { Sidebar, SidebarContent, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger } from '/src/components/ui/sidebar.tsx'
       import { Tabs } from '/src/components/ui/tabs.tsx'
       import { ArchiveProvider } from '/src/features/archive/archive-context.tsx'
+      import { ContentPreferenceProvider } from '/src/features/preferences/content-preferences.tsx'
       import { DocumentTitleProvider } from '/src/hooks/use-document-title.ts'
       import { rememberImageDimensions } from '/src/services/image-metadata.ts'
       import { installRecordJumpGuard } from '/src/lib/record-navigation.ts'
@@ -70,7 +71,7 @@ export const markupLayoutHarness = String.raw`<!doctype html>
         { page: '1', startFile: 'r1.json', endFile: 'r2.json', imagePath: 'fixtures/page-1.webp', hidden: false },
         { page: '2', startFile: 'r3.json', endFile: 'r3.json', imagePath: 'fixtures/page-2.webp', hidden: false },
       ]))
-      sessionStorage.setItem(cachePrefix + 'page-messages', cacheEntry([]))
+      sessionStorage.setItem(cachePrefix + 'page-messages:false', cacheEntry([]))
       sessionStorage.setItem(cachePrefix + 'page-supplements:false', cacheEntry([]))
       sessionStorage.setItem(cachePrefix + 'people', cacheEntry([
         { id: 'p1', name: '人物一', role: 'student', aliases: [], avatarUrl: '' },
@@ -336,12 +337,14 @@ export const markupLayoutHarness = String.raw`<!doctype html>
       function App() {
         return e(MemoryRouter, null,
           e(TitleBoundary, null,
+          e(ContentPreferenceProvider, null,
           e(BackgroundRoot, null,
             e(React.Fragment, null,
               e(LocationProbe),
               e(TooltipProvider, { delay: 0 },
                 e('div', { style: { width: '100%', maxWidth: '1120px', margin: '0 auto', padding: '12px' } },
                 e(Case, { id: 'small', width: '52rem', content: '[[table:2x2|短|较长内容|甲|乙]]' }),
+                e(Case, { id: 'profanity', width: '52rem', content: '过滤：傻逼；[[person:sb|傻逼]]；普通：cocktail' }),
                 e(Case, { id: 'six', width: '52rem', content: extremeSixColumns }),
                 e(Case, { id: 'many', width: '52rem', content: manyColumns }),
                 e(Case, { id: 'stack', width: '52rem', content: stackContent }),
@@ -378,11 +381,13 @@ export const markupLayoutHarness = String.raw`<!doctype html>
                 e(ArchiveProvider, null,
                   e('section', { 'data-case': 'guide', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(HomePage)),
                   e('section', { 'data-case': 'people', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(PeoplePage)),
+                  e('section', { 'data-case': 'quiz-page', style: { width: '68rem', maxWidth: '100%', minHeight: '42rem', margin: '24px auto' } }, e(QuizPage)),
                   e(PersonRouteFixture),
                 ),
                 ),
               ),
             ),
+          ),
           ),
           ),
         )
@@ -394,4 +399,3 @@ export const markupLayoutHarness = String.raw`<!doctype html>
     </script>
   </body>
 </html>`
-

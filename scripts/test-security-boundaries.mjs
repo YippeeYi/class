@@ -6,12 +6,23 @@ import { readFrontend, root } from './test-react-helpers.mjs'
 const auth = await readFrontend('src/features/auth/auth-context.tsx')
 const data = await readFrontend('src/services/data.ts')
 const config = await readFrontend('src/services/supabase.ts')
+const setupSql = await readFile(path.join(root, 'sql/setup.sql'), 'utf8')
 const vercel = JSON.parse(await readFile(path.join(root, 'vercel.json'), 'utf8'))
 
 assert.match(auth, /refresh_invite_access/, 'server-side access refresh is required')
 assert.match(auth, /90 \* 24 \* 60 \* 60/, '90-day idle boundary is missing')
 assert.match(auth, /365 \* 24 \* 60 \* 60/, '365-day absolute boundary is missing')
 assert.match(data, /has_class_record_admin_access/, 'admin-only data must check server access')
+assert.match(
+  data,
+  /page-messages:\$\{hidden\}[\s\S]*\.eq\('hidden', hidden\)/,
+  'page messages must be partitioned by the same hidden-data boundary as records',
+)
+assert.match(
+  setupSql,
+  /class_page_messages_read[\s\S]*hidden = false or public\.has_class_record_admin_access\(\)/,
+  'page-message text must not bypass the administrator-only hidden-data policy',
+)
 assert.doesNotMatch(config, /service_role|SERVICE_ROLE/, 'service role material must never enter the frontend')
 for (const prefix of ['/data/(.*)', '/images/quiz/(.*)', '/images/private/(.*)']) {
   assert.ok(vercel.rewrites.some((rule) => rule.source === prefix), `${prefix} deployment boundary is missing`)

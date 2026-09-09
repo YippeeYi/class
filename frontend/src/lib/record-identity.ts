@@ -69,7 +69,7 @@ export function buildSupplementalRecords(messages: PageMessage[], supplements: P
     text: item.content,
     importance: 'normal',
     attachments: [],
-    hidden: false,
+    hidden: item.hidden,
     recordType: 'message',
     page: item.page,
   }))

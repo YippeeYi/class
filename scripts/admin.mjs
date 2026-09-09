@@ -123,6 +123,7 @@ if (command === 'upload' && shouldPrune && !confirmPrune) {
 }
 
 const request = createAdminRequest({ url, serviceRoleKey });
+const normalizeSlash = (value) => String(value || '').replace(/\\/g, '/');
 
 const { createInvites, listInvites, checkInvite, runSessions, runAttempts } = createAccessAdmin({
     request,
@@ -457,7 +458,11 @@ const importRecords = async () => {
 
         const isHidden = Boolean(raw.hidden);
         const index = isHidden ? hiddenIndex++ : visibleIndex++;
-        const recordId = raw.id || raw.recordId || `R${String(index + 1).padStart(3, '0')}`;
+        // Public and protected records are deliberately ordered in separate partitions.
+        // Keep the established public Rxxx numbering while giving protected rows their
+        // own Hxxx identity namespace so record IDs remain globally unambiguous.
+        const generatedIdPrefix = isHidden ? 'H' : 'R';
+        const recordId = raw.id || raw.recordId || `${generatedIdPrefix}${String(index + 1).padStart(3, '0')}`;
         const content = rewriteMarkupAssets(raw.content || raw.text || '', { hidden: isHidden });
         const attachments = rewriteAttachments(raw.attachments, { hidden: isHidden });
         const sourceImagePath = normalizeRecordPageImagePath(
@@ -644,8 +649,10 @@ const importPageMessages = async () => {
     const rows = [];
     for (const file of files) {
         const raw = await readJson(file);
-        const page = fileBaseNameWithoutExt(file);
-        const content = rewriteMarkupAssets(raw.content || '').trim();
+        const sourcePage = fileBaseNameWithoutExt(file);
+        const isHidden = raw.hidden === true;
+        const page = String(raw.page || (isHidden ? `H${sourcePage}` : sourcePage)).trim();
+        const content = rewriteMarkupAssets(raw.content || '', { hidden: isHidden }).trim();
         if (!content) {
             console.warn(`Skipped page message without content: ${file}`);
             continue;
@@ -654,6 +661,7 @@ const importPageMessages = async () => {
             page,
             content,
             author: raw.author || raw.recorder || '',
+            hidden: isHidden,
             raw
         });
     }
