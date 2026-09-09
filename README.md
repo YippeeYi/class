@@ -108,7 +108,7 @@
 | `class_people` | 人物基本资料、角色、学科、头像 | 有效会话可读 |
 | `class_record_pages` | 书面页范围、排序、图像路径 | 普通/管理员按 hidden 分级 |
 | `class_page_messages` | 每页箴言 | 有效会话可读 |
-| `class_page_supplements` | 每页补充记录 | 普通/管理员按 hidden 分级 |
+| `class_page_supplements` | 每页补充记录 | 有效会话可读；发布器强制保持公开 |
 | `class_materials` | 资料目录与正文 | 有效会话可读 |
 | `class_quiz_questions` | 管理员隐藏题 | 仅管理员可读 |
 | `class_credits_page` | 制作组、致谢、附件说明 | 有效会话可读 |

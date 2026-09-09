@@ -539,8 +539,10 @@ const importPageSupplements = async () => {
     for (const file of files) {
         const parsed = parsePageSupplementFileName(file);
         const raw = await readJson(file);
-        const isHidden = raw.hidden === true;
-        const content = rewriteMarkupAssets(raw.content || raw.text || '', { hidden: isHidden }).trim();
+        const publicRaw = { ...raw };
+        delete publicRaw.hidden;
+        if (/^H\d+$/u.test(String(publicRaw.page || ''))) publicRaw.page = parsed.page;
+        const content = rewriteMarkupAssets(raw.content || raw.text || '').trim();
         if (!content) {
             console.warn(`Skipped page supplement without content: ${file}`);
             continue;
@@ -551,9 +553,9 @@ const importPageSupplements = async () => {
             supplement_index: parsed.supplementIndex,
             author: raw.author || raw.recorder || '',
             content,
-            hidden: isHidden,
+            hidden: false,
             sort_order: parsed.supplementIndex,
-            raw
+            raw: publicRaw
         });
     }
 
@@ -650,19 +652,20 @@ const importPageMessages = async () => {
     for (const file of files) {
         const raw = await readJson(file);
         const sourcePage = fileBaseNameWithoutExt(file);
-        const isHidden = raw.hidden === true;
-        const page = String(raw.page || (isHidden ? `H${sourcePage}` : sourcePage)).trim();
-        const content = rewriteMarkupAssets(raw.content || '', { hidden: isHidden }).trim();
+        const publicRaw = { ...raw };
+        delete publicRaw.hidden;
+        if (/^H\d+$/u.test(String(publicRaw.page || ''))) publicRaw.page = sourcePage;
+        const content = rewriteMarkupAssets(raw.content || '').trim();
         if (!content) {
             console.warn(`Skipped page message without content: ${file}`);
             continue;
         }
         rows.push({
-            page,
+            page: sourcePage,
             content,
             author: raw.author || raw.recorder || '',
-            hidden: isHidden,
-            raw
+            hidden: false,
+            raw: publicRaw
         });
     }
 

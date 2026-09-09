@@ -63,8 +63,8 @@ export function WrittenRecordPages({
     'ascending',
     compareRecordNumber,
   )
-  const pageMessage = messages.find((item) => item.page === page.page)
-  const pageSupplements = supplements
+  const pageMessage = hidden ? undefined : messages.find((item) => item.page === page.page)
+  const pageSupplements = (hidden ? [] : supplements)
     .filter((item) => item.page === page.page)
     .sort(
       (left, right) =>
@@ -215,7 +215,23 @@ function SignedPageImage({
       {(imageFailure.failed || (image.error && !image.src)) && (
         <div className="grid gap-1 px-4 text-center text-sm text-muted-foreground">
           <p>手写页图片加载失败。</p>
-          <span className="text-meta text-primary">打开大图后可重试</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={imageFailure.retrying}
+            aria-busy={imageFailure.retrying || undefined}
+            onClick={() => void imageFailure.retryManually()}
+          >
+            {imageFailure.retrying ? (
+              <>
+                <Spinner />
+                正在重试…
+              </>
+            ) : (
+              '重试图片'
+            )}
+          </Button>
         </div>
       )}
       {image.src && (
@@ -242,9 +258,10 @@ function SignedPageImage({
           className={`absolute inset-0 size-full object-contain transition-opacity duration-(--interaction-duration-slow) ${ready && !imageFailure.failed ? 'opacity-100' : 'opacity-0'}`}
         />
       )}
-      {image.src && <PrivacyMaskLayer masks={privacyMasks} />}
+      {image.src && ready && !imageFailure.failed && <PrivacyMaskLayer masks={privacyMasks} />}
     </div>
   )
+  if (!ready || imageFailure.failed || !image.src) return preview
   return (
     <ImageViewer
       path={path}

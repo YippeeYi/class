@@ -50,7 +50,7 @@ import {
   scrollTargetIntoView,
   waitForWindowScrollEnd,
 } from '@/lib/viewport-scroll'
-import { hasAdminAccess, loadRecords } from '@/services/data'
+import { hasAdminAccess, loadRecordPages, loadRecords } from '@/services/data'
 import type { RecordItem } from '@/types/domain'
 
 const recordViewItems = [
@@ -79,7 +79,9 @@ function RecordViewControls({
     const order = orderRef.current
     if (!root || !mode || !order) return
     const update = () => {
-      root.style.setProperty('--record-view-shift-x', `${order.offsetLeft - mode.offsetLeft}px`)
+      const modeRight = mode.offsetLeft + mode.offsetWidth
+      const orderRight = order.offsetLeft + order.offsetWidth
+      root.style.setProperty('--record-view-shift-x', `${orderRight - modeRight}px`)
       root.style.setProperty('--record-view-shift-y', `${order.offsetTop - mode.offsetTop}px`)
       root.style.setProperty(
         '--record-view-controls-height',
@@ -251,15 +253,11 @@ export function RecordsPage() {
       try {
         setHiddenError('')
         if (!(await hasAdminAccess())) return
-        const [nextHiddenRecords, hiddenWritten] = await Promise.all([
+        const [nextHiddenRecords] = await Promise.all([
           loadRecords({ hidden: true }),
-          view === 'written' ? loadWrittenRecordData(true) : Promise.resolve(null),
+          view === 'written' ? loadRecordPages(true) : Promise.resolve([]),
         ])
-        await preloadMarkupIllustrationDimensions([
-          ...nextHiddenRecords.map((record) => record.content),
-          ...(hiddenWritten?.messages || []).map((message) => message.content),
-          ...(hiddenWritten?.supplements || []).map((supplement) => supplement.content),
-        ])
+        await preloadMarkupIllustrationDimensions(nextHiddenRecords.map((record) => record.content))
         setHiddenRecords(nextHiddenRecords)
         setHidden(true)
         setHiddenError('')

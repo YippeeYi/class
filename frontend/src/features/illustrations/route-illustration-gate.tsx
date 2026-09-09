@@ -13,6 +13,8 @@ import {
 import { preloadImageDimensionList } from '@/services/image-metadata'
 
 type MarkupSource = string | null | undefined
+const settledRoutes = new Set<string>()
+const inflightRoutes = new Map<string, Promise<void>>()
 
 function illustrationPaths(sources: Iterable<MarkupSource>) {
   const paths = new Set<string>()
@@ -81,21 +83,35 @@ export function preloadMarkupIllustrationDimensions(sources: Iterable<MarkupSour
   return preloadImageDimensionList(illustrationPaths(sources), 4)
 }
 
-export async function preloadRouteIllustrationDimensions(pathname: string) {
-  const sources = await routeIllustrationSources(pathname)
-  return preloadMarkupIllustrationDimensions(sources)
+export function preloadRouteIllustrationDimensions(pathname: string) {
+  if (settledRoutes.has(pathname)) return Promise.resolve()
+  const current = inflightRoutes.get(pathname)
+  if (current) return current
+  const pending = routeIllustrationSources(pathname)
+    .then((sources) => preloadMarkupIllustrationDimensions(sources))
+    .catch(() => undefined)
+    .then(() => {
+      settledRoutes.add(pathname)
+    })
+    .finally(() => inflightRoutes.delete(pathname))
+  inflightRoutes.set(pathname, pending)
+  return pending
 }
 
 export function RouteIllustrationGate({ children }: { children: ReactNode }) {
   const location = useLocation()
   const routeKey = location.pathname
-  const [settledKey, setSettledKey] = useState('')
+  const [settledKey, setSettledKey] = useState(() =>
+    settledRoutes.has(routeKey) ? routeKey : '',
+  )
 
   useEffect(() => {
+    if (settledRoutes.has(routeKey)) {
+      setSettledKey(routeKey)
+      return
+    }
     let active = true
-    setSettledKey('')
     void preloadRouteIllustrationDimensions(location.pathname)
-      .catch(() => ({ total: 0, loaded: 0, failed: 0 }))
       .then(() => {
         if (active) setSettledKey(routeKey)
       })
@@ -115,4 +131,11 @@ export function RouteIllustrationGate({ children }: { children: ReactNode }) {
     )
   }
   return children
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('classrecordcacheclearing', () => {
+    settledRoutes.clear()
+    inflightRoutes.clear()
+  })
 }

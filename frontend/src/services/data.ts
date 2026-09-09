@@ -289,17 +289,18 @@ export function loadRecordPages(hidden = false) {
   })
 }
 
-export function loadPageMessages({ hidden = false, force = false } = {}) {
+function publicWrittenPage(value: unknown) {
+  return text(value).trim().replace(/^H(?=\d+$)/u, '')
+}
+
+export function loadPageMessages(force = false) {
   return loadCached<PageMessage[]>({
-    key: `page-messages:${hidden}`,
+    key: 'page-messages',
     force,
-    persistent: !hidden,
-    sessionTtl: hidden ? 0 : undefined,
     loader: async () => {
       const { data, error } = await currentClient()
         .from(supabaseConfig.tables.pageMessages)
         .select('*')
-        .eq('hidden', hidden)
         .order('page', { ascending: true })
       if (error) throw error
       return ((data || []) as Row[])
@@ -307,34 +308,30 @@ export function loadPageMessages({ hidden = false, force = false } = {}) {
           const raw = objectValue(row.raw)
           return {
             ...raw,
-            page: text(row.page ?? raw.page).trim(),
+            page: publicWrittenPage(row.page ?? raw.page),
             content: text(row.content || raw.content || raw.text),
             author: text(row.author || raw.author || raw.recorder),
-            hidden: bool(row.hidden ?? raw.hidden),
           } as PageMessage
         })
-        .filter((item) => item.page && item.content && item.hidden === hidden)
+        .filter((item) => item.page && item.content)
     },
   })
 }
 
-export function loadPageSupplements({ hidden = false, force = false } = {}) {
+export function loadPageSupplements(force = false) {
   return loadCached<PageSupplement[]>({
-    key: `page-supplements:${hidden}`,
+    key: 'page-supplements',
     force,
-    persistent: !hidden,
-    sessionTtl: hidden ? 0 : undefined,
     loader: async () => {
       const { data, error } = await currentClient()
         .from(supabaseConfig.tables.pageSupplements)
         .select('*')
-        .eq('hidden', hidden)
         .order('sort_order', { ascending: true })
       if (error) throw error
       return ((data || []) as Row[])
         .map((row, index) => {
           const raw = objectValue(row.raw)
-          const page = text(row.page ?? raw.page).trim()
+          const page = publicWrittenPage(row.page ?? raw.page)
           const supplementIndex = Number(row.supplement_index ?? raw.supplementIndex ?? index + 1)
           return {
             ...raw,
@@ -344,21 +341,20 @@ export function loadPageSupplements({ hidden = false, force = false } = {}) {
             supplementIndex,
             author: text(row.author || raw.author || raw.recorder),
             content: text(row.content || raw.content || raw.text),
-            hidden: bool(row.hidden ?? raw.hidden),
             importance: text(raw.importance || 'normal'),
             date: text(raw.date),
             time: text(raw.time),
           } as PageSupplement
         })
-        .filter((item) => item.page && item.content && item.hidden === hidden)
+        .filter((item) => item.page && item.content)
     },
   })
 }
 
-export async function loadSupplementalRecords({ hidden = false, force = false } = {}) {
+export async function loadSupplementalRecords({ force = false } = {}) {
   const [messages, supplements] = await Promise.all([
-    loadPageMessages({ hidden, force }),
-    loadPageSupplements({ hidden, force }),
+    loadPageMessages(force),
+    loadPageSupplements(force),
   ])
   return buildSupplementalRecords(messages, supplements)
 }

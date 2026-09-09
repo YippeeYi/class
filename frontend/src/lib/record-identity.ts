@@ -69,7 +69,7 @@ export function buildSupplementalRecords(messages: PageMessage[], supplements: P
     text: item.content,
     importance: 'normal',
     attachments: [],
-    hidden: item.hidden,
+    hidden: false,
     recordType: 'message',
     page: item.page,
   }))
@@ -85,7 +85,7 @@ export function buildSupplementalRecords(messages: PageMessage[], supplements: P
     text: item.content,
     importance: item.importance || 'normal',
     attachments: [],
-    hidden: item.hidden,
+    hidden: false,
     recordType: 'supplement',
     page: item.page,
     supplementIndex: item.supplementIndex,

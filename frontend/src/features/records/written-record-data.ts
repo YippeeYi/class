@@ -11,10 +11,18 @@ export type WrittenRecordData = {
 }
 
 export async function loadWrittenRecordData(hidden: boolean): Promise<WrittenRecordData> {
+  if (hidden) {
+    return {
+      pages: await loadRecordPages(true),
+      messages: [],
+      supplements: [],
+      failures: [],
+    }
+  }
   const [pagesResult, messagesResult, supplementsResult] = await Promise.allSettled([
-    loadRecordPages(hidden),
-    loadPageMessages({ hidden }),
-    loadPageSupplements({ hidden }),
+    loadRecordPages(false),
+    loadPageMessages(),
+    loadPageSupplements(),
   ])
 
   if (pagesResult.status === 'rejected') throw pagesResult.reason

@@ -13,7 +13,7 @@ import {
   Sparkles,
   Users,
 } from 'lucide-react'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
 import { SelectionMotionLayer, useSelectionMotion } from '@/components/archive/selection-motion'
 import { PAGE_HEADER_ACTIONS_ID, PageHeaderProvider } from '@/components/layout/page-header'
@@ -58,7 +58,10 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAuth } from '@/features/auth/auth-context'
-import { RouteIllustrationGate } from '@/features/illustrations/route-illustration-gate'
+import {
+  preloadRouteIllustrationDimensions,
+  RouteIllustrationGate,
+} from '@/features/illustrations/route-illustration-gate'
 import { normalizeAppPathname } from '@/lib/app-route'
 import { NAVIGATION_PAGE_NAMES } from '@/lib/page-title'
 import { completeRecordJump, isRecordJumpActive } from '@/lib/record-navigation'
@@ -91,6 +94,10 @@ function isNavigationActive(activePath: string, destination: string) {
   return destination === '/'
     ? activePath === '/'
     : activePath === destination || activePath.startsWith(`${destination}/`)
+}
+
+function preloadNavigationTarget(pathname: string) {
+  void Promise.allSettled([preloadRoute(pathname), preloadRouteIllustrationDimensions(pathname)])
 }
 
 function RouteScrollManager() {
@@ -165,8 +172,8 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
             <SidebarMenuButton
               size="lg"
               tooltip="编日史"
-              onPointerEnter={() => void preloadRoute('/')}
-              onFocus={() => void preloadRoute('/')}
+              onPointerEnter={() => preloadNavigationTarget('/')}
+              onFocus={() => preloadNavigationTarget('/')}
               render={<Link to="/" />}
             >
               <span className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground">
@@ -208,8 +215,8 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
                       isActive={isActive}
                       tooltip={label}
                       className="app-sidebar-navigation-item"
-                      onPointerEnter={() => void preloadRoute(to)}
-                      onFocus={() => void preloadRoute(to)}
+                      onPointerEnter={() => preloadNavigationTarget(to)}
+                      onFocus={() => preloadNavigationTarget(to)}
                       render={<NavLink to={destination} />}
                     >
                       <Icon />
@@ -455,18 +462,28 @@ export function AppShell() {
             <div
               id="page-content"
               tabIndex={-1}
-              key={location.pathname}
               className={cn(
-                'mx-auto w-full min-w-0 max-w-full px-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow) sm:px-6 lg:px-8',
+                'mx-auto w-full min-w-0 max-w-full px-4 sm:px-6 lg:px-8',
                 isViewportLocked
                   ? 'h-[calc(100dvh-4rem)] min-h-0 max-w-[96rem] overflow-hidden py-4 sm:py-5 lg:py-6'
                   : 'min-h-[calc(100svh-4rem)] py-6 pb-12 sm:py-7 sm:pb-16 lg:py-8',
                 !isViewportLocked && (isWideContent ? 'max-w-[90rem]' : 'max-w-6xl'),
               )}
             >
-              <RouteIllustrationGate>
-                <Outlet />
-              </RouteIllustrationGate>
+              <Suspense
+                fallback={
+                  <div className="grid min-h-48 place-items-center text-sm text-muted-foreground">
+                    <div className="flex items-center gap-3" role="status" aria-live="polite">
+                      <Spinner className="size-5" />
+                      正在打开档案…
+                    </div>
+                  </div>
+                }
+              >
+                <RouteIllustrationGate>
+                  <Outlet />
+                </RouteIllustrationGate>
+              </Suspense>
             </div>
           </SidebarInset>
         </SidebarProvider>

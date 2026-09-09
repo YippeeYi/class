@@ -144,10 +144,9 @@ export function auditPublication({ tables, storageAssets, missingAssets = [] }) 
     if (page && !pageIds.has(page)) {
       add('warning', 'page.unmapped-content', `页 ${page} 有箴言或补充，但不在书面页清单中。`)
     }
-    const rawHidden = row.raw?.hidden === true
-    if (rawHidden !== (row.hidden === true)) {
-      const kind = messages.includes(row) ? '箴言' : '补充'
-      add('error', 'page-content.hidden-drift', `${kind} hidden 列与 raw.hidden 不一致：${page}`)
+    const kind = messages.includes(row) ? '箴言' : '补充'
+    if (row.hidden === true || row.raw?.hidden === true || /^H\d+$/u.test(page)) {
+      add('error', 'page-content.hidden', `${kind}不得进入隐藏记录分区：${page}`)
     }
   }
 

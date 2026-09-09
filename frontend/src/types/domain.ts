@@ -90,7 +90,6 @@ export type PageMessage = {
   page: string
   content: string
   author: string
-  hidden: boolean
   [key: string]: unknown
 }
 
@@ -101,7 +100,6 @@ export type PageSupplement = {
   supplementIndex: number
   author: string
   content: string
-  hidden: boolean
   importance: string
   date: string
   time: string
