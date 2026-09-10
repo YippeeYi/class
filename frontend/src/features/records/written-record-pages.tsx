@@ -26,7 +26,6 @@ export function WrittenRecordPages({
   matched,
   activeFilter,
   pageIndex,
-  hidden,
   onPageChange,
   onRecordReference,
 }: {
@@ -35,7 +34,6 @@ export function WrittenRecordPages({
   matched: RecordItem[]
   activeFilter: boolean
   pageIndex: number
-  hidden: boolean
   onPageChange: (next: number) => void
   onRecordReference: (recordId: string, source: HTMLElement) => void
 }) {
@@ -107,12 +105,7 @@ export function WrittenRecordPages({
         >
           <div className="min-h-0 self-start lg:sticky lg:top-20">
             {page.imagePath ? (
-              <SignedPageImage
-                key={page.imagePath}
-                path={page.imagePath}
-                page={page.page}
-                hidden={hidden}
-              />
+              <SignedPageImage key={page.imagePath} path={page.imagePath} page={page.page} />
             ) : (
               <EmptyState title="暂无对应扫描页" />
             )}
@@ -134,7 +127,7 @@ export function WrittenRecordPages({
   )
 }
 
-function SignedPageImage({ path, page, hidden }: { path: string; page: string; hidden: boolean }) {
+function SignedPageImage({ path, page }: { path: string; page: string }) {
   const image = useSignedAsset(path, { variant: 'preview', width: 1200 })
   const imageFailure = useBoundedImageRetry(path, image.retry)
   const dimensions = useImageDimensions(path, true, 1200) || { width: 2856, height: 4282 }
@@ -204,13 +197,13 @@ function SignedPageImage({ path, page, hidden }: { path: string; page: string; h
       path={path}
       initialUrl={image.src}
       initialDimensions={dimensions}
-      alt={`${hidden ? '隐藏' : '手写'}记录第 ${page} 页`}
+      alt={`手写记录第 ${page} 页`}
       trigger={
         <Button
           type="button"
           variant="ghost"
           className="h-auto w-full overflow-hidden rounded-lg border border-border/70 bg-transparent p-0 shadow-none group app-interactive-surface app-interactive-media"
-          aria-label={`查看${hidden ? '隐藏' : '手写'}记录第 ${page} 页大图`}
+          aria-label={`查看手写记录第 ${page} 页大图`}
         >
           {preview}
         </Button>

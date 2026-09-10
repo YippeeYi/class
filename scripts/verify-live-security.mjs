@@ -108,6 +108,17 @@ for (const table of contentTables) {
     assert.deepEqual(rows, [], `FAIL: unauthenticated anon request can read ${table}`);
 }
 
+for (const token of ['', invalidToken]) {
+    const response = await request('/rest/v1/rpc/get_class_record_order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ include_hidden: true })
+    }, token);
+    assert.equal(response.ok, true, 'Record ordering RPC is missing or unavailable; apply the current database migration before release');
+    const rows = await response.json();
+    assert.equal(Array.isArray(rows) && rows.length === 0, true, 'Unauthenticated or fabricated tokens must not obtain record ordering data');
+}
+
 const invalidAccessResponse = await request('/rest/v1/rpc/has_class_record_access', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -142,6 +153,14 @@ if (accessToken) {
     }, accessToken);
     assert.equal(adminResponse.ok, true, 'administrator access RPC failed');
     const isAdmin = await adminResponse.json();
+
+    for (const table of ['class_records', 'class_page_messages', 'class_page_supplements']) {
+        const response = await request(`/rest/v1/${table}?select=hidden&hidden=eq.true`, {}, accessToken);
+        assert.equal(response.ok, true, `Hidden permission query failed for ${table}`);
+        const rows = await response.json();
+        assert.equal(Array.isArray(rows), true);
+        if (!isAdmin) assert.equal(rows.length, 0, `Normal token can read hidden rows from ${table}`);
+    }
 
     const recordResponse = await request('/rest/v1/class_records?select=record_id&limit=1', {
         headers: { Accept: 'application/json' }

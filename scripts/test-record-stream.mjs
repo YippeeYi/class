@@ -25,7 +25,7 @@ assert.equal(visibleRecords(records).some((r) => r.hidden), false)
 assert.equal(visibleRecords(records, true).length, records.length)
 assert.deepEqual(keys(orderedRecordStream(buildRecordStream(records, positions))), expected, 'leaving hidden mode must preserve public order')
 assert.deepEqual(keys(orderedRecordStream(buildRecordStream([...records, ...records], positions))), expected, 'merged records must not duplicate')
-const pages = writtenStreamPages([{ page: '01', hidden: false }, { page: '02', hidden: false }, { page: 'H01', hidden: true }], all)
+const pages = writtenStreamPages([{ page: '01', hidden: false }, { page: '02', hidden: false }], all)
 assert.deepEqual(pages.map((p) => p.page), ['01', '02', ''])
 assert.deepEqual(keys(pages.flatMap((p) => all.find((g) => g.page === String(Number(p.page || 0)).replace(/^0$/, ''))?.records || [])), keys(orderedRecordStream(all)), 'written page expansion must equal the forward list, including unmapped records')
 for (const empty of [undefined, null, '', ' \n\t ', 123, {}]) assert.equal(recordAnnotation(empty), undefined)
@@ -33,8 +33,8 @@ assert.equal(recordAnnotation(' [[red:注解]] '), '[[red:注解]]')
 assert.equal(extra[0].annotation, '[[red:注解]]')
 assert.equal(extra[1].annotation, '补充注解')
 const protectedExtra = buildSupplementalRecords(
-  [{ page: 'H01', author: '', content: '隐藏箴言', hidden: true, annotation: '隐藏注解' }],
-  [{ page: 'H01', supplementIndex: 1, author: '', content: '隐藏补充', date: '', time: '', hidden: true }],
+  [{ page: '02', author: '', content: '隐藏箴言', hidden: true, annotation: '隐藏注解' }],
+  [{ page: '02', supplementIndex: 1, author: '', content: '隐藏补充', date: '', time: '', hidden: true }],
 )
 assert.ok(protectedExtra.every((item) => item.hidden))
 assert.deepEqual(visibleRecords(protectedExtra), [])

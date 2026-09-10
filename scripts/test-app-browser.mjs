@@ -19,8 +19,8 @@ const tables = {
   class_credits_page: { id: 'main', title: '致谢', sections: [], thanks: ['感谢记录者'], original_images: [], raw: {} },
   class_private_assets: { width: 800, height: 600 },
 }
-tables.class_page_messages.push({ page: 'H01', hidden: true, content: '隐藏箴言', author: 'p1', raw: { annotation: '隐藏箴言注解' } })
-tables.class_page_supplements.push({ page: 'H01', hidden: true, file_name: 'H01-01.json', supplement_index: 1, content: '隐藏补充', author: 'p1', raw: { annotation: '隐藏补充注解' } })
+tables.class_page_messages.push({ page: '02', hidden: true, content: '隐藏箴言', author: 'p1', raw: { annotation: '隐藏箴言注解' } })
+tables.class_page_supplements.push({ page: '02', hidden: true, file_name: '02-01.json', supplement_index: 1, content: '隐藏补充', author: 'p1', raw: { annotation: '隐藏补充注解' } })
 const config = { configFile: path.join(frontend, 'vite.config.ts'), root: frontend, server: { port: 0, host: '127.0.0.1' }, preview: { port: 0, host: '127.0.0.1' }, logLevel: 'error' }
 const vite = process.env.CLASS_RECORD_PREVIEW ? await preview(config) : await createServer(config)
 if ('listen' in vite) await vite.listen()
@@ -125,11 +125,15 @@ try {
   await waitCards(page, 7)
   await page.getByRole('tab', { name: '正序', exact: true }).click()
   const allForward = await cardKeys(page)
-  assert.deepEqual(allForward, ['record-message-01', 'record-message-H01', 'record-supplement-01-1', 'record-supplement-H01-1', 'record-r1', 'record-r2', 'record-r3'])
+  assert.deepEqual(allForward, [...forward, 'record-r3', 'record-message-02', 'record-supplement-02-1'])
   assert.equal(await page.getByRole('button', { name: '查看注解', exact: true }).count(), 5)
   await page.getByRole('tab', { name: '书面记录', exact: true }).click()
-  await waitCards(page, 7)
-  assert.deepEqual(await cardKeys(page), allForward)
+  await waitCards(page, 5)
+  const writtenForward = await cardKeys(page)
+  await page.getByRole('button', { name: '下一页', exact: true }).click()
+  await waitCards(page, 2)
+  writtenForward.push(...await cardKeys(page))
+  assert.deepEqual(writtenForward, allForward)
   await page.getByRole('button', { name: '退出', exact: true }).click()
   await waitCards(page, 4)
   assert.deepEqual(await cardKeys(page), forward)

@@ -13,7 +13,7 @@ export function visibleRecords(records: readonly RecordItem[], includeHidden = f
 }
 
 export function recordPageKey(page: string) {
-  return /^H?\d+$/.test(page) ? String(Number(page.replace(/^H/, ''))) : page
+  return /^\d+$/.test(page) ? String(Number(page)) : page
 }
 
 export type RecordStreamPage = { page: string; records: RecordItem[] }

@@ -319,6 +319,8 @@ private-assets/
 
 箴言文件名为 `页码.json`，页补充文件名必须是 `页码-编号.json`。两类 JSON 均不填写 `page`；导入器只从文件名解析页码与补充序号，并生成数据库对应列。资料 ID 默认使用文件名去掉 `.json` 的部分，也可在 JSON 中提供业务 `id`；`sortOrder` 控制排序。详细页箴言格式见 [书面记录页箴言](docs/page-messages.md)，地图操作见 [地图部署说明](docs/meal-map-operation.md)。
 
+`record/record_pages.json` 只维护一份普通页码到 `start`、`end` 记录文件名的映射，不需要另建 Hxx 页或 `sourceImage` 别名。三类记录是否隐藏由各自 JSON 的 `hidden` 决定；隐藏模式复用同一页序和扫描图，全部扫描图仍仅管理员可读。
+
 ### 内容治理、发布与清理
 
 ```bash

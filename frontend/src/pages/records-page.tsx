@@ -650,7 +650,6 @@ export function RecordsPage() {
             matched={matched}
             activeFilter={activeFilter}
             pageIndex={pageIndex}
-            hidden={hidden}
             onPageChange={setPageIndex}
             onRecordReference={navigateToRecord}
           />

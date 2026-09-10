@@ -176,8 +176,8 @@ try {
       status: 200,
       headers: apiHeaders,
       body: JSON.stringify([
-        { page: '1', start_file: 'r1.json', end_file: 'r2.json', image_path: 'hidden/images/record-pages/H1.jpeg', hidden: false, sort_order: 0, raw: {} },
-        { page: '2', start_file: 'r3.json', end_file: 'r3.json', image_path: 'hidden/images/record-pages/H2.jpeg', hidden: false, sort_order: 1, raw: {} },
+        { page: '1', start_file: 'r1.json', end_file: 'r2.json', image_path: 'images/record-pages/01.jpeg', hidden: false, sort_order: 0, raw: {} },
+        { page: '2', start_file: 'r3.json', end_file: 'r3.json', image_path: 'images/record-pages/02.jpeg', hidden: false, sort_order: 1, raw: {} },
       ]),
     }),
   )
@@ -1191,7 +1191,7 @@ try {
   const writtenPreviewSigns = storageRequests.filter(
     (request) =>
       request.method === 'POST' &&
-      request.path.endsWith('/classrecord-private/hidden/images/record-pages/H2.jpeg'),
+      request.path.endsWith('/classrecord-private/images/record-pages/02.jpeg'),
   )
   assert.ok(writtenPreviewSigns.length >= 1, 'the visible written page must request its compressed rendition')
   assert.ok(

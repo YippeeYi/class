@@ -189,6 +189,7 @@ const [adminSource, adminAccessSource, adminRuntimeSource, dataSource, setupSql,
 
 assert.match(adminRuntimeSource, /publish --confirm-publish/)
 assert.match(adminSource, /Created \$\{reason\} snapshot \(complete\)/)
+assert.match(adminSource, /specification\?\.paths\?\.\['\/rpc\/get_class_record_order'\]/, 'publication must require the current record-stream migration')
 assert.match(
   adminSource,
   /generatedIdPrefix = isHidden \? 'H' : 'R'/,

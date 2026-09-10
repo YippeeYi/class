@@ -125,6 +125,9 @@ const validateDatabaseSchema = async () => {
     });
     const definitions = specification?.definitions || specification?.components?.schemas || {};
     const missing = [];
+    if (!specification?.paths?.['/rpc/get_class_record_order']?.post) {
+        missing.push('get_class_record_order RPC');
+    }
 
     const required = new Map(
         Object.entries(requiredDatabaseColumns).map(([table, columns]) => [table, new Set(columns)])
@@ -146,8 +149,8 @@ const validateDatabaseSchema = async () => {
 
     if (missing.length) {
         throw new Error(
-            `Supabase schema is missing required migration columns: ${missing.join(', ')}. `
-            + 'Run sql/setup.sql in Supabase SQL Editor, then retry this command.'
+            `Supabase schema is missing required release objects: ${missing.join(', ')}. `
+            + 'Apply pending supabase/migrations and run sql/check.sql before retrying.'
         );
     }
 };
@@ -603,23 +606,13 @@ const importRecordPages = async () => {
         return;
     }
 
-    let visibleIndex = 0;
-    let hiddenIndex = 0;
-
-    const rows = pages.map((raw) => {
-        const publishedRaw = { ...raw };
-        delete publishedRaw.privacyMasks;
+    const rows = pages.map((raw, index) => {
         const isHidden = Boolean(raw.hidden);
-        const index = isHidden ? hiddenIndex++ : visibleIndex++;
         const page = String(raw.page || raw.id || String(index + 1).padStart(2, '0'));
         const sourceImagePath = normalizeRecordPageImagePath(
             firstValue(raw.image_path, raw.imagePath, raw.image, raw.fileName, raw.file),
             page
         );
-        const localSourceImagePath = raw.sourceImage
-            ? getDefaultLocalAssetPath(normalizeRecordPageImagePath(raw.sourceImage, raw.sourceImage))
-            : '';
-
         return {
             page,
             start_file: raw.start || raw.startFile || raw.from || null,
@@ -627,9 +620,9 @@ const importRecordPages = async () => {
             sort_order: index,
             hidden: isHidden,
             image_path: sourceImagePath
-                ? registerStorageAsset(sourceImagePath, { hidden: isHidden, localPath: localSourceImagePath })
+                ? registerStorageAsset(sourceImagePath, { hidden: isHidden })
                 : null,
-            raw: publishedRaw
+            raw
         };
     });
 
