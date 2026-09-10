@@ -676,7 +676,7 @@ export function RecordsPage() {
               留在此处
             </AlertDialogCancel>
             <AlertDialogAction onClick={returnToOrigin}>
-              {jumpOrigin ? '返回原位置' : '返回上一页'}
+              返回
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
