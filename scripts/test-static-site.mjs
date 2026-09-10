@@ -60,7 +60,6 @@ const profanity = await readFrontend('src/lib/profanity.ts')
 const searchIndex = await readFrontend('src/lib/search-index.ts')
 const imageMetadata = await readFrontend('src/services/image-metadata.ts')
 const scrollLock = await readFrontend('src/hooks/use-background-scroll-lock.ts')
-const redirects = await readFrontend('public/_redirects')
 const ui = (await readdir(new URL('../frontend/src/components/ui/', import.meta.url))).filter((file) => file.endsWith('.tsx'))
 
 assert.match(packageJson.dependencies.react, /^\^19\./)
@@ -673,7 +672,6 @@ assert.match(shell, /location\.pathname === '\/person'[\s\S]*last\?\.search !== 
 for (const route of ['records', 'people', 'person', 'quotes', 'timeline', 'search', 'quiz', 'materials', 'map', 'backgrounds', 'credits']) {
   assert.match(app, new RegExp(`path="${route}"`), `${route} route is missing`)
 }
-assert.match(redirects, /\/\* \/index\.html 200/, 'SPA fallback is missing')
 assert.match(pagesWorkflow, /pull_request:[\s\S]*branches:[\s\S]*- main/, 'PR checks must run for main')
 assert.match(pagesWorkflow, /npm run db:check/, 'CI must validate database migration history')
 assert.match(

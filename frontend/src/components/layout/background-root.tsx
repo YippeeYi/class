@@ -1,6 +1,6 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react'
 
-export const BACKGROUND_KEY = 'classRecord:background'
+const BACKGROUND_KEY = 'classRecord:background'
 export const APPEARANCE_KEY = 'classRecord:appearance:v1'
 const PALETTE_KEY = 'classRecord:backgroundPalette:v1'
 let volatileAppearance: AppearancePreference | null = null
@@ -227,16 +227,10 @@ function updateAppearance(next: Partial<AppearancePreference>) {
   volatileAppearance = appearance
   try {
     localStorage.setItem(APPEARANCE_KEY, JSON.stringify(appearance))
-    // Keep the former key in sync so existing installs and older deployments can roll back safely.
-    localStorage.setItem(BACKGROUND_KEY, appearance.background)
   } catch {
     // The selected appearance remains active for the current page session.
   }
   window.dispatchEvent(new CustomEvent('classrecord:appearance', { detail: appearance }))
-  if (previous.background !== appearance.background)
-    window.dispatchEvent(
-      new CustomEvent('classrecord:background', { detail: appearance.background }),
-    )
 }
 
 export function setBackground(id: BackgroundId) {
@@ -384,8 +378,17 @@ export function BackgroundRoot({ children }: { children: ReactNode }) {
   useEffect(() => {
     const update = (event: Event) =>
       setAppearance((event as CustomEvent<AppearancePreference>).detail || readAppearance())
+    const clear = () => {
+      volatileAppearance = null
+      decodedBackgrounds.clear()
+      setAppearance(readAppearance())
+    }
     window.addEventListener('classrecord:appearance', update)
-    return () => window.removeEventListener('classrecord:appearance', update)
+    window.addEventListener('classrecordcachecleared', clear)
+    return () => {
+      window.removeEventListener('classrecord:appearance', update)
+      window.removeEventListener('classrecordcachecleared', clear)
+    }
   }, [])
   const selected = backgrounds.find((item) => item.id === current)
   const visibleBackground = backgrounds.find((item) => item.id === visible)

@@ -3,6 +3,7 @@ import { memo, useState } from 'react'
 import { Link } from 'react-router'
 import { textLinkClassName } from '@/components/archive/interaction'
 import { MarkupContent } from '@/components/archive/markup-content'
+import { RecordAnnotation } from '@/components/archive/record-annotation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -10,7 +11,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { recordAnchor } from '@/lib/markup'
-import { recordDisplayNumber } from '@/lib/record-identity'
+import { recordDisplayNumber, recordTypeLabel } from '@/lib/record-identity'
+import { recordAnnotation } from '@/lib/record-stream'
 import { signAssetUrl } from '@/services/data'
 import type { Attachment, RecordItem } from '@/types/domain'
 
@@ -62,9 +64,9 @@ export const RecordCard = memo(function RecordCard({
   onSourceAction?: (record: RecordItem, source: HTMLElement) => void
   showSourceAction?: boolean
 }) {
-  const typeLabel =
-    record.recordType === 'message' ? '箴言' : record.recordType === 'supplement' ? '补充' : ''
+  const typeLabel = record.recordType ? recordTypeLabel(record) : ''
   const anchor = recordAnchor(record)
+  const annotation = recordAnnotation(record.annotation)
 
   return (
     <Collapsible>
@@ -100,8 +102,15 @@ export const RecordCard = memo(function RecordCard({
                 {record.author}
               </Link>
             )}
-            {(record.attachments.length > 0 || showSourceAction) && (
+            {(annotation || record.attachments.length > 0 || showSourceAction) && (
               <span className="ml-auto inline-flex items-center gap-1.5">
+                {annotation && (
+                  <RecordAnnotation
+                    annotation={annotation}
+                    label={recordDisplayNumber(record)}
+                    onRecordReference={onRecordReference}
+                  />
+                )}
                 {record.attachments.length > 0 && (
                   <CollapsibleTrigger
                     render={

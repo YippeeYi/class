@@ -2,7 +2,7 @@ import { ACCESS_KEY } from '@/features/auth/auth-storage'
 
 type CacheEntry<T> = { time: number; data: T }
 
-const VERSION = 'v5'
+const VERSION = 'v6'
 const SESSION_PREFIX = `classRecord:dataCache:${VERSION}:`
 const DATABASE_NAME = 'classRecord-data-cache-v2'
 const STORE_NAME = 'entries'
@@ -31,8 +31,8 @@ function scopedKey(key: string) {
   return `${VERSION}:${accessScope()}:${key}`
 }
 
-function sessionKey(key: string) {
-  return `${SESSION_PREFIX}${accessScope()}:${key}`
+function sessionKey(scoped: string) {
+  return `${SESSION_PREFIX}${scoped}`
 }
 
 function readSession<T>(key: string, ttl: number): CacheEntry<T> | null {
@@ -51,9 +51,9 @@ function readSession<T>(key: string, ttl: number): CacheEntry<T> | null {
   }
 }
 
-function writeSession<T>(key: string, data: T) {
+function writeSession<T>(key: string, entry: CacheEntry<T>) {
   try {
-    sessionStorage.setItem(sessionKey(key), JSON.stringify({ time: Date.now(), data }))
+    sessionStorage.setItem(sessionKey(key), JSON.stringify(entry))
   } catch {
     // Storage is an optimization; memory and the network remain available.
   }
@@ -62,56 +62,68 @@ function writeSession<T>(key: string, data: T) {
 function openDatabase(): Promise<IDBDatabase | null> {
   if (!('indexedDB' in window) || accessScope() === 'unauthorized') return Promise.resolve(null)
   return new Promise((resolve) => {
-    let request: IDBOpenDBRequest
-    try {
-      request = indexedDB.open(DATABASE_NAME, 1)
-    } catch {
-      resolve(null)
-      return
-    }
-    request.onupgradeneeded = () => {
-      if (!request.result.objectStoreNames.contains(STORE_NAME)) {
-        request.result.createObjectStore(STORE_NAME, { keyPath: 'key' })
+    let settled = false
+    const finish = (database: IDBDatabase | null) => {
+      if (settled) {
+        database?.close()
+        return
       }
+      settled = true
+      clearTimeout(timeout)
+      if (database) database.onversionchange = () => database.close()
+      resolve(database)
     }
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => resolve(null)
-    request.onblocked = () => resolve(null)
+    const timeout = setTimeout(() => finish(null), 1500)
+    try {
+      const request = indexedDB.open(DATABASE_NAME, 1)
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains(STORE_NAME))
+          request.result.createObjectStore(STORE_NAME, { keyPath: 'key' })
+      }
+      request.onsuccess = () => finish(request.result)
+      request.onerror = () => finish(null)
+      request.onblocked = () => finish(null)
+    } catch {
+      finish(null)
+    }
   })
 }
 
-async function readPersistent<T>(
-  key: string,
-  freshTtl: number,
-  staleTtl: number,
-): Promise<(CacheEntry<T> & { stale: boolean }) | null> {
+async function readPersistent<T>(scoped: string, freshTtl: number, staleTtl: number) {
   const database = await openDatabase()
   if (!database) return null
-  const result = await new Promise<CacheEntry<T> | null>((resolve) => {
-    const request = database
-      .transaction(STORE_NAME, 'readonly')
-      .objectStore(STORE_NAME)
-      .get(scopedKey(key))
-    request.onsuccess = () => resolve((request.result as CacheEntry<T> | undefined) || null)
-    request.onerror = () => resolve(null)
-  })
-  database.close()
-  if (!result || !Number.isFinite(result.time) || Date.now() - result.time >= staleTtl) return null
-  return { ...result, stale: Date.now() - result.time >= freshTtl }
+  try {
+    const result = await new Promise<CacheEntry<T> | null>((resolve) => {
+      const transaction = database.transaction(STORE_NAME, 'readonly')
+      const request = transaction.objectStore(STORE_NAME).get(scoped)
+      request.onsuccess = () => resolve((request.result as CacheEntry<T> | undefined) || null)
+      request.onerror = transaction.onabort = () => resolve(null)
+    })
+    if (!result || !Number.isFinite(result.time) || Date.now() - result.time >= staleTtl)
+      return null
+    return { ...result, stale: Date.now() - result.time >= freshTtl }
+  } catch {
+    return null
+  } finally {
+    database.close()
+  }
 }
 
-async function writePersistent<T>(key: string, data: T) {
+async function writePersistent<T>(scoped: string, entry: CacheEntry<T>, requestGeneration: number) {
   const database = await openDatabase()
   if (!database) return
-  await new Promise<void>((resolve) => {
-    const request = database
-      .transaction(STORE_NAME, 'readwrite')
-      .objectStore(STORE_NAME)
-      .put({ key: scopedKey(key), time: Date.now(), data })
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-  })
-  database.close()
+  try {
+    if (requestGeneration !== generation) return
+    await new Promise<void>((resolve) => {
+      const transaction = database.transaction(STORE_NAME, 'readwrite')
+      transaction.oncomplete = transaction.onerror = transaction.onabort = () => resolve()
+      transaction.objectStore(STORE_NAME).put({ key: scoped, ...entry })
+    })
+  } catch {
+    /* Storage failures never block reading the archive. */
+  } finally {
+    database.close()
+  }
 }
 
 export async function loadCached<T>({
@@ -138,41 +150,51 @@ export async function loadCached<T>({
   const pending = inflight.get(scoped)
   if (pending) return pending as Promise<T>
 
-  let stale: CacheEntry<T> | null = null
-  if (!force) {
-    const session = readSession<T>(key, sessionTtl)
-    if (session) {
-      memory.set(scoped, session)
-      return session.data
-    }
-    if (persistent) {
-      const stored = await readPersistent<T>(key, freshTtl, Math.max(staleTtl, freshTtl))
-      if (stored && !stored.stale) {
-        memory.set(scoped, stored)
-        if (sessionTtl > 0) writeSession(key, stored.data)
-        return stored.data
-      }
-      stale = stored
-    }
-  }
-
   const requestGeneration = generation
-  const request = loader()
-    .then((data) => {
-      if (requestGeneration !== generation) return data
-      const entry = { time: Date.now(), data }
-      memory.set(scoped, entry)
-      if (sessionTtl > 0) writeSession(key, data)
-      if (persistent) void writePersistent(key, data)
-      return data
-    })
-    .catch((error) => {
-      if (stale) {
-        memory.set(scoped, stale)
-        if (sessionTtl > 0) writeSession(key, stale.data)
-        return stale.data
+  const scope = accessScope()
+  const assertCurrent = () => {
+    if (requestGeneration !== generation || scope !== accessScope())
+      throw new Error('访问范围已改变，请重新加载。')
+  }
+  // Register before IndexedDB or the network can yield, including forced retries.
+  const request = Promise.resolve()
+    .then(async () => {
+      let stale: CacheEntry<T> | null = null
+      assertCurrent()
+      if (!force) {
+        const session = readSession<T>(scoped, sessionTtl)
+        if (session) {
+          memory.set(scoped, session)
+          return session.data
+        }
+        if (persistent) {
+          const stored = await readPersistent<T>(scoped, freshTtl, Math.max(staleTtl, freshTtl))
+          assertCurrent()
+          if (stored && !stored.stale) {
+            memory.set(scoped, stored)
+            if (sessionTtl > 0) writeSession(scoped, stored)
+            return stored.data
+          }
+          stale = stored
+        }
       }
-      throw error
+      try {
+        const data = await loader()
+        assertCurrent()
+        const entry = { time: Date.now(), data }
+        memory.set(scoped, entry)
+        if (sessionTtl > 0) writeSession(scoped, entry)
+        if (persistent) void writePersistent(scoped, entry, requestGeneration)
+        return data
+      } catch (error) {
+        assertCurrent()
+        if (stale) {
+          memory.set(scoped, stale)
+          // Preserve the source timestamp: offline reads cannot extend its lifetime.
+          return stale.data
+        }
+        throw error
+      }
     })
     .finally(() => {
       if (inflight.get(scoped) === request) inflight.delete(scoped)

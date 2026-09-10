@@ -45,6 +45,9 @@ jobs:
       - name: Run browser layout regression
         run: npm run test:layout
 
+      - name: Run application browser regression
+        run: npm run test:app
+
       - name: Build frontend
         run: npm run build
 

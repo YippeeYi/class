@@ -4,7 +4,7 @@ import { clearSupabaseClients } from '@/services/supabase'
 
 let clearing: Promise<void> | null = null
 
-export function clearAllSiteState({ preserveRedirectTarget = '' } = {}) {
+export function clearAllSiteState() {
   if (clearing) return clearing
   clearing = (async () => {
     window.dispatchEvent(new Event('classrecordcacheclearing'))
@@ -17,9 +17,6 @@ export function clearAllSiteState({ preserveRedirectTarget = '' } = {}) {
     }
     try {
       sessionStorage.clear()
-      if (preserveRedirectTarget) {
-        sessionStorage.setItem('classRecordRedirectTarget', preserveRedirectTarget)
-      }
     } catch {
       // The caller can still continue at the guide when session storage is unavailable.
     }

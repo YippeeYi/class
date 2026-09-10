@@ -4,7 +4,7 @@
 
 网站没有账号体系。一次性邀请码只用于兑换一个 256 位随机访问 token；邀请码消费与 session 创建在同一个数据库事务内完成。浏览器只收到这一次生成的原始 token，数据库只保存加入服务端 pepper 后的 SHA-256 哈希，因此仅泄露数据库中的 session 表不能直接还原可用 token。
 
-每个请求都把 token 放在自定义请求头 `x-class-record-access` 中。Database RLS、Storage policy 和签名 URL 创建均在服务端重新验证 token；修改 `localStorage` 中的本地状态不能产生权限。普通 token 只能读取普通资源，管理员 token 才能读取隐藏记录、隐藏书面页和 Quiz 彩蛋。
+每个请求都把 token 放在自定义请求头 `x-class-record-access` 中。Database RLS、Storage policy 和签名 URL 创建均在服务端重新验证 token；修改 `localStorage` 中的本地状态不能产生权限。普通 token 只能读取未隐藏资源，管理员 token 才能读取三类隐藏记录、全部书面页和 Quiz 彩蛋。
 
 session 同时受以下条件约束：90 天未使用失效、`expires_at` 绝对到期（创建后 365 天）、`revoked_at` 撤销后立即拒绝。刷新只能更新仍处于有效期内且未撤销的 session，不能重新激活过期或撤销的 token。
 

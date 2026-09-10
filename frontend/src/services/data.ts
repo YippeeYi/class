@@ -1,6 +1,7 @@
 import { getStoredAccessToken } from '@/features/auth/auth-storage'
 import { extractQuoteMarkers } from '@/lib/markup'
 import { buildSupplementalRecords } from '@/lib/record-identity'
+import { type RecordPagePosition, recordAnnotation } from '@/lib/record-stream'
 import { clearRuntimeCache, loadCached } from '@/services/cache'
 import { getSupabase, supabaseConfig } from '@/services/supabase'
 import type {
@@ -98,16 +99,14 @@ export function loadRecords({ hidden = false, force = false } = {}) {
               ? raw.attachments
               : []
           return {
-            ...raw,
             id: text(row.record_id || raw.id || fileName),
             fileName,
             recordIndex: Number(row.record_index ?? raw.recordIndex ?? index + 1),
             date: text(row.record_date || raw.date),
             time: text(row.record_time || raw.time),
             author: text(row.author || raw.author || raw.recorder),
-            recorder: text(row.author || raw.recorder || raw.author),
             content,
-            text: content,
+            annotation: recordAnnotation(raw.annotation),
             importance: text(row.importance || raw.importance),
             attachments: attachments.filter((item): item is { file: string; name?: string } => {
               return Boolean(item && typeof item === 'object' && text((item as Row).file))
@@ -133,7 +132,6 @@ export function loadPeople(force = false) {
       return ((data || []) as Row[]).map((row, index) => {
         const raw = objectValue(row.raw)
         return {
-          ...raw,
           id: text(row.person_id || raw.id || raw.name || `person-${index + 1}`),
           name: text(row.name || raw.name || raw.displayName || raw.display_name),
           aliases: stringList(row.aliases || raw.aliases),
@@ -185,7 +183,6 @@ export function loadMaterials(force = false) {
         .map((row, index) => {
           const raw = objectValue(row.raw)
           return {
-            ...raw,
             id: text(row.material_id || raw.id || `material-${index + 1}`),
             title: text(row.title || raw.title || raw.name),
             content: text(row.content || raw.content || raw.description),
@@ -221,7 +218,6 @@ export function loadQuizQuestions(force = false) {
           .map(text)
           .filter(Boolean)
         return {
-          ...raw,
           id: text(raw.id || row.id || `quiz-${index + 1}`),
           contentKey: contentKeys[0] || '',
           contentKeys: [...new Set(contentKeys)],
@@ -238,22 +234,20 @@ export function loadQuizQuestions(force = false) {
   })
 }
 
-export function loadHiddenRecordPages() {
+export function loadRecordPages() {
   return loadCached<RecordPage[]>({
-    key: 'record-pages:hidden',
+    key: 'record-pages:all',
     persistent: false,
     sessionTtl: 0,
     loader: async () => {
       const { data, error } = await currentClient()
         .from(supabaseConfig.tables.recordPages)
         .select('*')
-        .eq('hidden', true)
         .order('sort_order', { ascending: true })
       if (error) throw error
       return ((data || []) as Row[]).map((row, index) => {
         const raw = objectValue(row.raw)
         return {
-          ...raw,
           page: text(row.page ?? raw.page ?? index + 1),
           startFile: text(row.start_file || raw.startFile || raw.start),
           endFile: text(row.end_file || raw.endFile || raw.end),
@@ -265,30 +259,28 @@ export function loadHiddenRecordPages() {
   })
 }
 
-function publicWrittenPage(value: unknown) {
-  return text(value)
-    .trim()
-    .replace(/^H(?=\d+$)/u, '')
-}
-
-export function loadPageMessages(force = false) {
+export function loadPageMessages({ force = false, hidden = false } = {}) {
   return loadCached<PageMessage[]>({
-    key: 'page-messages',
+    key: hidden ? 'page-messages:hidden' : 'page-messages',
+    persistent: !hidden,
+    sessionTtl: hidden ? 0 : undefined,
     force,
     loader: async () => {
       const { data, error } = await currentClient()
         .from(supabaseConfig.tables.pageMessages)
         .select('*')
+        .eq('hidden', hidden)
         .order('page', { ascending: true })
       if (error) throw error
       return ((data || []) as Row[])
         .map((row) => {
           const raw = objectValue(row.raw)
           return {
-            ...raw,
-            page: publicWrittenPage(row.page ?? raw.page),
+            page: text(row.page ?? raw.page),
+            hidden: bool(row.hidden),
             content: text(row.content || raw.content || raw.text),
             author: text(row.author || raw.author || raw.recorder),
+            annotation: recordAnnotation(raw.annotation),
           } as PageMessage
         })
         .filter((item) => item.page && item.content)
@@ -296,27 +288,31 @@ export function loadPageMessages(force = false) {
   })
 }
 
-export function loadPageSupplements(force = false) {
+export function loadPageSupplements({ force = false, hidden = false } = {}) {
   return loadCached<PageSupplement[]>({
-    key: 'page-supplements',
+    key: hidden ? 'page-supplements:hidden' : 'page-supplements',
+    persistent: !hidden,
+    sessionTtl: hidden ? 0 : undefined,
     force,
     loader: async () => {
       const { data, error } = await currentClient()
         .from(supabaseConfig.tables.pageSupplements)
         .select('*')
+        .eq('hidden', hidden)
         .order('sort_order', { ascending: true })
       if (error) throw error
       return ((data || []) as Row[])
         .map((row, index) => {
           const raw = objectValue(row.raw)
-          const page = publicWrittenPage(row.page ?? raw.page)
+          const page = text(row.page ?? raw.page)
           const supplementIndex = Number(row.supplement_index ?? raw.supplementIndex ?? index + 1)
           return {
-            ...raw,
             id: text(row.file_name || raw.id || `supplement-${page}-${supplementIndex}`),
             fileName: text(row.file_name || raw.fileName),
             page,
             supplementIndex,
+            hidden: bool(row.hidden),
+            annotation: recordAnnotation(raw.annotation),
             author: text(row.author || raw.author || raw.recorder),
             content: text(row.content || raw.content || raw.text),
             importance: text(raw.importance || 'normal'),
@@ -329,12 +325,41 @@ export function loadPageSupplements(force = false) {
   })
 }
 
-export async function loadSupplementalRecords({ force = false } = {}) {
+export async function loadSupplementalRecords({ force = false, hidden = false } = {}) {
   const [messages, supplements] = await Promise.all([
-    loadPageMessages(force),
-    loadPageSupplements(force),
+    loadPageMessages({ force, hidden }),
+    loadPageSupplements({ force, hidden }),
   ])
   return buildSupplementalRecords(messages, supplements)
+}
+
+export function loadRecordPagePositions(includeHidden = false) {
+  return loadCached<RecordPagePosition[]>({
+    key: `record-page-positions:${includeHidden}`,
+    persistent: !includeHidden,
+    sessionTtl: includeHidden ? 0 : undefined,
+    loader: async () => {
+      const { data, error } = await currentClient().rpc('get_class_record_order', {
+        include_hidden: includeHidden,
+      })
+      if (error) throw error
+      return ((data || []) as Row[]).map((row) => ({
+        fileName: text(row.file_name),
+        page: text(row.page),
+      }))
+    },
+  })
+}
+
+export async function loadRecordStreamData(includeHidden = false) {
+  const [records, supplements, positions, hidden, hiddenSupplements] = await Promise.all([
+    loadRecords(),
+    loadSupplementalRecords(),
+    loadRecordPagePositions(includeHidden),
+    includeHidden ? loadRecords({ hidden: true }) : Promise.resolve([]),
+    includeHidden ? loadSupplementalRecords({ hidden: true }) : Promise.resolve([]),
+  ])
+  return { records: [...records, ...supplements, ...hidden, ...hiddenSupplements], positions }
 }
 
 function normalizeTextItems(value: unknown) {

@@ -237,6 +237,7 @@ export function SearchPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="输入人名、日期、原话、记录或资料内容"
+              aria-label="搜索档案"
               autoFocus
             />
           </div>

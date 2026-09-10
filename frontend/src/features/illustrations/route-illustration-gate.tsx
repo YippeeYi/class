@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useState } from 'react'
 import { useLocation } from 'react-router'
 
 import { Spinner } from '@/components/ui/spinner'
+import { normalizeAppPathname } from '@/lib/app-route'
 import { extractMarkupReferences } from '@/lib/markup'
 import {
   loadCredits,
@@ -13,6 +14,7 @@ import {
 import { preloadImageDimensionList } from '@/services/image-metadata'
 
 type MarkupSource = string | null | undefined
+let generation = 0
 const settledRoutes = new Set<string>()
 const inflightRoutes = new Map<string, Promise<void>>()
 
@@ -83,7 +85,9 @@ export function preloadMarkupIllustrationDimensions(sources: Iterable<MarkupSour
   return preloadImageDimensionList(illustrationPaths(sources), 4)
 }
 
-export function preloadRouteIllustrationDimensions(pathname: string) {
+export function preloadRouteIllustrationDimensions(path: string) {
+  const pathname = normalizeAppPathname(path)
+  const requestGeneration = generation
   if (settledRoutes.has(pathname)) return Promise.resolve()
   const current = inflightRoutes.get(pathname)
   if (current) return current
@@ -91,16 +95,18 @@ export function preloadRouteIllustrationDimensions(pathname: string) {
     .then((sources) => preloadMarkupIllustrationDimensions(sources))
     .catch(() => undefined)
     .then(() => {
-      settledRoutes.add(pathname)
+      if (requestGeneration === generation) settledRoutes.add(pathname)
     })
-    .finally(() => inflightRoutes.delete(pathname))
+    .finally(() => {
+      if (inflightRoutes.get(pathname) === pending) inflightRoutes.delete(pathname)
+    })
   inflightRoutes.set(pathname, pending)
   return pending
 }
 
 export function RouteIllustrationGate({ children }: { children: ReactNode }) {
   const location = useLocation()
-  const routeKey = location.pathname
+  const routeKey = normalizeAppPathname(location.pathname)
   const [settledKey, setSettledKey] = useState(() => (settledRoutes.has(routeKey) ? routeKey : ''))
 
   useEffect(() => {
@@ -132,6 +138,7 @@ export function RouteIllustrationGate({ children }: { children: ReactNode }) {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('classrecordcacheclearing', () => {
+    generation += 1
     settledRoutes.clear()
     inflightRoutes.clear()
   })

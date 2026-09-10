@@ -78,6 +78,16 @@ export function auditPublication({ tables, storageAssets, missingAssets = [] }) 
   if (!records.length) add('error', 'records.empty', '没有可发布的普通记录。')
   if (!people.length) add('error', 'people.empty', '没有可发布的人物资料。')
 
+  for (const row of [...records, ...messages, ...supplements]) {
+    const owner = asText(row.file_name || row.page)
+    if (row.raw?.hidden != null && typeof row.raw.hidden !== 'boolean') {
+      add('error', 'record.hidden-type', `${owner} 的 hidden 必须是布尔值。`)
+    }
+    if (row.raw?.annotation != null && typeof row.raw.annotation !== 'string') {
+      add('error', 'record.annotation-type', `${owner} 的 annotation 必须是字符串或 null。`)
+    }
+  }
+
   const recordIds = new Set()
   const recordTargets = new Set()
   for (const row of records) {
@@ -124,6 +134,9 @@ export function auditPublication({ tables, storageAssets, missingAssets = [] }) 
   const pageIds = new Set(pages.map((row) => asText(row.page)).filter(Boolean))
   for (const row of pages) {
     const page = asText(row.page)
+    if (row.raw && 'privacyMasks' in row.raw) {
+      add('error', 'page.privacy-masks', `书面页 ${page} 仍使用已废弃的遮罩坐标。`)
+    }
     for (const [column, label] of [
       ['start_file', '起始记录'],
       ['end_file', '结束记录'],
@@ -145,8 +158,8 @@ export function auditPublication({ tables, storageAssets, missingAssets = [] }) 
       add('warning', 'page.unmapped-content', `页 ${page} 有箴言或补充，但不在书面页清单中。`)
     }
     const kind = messages.includes(row) ? '箴言' : '补充'
-    if (row.hidden === true || row.raw?.hidden === true || /^H\d+$/u.test(page)) {
-      add('error', 'page-content.hidden', `${kind}不得进入隐藏记录分区：${page}`)
+    if ((row.hidden === true) !== (row.raw?.hidden === true)) {
+      add('error', 'page-content.hidden', `${kind} hidden 列与源数据不一致：${page}`)
     }
   }
 
@@ -157,6 +170,7 @@ export function auditPublication({ tables, storageAssets, missingAssets = [] }) 
     const canonicalContent = [
       row.content,
       row.bio,
+      row.raw?.annotation,
       row.sections,
       row.thanks,
       row.original_images,

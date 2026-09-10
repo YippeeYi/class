@@ -126,6 +126,7 @@ export function RecordFilters({
             value={value.query}
             onChange={(event) => update({ query: event.target.value })}
             placeholder="仅搜索记录正文"
+            aria-label="搜索记录正文"
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -142,7 +143,7 @@ export function RecordFilters({
               onValueChange={(next) => update({ [field]: next === '__all__' ? '' : next || '' })}
             >
               <SelectTrigger aria-label={String(allLabel)} className="w-36 bg-background/85">
-                <SelectValue />
+                <SelectValue>{value[field] ? `${value[field]} ${suffix}` : allLabel}</SelectValue>
               </SelectTrigger>
               <SelectContent align="start">
                 <SelectItem value="__all__">{String(allLabel)}</SelectItem>

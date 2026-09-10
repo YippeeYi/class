@@ -1,6 +1,6 @@
 # 记录正文标记语法
 
-记录正文统一使用 `[[type:参数1|参数2]]`。旧式花括号、圆括号、感叹号、箭头、无类型人名和单字符上下标不再解析。
+记录正文与可选 `annotation` 字段统一使用 `[[type:参数1|参数2]]`，共用同一个 AST 解析器与渲染组件。annotation 缺失、null 或空白时不显示入口。
 
 | 功能 | 推荐写法 |
 |---|---|
@@ -8,6 +8,7 @@
 | 额外记录人 | `[[author:人物ID|显示文字]]` |
 | 名言 | `[[quote:名言ID|显示文字]]` |
 | 记录跳转 | `[[record:文件名|显示文字]]` |
+| 资料跳转 | `[[material:资料ID|显示文字]]` |
 | 分式 | `[[frac:上方文字|下方文字]]` |
 | 注解 | `[[anno:注解内容|被注释文字]]` |
 | 插图 | `[[illu:example.png|显示文字]]` |
@@ -76,5 +77,3 @@ npm run admin -- publish
 node scripts/test-record-markup.mjs
 npm run test:layout
 ```
-
-迁移器遍历 `data` 下的全部 JSON 字符串字段。`--check` 只检查，不写文件。

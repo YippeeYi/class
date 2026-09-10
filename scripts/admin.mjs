@@ -4,10 +4,6 @@
  *
  * Migrates local secure content into Supabase.
  *
- * This version does NOT require:
- *   - private-assets/content/record/records_index.json
- *   - private-assets/content/people/people_index.json
- *
  * It imports structured rows by scanning:
  *   - private-assets/content/record/*.json
  *   - private-assets/content/people/*.json
@@ -24,7 +20,6 @@
  *   npm run admin -- audit
  *   npm run admin -- publish
  *   npm run admin -- publish --confirm-publish
- *   npm run admin -- upload --dry-run
  *   npm run admin -- invites generate --count 30 --expires-days 14
  *   npm run admin -- invites list
  *   npm run admin -- invites check --code CR-ABCD-EFGH-2345
@@ -64,9 +59,7 @@ const {
     argv,
     command,
     commandArgs,
-    confirmPrune,
     confirmPublish,
-    dryRun,
     shouldPrune,
     uploadConcurrency,
     validateOnly
@@ -106,7 +99,7 @@ if (command === 'help' || command === '--help' || command === '-h') {
     process.exit(0);
 }
 
-if (!['audit', 'publish', 'rollback', 'upload', 'invites', 'sessions', 'attempts'].includes(command)) {
+if (!['audit', 'publish', 'rollback', 'invites', 'sessions', 'attempts'].includes(command)) {
     console.error(`Unknown command: ${command}`);
     printAdminUsage();
     process.exit(1);
@@ -114,11 +107,6 @@ if (!['audit', 'publish', 'rollback', 'upload', 'invites', 'sessions', 'attempts
 
 if (command !== 'audit' && (!url || !serviceRoleKey)) {
     console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.');
-    process.exit(1);
-}
-
-if (command === 'upload' && shouldPrune && !confirmPrune) {
-    console.error('--prune requires --confirm-prune. No data was changed.');
     process.exit(1);
 }
 
@@ -385,8 +373,8 @@ const upsert = async (table, rows, onConflict) => {
         return;
     }
 
-    if (validateOnly || dryRun) {
-        console.log(`Validated table write: ${table}, rows=${rows.length}, mode=${validateOnly ? 'validate-only' : 'dry-run'}`);
+    if (validateOnly) {
+        console.log(`Validated table write: ${table}, rows=${rows.length}, mode=validate-only`);
         return;
     }
 
@@ -415,8 +403,8 @@ const pruneTable = async (table, keyColumn, keepValues, { force = false, allowEm
     }
     if (!shouldPrune && !force) return;
 
-    if (validateOnly || dryRun) {
-        console.log(`Validated table prune: ${table}, keep=${keepValues.length}, mode=${validateOnly ? 'validate-only' : 'dry-run'}`);
+    if (validateOnly) {
+        console.log(`Validated table prune: ${table}, keep=${keepValues.length}, mode=validate-only`);
         return;
     }
 
@@ -438,6 +426,13 @@ const pruneTable = async (table, keyColumn, keepValues, { force = false, allowEm
     console.log(`Pruned stale rows from ${table}.`);
 };
 
+const withRecordAnnotation = (raw, hidden = false) => {
+    if (raw.annotation == null) return raw;
+    if (typeof raw.annotation !== 'string') throw new Error('annotation must be a string or null.');
+    const annotation = rewriteMarkupAssets(raw.annotation.trim(), { hidden });
+    return { ...raw, annotation };
+};
+
 const importRecords = async () => {
     const files = (await listJsonFiles(`${contentRoot}/record`, [
         `${contentRoot}/record/record_pages.json`
@@ -453,7 +448,8 @@ const importRecords = async () => {
     let hiddenIndex = 0;
 
     for (const file of files) {
-        const raw = await readJson(file);
+        const source = await readJson(file);
+        const raw = withRecordAnnotation(source, source.hidden === true);
         const fileName = relativeFromDir(`${contentRoot}/record`, file);
 
         const isHidden = Boolean(raw.hidden);
@@ -539,10 +535,8 @@ const importPageSupplements = async () => {
     for (const file of files) {
         const parsed = parsePageSupplementFileName(file);
         const raw = await readJson(file);
-        const publicRaw = { ...raw };
-        delete publicRaw.hidden;
-        if (/^H\d+$/u.test(String(publicRaw.page || ''))) publicRaw.page = parsed.page;
-        const content = rewriteMarkupAssets(raw.content || raw.text || '').trim();
+        const recordRaw = withRecordAnnotation(raw, raw.hidden === true);
+        const content = rewriteMarkupAssets(raw.content || raw.text || '', { hidden: raw.hidden === true }).trim();
         if (!content) {
             console.warn(`Skipped page supplement without content: ${file}`);
             continue;
@@ -553,9 +547,9 @@ const importPageSupplements = async () => {
             supplement_index: parsed.supplementIndex,
             author: raw.author || raw.recorder || '',
             content,
-            hidden: false,
+            hidden: raw.hidden === true,
             sort_order: parsed.supplementIndex,
-            raw: publicRaw
+            raw: recordRaw
         });
     }
 
@@ -654,10 +648,8 @@ const importPageMessages = async () => {
     for (const file of files) {
         const raw = await readJson(file);
         const sourcePage = fileBaseNameWithoutExt(file);
-        const publicRaw = { ...raw };
-        delete publicRaw.hidden;
-        if (/^H\d+$/u.test(String(publicRaw.page || ''))) publicRaw.page = sourcePage;
-        const content = rewriteMarkupAssets(raw.content || '').trim();
+        const recordRaw = withRecordAnnotation(raw, raw.hidden === true);
+        const content = rewriteMarkupAssets(raw.content || '', { hidden: raw.hidden === true }).trim();
         if (!content) {
             console.warn(`Skipped page message without content: ${file}`);
             continue;
@@ -666,8 +658,8 @@ const importPageMessages = async () => {
             page: sourcePage,
             content,
             author: raw.author || raw.recorder || '',
-            hidden: false,
-            raw: publicRaw
+            hidden: raw.hidden === true,
+            raw: recordRaw
         });
     }
 
@@ -826,8 +818,8 @@ const pruneStorage = async (allowedRemoteFiles) => {
 
     const stale = remoteFiles.filter((file) => !keep.has(file));
 
-    if (validateOnly || dryRun) {
-        console.log(`Validated Storage prune: stale=${stale.length}, mode=${validateOnly ? 'validate-only' : 'dry-run'}`);
+    if (validateOnly) {
+        console.log(`Validated Storage prune: stale=${stale.length}, mode=validate-only`);
         return;
     }
 
@@ -840,13 +832,12 @@ const pruneStorage = async (allowedRemoteFiles) => {
     console.log(`Deleted stale Storage files: ${stale.length} / ${stale.length}`);
 };
 
-const uploadPrivateFiles = async ({ prune = true } = {}) => {
+const uploadPrivateFiles = async () => {
     const uploadable = [...storageUploadManifest.values()].filter((item) => !item.uploaded)
         .sort((a, b) => a.remotePath.localeCompare(b.remotePath, 'en'));
 
     if (!uploadable.length) {
         console.warn('Skipped private file upload: no referenced binary assets were found.');
-        if (prune) await pruneStorage([...storageUploadManifest.values()].map((item) => item.remotePath));
         return;
     }
 
@@ -864,7 +855,7 @@ const uploadPrivateFiles = async ({ prune = true } = {}) => {
         }
         const body = await fs.readFile(absoluteSource);
 
-        if (validateOnly || dryRun) {
+        if (validateOnly) {
             summary.skipped += 1;
             return;
         }
@@ -886,7 +877,7 @@ const uploadPrivateFiles = async ({ prune = true } = {}) => {
             const item = uploadable[index];
             try {
                 await uploadOne(item);
-                console.log(`${dryRun || validateOnly ? 'Validated' : 'Uploaded'} private asset: ${index + 1} / ${uploadable.length}`);
+                console.log(`${validateOnly ? 'Validated' : 'Uploaded'} private asset: ${index + 1} / ${uploadable.length}`);
             } catch (error) {
                 summary.failed.push({ file: item.localPath, reason: error.message });
             }
@@ -899,7 +890,6 @@ const uploadPrivateFiles = async ({ prune = true } = {}) => {
     }
     console.log(`Private assets: uploaded=${summary.uploaded}, validated/skipped=${summary.skipped}, failed=0.`);
 
-    if (prune) await pruneStorage([...storageUploadManifest.values()].map((item) => item.remotePath));
 };
 
 const findMealMapSource = async () => {
@@ -930,7 +920,7 @@ const readMealMap = async () => {
 
 const uploadMealMap = async (mealMap = null) => {
     const { body, height, width } = mealMap || await readMealMap();
-    if (!validateOnly && !dryRun) {
+    if (!validateOnly) {
         await request(`/storage/v1/object/${bucket}/${mealMapStoragePath}`, {
             method: 'POST',
             headers: { 'Content-Type': 'image/png', 'Cache-Control': 'private, max-age=180', 'x-upsert': 'true' },
@@ -942,7 +932,7 @@ const uploadMealMap = async (mealMap = null) => {
             body: JSON.stringify([{ asset_key: 'meal-map', width, height, updated_at: new Date().toISOString() }])
         });
     }
-    console.log(`${validateOnly ? 'Validated' : dryRun ? 'Would upload' : 'Uploaded'} meal map (${width}×${height}, image/png).`);
+    console.log(`${validateOnly ? 'Validated' : 'Uploaded'} meal map (${width}×${height}, image/png).`);
 };
 
 const buildPublication = async () => {
@@ -1218,7 +1208,7 @@ const applyPublication = async ({ mealMap }) => {
     // Upload new binaries first. Extra orphan objects are recoverable if a
     // later table write fails, while publishing table references before their
     // objects exist would create broken reader-visible content.
-    await uploadPrivateFiles({ prune: false });
+    await uploadPrivateFiles();
     await uploadMealMap(mealMap);
     for (const [table, plan] of publicationTables) {
         await upsert(table, plan.rows, plan.onConflict);
@@ -1227,13 +1217,6 @@ const applyPublication = async ({ mealMap }) => {
         await pruneTable(table, plan.keyColumn, plan.keepValues);
     }
     await pruneStorage([...storageUploadManifest.values()].map((item) => item.remotePath));
-};
-
-const runUpload = async () => {
-    const { mealMap } = await runGovernanceAudit();
-    await validateDatabaseSchema();
-    await applyPublication({ mealMap });
-    console.log(shouldPrune ? 'Upload complete. Remote stale data/files were pruned.' : 'Upload complete.');
 };
 
 const assertFlagArguments = (allowed) => {
@@ -1276,7 +1259,6 @@ try {
     if (command === 'audit') await runAudit();
     else if (command === 'publish') await runPublish();
     else if (command === 'rollback') await runRollback();
-    else if (command === 'upload') await runUpload();
     else if (command === 'invites' && commandArgs[0] === 'generate') await createInvites();
     else if (command === 'invites' && commandArgs[0] === 'list') await listInvites();
     else if (command === 'invites' && commandArgs[0] === 'check') await checkInvite();

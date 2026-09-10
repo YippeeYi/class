@@ -5,7 +5,6 @@ import { createAdminRequest, parseAdminArguments } from './admin-runtime.mjs';
 const audit = parseAdminArguments(['audit', '--json']);
 assert.equal(audit.command, 'audit');
 assert.equal(audit.validateOnly, true);
-assert.equal(audit.dryRun, false);
 assert.deepEqual(audit.commandArgs, ['--json']);
 
 const publication = parseAdminArguments(['publish', '--confirm-publish']);
@@ -13,9 +12,8 @@ assert.equal(publication.confirmPublish, true);
 assert.equal(publication.validateOnly, false);
 assert.equal(publication.shouldPrune, true);
 
-assert.equal(parseAdminArguments(['upload', '--concurrency=99']).uploadConcurrency, 8);
-assert.equal(parseAdminArguments(['upload', '--concurrency=0']).uploadConcurrency, 3);
-assert.equal(parseAdminArguments(['upload', '--concurrency=1']).uploadConcurrency, 1);
+assert.equal(publication.uploadConcurrency, 3);
+assert.equal(parseAdminArguments(['publish']).validateOnly, true);
 
 let attempts = 0;
 const waits = [];

@@ -101,9 +101,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [validationRevision, setValidationRevision] = useState(0)
 
   const clearAccess = useCallback(async () => {
-    await clearAllSiteState()
     setToken('')
     setState('anonymous')
+    await clearAllSiteState()
   }, [])
 
   useEffect(() => {
@@ -136,7 +136,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           input_token: candidate.token,
         })
         if (!active) return
-        if (error || data !== true) {
+        if (error) {
+          setState('error')
+          return
+        }
+        if (data !== true) {
           void clearAccess()
           return
         }

@@ -88,8 +88,3 @@ npm run admin -- attempts cleanup --confirm-cleanup
 只读会话命令不输出访问 token、token hash 或来源 hash。撤销和清理都要求独立确认参数。
 限流器打开后不再为同一批已拒绝请求追加记录，避免恶意流量把限流表本身变成写放大路径；
 过期尝试记录由显式 cleanup 命令清理。
-
-## 6. 兼容命令
-
-`upload`、`--dry-run` 和显式 `--prune --confirm-prune` 仍保留给底层诊断及旧流程，
-但日常完整档案发布统一使用 `audit` → `publish` → `publish --confirm-publish`，以保证差异预览、发布前快照和删除确认不会被跳过。

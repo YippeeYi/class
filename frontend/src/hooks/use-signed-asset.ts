@@ -69,7 +69,10 @@ export function useSignedAsset(
   useEffect(() => {
     void load()
     if (!path) return () => undefined
-    const clear = () => setState({ key: '', src: '', loading: false, error: null })
+    const clear = () => {
+      revision.current += 1
+      setState({ key: '', src: '', loading: false, error: null })
+    }
     window.addEventListener('classrecordcacheclearing', clear)
     return () => {
       window.removeEventListener('classrecordcacheclearing', clear)

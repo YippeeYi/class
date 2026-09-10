@@ -16,17 +16,14 @@ assert.match(auth, /refresh_invite_access/, 'server-side access refresh is requi
 assert.match(auth, /90 \* 24 \* 60 \* 60/, '90-day idle boundary is missing')
 assert.match(auth, /365 \* 24 \* 60 \* 60/, '365-day absolute boundary is missing')
 assert.match(data, /has_class_record_admin_access/, 'admin-only data must check server access')
-assert.match(data, /loadHiddenRecordPages[\s\S]*\.eq\('hidden', true\)/, 'the frontend must expose no public written-page loader')
-assert.doesNotMatch(data, /loadRecordPages\(/, 'a generic written-page loader could accidentally request the public partition')
+assert.match(data, /loadRecordPages[\s\S]*persistent: false/, 'scan rows must remain memory-only and protected by administrator RLS')
 for (const source of hiddenConsumers) {
   assert.doesNotMatch(source, /loadRecords\(\{\s*hidden:\s*true/, 'hidden ordinary records must not enter archive, search, statistics, or quiz consumers')
 }
-assert.match(
-  data,
-  /key: 'page-messages'[\s\S]*\.from\(supabaseConfig\.tables\.pageMessages\)/,
-  'page messages must use the single public auxiliary collection',
-)
-assert.doesNotMatch(data, /page-messages:\$\{hidden\}/, 'page messages must never create a hidden partition')
+for (const type of ['messages', 'supplements']) {
+  assert.ok(data.includes(`key: hidden ? 'page-${type}:hidden' : 'page-${type}'`))
+}
+assert.match(data, /persistent: !hidden[\s\S]*sessionTtl: hidden \? 0 : undefined/)
 assert.match(
   setupSql,
   /class_record_pages_read[\s\S]*public\.has_class_record_access\(\) and public\.has_class_record_admin_access\(\)/,
@@ -39,11 +36,17 @@ assert.match(
 )
 assert.match(
   setupSql,
-  /class_page_messages_read[\s\S]*using \(public\.has_class_record_access\(\)\)/,
-  'page messages must remain public to valid archive sessions',
+  /class_page_messages_read[\s\S]*using \(public\.has_class_record_access\(\) and \(not hidden or public\.has_class_record_admin_access\(\)\)\)/,
+  'hidden auxiliary records must require administrator access',
 )
 assert.doesNotMatch(config, /service_role|SERVICE_ROLE/, 'service role material must never enter the frontend')
 for (const prefix of ['/data/(.*)', '/images/quiz/(.*)', '/images/private/(.*)']) {
   assert.ok(vercel.rewrites.some((rule) => rule.source === prefix), `${prefix} deployment boundary is missing`)
 }
 console.log('React security boundary checks passed.')
+
+const orderRpc = setupSql.slice(setupSql.indexOf('create or replace function public.get_class_record_order'))
+assert.match(orderRpc, /public.has_class_record_access\(\)/)
+assert.match(orderRpc, /not r.hidden or \(include_hidden and public.has_class_record_admin_access\(\)\)/)
+assert.match(orderRpc, /returns table \(file_name text, page text\)/)
+assert.doesNotMatch(orderRpc, /select scan.image_path|returns[^;]*image_path/)

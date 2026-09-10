@@ -75,7 +75,11 @@ export function scrollTargetIntoView(target: HTMLElement, behavior: ScrollBehavi
     targetHeight: bounds.height,
     topInset: stickyTopInset(),
   })
-  window.scrollTo({ top, left: 0, behavior })
+  window.scrollTo({
+    top,
+    left: 0,
+    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : behavior,
+  })
   return top
 }
 
@@ -98,6 +102,7 @@ export function waitForWindowScrollEnd(expectedTop: number, signal?: AbortSignal
     let observedMovement = false
     let nativeEndObserved = false
     let settled = false
+    const startedAt = performance.now()
 
     const finish = (reachedDestination: boolean) => {
       if (settled) return
@@ -125,7 +130,10 @@ export function waitForWindowScrollEnd(expectedTop: number, signal?: AbortSignal
       // A real user wheel/touch interruption may end away from the requested
       // position. Stop observing without a corrective scroll or modal instead
       // of keeping a perpetual animation-frame loop alive.
-      if (nativeEndObserved && observedMovement && stableFrames >= 2) {
+      if (
+        (observedMovement && stableFrames >= (nativeEndObserved ? 2 : 12)) ||
+        performance.now() - startedAt > 5000
+      ) {
         finish(false)
         return
       }

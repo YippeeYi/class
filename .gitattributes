@@ -12,7 +12,6 @@
 *.txt text eol=lf
 *.yaml text eol=lf
 *.yml text eol=lf
-frontend/public/_redirects text eol=lf
 
 *.gif binary
 *.ico binary

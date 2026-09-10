@@ -8,8 +8,7 @@
 `has_class_record_access()` 保护的 Storage SELECT policy。元数据表只保存逻辑键、像素尺寸和更新时间；
 不保存对象路径、图片内容或签名 URL。
 
-已有数据库仍应使用完整
-setup SQL 来创建元数据表与其 RLS policy。
+已有数据库通过 `supabase/migrations/` 与 `npm run db:push` 应用增量迁移，随后执行 `sql/check.sql` 验证结构；不要重复推送基线。
 
 ## 本地环境变量
 
@@ -40,7 +39,7 @@ CLASS_RECORD_BUCKET=classrecord-private
    npm run admin -- publish --confirm-publish
    ```
 
-   脚本校验 PNG 签名与尺寸，以 `image/png` 和 `private, max-age=180` 上传，并使用 upsert 覆盖同一私有对象；然后更新无路径的元数据行。它不会输出密钥或 URL。完整发布会把蹭饭图列入清单，不会把它当成陈旧对象删除。发布前快照不包含旧图片字节，详细备份和回退要求见 [档案内容治理与发布流程](content-governance-and-publishing.md)。
+   脚本校验 PNG 签名与尺寸，以 `image/png` 和 `private, max-age=180` 上传，并使用 upsert 覆盖同一私有对象；然后更新无路径的元数据行。它不会输出密钥或 URL。完整发布会把蹭饭图列入清单，不会把它当成陈旧对象删除。发布前快照包含旧图片字节；任一对象备份失败都会在写入前终止，详细备份和回退要求见 [档案内容治理与发布流程](content-governance-and-publishing.md)。
 
 ## 缓存与失效
 

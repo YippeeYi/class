@@ -88,7 +88,17 @@ function PeopleSection({ role, people, stats }: { role: Role; people: Person[]; 
               aria-label={`${roleLabels[role]}排序方式`}
               className="min-w-32 bg-background/85"
             >
-              <SelectValue />
+              <SelectValue>
+                {
+                  {
+                    id: '按 ID',
+                    participation: '按参与数',
+                    record: '按记录数',
+                    characters: '按记录字数',
+                    subject: '按学科',
+                  }[sort]
+                }
+              </SelectValue>
             </SelectTrigger>
             <SelectContent align="start">
               <SelectItem value="id">按 ID</SelectItem>

@@ -86,9 +86,13 @@ export function preloadImageDimensions(path: string, previewWidth = DEFAULT_ASSE
   const requestGeneration = generation
   const request = loadCached<ImageDimensions>({
     key: `image-dimensions:${normalized}`,
+    persistent:
+      !normalized.startsWith('hidden/') &&
+      !normalized.startsWith('images/quiz/') &&
+      !normalized.startsWith('images/record-pages/'),
     freshTtl: FRESH_TTL,
     staleTtl: STALE_TTL,
-    sessionTtl: 24 * 60 * 60 * 1000,
+    sessionTtl: normalized.startsWith('data/attachments/') ? 24 * 60 * 60 * 1000 : 0,
     loader: () => loadDimensionsFromNetwork(normalized, previewWidth),
   })
     .then((value) => {
@@ -100,7 +104,9 @@ export function preloadImageDimensions(path: string, previewWidth = DEFAULT_ASSE
       if (requestGeneration === generation) failures.set(normalized, Date.now())
       return null
     })
-    .finally(() => inflight.delete(normalized))
+    .finally(() => {
+      if (inflight.get(normalized) === request) inflight.delete(normalized)
+    })
   inflight.set(normalized, request)
   return request
 }

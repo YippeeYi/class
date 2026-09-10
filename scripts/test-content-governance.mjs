@@ -75,6 +75,20 @@ assert.equal(goodAudit.ok, true)
 assert.deepEqual(goodAudit.errors, [])
 assert.equal(goodAudit.summary.quotes, 1)
 
+for (const table of ['class_records', 'class_page_messages', 'class_page_supplements']) {
+  const rows = table === 'class_records'
+    ? [{ ...goodTables.get(table).rows[0], hidden: true, raw: { hidden: true, annotation: '[[person:p1|注解人物]]' } }]
+    : [{ page: '01', file_name: '01-01.json', content: '隐藏内容', hidden: true, raw: { hidden: true, annotation: '[[material:m1|资料]]' } }]
+  const tables = new Map(goodTables)
+  tables.set(table, { ...goodTables.get(table), rows })
+  assert.equal(auditPublication({ tables, storageAssets }).ok, true, `${table} supports hidden annotations`)
+  rows[0].raw.annotation = 42
+  assert.ok(auditPublication({ tables, storageAssets }).errors.some((item) => item.code === 'record.annotation-type'))
+  rows[0].raw.annotation = null
+  rows[0].raw.hidden = 'true'
+  assert.ok(auditPublication({ tables, storageAssets }).errors.some((item) => item.code === 'record.hidden-type'))
+}
+
 const brokenTables = new Map(
   [...goodTables].map(([table, plan]) => [
     table,
@@ -181,10 +195,10 @@ const messageImporter = adminSource.slice(
 )
 assert.match(
   messageImporter,
-  /delete publicRaw\.hidden[\s\S]*hidden: false/,
-  'the publisher must force every page message into the public auxiliary collection',
+  /withRecordAnnotation\(raw, raw.hidden === true\)[\s\S]*hidden: raw.hidden === true/,
+  'the publisher must preserve hidden auxiliary records and protect their annotation assets',
 )
-assert.doesNotMatch(messageImporter, /hidden: isHidden/, 'page messages must not regain a hidden branch')
+assert.doesNotMatch(messageImporter, /delete recordRaw\.hidden/, 'auxiliary hidden flags must never be discarded')
 assert.match(adminSource, /storageIncluded: true/, 'publication snapshots must include binary Storage content')
 assert.match(adminSource, /downloadStorageObject/, 'publication must download old Storage before mutation')
 assert.match(adminRuntimeSource, /rollback --snapshot TIMESTAMP --confirm-rollback/)
@@ -196,7 +210,7 @@ const storagePruner = adminSource.slice(
   adminSource.indexOf('const pruneStorage'),
   adminSource.indexOf('const uploadPrivateFiles'),
 )
-assert.match(storagePruner, /if \(validateOnly \|\| dryRun\)/)
+assert.match(storagePruner, /if \(validateOnly\)/)
 const peopleImporter = adminSource.slice(
   adminSource.indexOf('const importPeople'),
   adminSource.indexOf('const importPageSupplements'),

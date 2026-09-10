@@ -1,4 +1,4 @@
-import { loadHiddenRecordPages } from '@/services/data'
+import { loadRecordPages } from '@/services/data'
 import type { RecordPage } from '@/types/domain'
 
 export type WrittenRecordData = {
@@ -6,5 +6,5 @@ export type WrittenRecordData = {
 }
 
 export async function loadWrittenRecordData(): Promise<WrittenRecordData> {
-  return { pages: await loadHiddenRecordPages() }
+  return { pages: (await loadRecordPages()).filter((page) => !page.hidden) }
 }

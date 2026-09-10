@@ -9,8 +9,8 @@ content_tables(table_schema, table_name, has_hidden_column, admin_only) as (
         ('public', 'class_records', true, false),
         ('public', 'class_people', false, false),
         ('public', 'class_record_pages', true, true),
-        ('public', 'class_page_messages', false, false),
-        ('public', 'class_page_supplements', false, false),
+        ('public', 'class_page_messages', true, false),
+        ('public', 'class_page_supplements', true, false),
         ('public', 'class_materials', false, false),
         ('public', 'class_quiz_questions', false, true),
         ('public', 'class_credits_page', false, false),
@@ -31,6 +31,7 @@ required_functions(function_name, arg_types, should_be_public_executable) as (
         ('refresh_invite_access', 'text', true),
         ('has_class_record_access', '', true),
         ('has_class_record_admin_access', '', true),
+        ('get_class_record_order', 'boolean', true),
         ('revoke_invite_access_session', 'uuid', false),
         ('revoke_all_invite_access_sessions', '', false),
         ('get_invite_access_session_overview', '', false),
@@ -465,8 +466,14 @@ from function_state
 union all
 select
     'function.search_path.' || function_name,
-    case when proconfig ilike '%search_path=public, extensions%' then 'PASS' else 'FAIL' end,
-    'public.' || function_name || ' must set search_path = public, extensions'
+    case
+        when function_name = 'get_class_record_order'
+            and proconfig ilike '%search_path=public, pg_temp%' then 'PASS'
+        when function_name <> 'get_class_record_order'
+            and proconfig ilike '%search_path=public, extensions%' then 'PASS'
+        else 'FAIL'
+    end,
+    'public.' || function_name || ' must use its declared restricted search_path'
 from function_state
 
 union all

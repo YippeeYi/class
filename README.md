@@ -2,14 +2,14 @@
 
 编日史是一套面向班级内部的只读档案网站。它把日常记录、人物、原话、书面页、补充资料、统计和答题统一到一个 React 单页应用中；结构化内容与私有资源来自 Supabase，访问者必须先使用一次性邀请码换取服务端访问凭证。
 
-本文件只描述当前代码真实实现。`docs/` 中带 baseline、audit、report 或日期的文件是历史审查快照，不应覆盖本 README、当前源码、`sql/setup.sql` 和 `sql/check.sql` 的现行约定。
+本文件与 `docs/` 专题文档描述当前正式实现。数据库结构与权限以版本化迁移、`sql/setup.sql` 和 `sql/check.sql` 为准。
 
 ## 产品边界与安全模型
 
 - 网站没有注册、账号、密码、个人中心或用户身份表。
 - 一次性邀请码由 `verify_invite_code` RPC 原子校验并作废，成功后换取一个 256 位随机访问 token；浏览器不保存原始邀请码。
 - token 通过 `x-class-record-access` 请求头发送。表 RLS、Storage policy 和签名 URL 都在服务端重新验证 token，修改浏览器本地数据不能生成权限。
-- 普通会话只能读取普通档案；管理员会话才可读取隐藏记录、全部书面页和隐藏题图。页箴言与页补充始终属于公开档案。
+- 普通会话只能读取未隐藏档案；普通记录、箴言和补充均支持 `hidden`。管理员会话才可读取隐藏记录、全部书面页和隐藏题图。
 - 浏览器候选凭证采用 90 天闲置期限和 365 天绝对期限；每次恢复页面都要调用 `refresh_invite_access` 服务端复验。
 - 前端不提交评论、收藏、表情、分享、答题结果、纠错或其他业务数据。仅访问凭证、缓存、外观偏好和全屏偏好保存在本机。
 - “移除访问权限”会清除凭证、外观和 Web Storage，并清理内存数据、签名 URL、IndexedDB、Cache Storage 和同源 Service Worker；下次访问需要新邀请码。
@@ -57,7 +57,20 @@
 | `important=1` | 仅显示重要记录。 |
 | `excludeDaily=1` | 排除文件名以 `-00` 结尾的每日例行记录。 |
 
-记录页默认只显示公开普通记录且不呈现模式切换。管理员在记录页键入 `qibaishihuaxia` 后，服务端再次确认管理员权限，再以仅内存状态进入隐藏记录界面；该界面只包含 `hidden=true` 的普通记录，并在右上角开放列表/书面切换。隐藏书面模式按 `class_record_pages` 的 Hxx 起止文件映射记录，支持上一页、下一页、页码 Select 和相邻页图片预热；页箴言、页补充不会进入隐藏界面。退出或刷新即恢复公开列表，直接访问 `view=written` 不能绕过门禁。
+记录页默认显示所有未隐藏的普通记录、箴言和补充记录，不呈现模式切换。`lib/record-stream.ts` 是唯一最终排序入口：按书面页分组，各页依次为箴言、补充、普通记录；补充按既有序号，普通记录按文件编号及日期时间排序，未编页记录放在末尾。按条正序与书面模式的最终展开顺序一致，逆序仅整体反转。
+
+管理员在记录页键入 `qibaishihuaxia` 后，服务端再次确认权限，再以内存状态进入隐藏模式。隐藏模式表示“显示全部记录”：三类记录中的 `hidden=true` 与 `hidden=false` 同时显示，使用同一排序与筛选，并开放按条/书面切换。退出或刷新恢复未隐藏列表，直接访问 `view=written` 不能绕过门禁。书面页支持上一页、下一页、页码 Select 和相邻页预热；普通会话只通过 `get_class_record_order` 获取已获权记录的页序映射，不读取原图、起止范围或隐藏记录标识。
+
+三类记录均可添加可选字符串 `annotation`，存储在对应表的 `raw.annotation` 中。缺失、`null`、空字符串或仅空白均不显示入口，无须给历史 JSON 补空字段。注解复用正文的 `MarkupContent` 与完整嵌套标记语法。有效注解在共用记录卡片中提供“查看注解”按钮，桌面悬浮或键盘聚焦时显示，触摸设备直接可见；shadcn Dialog 内可滚动阅读，支持 ESC、关闭按钮、遮罩关闭及正文中的图片与跳转。
+
+```json
+{
+  "content": "记录正文。",
+  "author": "人物ID",
+  "hidden": false,
+  "annotation": "补充解释 [[person:人物ID|人物]] [[red:重点]]"
+}
+```
 
 正文中的记录/名言引用会先清理筛选并定位目标，完成后可返回跳转前的视图、筛选、页码和滚动位置。损坏或恶意 fragment 会安全忽略，不会让页面抛出 URI 错误。附件只在用户展开并点击时请求签名 URL。
 
@@ -107,8 +120,8 @@
 | `class_records` | 普通/隐藏记录、附件、重要标记、正文 | 普通可读普通行；管理员可读 hidden 行 |
 | `class_people` | 人物基本资料、角色、学科、头像 | 有效会话可读 |
 | `class_record_pages` | 书面页范围、排序、图像路径 | 仅管理员可读 |
-| `class_page_messages` | 每页箴言 | 有效会话可读 |
-| `class_page_supplements` | 每页补充记录 | 有效会话可读；发布器强制保持公开 |
+| `class_page_messages` | 每页箴言、注解 | 普通可读未隐藏行；管理员可读 hidden 行 |
+| `class_page_supplements` | 每页补充记录、注解 | 普通可读未隐藏行；管理员可读 hidden 行 |
 | `class_materials` | 资料目录与正文 | 有效会话可读 |
 | `class_quiz_questions` | 管理员隐藏题 | 仅管理员可读 |
 | `class_credits_page` | 制作组、致谢、附件说明 | 有效会话可读 |
@@ -129,7 +142,7 @@
 
 ## 记录正文标记
 
-正文、人物简介、资料和致谢使用统一的平衡括号语法 `[[type:参数]]`。解析结果是类型化 AST，React 直接渲染文本节点，不拼接 HTML，也不使用 `dangerouslySetInnerHTML`。
+正文、记录注解、人物简介、资料和致谢使用统一的平衡括号语法 `[[type:参数]]`。解析结果是类型化 AST，React 直接渲染文本节点，不拼接 HTML，也不使用 `dangerouslySetInnerHTML`。
 
 | 功能 | 写法 |
 | --- | --- |
@@ -143,7 +156,7 @@
 
 标记参数可以递归嵌套，最大解析深度为 24。表格限制为 1–30 行、1–12 列。使用 `\|`、`\[`、`\]`、`\\` 转义特殊字符；在 JSON 字符串中反斜杠还需再次转义。未知类型、非法 ID、非法插图路径、缺少参数或未闭合标记会按原文显示。
 
-普通 `illu` 参数只能是安全图片文件名；渲染器固定映射到 `data/attachments/`。上传脚本会把隐藏正文里的同类引用改写成受控 `hidden/文件名`，再映射到 `hidden/data/attachments/`。完整语法、浮层和排版保证见 [记录正文标记语法](docs/record-content-markup.md)。
+普通 `illu` 参数只能是安全图片文件名；渲染器固定映射到 `data/attachments/`。上传脚本会把三类隐藏记录正文及 annotation 里的同类引用改写成受控 `hidden/文件名`，再映射到 `hidden/data/attachments/`。完整语法、浮层和排版保证见 [记录正文标记语法](docs/record-content-markup.md)。
 
 ## 公共 UI 与交互体系
 
@@ -160,7 +173,7 @@
 ```text
 .
 ├─ frontend/
-│  ├─ public/                    # 首屏脚本、Logo、背景与 SPA fallback
+│  ├─ public/                    # 首屏脚本、Logo 与背景
 │  ├─ src/
 │  │  ├─ components/ui/          # 只读 shadcn Base UI 组件
 │  │  ├─ components/archive/     # 可复用档案业务组件
@@ -183,7 +196,7 @@
 ├─ supabase/rollbacks/           # 与迁移配套、需人工执行的 down SQL
 ├─ sql/setup.sql                 # 表、RPC、RLS、Storage policy
 ├─ sql/check.sql                 # 生产 Supabase 只读漂移检查
-├─ docs/                         # 现行专题文档与历史审查快照
+├─ docs/                         # 当前功能、安全、内容与运维文档
 ├─ private-assets/               # Git 忽略的本地私密源数据/资源
 ├─ .github/workflows/            # GitHub Pages 发布流程
 └─ vercel.json                   # Vercel 构建、缓存、安全头与 SPA rewrite
@@ -235,13 +248,16 @@ npm run lint               # Biome 只读检查
 npm test                   # 安全、缓存、路由、正文、记录、答题、搜索等回归
 npm run content:audit      # 本地档案、引用关系和私有资源完整性审计
 npm run test:layout        # 真实 Chromium 正文/响应式布局回归
+npm run test:app           # 完整应用路由、三类隐藏记录、注解与触摸回归
 npm run build              # 输出 frontend/dist
 npm run budget             # 检查单 chunk、CSS、总 JS 与 dist 体积预算
 npm run preview            # http://127.0.0.1:4173/
-npm run check              # doctor + db:check + typecheck + lint + test + build + budget
+npm run check              # doctor + db:check + content:audit + typecheck + lint + test + build + budget
 ```
 
-`npm test` 覆盖安全边界、私有图片、签名/重试、门禁、三级缓存、插图尺寸、标记 AST、记录身份与跳转、滚动边界、记录视图、答题/统计算法、搜索、尾斜杠路由和静态 UI/部署契约。`test:layout` 需要本机已有兼容 Playwright Chromium；CI 会显式安装后执行。
+`npm test` 覆盖安全边界、私有图片、签名/重试、门禁、三级缓存、插图尺寸、标记 AST、记录身份与跳转、滚动边界、记录视图、答题/统计算法、搜索、尾斜杠路由和静态 UI/部署契约。`test:layout` 和 `test:app` 需要兼容的 Playwright Chromium，CI 会显式安装后执行。`test:app` 使用隔离的测试接口响应，不修改真实档案；可用 `CLASS_RECORD_BROWSER=webkit npm run test:app` 复验 WebKit。`content:audit` 与完整 `check` 需要 Git 忽略的私密源数据，CI 单独执行不依赖私密数据的检查。
+
+构建后可用 `CLASS_RECORD_PREVIEW=1 npm run test:app` 直接验收 `frontend/dist`；该参数也可与 WebKit 组合。
 
 可选在线安全检查：
 
@@ -255,6 +271,8 @@ CLASS_RECORD_ACCESS_TOKEN=64字符访问token npm run verify-security-live
 不提供 token 时，脚本只验证匿名请求和伪造 token 不能读取保护表/Storage；真实普通与管理员链路仍需分别提供合法 token 才能完成。
 
 ## Supabase 初始化与本地管理
+
+发布当前前端前必须先应用 `20260911000000_record_stream_order.sql`：它新增受权限约束的排序 RPC，并为隐藏箴言、补充补齐管理员 RLS。该迁移不修改内容行。
 
 1. 新项目可在 Supabase SQL Editor 以 owner 身份完整执行 `sql/setup.sql`；受管理项目使用 `supabase/migrations/` 与 `npm run db:push`，不要重复执行基线。
 2. 执行 `npm run db:check`，再执行 `sql/check.sql`，确认迁移历史、表、函数权限、RLS、private bucket 和唯一 Storage SELECT policy 没有漂移。完整流程见 [`supabase/README.md`](supabase/README.md)。
@@ -358,4 +376,4 @@ Vercel 的响应头 CSP 与 HTML CSP 保持同一资源白名单；更换 Supaba
 - 新增异步操作必须同时处理 loading、disabled/aria-busy、empty、error 和可重试状态；图片失败必须有界。
 - 生产数据行为以 `services/data.ts`、`features/quiz/quiz-engine.ts`、`lib/markup.ts`、SQL 与管理脚本为准；修改规则时同步更新测试和本文档。
 - `.env`、`private-assets/`、邀请码、service role key、访问 token 和管理命令输出不得提交到 Git。
-- 发布前至少执行 `npm run check` 和 `npm run test:layout`；CI 会为 PR 安装 Chromium 并强制执行二者。正式发布还需检查 Vercel 与 GitHub Pages 两个公开入口，并完成普通/管理员合法 token 的完整人工回归。
+- 发布前至少执行 `npm run check`、`npm run test:layout` 和 `npm run test:app`；CI 会为 PR 安装 Chromium，执行无需私密源数据的检查及两套浏览器回归。正式发布还需检查 Vercel 与 GitHub Pages 两个公开入口，并完成普通/管理员合法 token 的完整人工回归。

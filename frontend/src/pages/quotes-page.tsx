@@ -46,7 +46,7 @@ export function QuotesPage() {
           <>
             <Select value={sort} onValueChange={(value) => setSort(value as 'id' | 'quote')}>
               <SelectTrigger aria-label="排序方式" className="min-w-32 bg-background/85">
-                <SelectValue />
+                <SelectValue>{sort === 'id' ? '按 ID' : '按内容'}</SelectValue>
               </SelectTrigger>
               <SelectContent align="start">
                 <SelectItem value="id">按 ID</SelectItem>

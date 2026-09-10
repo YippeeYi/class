@@ -275,7 +275,7 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
 export function AppShell() {
   const { clearAccess } = useAuth()
   const location = useLocation()
-  const isViewportLocked = viewportLockedPaths.has(location.pathname)
+  const isViewportLocked = viewportLockedPaths.has(normalizeAppPathname(location.pathname))
   const isWideContent = wideContentPaths.has(location.pathname)
   const [fullscreen, setFullscreen] = useState(Boolean(document.fullscreenElement))
   const [fullscreenPending, setFullscreenPending] = useState(false)

@@ -13,16 +13,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { recordWithinPage } from '@/features/records/record-page-mapping'
 import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
-import { compareRecordNumber, orderRecords } from '@/lib/record-order'
+import { recordStableKey } from '@/lib/record-identity'
+import { type RecordStreamPage, recordPageKey } from '@/lib/record-stream'
 import { rememberImageDimensions, useImageDimensions } from '@/services/image-metadata'
 import type { RecordItem, RecordPage } from '@/types/domain'
 
 export function WrittenRecordPages({
   pages,
-  records,
+  stream,
   matched,
   activeFilter,
   pageIndex,
@@ -31,7 +31,7 @@ export function WrittenRecordPages({
   onRecordReference,
 }: {
   pages: RecordPage[]
-  records: RecordItem[]
+  stream: RecordStreamPage[]
   matched: RecordItem[]
   activeFilter: boolean
   pageIndex: number
@@ -40,19 +40,18 @@ export function WrittenRecordPages({
   onRecordReference: (recordId: string, source: HTMLElement) => void
 }) {
   const visiblePages = pages.filter((page) => {
-    if (!activeFilter) return Boolean(page.imagePath)
-    return matched.some((record) => recordWithinPage(page, record, records))
+    if (!activeFilter) return true
+    return stream
+      .find((group) => group.page === recordPageKey(page.page))
+      ?.records.some((record) => matched.includes(record))
   })
   const safeIndex = Math.max(0, Math.min(pageIndex, Math.max(0, visiblePages.length - 1)))
   const page = visiblePages[safeIndex]
-  if (!page)
-    return <EmptyState title={hidden ? '没有可展示的隐藏书面页' : '当前条件下没有手写页'} />
+  if (!page) return <EmptyState title="当前条件下没有手写页" />
 
-  const pageRecords = orderRecords(
-    matched.filter((record) => !record.recordType && recordWithinPage(page, record, records)),
-    'ascending',
-    compareRecordNumber,
-  )
+  const pageRecords = (
+    stream.find((group) => group.page === recordPageKey(page.page))?.records || []
+  ).filter((record) => matched.includes(record))
   const previousPath = visiblePages[safeIndex - 1]?.imagePath || ''
   const nextPath = visiblePages[safeIndex + 1]?.imagePath || ''
 
@@ -71,7 +70,8 @@ export function WrittenRecordPages({
           </Button>
           <div className="order-1 col-span-2 flex min-w-0 flex-wrap items-center justify-center gap-2 sm:order-2 sm:col-span-1">
             <strong className="text-center text-sm leading-5">
-              {hidden ? '隐藏 ' : ''}第 {page.page} 页 · {safeIndex + 1}/{visiblePages.length}
+              {page.page ? `第 ${page.page} 页` : '未编页记录'} · {safeIndex + 1}/
+              {visiblePages.length}
             </strong>
             <Select
               value={page.page}
@@ -81,14 +81,12 @@ export function WrittenRecordPages({
               }}
             >
               <SelectTrigger size="sm" aria-label="跳转书面页" className="w-28 bg-background/85">
-                <SelectValue>
-                  {(value) => (typeof value === 'string' ? `第 ${value} 页` : '选择页码')}
-                </SelectValue>
+                <SelectValue>{(value) => (value ? `第 ${value} 页` : '未编页记录')}</SelectValue>
               </SelectTrigger>
               <SelectContent align="start">
                 {visiblePages.map((item) => (
                   <SelectItem key={item.page} value={item.page}>
-                    第 {item.page} 页
+                    {item.page ? `第 ${item.page} 页` : '未编页记录'}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -108,17 +106,21 @@ export function WrittenRecordPages({
           className="grid items-start gap-5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow) lg:grid-cols-[minmax(20rem,42%)_minmax(0,1fr)]"
         >
           <div className="min-h-0 self-start lg:sticky lg:top-20">
-            <SignedPageImage
-              key={page.imagePath}
-              path={page.imagePath}
-              page={page.page}
-              hidden={hidden}
-            />
+            {page.imagePath ? (
+              <SignedPageImage
+                key={page.imagePath}
+                path={page.imagePath}
+                page={page.page}
+                hidden={hidden}
+              />
+            ) : (
+              <EmptyState title="暂无对应扫描页" />
+            )}
           </div>
           <div className="grid content-start gap-4">
             {pageRecords.map((record) => (
               <RecordCard
-                key={record.fileName || record.id}
+                key={recordStableKey(record)}
                 record={record}
                 onRecordReference={onRecordReference}
                 showSourceAction={false}

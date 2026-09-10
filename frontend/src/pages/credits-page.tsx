@@ -23,7 +23,7 @@ export function CreditsPage() {
       />
       {resource.loading && <PageSkeleton rows={4} />}
       {resource.error && <ErrorState title="致谢内容加载失败" onRetry={resource.retry} />}
-      {resource.data && !hasContent && (
+      {!resource.loading && !resource.error && !hasContent && (
         <EmptyState title="暂无可展示内容" description="致谢页面还没有可显示的资料。" />
       )}
       {resource.data && hasContent && (

@@ -2387,3 +2387,16 @@ body [data-slot="switch-thumb"] {
     transition-duration: 0.01ms;
   }
 }
+
+/* Reserve the action's space; hover never changes the record's geometry. */
+@media (hover: hover) and (pointer: fine) {
+  .record-annotation-action {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .record-surface:hover .record-annotation-action,
+  .record-surface:focus-within .record-annotation-action {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}

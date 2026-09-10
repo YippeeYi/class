@@ -10,7 +10,8 @@ export function useAsyncData<T>(loader: () => Promise<T>, dependencies: Dependen
   useEffect(() => {
     let active = true
     setState((current) => ({ ...current, error: null, loading: true }))
-    loader()
+    Promise.resolve()
+      .then(loader)
       .then((data) => active && setState({ data, error: null, loading: false }))
       .catch((error: unknown) => {
         if (active)

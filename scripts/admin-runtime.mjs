@@ -21,21 +21,15 @@ export function parseAdminArguments(values) {
     const commandArgs = values.slice(1);
     const argv = new Set(commandArgs);
     const confirmPublish = argv.has('--confirm-publish');
-    const shouldPrune = command === 'publish' || argv.has('--prune');
+    const shouldPrune = command === 'publish';
     const validateOnly = command === 'audit'
-        || (command === 'publish' && !confirmPublish)
-        || argv.has('--validate-only');
-    const dryRun = argv.has('--dry-run');
-    const confirmPrune = argv.has('--confirm-prune');
-    const concurrencyArg = commandArgs.find((value) => value.startsWith('--concurrency='));
-    const uploadConcurrency = Math.min(8, Math.max(1, Number(concurrencyArg?.split('=')[1]) || 3));
+        || (command === 'publish' && !confirmPublish);
+    const uploadConcurrency = 3;
     return {
         argv,
         command,
         commandArgs,
-        confirmPrune,
         confirmPublish,
-        dryRun,
         shouldPrune,
         uploadConcurrency,
         validateOnly
@@ -44,7 +38,6 @@ export function parseAdminArguments(values) {
 
 export function printAdminUsage() {
     console.log(`Usage:
-  node scripts/admin.mjs upload [--dry-run|--validate-only] [--concurrency=3] [--prune --confirm-prune]
   node scripts/admin.mjs audit [--json]
   node scripts/admin.mjs publish [--json]
   node scripts/admin.mjs publish --confirm-publish

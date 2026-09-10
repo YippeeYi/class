@@ -156,6 +156,10 @@ try {
   await page.route('**/rest/v1/rpc/has_class_record_admin_access', (route) =>
     route.fulfill({ status: 200, headers: apiHeaders, body: 'true' }),
   )
+  await page.route('**/rest/v1/rpc/get_class_record_order', (route) => route.fulfill({ status: 200, headers: apiHeaders, body: JSON.stringify([{ file_name: 'r1.json', page: '1' }, { file_name: 'r2.json', page: '1' }, { file_name: 'r3.json', page: '2' }]) }))
+  for (const table of ['class_page_messages', 'class_page_supplements']) {
+    await page.route(`**/rest/v1/${table}*`, (route) => route.fulfill({ status: 200, headers: apiHeaders, body: '[]' }))
+  }
   await page.route('**/rest/v1/class_records*', (route) =>
     route.fulfill({
       status: 200,
@@ -172,8 +176,8 @@ try {
       status: 200,
       headers: apiHeaders,
       body: JSON.stringify([
-        { page: 'H1', start_file: 'r1.json', end_file: 'r2.json', image_path: 'hidden/images/record-pages/H1.jpeg', hidden: true, sort_order: 0, raw: {} },
-        { page: 'H2', start_file: 'r3.json', end_file: 'r3.json', image_path: 'hidden/images/record-pages/H2.jpeg', hidden: true, sort_order: 1, raw: {} },
+        { page: '1', start_file: 'r1.json', end_file: 'r2.json', image_path: 'hidden/images/record-pages/H1.jpeg', hidden: false, sort_order: 0, raw: {} },
+        { page: '2', start_file: 'r3.json', end_file: 'r3.json', image_path: 'hidden/images/record-pages/H2.jpeg', hidden: false, sort_order: 1, raw: {} },
       ]),
     }),
   )
@@ -667,14 +671,14 @@ try {
     'same-route list-to-written source jumps must not discard their anchor before written data loads',
   )
   assert.match(
-    (await recordsFixture.getByText(/第 H2 页/).first().textContent()) || '',
-    /第 H2 页/,
+    (await recordsFixture.getByText(/第 2 页/).first().textContent()) || '',
+    /第 2 页/,
     'a source jump must switch to the written page that actually contains the record',
   )
   const writtenPageSelector = recordsFixture.getByLabel('跳转书面页')
   assert.match(
     (await writtenPageSelector.textContent()) || '',
-    /第 H2 页/,
+    /第 2 页/,
     'the written page selector must display the actual one-based page instead of its zero-based index',
   )
   const initialJumpHighlight = await recordsFixture.locator('#record-r3').evaluate((target) => {
@@ -1795,7 +1799,6 @@ try {
   await page.keyboard.press('ArrowRight')
   await page.waitForFunction(() => document.querySelector('[data-background-id="mountain"]')?.getAttribute('data-selected') === 'true')
   await page.locator('[data-background-id="cloud"]').click()
-  await page.waitForFunction(() => localStorage.getItem('classRecord:background') === 'cloud')
   await page.waitForFunction(() => JSON.parse(localStorage.getItem('classRecord:appearance:v1') || 'null')?.background === 'cloud')
   await page.waitForFunction(() => document.querySelector('[data-background-visible="cloud"]'))
   const selectedOriginalRequests = imageRequests.filter((request) =>

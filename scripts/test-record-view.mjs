@@ -23,6 +23,7 @@ assert.deepEqual(
         { id: '2', fileName: '2.json', recordIndex: 2 },
       ],
       'ascending',
+      (left, right) => left.recordIndex - right.recordIndex,
     )
     .map((record) => record.id),
   ['2', '10'],
@@ -42,12 +43,7 @@ assert.doesNotMatch(
   /RecordOrderToggle/,
   'written mode must never expose a reversible order control',
 )
-assert.doesNotMatch(writtenPages, /PageMessage|PageSupplement|buildSupplementalRecords/, 'hidden written mode must contain ordinary hidden records only')
-assert.match(
-  writtenPages,
-  /orderRecords\([\s\S]*'ascending',[\s\S]*compareRecordNumber/,
-  'written ordinary records must be fixed to ascending record number',
-)
+assert.match(writtenPages, /stream\.find/, 'written pages must use the canonical record stream')
 assert.match(
   person,
   /<RecordOrderToggle[\s\S]*人物相关记录显示顺序/,
@@ -73,24 +69,24 @@ assert.doesNotMatch(writtenPages, /value=\{String\(safeIndex\)\}/, 'zero-based p
 assert.match(filters, /year.*month.*day.*important.*excludeDaily.*query/s, 'record filters are incomplete')
 assert.match(
   writtenData,
-  /loadHiddenRecordPages\(\)/,
-  'the written interface must request only administrator-protected Hxx pages',
+  /loadRecordPages\(\)/,
+  'the written interface must request administrator-protected scan pages',
 )
 assert.doesNotMatch(writtenData, /loadPageMessages|loadPageSupplements/, 'hidden written mode must never load proverbs or supplements')
-assert.match(recordIdentity, /recordType: 'message'[\s\S]*hidden: false/, 'page messages must remain public supplemental records')
+assert.match(recordIdentity, /hidden: item.hidden === true[\s\S]*recordType: 'message'/, 'page messages must preserve their hidden flag')
 assert.match(
   page,
   /if \(!hidden \|\| view !== 'written'\) return null[\s\S]*loadWrittenRecordData\(\)/,
   'written data must remain unavailable until the administrator unlock is active',
 )
-assert.match(page, /recordsResource = useAsyncData\(\(\) => loadRecords\(\)\)/, 'the list view must own its minimal record request')
+assert.match(page, /recordsResource = useAsyncData\(\(\) => loadRecordStreamData\(\)\)/, 'the list view must own its complete record stream request')
 assert.doesNotMatch(page, /useArchive/, 'the record list must not wait for unrelated people and quote data')
 assert.match(page, /qibaishihuaxia/, 'admin hidden-record sequence was not preserved')
 assert.match(page, /hasAdminAccess/, 'hidden records must check admin access')
 assert.match(page, /useState<'list' \| 'written'>\('list'\)/, 'every ordinary records-page entry must start in list mode')
 assert.match(page, /const permittedView = hidden \? nextView : 'list'/, 'the URL must not bypass the administrator-only written view')
 assert.match(page, /actions=\{[\s\S]*hidden \? \([\s\S]*<RecordViewControls/, 'mode controls must render only inside the unlocked administrator interface')
-assert.match(page, /loadRecords\(\{ hidden: true \}\)/, 'the unlocked interface must load only hidden ordinary records')
+assert.match(page, /loadRecordStreamData\(true\)/, 'the unlocked interface must load the entire authorized stream')
 assert.match(page, /onSourceAction=\{hidden \? navigateToWrittenSource : undefined\}[\s\S]*showSourceAction=\{hidden\}/, 'written-source actions must remain hidden outside the unlocked interface')
 assert.doesNotMatch(page, /decodeURIComponent/, 'record pages must not decode malformed hashes during render')
 assert.match(navigation, /function decodeRecordHash[\s\S]*catch[\s\S]*return ''/, 'record hashes need a non-throwing decoder')
@@ -118,7 +114,7 @@ assert.match(
   /<Card className="mb-6 gap-0[^"]*py-0[^"]*">[\s\S]*<CardContent className="flex flex-col gap-3 p-4">/,
   'record filters must not stack the card and content top padding above the search field',
 )
-assert.match(card, /record\.recordType === 'message' \? '箴言'/, 'proverbs need a lightweight type badge')
+assert.match(card, /recordTypeLabel\(record\)/, 'type badges must use the shared record type label')
 assert.match(card, /recordDisplayNumber\(record\)/, 'all record cards must use the shared number formatter')
 assert.doesNotMatch(card, /日期未记录/, 'record cards must omit absent dates instead of rendering a placeholder')
 assert.match(card, /showSourceAction = false/, 'record cards must not expose written pages by default')

@@ -7,15 +7,15 @@ export type RecordItem = {
   date: string
   time: string
   author: string
-  recorder: string
   content: string
-  text: string
   importance: string
   attachments: Attachment[]
   hidden: boolean
+  annotation?: string
+  page?: string
+  supplementIndex?: number
   imagePath?: string
   recordType?: 'record' | 'message' | 'supplement'
-  [key: string]: unknown
 }
 
 export type Person = {
@@ -23,12 +23,11 @@ export type Person = {
   name: string
   alias: string
   aliases: string[]
-  role: 'student' | 'teacher' | 'other' | string
+  role: string
   subject: string
   main: boolean
   bio: string
   avatarUrl: string
-  [key: string]: unknown
 }
 
 export type Quote = {
@@ -43,7 +42,6 @@ export type Material = {
   id: string
   title: string
   content: string
-  [key: string]: unknown
 }
 
 export type QuizQuestion = {
@@ -57,7 +55,6 @@ export type QuizQuestion = {
   explanation: string
   image: string
   imageVersion: string
-  [key: string]: unknown
 }
 
 export type CreditsPage = {
@@ -75,17 +72,18 @@ export type RecordPage = {
   endFile: string
   imagePath: string
   hidden: boolean
-  [key: string]: unknown
 }
 
 export type PageMessage = {
+  hidden?: boolean
   page: string
   content: string
   author: string
-  [key: string]: unknown
+  annotation?: string
 }
 
 export type PageSupplement = {
+  hidden?: boolean
   id: string
   fileName: string
   page: string
@@ -95,5 +93,5 @@ export type PageSupplement = {
   importance: string
   date: string
   time: string
-  [key: string]: unknown
+  annotation?: string
 }

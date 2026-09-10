@@ -28,13 +28,13 @@ import { Button } from '@/components/ui/button'
 import { Tabs } from '@/components/ui/tabs'
 import { preloadMarkupIllustrationDimensions } from '@/features/illustrations/route-illustration-gate'
 import { useContentPreferences } from '@/features/preferences/content-preferences'
-import { recordWithinPage as withinPage } from '@/features/records/record-page-mapping'
 import { useRecordJumpHighlight } from '@/features/records/use-record-jump-highlight'
 import { loadWrittenRecordData } from '@/features/records/written-record-data'
 import { WrittenRecordPages } from '@/features/records/written-record-pages'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { normalizeRecordKey } from '@/lib/archive'
 import { recordAnchor } from '@/lib/markup'
+import { recordStableKey } from '@/lib/record-identity'
 import {
   beginRecordJump,
   completeRecordJump,
@@ -43,13 +43,19 @@ import {
   type PendingRecordJump,
   replaceRecordJumpHash,
 } from '@/lib/record-navigation'
-import { compareRecordId, orderRecords } from '@/lib/record-order'
+import {
+  buildRecordStream,
+  orderedRecordStream,
+  type RecordPagePosition,
+  recordPageKey,
+  writtenStreamPages,
+} from '@/lib/record-stream'
 import {
   clampWindowScrollTop,
   scrollTargetIntoView,
   waitForWindowScrollEnd,
 } from '@/lib/viewport-scroll'
-import { hasAdminAccess, loadRecords } from '@/services/data'
+import { hasAdminAccess, loadRecordStreamData } from '@/services/data'
 import type { RecordItem } from '@/types/domain'
 
 const recordViewItems = [
@@ -155,7 +161,7 @@ function recordsSearch(view: 'list' | 'written', criteria: RecordCriteria) {
 
 export function RecordsPage() {
   const { hideProfanity } = useContentPreferences()
-  const recordsResource = useAsyncData(() => loadRecords())
+  const recordsResource = useAsyncData(() => loadRecordStreamData())
   const location = useLocation()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -163,7 +169,10 @@ export function RecordsPage() {
   const [criteria, setCriteria] = useState<RecordCriteria>(() => criteriaFromSearch(params))
   const [recordOrder, setRecordOrder] = useState<RecordOrder>('descending')
   const [hidden, setHidden] = useState(false)
-  const [hiddenRecords, setHiddenRecords] = useState<RecordItem[]>([])
+  const [hiddenData, setHiddenData] = useState<{
+    records: RecordItem[]
+    positions: RecordPagePosition[]
+  } | null>(null)
   const [hiddenError, setHiddenError] = useState('')
   const [pageIndex, setPageIndex] = useState(0)
   const replaceRouteState = useCallback(
@@ -249,38 +258,56 @@ export function RecordsPage() {
   }, [location.hash, location.key])
   useEffect(() => {
     let buffer = ''
+    let active = true
+    let unlocking = false
     const listener = async (event: KeyboardEvent) => {
-      const active = document.activeElement
-      if (active && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)) return
+      const element = document.activeElement
+      if (element && ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName)) return
       if (event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1) return
       buffer = (buffer + event.key.toLowerCase()).slice(-16)
-      if (!buffer.endsWith('qibaishihuaxia')) return
+      if (!buffer.endsWith('qibaishihuaxia') || unlocking || hidden) return
+      unlocking = true
       buffer = ''
       try {
         setHiddenError('')
         if (!(await hasAdminAccess())) return
-        const nextHiddenRecords = await loadRecords({ hidden: true })
-        await preloadMarkupIllustrationDimensions(nextHiddenRecords.map((record) => record.content))
-        setHiddenRecords(nextHiddenRecords)
+        const nextData = await loadRecordStreamData(true)
+        await preloadMarkupIllustrationDimensions(nextData.records.map((record) => record.content))
+        if (!active) return
+        setHiddenData(nextData)
         setHidden(true)
         setHiddenError('')
         replaceRouteState('list', EMPTY_RECORD_CRITERIA)
       } catch {
-        setHiddenError('隐藏记录暂时无法加载，请稍后重试。')
+        if (active) setHiddenError('隐藏记录暂时无法加载，请稍后重试。')
+      } finally {
+        unlocking = false
       }
     }
     window.addEventListener('keydown', listener)
-    return () => window.removeEventListener('keydown', listener)
-  }, [replaceRouteState])
+    return () => {
+      active = false
+      window.removeEventListener('keydown', listener)
+    }
+  }, [hidden, replaceRouteState])
 
-  const records = hidden ? hiddenRecords : recordsResource.data || []
+  const streamData = hidden ? hiddenData : recordsResource.data
+  const stream = useMemo(
+    () => buildRecordStream(streamData?.records || [], streamData?.positions || [], hidden),
+    [hidden, streamData],
+  )
+  const writtenPages = useMemo(
+    () => writtenStreamPages(written.data?.pages || [], stream),
+    [written.data, stream],
+  )
+  const records = useMemo(() => orderedRecordStream(stream), [stream])
   const sources = records
   const matched = useMemo(
     () => filterRecords(sources, criteria, hideProfanity),
     [criteria, hideProfanity, sources],
   )
   const filtered = useMemo(
-    () => orderRecords(matched, recordOrder, compareRecordId),
+    () => (recordOrder === 'descending' ? [...matched].reverse() : matched),
     [matched, recordOrder],
   )
   const activeFilter = Object.values(criteria).some(Boolean)
@@ -289,14 +316,16 @@ export function RecordsPage() {
     pageIndex,
     criteria,
     records,
-    pages: written.data?.pages || [],
+    pages: writtenPages,
+    stream,
   })
   recordNavigation.current = {
     view,
     pageIndex,
     criteria,
     records,
-    pages: written.data?.pages || [],
+    pages: writtenPages,
+    stream,
   }
 
   const navigateToRecord = useCallback(
@@ -314,8 +343,12 @@ export function RecordsPage() {
       let targetView = state.view
       let targetPageIndex = state.pageIndex
       if (state.view === 'written') {
-        const visiblePages = state.pages.filter((page) => Boolean(page.imagePath))
-        const nextIndex = visiblePages.findIndex((page) => withinPage(page, target, state.records))
+        const visiblePages = state.pages
+        const nextIndex = visiblePages.findIndex((page) =>
+          state.stream
+            .find((group) => group.page === recordPageKey(page.page))
+            ?.records.includes(target),
+        )
         if (nextIndex >= 0) targetPageIndex = nextIndex
         else {
           targetView = 'list'
@@ -362,9 +395,11 @@ export function RecordsPage() {
       const anchor = recordAnchor(target)
       beginRecordJump()
       const sourceRecord = source.closest<HTMLElement>('[id^="record-"]')
-      const visiblePages = state.pages.filter((page) => Boolean(page.imagePath))
+      const visiblePages = state.pages
       const knownPageIndex = visiblePages.findIndex((page) =>
-        withinPage(page, target, state.records),
+        state.stream
+          .find((group) => group.page === recordPageKey(page.page))
+          ?.records.includes(target),
       )
       pendingJump.current = {
         targetAnchorId: anchor,
@@ -397,8 +432,7 @@ export function RecordsPage() {
     // A same-route list → written navigation renders once before useAsyncData's
     // dependency effect can mark the new written resource as loading. Waiting
     // for actual data (instead of the loading flag alone) keeps the pending
-    // anchor alive across that render and matches the legacy load-then-locate
-    // sequence.
+    // anchor alive until its page has mounted.
     if (loading || (view === 'written' && (written.loading || !written.data)) || !pending) return
     const target = document.getElementById(pending.targetAnchorId)
     if (!target) {
@@ -407,11 +441,17 @@ export function RecordsPage() {
           (record) => recordAnchor(record) === pending.targetAnchorId,
         )
         if (targetRecord) {
-          const visiblePages = written.data.pages.filter((page) => Boolean(page.imagePath))
+          const visiblePages = writtenPages
           const targetPage = targetRecord.recordType
             ? String(targetRecord.page)
-            : visiblePages.find((page) => withinPage(page, targetRecord, records))?.page
-          const targetPageIndex = visiblePages.findIndex((page) => page.page === targetPage)
+            : visiblePages.find((page) =>
+                stream
+                  .find((group) => group.page === recordPageKey(page.page))
+                  ?.records.includes(targetRecord),
+              )?.page
+          const targetPageIndex = visiblePages.findIndex(
+            (page) => recordPageKey(page.page) === recordPageKey(targetPage || ''),
+          )
           if (targetPageIndex >= 0 && targetPageIndex !== pageIndex) {
             setPageIndex(targetPageIndex)
             return
@@ -456,8 +496,10 @@ export function RecordsPage() {
     loading,
     pageIndex,
     records,
+    stream,
     view,
     written.data,
+    writtenPages,
     written.loading,
   ])
 
@@ -534,13 +576,13 @@ export function RecordsPage() {
           <Eye />
           <AlertTitle>隐藏记录模式</AlertTitle>
           <AlertDescription className="flex items-center justify-between gap-3">
-            仅本次会话可见，刷新后恢复普通记录。
+            显示全部记录（含隐藏内容）；退出或刷新后恢复未隐藏记录。
             <Button
               size="xs"
               variant="outline"
               onClick={() => {
                 setHidden(false)
-                setHiddenRecords([])
+                setHiddenData(null)
                 replaceRouteState('list', criteria)
                 setPageIndex(0)
               }}
@@ -582,7 +624,7 @@ export function RecordsPage() {
           {filtered.length ? (
             filtered.map((record) => (
               <RecordCard
-                key={record.fileName || record.id}
+                key={recordStableKey(record)}
                 record={record}
                 onRecordReference={navigateToRecord}
                 onSourceAction={hidden ? navigateToWrittenSource : undefined}
@@ -603,8 +645,8 @@ export function RecordsPage() {
           <ErrorState title="书面记录加载失败" onRetry={written.retry} />
         ) : (
           <WrittenRecordPages
-            pages={written.data.pages}
-            records={records}
+            pages={writtenPages}
+            stream={stream}
             matched={matched}
             activeFilter={activeFilter}
             pageIndex={pageIndex}
