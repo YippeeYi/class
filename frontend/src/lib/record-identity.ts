@@ -52,8 +52,8 @@ export function recordAnchorId(record: Partial<RecordItem>) {
   return `record-${identity.replace(/[^a-zA-Z0-9_-]/g, '-')}`
 }
 
-export function recordWrittenHref(record: Partial<RecordItem>) {
-  return `/records?view=written#${recordAnchorId(record)}`
+export function recordHref(record: Partial<RecordItem>) {
+  return `/records#${recordAnchorId(record)}`
 }
 
 export function buildSupplementalRecords(messages: PageMessage[], supplements: PageSupplement[]) {

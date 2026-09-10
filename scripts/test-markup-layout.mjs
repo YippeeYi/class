@@ -148,6 +148,35 @@ try {
       body: svg,
     })
   })
+  const apiHeaders = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-headers': '*',
+    'content-type': 'application/json',
+  }
+  await page.route('**/rest/v1/rpc/has_class_record_admin_access', (route) =>
+    route.fulfill({ status: 200, headers: apiHeaders, body: 'true' }),
+  )
+  await page.route('**/rest/v1/class_records*', (route) =>
+    route.fulfill({
+      status: 200,
+      headers: apiHeaders,
+      body: JSON.stringify([
+        { record_id: 'r1', file_name: 'r1.json', record_index: 1, record_date: '2025-01-01', content: '第一条隐藏记录，继续查看 [[record:r2|第二条记录]]。', hidden: true, attachments: [], raw: {} },
+        { record_id: 'r2', file_name: 'r2.json', record_index: 2, record_date: '2025-01-02', content: '第二条隐藏记录', hidden: true, attachments: [], raw: {} },
+        { record_id: 'r3', file_name: 'r3.json', record_index: 3, record_date: '2025-01-03', content: '第三条隐藏记录 [[anno:定位后仍可稳定操作弹出内容。|跳转后注释]]，继续查看 [[record:r1|第一条记录]]。', hidden: true, attachments: [], raw: {} },
+      ]),
+    }),
+  )
+  await page.route('**/rest/v1/class_record_pages*', (route) =>
+    route.fulfill({
+      status: 200,
+      headers: apiHeaders,
+      body: JSON.stringify([
+        { page: 'H1', start_file: 'r1.json', end_file: 'r2.json', image_path: 'hidden/images/record-pages/H1.jpeg', hidden: true, sort_order: 0, raw: {} },
+        { page: 'H2', start_file: 'r3.json', end_file: 'r3.json', image_path: 'hidden/images/record-pages/H2.jpeg', hidden: true, sort_order: 1, raw: {} },
+      ]),
+    }),
+  )
   page.on('console', (message) => {
     if (/^Failed to load resource: the server responded with a status of 400/u.test(message.text())) {
       expectedHarnessNetworkFailures += 1
@@ -487,6 +516,8 @@ try {
   )
   await page.mouse.move(4, 4)
 
+  await page.evaluate(() => window.__memoryNavigate('/records?view=written'))
+  await page.waitForFunction(() => window.__memoryLocation === '/records')
   const recordsFixture = page.locator('[data-case="records"]')
   await page.setViewportSize({ width: 600, height: 1000 })
   await page.waitForTimeout(50)
@@ -499,6 +530,13 @@ try {
   await recordOrderTabs.getByRole('tab', { name: '逆序' }).click()
   assert.deepEqual(await visibleRecordIds(), ['record-r3', 'record-r2', 'record-r1'])
 
+  assert.equal(
+    await recordsFixture.getByRole('tablist', { name: '记录显示模式' }).count(),
+    0,
+    'ordinary sessions must ignore direct written URLs and not expose the list/written mode control',
+  )
+  await page.keyboard.type('qibaishihuaxia')
+  await recordsFixture.getByText('隐藏记录模式').waitFor({ state: 'visible' })
   const recordModeTabs = recordsFixture.getByRole('tablist', { name: '记录显示模式' })
   const recordControlRoot = recordsFixture.locator('.record-view-controls')
   const initialRecordControls = await recordControlRoot.evaluate((root) => {
@@ -507,6 +545,8 @@ try {
     return {
       modeLeft: mode.getBoundingClientRect().left,
       orderLeft: order.getBoundingClientRect().left,
+      modeRight: mode.getBoundingClientRect().right,
+      orderRight: order.getBoundingClientRect().right,
     }
   })
   await recordModeTabs.getByRole('tab', { name: '书面记录' }).click()
@@ -548,12 +588,14 @@ try {
     const order = root.querySelector('.record-view-order-control')
     return {
       modeLeft: mode.getBoundingClientRect().left,
+      modeRight: mode.getBoundingClientRect().right,
       orderOpacity: Number(getComputedStyle(order).opacity),
     }
   })
   assert.ok(
-    Math.abs(writtenRecordControls.modeLeft - initialRecordControls.orderLeft) <= 1,
-    `the outer mode box must settle in the original order-control space: ${JSON.stringify({ initialRecordControls, writtenRecordControls })}`,
+    Math.abs(writtenRecordControls.modeRight - initialRecordControls.orderRight) <= 1 &&
+      writtenRecordControls.modeLeft < initialRecordControls.orderLeft,
+    `the wider outer mode box must align to the order control's right edge without overshooting: ${JSON.stringify({ initialRecordControls, writtenRecordControls })}`,
   )
   assert.equal(writtenRecordControls.orderOpacity, 0)
   await recordModeTabs.getByRole('tab', { name: '按条记录' }).click()
@@ -625,14 +667,14 @@ try {
     'same-route list-to-written source jumps must not discard their anchor before written data loads',
   )
   assert.match(
-    (await recordsFixture.getByText(/第 2 页/).first().textContent()) || '',
-    /第 2 页/,
+    (await recordsFixture.getByText(/第 H2 页/).first().textContent()) || '',
+    /第 H2 页/,
     'a source jump must switch to the written page that actually contains the record',
   )
   const writtenPageSelector = recordsFixture.getByLabel('跳转书面页')
   assert.match(
     (await writtenPageSelector.textContent()) || '',
-    /第 2 页/,
+    /第 H2 页/,
     'the written page selector must display the actual one-based page instead of its zero-based index',
   )
   const initialJumpHighlight = await recordsFixture.locator('#record-r3').evaluate((target) => {
@@ -1145,7 +1187,7 @@ try {
   const writtenPreviewSigns = storageRequests.filter(
     (request) =>
       request.method === 'POST' &&
-      request.path.endsWith('/classrecord-private/fixtures/page-2.webp'),
+      request.path.endsWith('/classrecord-private/hidden/images/record-pages/H2.jpeg'),
   )
   assert.ok(writtenPreviewSigns.length >= 1, 'the visible written page must request its compressed rendition')
   assert.ok(
@@ -2496,7 +2538,7 @@ try {
   assert.ok(edgePopup.x >= 4 && edgePopup.x + edgePopup.width <= 1276, 'viewport collision handling must keep edge-anchored illustration popups fully visible')
 
   const guardedDirectHash = await page.evaluate(() => {
-    history.replaceState(history.state, '', '/class/records?view=written#record-r2')
+    history.replaceState(history.state, '', '/class/records#record-r2')
     window.__installRecordJumpGuard()
     const pending = JSON.parse(
       sessionStorage.getItem('classrecord:pending-record-jump') || 'null',
@@ -2515,7 +2557,7 @@ try {
     guardedDirectHash,
     {
       pathname: '/class/records',
-      search: '?view=written',
+      search: '',
       hash: '',
       pendingTarget: 'record-r2',
     },

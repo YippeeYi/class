@@ -44,7 +44,6 @@ const themeBootstrap = await readFrontend('public/theme-bootstrap.js')
 const backgrounds = await readFrontend('src/components/layout/background-root.tsx')
 const styles = await readFrontend('src/styles/tailwind.css')
 const imageViewer = await readFrontend('src/components/archive/image-viewer.tsx')
-const privacyMask = await readFrontend('src/components/archive/privacy-mask-layer.tsx')
 const recordCard = await readFrontend('src/components/archive/record-card.tsx')
 const pageHeading = await readFrontend('src/components/archive/page-heading.tsx')
 const pageHeader = await readFrontend('src/components/layout/page-header.tsx')
@@ -233,7 +232,7 @@ assert.match(home, /resource\.loading \|\| \(!archiveData && !resource\.error\)/
 assert.match(app, /lazy\(\(\) =>\s*routeModuleLoaders/, 'route-level code splitting is missing')
 assert.match(routePreload, /import\('@\/pages\//, 'route modules must remain dynamic imports')
 assert.match(routePreload, /preloadRoute/, 'route chunks need an intent-preload entry point')
-assert.match(shell, /onPointerEnter=\{\(\) => void preloadRoute\(to\)\}/, 'sidebar route intent must preload its chunk')
+assert.match(shell, /onPointerEnter=\{\(\) => preloadNavigationTarget\(to\)\}/, 'sidebar route intent must preload its chunk and illustration dimensions')
 assert.match(
   shell,
   /location\.pathname === to[\s\S]*search: location\.search,[\s\S]*hash: location\.hash,[\s\S]*render=\{<NavLink to=\{destination\} \/>\}/,
@@ -573,9 +572,8 @@ assert.match(imageViewer, /onOpenChangeComplete[\s\S]*setScrollLockActive\(false
 assert.match(scrollLock, /scrollTop[\s\S]*overflow[\s\S]*touchAction[\s\S]*scrollTo/, 'scroll locking must restore every independent container')
 assert.match(scrollLock, /scrollX:[\s\S]*scrollY:[\s\S]*htmlOverflow:[\s\S]*bodyOverflow:/, 'scroll locking must snapshot document scrolling and both root overflow states')
 assert.doesNotMatch(scrollLock, /scrollbarGutter\s*=\s*'stable'/, 'fullscreen overlays must not inherit a reserved scrollbar gutter on Linux Chromium')
-assert.match(writtenRecordPages, /<PrivacyMaskLayer/, 'ordinary written pages must overlay privacy masks')
-assert.match(imageViewer, /<PrivacyMaskLayer/, 'large written images must retain the same privacy mask')
-assert.match(privacyMask, /masks\.map/, 'privacy masks must be independent overlay regions')
+assert.doesNotMatch(writtenRecordPages, /PrivacyMask|privacyMasks/, 'written pages must not render the retired mask system')
+assert.doesNotMatch(imageViewer, /PrivacyMask|privacyMasks/, 'large images must not render the retired mask system')
 assert.match(markupContent, /className="record-stack-line"/, 'stack rules must be rendered independently from their labels')
 assert.match(markupContent, /align="center"[\s\S]*alignOffset=\{lockedAlignOffset\}/, 'illustration previews must center on one locked pointer anchor')
 assert.match(markupContent, /pointerX - \(bounds\.left \+ bounds\.width \/ 2\)/, 'illustration pointer alignment must use the trigger center delta')

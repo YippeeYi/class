@@ -4,9 +4,9 @@ import { filterProfanity } from '@/lib/profanity'
 import { quoteRecordTarget } from '@/lib/quote-navigation'
 import {
   recordDisplayNumber,
+  recordHref,
   recordStableKey,
   recordTypeLabel,
-  recordWrittenHref,
 } from '@/lib/record-identity'
 import type { Material, Person, Quote, RecordItem } from '@/types/domain'
 
@@ -72,7 +72,7 @@ export function buildSearchIndex({
             .join(' · '),
           meta,
           text: content,
-          href: recordWrittenHref(record),
+          href: recordHref(record),
           sortKey: record.date || recordStableKey(record),
         },
         [

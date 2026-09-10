@@ -67,12 +67,8 @@ export const markupLayoutHarness = String.raw`<!doctype html>
         recordFixture('r2', 2, '2025-02-03', '第二条记录'),
         recordFixture('r3', 3, '2026-05-06', '第三条记录 [[anno:定位后仍可稳定操作弹出内容。|跳转后注释]]，继续查看 [[record:r1|第一条记录]]。'),
       ]))
-      sessionStorage.setItem(cachePrefix + 'record-pages:false', cacheEntry([
-        { page: '1', startFile: 'r1.json', endFile: 'r2.json', imagePath: 'fixtures/page-1.webp', hidden: false },
-        { page: '2', startFile: 'r3.json', endFile: 'r3.json', imagePath: 'fixtures/page-2.webp', hidden: false },
-      ]))
-      sessionStorage.setItem(cachePrefix + 'page-messages:false', cacheEntry([]))
-      sessionStorage.setItem(cachePrefix + 'page-supplements:false', cacheEntry([]))
+      sessionStorage.setItem(cachePrefix + 'page-messages', cacheEntry([]))
+      sessionStorage.setItem(cachePrefix + 'page-supplements', cacheEntry([]))
       sessionStorage.setItem(cachePrefix + 'people', cacheEntry([
         { id: 'p1', name: '人物一', role: 'student', aliases: [], avatarUrl: '' },
         { id: 'p2', name: '人物二', role: 'student' },

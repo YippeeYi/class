@@ -613,6 +613,8 @@ const importRecordPages = async () => {
     let hiddenIndex = 0;
 
     const rows = pages.map((raw) => {
+        const publishedRaw = { ...raw };
+        delete publishedRaw.privacyMasks;
         const isHidden = Boolean(raw.hidden);
         const index = isHidden ? hiddenIndex++ : visibleIndex++;
         const page = String(raw.page || raw.id || String(index + 1).padStart(2, '0'));
@@ -633,7 +635,7 @@ const importRecordPages = async () => {
             image_path: sourceImagePath
                 ? registerStorageAsset(sourceImagePath, { hidden: isHidden, localPath: localSourceImagePath })
                 : null,
-            raw
+            raw: publishedRaw
         };
     });
 

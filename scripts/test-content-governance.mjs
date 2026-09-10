@@ -181,9 +181,10 @@ const messageImporter = adminSource.slice(
 )
 assert.match(
   messageImporter,
-  /rewriteMarkupAssets\(raw\.content \|\| '', \{ hidden: isHidden \}\)/,
-  'protected page-message illustrations must remain in the protected asset namespace',
+  /delete publicRaw\.hidden[\s\S]*hidden: false/,
+  'the publisher must force every page message into the public auxiliary collection',
 )
+assert.doesNotMatch(messageImporter, /hidden: isHidden/, 'page messages must not regain a hidden branch')
 assert.match(adminSource, /storageIncluded: true/, 'publication snapshots must include binary Storage content')
 assert.match(adminSource, /downloadStorageObject/, 'publication must download old Storage before mutation')
 assert.match(adminRuntimeSource, /rollback --snapshot TIMESTAMP --confirm-rollback/)

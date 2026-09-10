@@ -6,10 +6,12 @@ const root = process.cwd()
 const contentRoot = path.join(root, 'private-assets/content')
 const recordRoot = path.join(contentRoot, 'record')
 const messageRoot = path.join(contentRoot, 'messages')
+const supplementRoot = path.join(contentRoot, 'page-supplements')
 const pagesPath = path.join(recordRoot, 'record_pages.json')
 const reviewPath = path.join(contentRoot, 'privacy-hidden-records.txt')
-const messageReviewPath = path.join(contentRoot, 'privacy-hidden-messages.txt')
+const obsoleteMessageReviewPath = path.join(contentRoot, 'privacy-hidden-messages.txt')
 const apply = process.argv.includes('--apply')
+const digitalOnlyHiddenRecords = new Set(['2026-02-04-04.json'])
 
 const reviewed = new Set(
   (await fs.readFile(reviewPath, 'utf8'))
@@ -22,192 +24,101 @@ const allFiles = (await fs.readdir(recordRoot))
   .filter((file) => /^\d{4}-\d{2}-\d{2}-\d{2}\.json$/u.test(file))
   .sort()
 const positions = new Map(allFiles.map((file, index) => [file, index]))
-const reviewedMessages = new Set(
-  (await fs.readFile(messageReviewPath, 'utf8'))
-    .split(/\r?\n/u)
-    .map((line) => line.replace(/#.*/u, '').trim())
-    .filter(Boolean)
-    .map((id) => `${id.replace(/\.json$/iu, '').padStart(2, '0')}.json`),
-)
-const allMessageFiles = (await fs.readdir(messageRoot))
-  .filter((file) => /^\d{2}\.json$/u.test(file))
-  .sort()
-const sourceMessages = new Map()
-for (const file of allMessageFiles) {
-  sourceMessages.set(file, JSON.parse(await fs.readFile(path.join(messageRoot, file), 'utf8')))
-}
-
-for (const file of reviewed) assert.ok(positions.has(file), `隐私复核清单中的记录不存在：${file}`)
-for (const file of reviewedMessages) {
-  assert.ok(sourceMessages.has(file), `隐私复核清单中的箴言不存在：${file}`)
-}
-
 const sourceRecords = new Map()
 for (const file of allFiles) {
   sourceRecords.set(file, JSON.parse(await fs.readFile(path.join(recordRoot, file), 'utf8')))
 }
+for (const file of reviewed) assert.ok(positions.has(file), `隐私复核清单中的记录不存在：${file}`)
 
 function rangeFiles(page) {
-  const start = positions.get(page.start)
-  const end = positions.get(page.end)
+  const start = positions.get(page.start || page.startFile)
+  const end = positions.get(page.end || page.endFile)
   if (start === undefined || end === undefined) return []
   return allFiles.slice(Math.min(start, end), Math.max(start, end) + 1)
 }
 
-function visibleTextWeight(file) {
-  const content = String(sourceRecords.get(file)?.content || '')
-  const visible = content
-    .replace(/\[\[[^|\]]+\|/gu, '')
-    .replace(/\]\]/gu, '')
-    .replace(/\s+/gu, '')
-  const illustrationCount = (content.match(/\[\[illu:/gu) || []).length
-  return Math.max(1.5, Math.ceil(visible.length / 26)) + illustrationCount * 5
-}
-
-function masksForPage(page, hiddenFiles) {
-  const files = rangeFiles(page)
-  if (!files.length || !hiddenFiles.length) return []
-  const weights = files.map(visibleTextWeight)
-  const total = weights.reduce((sum, value) => sum + value, 0)
-  let cursor = 14
-  const masks = []
-  files.forEach((file, index) => {
-    const height = ((weights[index] || 0) / total) * 82
-    if (hiddenFiles.includes(file)) {
-      masks.push({
-        x: 4,
-        y: Number(Math.max(3, cursor - 1.5).toFixed(2)),
-        width: 92,
-        height: Number(Math.min(96 - cursor, height + 3).toFixed(2)),
-      })
-    }
-    cursor += height
-  })
-  return masks.reduce((merged, mask) => {
-    const previous = merged.at(-1)
-    if (previous && mask.y <= previous.y + previous.height + 0.8) {
-      previous.height = Number(
-        (Math.max(previous.y + previous.height, mask.y + mask.height) - previous.y).toFixed(2),
-      )
-    } else merged.push(mask)
-    return merged
-  }, [])
+function recordRange(page) {
+  const indexes = rangeFiles(page).map((file) => positions.get(file)).filter(Number.isInteger)
+  return indexes.length ? [Math.min(...indexes), Math.max(...indexes)] : null
 }
 
 let pages = JSON.parse(await fs.readFile(pagesPath, 'utf8'))
+const hiddenPagesBeforeApply = pages.filter((page) => page.hidden === true)
+
 if (apply) {
   for (const [file, record] of sourceRecords) {
-    if (!reviewed.has(file)) continue
-    record.hidden = true
+    if (reviewed.has(file)) record.hidden = true
+    else delete record.hidden
     await fs.writeFile(path.join(recordRoot, file), `${JSON.stringify(record, null, 4)}\n`)
   }
 
-  const alreadyGenerated = pages.some((page) => page.hidden === true)
-  const ordinaryPages = pages.filter((page) => page.hidden !== true)
-  const nextPages = []
-  const hiddenPages = []
-  for (const page of ordinaryPages) {
-    if (alreadyGenerated) {
-      nextPages.push(page)
-      continue
-    }
-    const files = rangeFiles(page)
-    const hiddenFiles = files.filter((file) => reviewed.has(file))
-    const visibleFiles = files.filter((file) => !reviewed.has(file))
-    const masks = masksForPage(page, hiddenFiles)
-    if (page.page === '40') masks.push({ x: 12, y: 60, width: 43, height: 25 })
-    nextPages.push({
-      ...page,
-      start: visibleFiles.at(0) || '',
-      end: visibleFiles.at(-1) || '',
-      ...(masks.length ? { privacyMasks: masks } : {}),
-    })
-    if (hiddenFiles.length || page.page === '40') {
-      hiddenPages.push({
-        page: `H${page.page}`,
-        start: hiddenFiles.at(0) || '',
-        end: hiddenFiles.at(-1) || '',
-        hidden: true,
-        image: `H${page.page}`,
-        sourceImage: page.page,
-      })
-    }
-  }
-  if (!alreadyGenerated) {
-    pages = [...nextPages, ...hiddenPages]
-  }
-
-  const messageMask = { x: 53, y: 12, width: 40, height: 11 }
-  for (const file of reviewedMessages) {
-    const sourcePage = file.replace(/\.json$/u, '')
-    const message = sourceMessages.get(file)
-    message.hidden = true
-    message.page = `H${sourcePage}`
-    await fs.writeFile(path.join(messageRoot, file), `${JSON.stringify(message, null, 4)}\n`)
-
-    const ordinaryPage = pages.find((page) => page.page === sourcePage && page.hidden !== true)
-    if (ordinaryPage) {
-      const masks = Array.isArray(ordinaryPage.privacyMasks) ? ordinaryPage.privacyMasks : []
-      if (
-        !masks.some(
-          (mask) =>
-            mask.x === messageMask.x &&
-            mask.y === messageMask.y &&
-            mask.width === messageMask.width &&
-            mask.height === messageMask.height,
-        )
-      ) {
-        ordinaryPage.privacyMasks = [messageMask, ...masks]
+  const retainedHiddenPages = hiddenPagesBeforeApply.filter((page) =>
+    rangeFiles(page).some((file) => reviewed.has(file)),
+  )
+  const retainedBySource = new Map(
+    retainedHiddenPages.map((page) => [String(page.sourceImage || page.page).replace(/^H/u, ''), page]),
+  )
+  const publicPages = pages
+    .filter((page) => page.hidden !== true)
+    .map((page) => {
+      const next = { ...page }
+      delete next.privacyMasks
+      const hiddenPage = retainedBySource.get(String(next.page))
+      const publicRange = recordRange(next)
+      const hiddenRange = hiddenPage ? recordRange(hiddenPage) : null
+      if (publicRange && hiddenRange) {
+        next.start = allFiles[Math.min(publicRange[0], hiddenRange[0])]
+        next.end = allFiles[Math.max(publicRange[1], hiddenRange[1])]
       }
-    }
-    if (!pages.some((page) => page.page === `H${sourcePage}`)) {
-      pages.push({
-        page: `H${sourcePage}`,
-        start: '',
-        end: '',
-        hidden: true,
-        image: `H${sourcePage}`,
-        sourceImage: sourcePage,
-      })
-    }
-  }
-  pages = [
-    ...pages.filter((page) => page.hidden !== true),
-    ...pages
-      .filter((page) => page.hidden === true)
-      .sort((left, right) => Number(left.page.slice(1)) - Number(right.page.slice(1))),
-  ]
+      return next
+    })
+  const hiddenPages = retainedHiddenPages
+    .map((page) => {
+      const next = { ...page }
+      delete next.privacyMasks
+      return next
+    })
+    .sort((left, right) => Number(String(left.page).slice(1)) - Number(String(right.page).slice(1)))
+  pages = [...publicPages, ...hiddenPages]
   await fs.writeFile(pagesPath, `${JSON.stringify(pages, null, 4)}\n`)
 
-  const supplementPath = path.join(contentRoot, 'page-supplements/40-03.json')
-  const supplement = JSON.parse(await fs.readFile(supplementPath, 'utf8'))
-  supplement.hidden = true
-  supplement.page = 'H40'
-  await fs.writeFile(supplementPath, `${JSON.stringify(supplement, null, 4)}\n`)
+  for (const file of (await fs.readdir(messageRoot)).filter((item) => /^\d{2}\.json$/u.test(item))) {
+    const messagePath = path.join(messageRoot, file)
+    const message = JSON.parse(await fs.readFile(messagePath, 'utf8'))
+    delete message.hidden
+    message.page = file.replace(/\.json$/u, '')
+    await fs.writeFile(messagePath, `${JSON.stringify(message, null, 4)}\n`)
+  }
+  for (const file of (await fs.readdir(supplementRoot)).filter((item) => /^\d+-\d+\.json$/u.test(item))) {
+    const supplementPath = path.join(supplementRoot, file)
+    const supplement = JSON.parse(await fs.readFile(supplementPath, 'utf8'))
+    delete supplement.hidden
+    supplement.page = String(Number(file.split('-')[0]))
+    await fs.writeFile(supplementPath, `${JSON.stringify(supplement, null, 4)}\n`)
+  }
+  await fs.rm(obsoleteMessageReviewPath, { force: true })
 }
 
 const errors = []
 for (const [file, record] of sourceRecords) {
-  const hidden = apply ? reviewed.has(file) || record.hidden === true : record.hidden === true
-  if (reviewed.has(file) !== hidden) errors.push(`hidden 状态与复核清单不一致：${file}`)
-}
-for (const [file, message] of sourceMessages) {
-  const hidden = message.hidden === true
-  if (reviewedMessages.has(file) !== hidden) {
-    errors.push(`箴言 hidden 状态与复核清单不一致：${file}`)
-  }
-  if (hidden && message.page !== `H${file.replace(/\.json$/u, '')}`) {
-    errors.push(`隐藏箴言没有映射到对应 Hxx 页：${file}`)
+  if ((record.hidden === true) !== reviewed.has(file)) {
+    errors.push(`hidden 状态与普通记录复核清单不一致：${file}`)
   }
 }
-const ordinaryPages = new Map(pages.filter((page) => !page.hidden).map((page) => [page.page, page]))
-const hiddenPages = pages.filter((page) => page.hidden)
+
+const publicPages = new Map(
+  pages.filter((page) => page.hidden !== true).map((page) => [String(page.page), page]),
+)
+const hiddenPages = pages.filter((page) => page.hidden === true)
+for (const page of pages) {
+  if ('privacyMasks' in page) errors.push(`仍存在已废弃的遮罩坐标：${page.page}`)
+}
 for (const hiddenPage of hiddenPages) {
   const sourcePage = String(hiddenPage.sourceImage || '').trim()
-  const ordinary = ordinaryPages.get(sourcePage)
-  if (!ordinary) errors.push(`Hxx 页缺少对应普通页：${hiddenPage.page}`)
-  if (!Array.isArray(ordinary?.privacyMasks) || !ordinary.privacyMasks.length) {
-    errors.push(`普通页缺少隐私遮罩：${sourcePage || hiddenPage.page}`)
+  if (!/^H\d+$/u.test(String(hiddenPage.page))) errors.push(`隐藏页编号不是 Hxx：${hiddenPage.page}`)
+  if (!publicPages.has(sourcePage)) errors.push(`Hxx 页缺少对应普通页：${hiddenPage.page}`)
+  if (!rangeFiles(hiddenPage).some((file) => reviewed.has(file))) {
+    errors.push(`Hxx 页没有任何普通隐藏记录：${hiddenPage.page}`)
   }
   const sourceImage = path.join(root, 'private-assets/record-pages', `${sourcePage}.jpeg`)
   try {
@@ -216,36 +127,27 @@ for (const hiddenPage of hiddenPages) {
     errors.push(`Hxx 页的无损源扫描不存在：${sourceImage}`)
   }
 }
-for (const file of reviewedMessages) {
-  const sourcePage = file.replace(/\.json$/u, '')
-  const ordinary = ordinaryPages.get(sourcePage)
-  const hasMessageMask = ordinary?.privacyMasks?.some(
-    (mask) => mask.x === 53 && mask.y === 12 && mask.width === 40 && mask.height === 11,
-  )
-  if (!hasMessageMask) errors.push(`隐藏箴言的普通扫描页缺少页首遮罩：${file}`)
-  const hiddenPage = hiddenPages.find((page) => page.page === `H${sourcePage}`)
-  if (!hiddenPage || hiddenPage.sourceImage !== sourcePage) {
-    errors.push(`隐藏箴言缺少对应 Hxx 无遮罩页：${file}`)
-  }
-}
 for (const file of reviewed) {
-  if (
-    !hiddenPages.some((page) => {
-      const start = positions.get(page.start)
-      const end = positions.get(page.end)
-      const index = positions.get(file)
-      return start !== undefined && end !== undefined && index >= Math.min(start, end) && index <= Math.max(start, end)
-    }) &&
-    file !== '2026-02-04-04.json'
-  ) {
+  if (digitalOnlyHiddenRecords.has(file)) continue
+  if (!hiddenPages.some((page) => rangeFiles(page).includes(file))) {
     errors.push(`隐藏记录没有对应 Hxx 扫描页：${file}`)
   }
 }
-const supplement = JSON.parse(
-  await fs.readFile(path.join(contentRoot, 'page-supplements/40-03.json'), 'utf8'),
-)
-if (supplement.hidden !== true || supplement.page !== 'H40') {
-  errors.push('第 40 页定向羞辱补录必须隐藏并映射到 H40。')
+for (const file of digitalOnlyHiddenRecords) {
+  if (!reviewed.has(file)) errors.push(`无扫描隐藏记录未纳入复核清单：${file}`)
+}
+
+for (const file of (await fs.readdir(messageRoot)).filter((item) => /^\d{2}\.json$/u.test(item))) {
+  const message = JSON.parse(await fs.readFile(path.join(messageRoot, file), 'utf8'))
+  if (message.hidden === true || /^H\d+$/u.test(String(message.page || ''))) {
+    errors.push(`箴言不得进入隐藏分区：${file}`)
+  }
+}
+for (const file of (await fs.readdir(supplementRoot)).filter((item) => /^\d+-\d+\.json$/u.test(item))) {
+  const supplement = JSON.parse(await fs.readFile(path.join(supplementRoot, file), 'utf8'))
+  if (supplement.hidden === true || /^H\d+$/u.test(String(supplement.page || ''))) {
+    errors.push(`补充记录不得进入隐藏分区：${file}`)
+  }
 }
 
 if (errors.length) {
@@ -253,6 +155,6 @@ if (errors.length) {
   process.exitCode = 1
 } else {
   console.log(
-    `Privacy audit passed: ${reviewed.size} records, ${reviewedMessages.size} messages, 1 supplement, ${hiddenPages.length} protected scan pages.`,
+    `Privacy audit passed: ${reviewed.size} ordinary hidden records, ${hiddenPages.length} protected Hxx scan pages, ${digitalOnlyHiddenRecords.size} digital-only hidden record, and no privacy masks.`,
   )
 }

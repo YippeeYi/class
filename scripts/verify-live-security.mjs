@@ -70,21 +70,6 @@ const resolveSignedTarget = (signedUrl) => {
     return new URL(normalizedPath, url).href;
 };
 
-const findAuthorizedOrdinaryAsset = async (token) => {
-    if (assetArgument) return knownAsset;
-    const prefix = 'images/record-pages';
-    const response = await request(`/storage/v1/object/list/${encodeURIComponent(bucket)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prefix, limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } })
-    }, token);
-    assert.equal(response.ok, true, `authorized token could not list ordinary Storage assets (HTTP ${response.status})`);
-    const entries = await response.json();
-    const object = entries.find((entry) => typeof entry?.name === 'string' && /\.[a-z0-9]{2,8}$/i.test(entry.name));
-    assert.ok(object, 'no ordinary record-page object was found; pass --asset=<real-storage-path> if this installation uses another path');
-    return `${prefix}/${object.name}`;
-};
-
 const listResponse = await request(`/storage/v1/object/list/${encodeURIComponent(bucket)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -163,29 +148,40 @@ if (accessToken) {
     }, accessToken);
     assert.equal(recordResponse.ok, true, 'authorized token could not query ordinary records');
 
-    const ordinaryAsset = await findAuthorizedOrdinaryAsset(accessToken);
-    const realUnauthorizedDownload = await authenticatedObjectRequest(ordinaryAsset);
+    const writtenPageResponse = await request('/rest/v1/class_record_pages?select=page&limit=1', {
+        headers: { Accept: 'application/json' }
+    }, accessToken);
+    assert.equal(writtenPageResponse.ok, true, 'written-page permission query failed');
+    const writtenPageRows = await writtenPageResponse.json();
+    if (isAdmin) assert.ok(writtenPageRows.length > 0, 'admin token could not read written-page metadata');
+    else assert.deepEqual(writtenPageRows, [], 'normal token can read administrator-only written-page metadata');
+
+    const selectedAsset = knownAsset;
+    const selectedAssetNeedsAdmin = selectedAsset.startsWith('images/record-pages/') || selectedAsset.startsWith('hidden/') || selectedAsset.startsWith('images/quiz/');
+    const selectedAssetAllowed = !selectedAssetNeedsAdmin || isAdmin;
+    const realUnauthorizedDownload = await authenticatedObjectRequest(selectedAsset);
     assert.equal(
         realUnauthorizedDownload.ok,
         false,
         `FAIL: unauthenticated anon can download a confirmed existing ordinary asset (HTTP ${realUnauthorizedDownload.status})`
     );
 
-    const directDownload = await authenticatedObjectRequest(ordinaryAsset, accessToken);
-    assert.equal(directDownload.ok, true, `authorized token could not download the selected ordinary asset directly (HTTP ${directDownload.status})`);
+    const directDownload = await authenticatedObjectRequest(selectedAsset, accessToken);
+    assert.equal(directDownload.ok, selectedAssetAllowed, `${isAdmin ? 'admin' : 'normal'} token received an incorrect direct-download decision for ${selectedAsset} (HTTP ${directDownload.status})`);
 
-    const realUnauthorizedSign = await signObject('', 60, ordinaryAsset);
+    const realUnauthorizedSign = await signObject('', 60, selectedAsset);
     assert.ok(!realUnauthorizedSign.response.ok || !realUnauthorizedSign.signedUrl, 'FAIL: unauthenticated anon can sign a confirmed existing ordinary asset');
 
-    const authorizedSign = await signObject(accessToken, 5, ordinaryAsset);
-    assert.equal(authorizedSign.response.ok, true, `authorized token could not sign the selected ordinary asset (HTTP ${authorizedSign.response.status})`);
-    assert.ok(authorizedSign.signedUrl, 'authorized signing returned no URL');
-    const signedTarget = resolveSignedTarget(authorizedSign.signedUrl);
-    const immediateDownload = await fetch(signedTarget, { redirect: 'follow', cache: 'no-store' });
-    assert.equal(immediateDownload.ok, true, `newly signed URL did not download immediately (HTTP ${immediateDownload.status})`);
-    await new Promise((resolve) => setTimeout(resolve, 6000));
-    const expiredDownload = await fetch(signedTarget, { redirect: 'follow', cache: 'no-store' });
-    assert.equal(expiredDownload.ok, false, `short-lived signed URL remained usable after expiry (HTTP ${expiredDownload.status})`);
+    const authorizedSign = await signObject(accessToken, 5, selectedAsset);
+    assert.equal(Boolean(authorizedSign.response.ok && authorizedSign.signedUrl), selectedAssetAllowed, `${isAdmin ? 'admin' : 'normal'} token received an incorrect signing decision for ${selectedAsset}`);
+    if (selectedAssetAllowed) {
+        const signedTarget = resolveSignedTarget(authorizedSign.signedUrl);
+        const immediateDownload = await fetch(signedTarget, { redirect: 'follow', cache: 'no-store' });
+        assert.equal(immediateDownload.ok, true, `newly signed URL did not download immediately (HTTP ${immediateDownload.status})`);
+        await new Promise((resolve) => setTimeout(resolve, 6000));
+        const expiredDownload = await fetch(signedTarget, { redirect: 'follow', cache: 'no-store' });
+        assert.equal(expiredDownload.ok, false, `short-lived signed URL remained usable after expiry (HTTP ${expiredDownload.status})`);
+    }
 
     const quizResponse = await request('/rest/v1/class_quiz_questions?select=id&limit=1', {
         headers: { Accept: 'application/json' }

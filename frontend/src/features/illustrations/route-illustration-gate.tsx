@@ -101,9 +101,7 @@ export function preloadRouteIllustrationDimensions(pathname: string) {
 export function RouteIllustrationGate({ children }: { children: ReactNode }) {
   const location = useLocation()
   const routeKey = location.pathname
-  const [settledKey, setSettledKey] = useState(() =>
-    settledRoutes.has(routeKey) ? routeKey : '',
-  )
+  const [settledKey, setSettledKey] = useState(() => (settledRoutes.has(routeKey) ? routeKey : ''))
 
   useEffect(() => {
     if (settledRoutes.has(routeKey)) {
@@ -111,10 +109,9 @@ export function RouteIllustrationGate({ children }: { children: ReactNode }) {
       return
     }
     let active = true
-    void preloadRouteIllustrationDimensions(location.pathname)
-      .then(() => {
-        if (active) setSettledKey(routeKey)
-      })
+    void preloadRouteIllustrationDimensions(location.pathname).then(() => {
+      if (active) setSettledKey(routeKey)
+    })
     return () => {
       active = false
     }

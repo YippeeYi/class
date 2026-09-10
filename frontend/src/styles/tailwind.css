@@ -1930,23 +1930,6 @@ body [data-slot="switch-thumb"] {
   filter: none;
 }
 
-.privacy-mask {
-  overflow: hidden;
-  border: 1px solid rgb(119 109 91 / 16%);
-  border-radius: clamp(2px, 0.22vw, 5px);
-  background:
-    repeating-linear-gradient(
-      176deg,
-      transparent 0 11px,
-      rgb(95 84 66 / 2.8%) 12px,
-      transparent 13px 23px
-    ),
-    linear-gradient(92deg, rgb(226 222 211 / 99%), rgb(218 214 203 / 99%));
-  box-shadow:
-    inset 0 0 1.1rem rgb(97 86 68 / 7%),
-    0 0 0.3rem rgb(76 67 54 / 10%);
-}
-
 .image-viewer-toolbar {
   border: 1px solid color-mix(in oklch, var(--border) 84%, transparent);
   background: color-mix(in oklch, var(--popover) 88%, transparent);

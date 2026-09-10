@@ -1,44 +1,10 @@
-import { loadPageMessages, loadPageSupplements, loadRecordPages } from '@/services/data'
-import type { PageMessage, PageSupplement, RecordPage } from '@/types/domain'
-
-export type WrittenAuxiliarySection = 'messages' | 'supplements'
+import { loadHiddenRecordPages } from '@/services/data'
+import type { RecordPage } from '@/types/domain'
 
 export type WrittenRecordData = {
   pages: RecordPage[]
-  messages: PageMessage[]
-  supplements: PageSupplement[]
-  failures: WrittenAuxiliarySection[]
 }
 
-export async function loadWrittenRecordData(hidden: boolean): Promise<WrittenRecordData> {
-  if (hidden) {
-    return {
-      pages: await loadRecordPages(true),
-      messages: [],
-      supplements: [],
-      failures: [],
-    }
-  }
-  const [pagesResult, messagesResult, supplementsResult] = await Promise.allSettled([
-    loadRecordPages(false),
-    loadPageMessages(),
-    loadPageSupplements(),
-  ])
-
-  if (pagesResult.status === 'rejected') throw pagesResult.reason
-
-  const failures: WrittenAuxiliarySection[] = []
-  if (messagesResult.status === 'rejected') failures.push('messages')
-  if (supplementsResult.status === 'rejected') failures.push('supplements')
-
-  return {
-    pages: pagesResult.value,
-    messages: messagesResult.status === 'fulfilled' ? messagesResult.value : [],
-    supplements: supplementsResult.status === 'fulfilled' ? supplementsResult.value : [],
-    failures,
-  }
-}
-
-export function writtenFailureLabel(section: WrittenAuxiliarySection) {
-  return section === 'messages' ? '页箴言' : '页补录'
+export async function loadWrittenRecordData(): Promise<WrittenRecordData> {
+  return { pages: await loadHiddenRecordPages() }
 }

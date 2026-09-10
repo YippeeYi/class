@@ -9,7 +9,6 @@ import type {
   PageMessage,
   PageSupplement,
   Person,
-  PrivacyMask,
   QuizQuestion,
   Quote,
   RecordItem,
@@ -57,28 +56,6 @@ function bool(value: unknown) {
 
 function stringList(value: unknown) {
   return Array.isArray(value) ? value.map(text).filter(Boolean) : []
-}
-
-function privacyMasks(value: unknown): PrivacyMask[] {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((item) => {
-    const raw = objectValue(item)
-    const mask = {
-      x: Number(raw.x),
-      y: Number(raw.y),
-      width: Number(raw.width),
-      height: Number(raw.height),
-    }
-    return Object.values(mask).every(Number.isFinite) &&
-      mask.x >= 0 &&
-      mask.y >= 0 &&
-      mask.width > 0 &&
-      mask.height > 0 &&
-      mask.x + mask.width <= 100 &&
-      mask.y + mask.height <= 100
-      ? [mask]
-      : []
-  })
 }
 
 function currentClient() {
@@ -261,16 +238,16 @@ export function loadQuizQuestions(force = false) {
   })
 }
 
-export function loadRecordPages(hidden = false) {
+export function loadHiddenRecordPages() {
   return loadCached<RecordPage[]>({
-    key: `record-pages:${hidden}`,
-    persistent: !hidden,
-    sessionTtl: hidden ? 0 : undefined,
+    key: 'record-pages:hidden',
+    persistent: false,
+    sessionTtl: 0,
     loader: async () => {
       const { data, error } = await currentClient()
         .from(supabaseConfig.tables.recordPages)
         .select('*')
-        .eq('hidden', hidden)
+        .eq('hidden', true)
         .order('sort_order', { ascending: true })
       if (error) throw error
       return ((data || []) as Row[]).map((row, index) => {
@@ -282,7 +259,6 @@ export function loadRecordPages(hidden = false) {
           endFile: text(row.end_file || raw.endFile || raw.end),
           imagePath: normalizePrivatePath(row.image_path || raw.imagePath || raw.image),
           hidden: bool(row.hidden ?? raw.hidden),
-          privacyMasks: privacyMasks(raw.privacyMasks),
         } as RecordPage
       })
     },
@@ -290,7 +266,9 @@ export function loadRecordPages(hidden = false) {
 }
 
 function publicWrittenPage(value: unknown) {
-  return text(value).trim().replace(/^H(?=\d+$)/u, '')
+  return text(value)
+    .trim()
+    .replace(/^H(?=\d+$)/u, '')
 }
 
 export function loadPageMessages(force = false) {
@@ -436,6 +414,7 @@ function isSensitivePath(path: string) {
   return (
     path === 'images/private/meal-map.png' ||
     path.startsWith('hidden/') ||
+    path.startsWith('images/record-pages/') ||
     path.startsWith('images/quiz/')
   )
 }

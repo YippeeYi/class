@@ -1,4 +1,4 @@
-import { AlertTriangle, Eye, FileImage, List, RotateCcw } from 'lucide-react'
+import { Eye, FileImage, List } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 
@@ -30,12 +30,11 @@ import { preloadMarkupIllustrationDimensions } from '@/features/illustrations/ro
 import { useContentPreferences } from '@/features/preferences/content-preferences'
 import { recordWithinPage as withinPage } from '@/features/records/record-page-mapping'
 import { useRecordJumpHighlight } from '@/features/records/use-record-jump-highlight'
-import { loadWrittenRecordData, writtenFailureLabel } from '@/features/records/written-record-data'
+import { loadWrittenRecordData } from '@/features/records/written-record-data'
 import { WrittenRecordPages } from '@/features/records/written-record-pages'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { normalizeRecordKey } from '@/lib/archive'
 import { recordAnchor } from '@/lib/markup'
-import { buildSupplementalRecords } from '@/lib/record-identity'
 import {
   beginRecordJump,
   completeRecordJump,
@@ -50,7 +49,7 @@ import {
   scrollTargetIntoView,
   waitForWindowScrollEnd,
 } from '@/lib/viewport-scroll'
-import { hasAdminAccess, loadRecordPages, loadRecords } from '@/services/data'
+import { hasAdminAccess, loadRecords } from '@/services/data'
 import type { RecordItem } from '@/types/domain'
 
 const recordViewItems = [
@@ -160,9 +159,7 @@ export function RecordsPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const [params] = useSearchParams()
-  const [view, setView] = useState<'list' | 'written'>(
-    params.get('view') === 'written' ? 'written' : 'list',
-  )
+  const [view, setView] = useState<'list' | 'written'>('list')
   const [criteria, setCriteria] = useState<RecordCriteria>(() => criteriaFromSearch(params))
   const [recordOrder, setRecordOrder] = useState<RecordOrder>('descending')
   const [hidden, setHidden] = useState(false)
@@ -171,18 +168,19 @@ export function RecordsPage() {
   const [pageIndex, setPageIndex] = useState(0)
   const replaceRouteState = useCallback(
     (nextView: 'list' | 'written', nextCriteria: RecordCriteria) => {
-      setView(nextView)
+      const permittedView = hidden ? nextView : 'list'
+      setView(permittedView)
       setCriteria(nextCriteria)
       navigate(
         {
           pathname: '/records',
-          search: recordsSearch(nextView, nextCriteria),
+          search: recordsSearch(permittedView, nextCriteria),
           hash: '',
         },
         { replace: true },
       )
     },
-    [navigate],
+    [hidden, navigate],
   )
   const pendingJump = useRef<PendingRecordJump | null>(null)
   const initialJumpCaptured = useRef(false)
@@ -202,8 +200,8 @@ export function RecordsPage() {
     fadeHighlight: fadeJumpHighlight,
   } = useRecordJumpHighlight()
   const written = useAsyncData(async () => {
-    if (view !== 'written') return null
-    return loadWrittenRecordData(hidden)
+    if (!hidden || view !== 'written') return null
+    return loadWrittenRecordData()
   }, [hidden, view])
 
   useLayoutEffect(() => {
@@ -218,11 +216,19 @@ export function RecordsPage() {
     setJumpRevision((value) => value + 1)
   }, [location.hash])
   useEffect(() => {
-    const nextView = params.get('view') === 'written' ? 'written' : 'list'
+    const nextView = hidden && params.get('view') === 'written' ? 'written' : 'list'
     const nextCriteria = criteriaFromSearch(params)
     setView((current) => (current === nextView ? current : nextView))
     setCriteria((current) => (sameCriteria(current, nextCriteria) ? current : nextCriteria))
-  }, [params])
+    if (!hidden && params.has('view')) {
+      const nextParams = new URLSearchParams(params)
+      nextParams.delete('view')
+      navigate(
+        { pathname: '/records', search: nextParams.toString() ? `?${nextParams}` : '', hash: '' },
+        { replace: true },
+      )
+    }
+  }, [hidden, navigate, params])
   useEffect(() => {
     if (observedLocationKey.current === location.key) return
     observedLocationKey.current = location.key
@@ -253,33 +259,22 @@ export function RecordsPage() {
       try {
         setHiddenError('')
         if (!(await hasAdminAccess())) return
-        const [nextHiddenRecords] = await Promise.all([
-          loadRecords({ hidden: true }),
-          view === 'written' ? loadRecordPages(true) : Promise.resolve([]),
-        ])
+        const nextHiddenRecords = await loadRecords({ hidden: true })
         await preloadMarkupIllustrationDimensions(nextHiddenRecords.map((record) => record.content))
         setHiddenRecords(nextHiddenRecords)
         setHidden(true)
         setHiddenError('')
-        replaceRouteState(view, EMPTY_RECORD_CRITERIA)
+        replaceRouteState('list', EMPTY_RECORD_CRITERIA)
       } catch {
         setHiddenError('隐藏记录暂时无法加载，请稍后重试。')
       }
     }
     window.addEventListener('keydown', listener)
     return () => window.removeEventListener('keydown', listener)
-  }, [replaceRouteState, view])
+  }, [replaceRouteState])
 
   const records = hidden ? hiddenRecords : recordsResource.data || []
-  const extras = useMemo(
-    () =>
-      written.data ? buildSupplementalRecords(written.data.messages, written.data.supplements) : [],
-    [written.data],
-  )
-  const sources = useMemo(
-    () => (view === 'written' ? [...records, ...extras] : records),
-    [extras, records, view],
-  )
+  const sources = records
   const matched = useMemo(
     () => filterRecords(sources, criteria, hideProfanity),
     [criteria, hideProfanity, sources],
@@ -408,7 +403,7 @@ export function RecordsPage() {
     const target = document.getElementById(pending.targetAnchorId)
     if (!target) {
       if (view === 'written' && written.data) {
-        const targetRecord = [...records, ...extras].find(
+        const targetRecord = records.find(
           (record) => recordAnchor(record) === pending.targetAnchorId,
         )
         if (targetRecord) {
@@ -456,7 +451,6 @@ export function RecordsPage() {
     }
   }, [
     beginJumpHighlight,
-    extras,
     filtered,
     jumpRevision,
     loading,
@@ -518,17 +512,21 @@ export function RecordsPage() {
     <div>
       <PageHeading
         title="记录"
-        description="按日期、关键词与重要程度浏览班级共同经历；列表与原始手写页可以随时切换。"
+        description="按日期、关键词与重要程度浏览班级共同经历。"
         actions={
-          <RecordViewControls
-            view={view}
-            recordOrder={recordOrder}
-            onViewChange={(value) => {
-              replaceRouteState(value, criteria)
-              setPageIndex(0)
-            }}
-            onRecordOrderChange={setRecordOrder}
-          />
+          hidden ? (
+            <RecordViewControls
+              view={view}
+              recordOrder={recordOrder}
+              onViewChange={(value) => {
+                replaceRouteState(value, criteria)
+                setPageIndex(0)
+              }}
+              onRecordOrderChange={setRecordOrder}
+            />
+          ) : (
+            <RecordOrderToggle value={recordOrder} onValueChange={setRecordOrder} />
+          )
         }
       />
       {hidden && (
@@ -537,7 +535,16 @@ export function RecordsPage() {
           <AlertTitle>隐藏记录模式</AlertTitle>
           <AlertDescription className="flex items-center justify-between gap-3">
             仅本次会话可见，刷新后恢复普通记录。
-            <Button size="xs" variant="outline" onClick={() => setHidden(false)}>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => {
+                setHidden(false)
+                setHiddenRecords([])
+                replaceRouteState('list', criteria)
+                setPageIndex(0)
+              }}
+            >
               退出
             </Button>
           </AlertDescription>
@@ -578,7 +585,8 @@ export function RecordsPage() {
                 key={record.fileName || record.id}
                 record={record}
                 onRecordReference={navigateToRecord}
-                onSourceAction={navigateToWrittenSource}
+                onSourceAction={hidden ? navigateToWrittenSource : undefined}
+                showSourceAction={hidden}
               />
             ))
           ) : (
@@ -594,36 +602,16 @@ export function RecordsPage() {
         ) : written.error || !written.data ? (
           <ErrorState title="书面记录加载失败" onRetry={written.retry} />
         ) : (
-          <>
-            {written.data.failures.length > 0 && (
-              <Alert className="mb-5">
-                <AlertTriangle />
-                <AlertTitle>部分辅助内容暂未加载</AlertTitle>
-                <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-                  <span>
-                    {written.data.failures.map(writtenFailureLabel).join('、')}
-                    当前不可用，书面页和已加载内容仍可继续浏览。
-                  </span>
-                  <Button size="xs" variant="outline" onClick={written.retry}>
-                    <RotateCcw data-icon="inline-start" />
-                    重试缺失内容
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            )}
-            <WrittenRecordPages
-              pages={written.data.pages}
-              records={records}
-              matched={matched}
-              messages={written.data.messages}
-              supplements={written.data.supplements}
-              activeFilter={activeFilter}
-              pageIndex={pageIndex}
-              hidden={hidden}
-              onPageChange={setPageIndex}
-              onRecordReference={navigateToRecord}
-            />
-          </>
+          <WrittenRecordPages
+            pages={written.data.pages}
+            records={records}
+            matched={matched}
+            activeFilter={activeFilter}
+            pageIndex={pageIndex}
+            hidden={hidden}
+            onPageChange={setPageIndex}
+            onRecordReference={navigateToRecord}
+          />
         ))}
       <AlertDialog
         open={jumpDialogOpen}

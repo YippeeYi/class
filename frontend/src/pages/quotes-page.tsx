@@ -75,11 +75,11 @@ export function QuotesPage() {
       {resource.data && (
         <div className="grid items-start gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow) sm:grid-cols-2">
           {quotes.map((quote) => {
-            const { anchor, source, sources } = quoteRecordTarget(
+            const { anchor, href, source, sources } = quoteRecordTarget(
               quote,
               resource.data?.records || [],
             )
-            const target = anchor ? `/records?view=written#${anchor}` : `/quotes#quote-${quote.id}`
+            const target = href || `/quotes#quote-${quote.id}`
             return (
               <Link
                 id={`quote-${quote.id}`}

@@ -10,7 +10,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import { PrivacyMaskLayer } from '@/components/archive/privacy-mask-layer'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -28,7 +27,6 @@ import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { type ImageDimensions, validImageDimensions } from '@/lib/image-metadata'
 import { getImageDimensions, rememberImageDimensions } from '@/services/image-metadata'
-import type { PrivacyMask } from '@/types/domain'
 
 const MIN_SCALE = 1
 const MAX_SCALE = 8
@@ -134,14 +132,12 @@ export function ImageViewer({
   trigger,
   initialUrl = '',
   initialDimensions,
-  privacyMasks = [],
 }: {
   path: string
   alt: string
   trigger: ReactElement
   initialUrl?: string
   initialDimensions?: ImageDimensions | null
-  privacyMasks?: PrivacyMask[]
 }) {
   const [open, setOpen] = useState(false)
   const [scrollLockActive, setScrollLockActive] = useState(false)
@@ -580,7 +576,6 @@ export function ImageViewer({
                 }}
                 className="image-viewer-image absolute inset-0 size-full object-contain"
               />
-              <PrivacyMaskLayer masks={privacyMasks} />
             </div>
           )}
           {originalUnavailable && src && (

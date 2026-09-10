@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 
 import { EmptyState } from '@/components/archive/async-state'
 import { ImageViewer } from '@/components/archive/image-viewer'
-import { PrivacyMaskLayer } from '@/components/archive/privacy-mask-layer'
 import { RecordCard } from '@/components/archive/record-card'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -17,17 +16,14 @@ import { Spinner } from '@/components/ui/spinner'
 import { recordWithinPage } from '@/features/records/record-page-mapping'
 import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
-import { buildSupplementalRecords } from '@/lib/record-identity'
 import { compareRecordNumber, orderRecords } from '@/lib/record-order'
 import { rememberImageDimensions, useImageDimensions } from '@/services/image-metadata'
-import type { PageMessage, PageSupplement, RecordItem, RecordPage } from '@/types/domain'
+import type { RecordItem, RecordPage } from '@/types/domain'
 
 export function WrittenRecordPages({
   pages,
   records,
   matched,
-  messages,
-  supplements,
   activeFilter,
   pageIndex,
   hidden,
@@ -37,8 +33,6 @@ export function WrittenRecordPages({
   pages: RecordPage[]
   records: RecordItem[]
   matched: RecordItem[]
-  messages: PageMessage[]
-  supplements: PageSupplement[]
   activeFilter: boolean
   pageIndex: number
   hidden: boolean
@@ -47,11 +41,7 @@ export function WrittenRecordPages({
 }) {
   const visiblePages = pages.filter((page) => {
     if (!activeFilter) return Boolean(page.imagePath)
-    return matched.some((record) =>
-      record.recordType
-        ? String(record.page) === page.page
-        : recordWithinPage(page, record, records),
-    )
+    return matched.some((record) => recordWithinPage(page, record, records))
   })
   const safeIndex = Math.max(0, Math.min(pageIndex, Math.max(0, visiblePages.length - 1)))
   const page = visiblePages[safeIndex]
@@ -63,14 +53,6 @@ export function WrittenRecordPages({
     'ascending',
     compareRecordNumber,
   )
-  const pageMessage = hidden ? undefined : messages.find((item) => item.page === page.page)
-  const pageSupplements = (hidden ? [] : supplements)
-    .filter((item) => item.page === page.page)
-    .sort(
-      (left, right) =>
-        left.supplementIndex - right.supplementIndex ||
-        left.id.localeCompare(right.id, 'zh-CN', { numeric: true }),
-    )
   const previousPath = visiblePages[safeIndex - 1]?.imagePath || ''
   const nextPath = visiblePages[safeIndex + 1]?.imagePath || ''
 
@@ -131,43 +113,9 @@ export function WrittenRecordPages({
               path={page.imagePath}
               page={page.page}
               hidden={hidden}
-              privacyMasks={hidden ? [] : page.privacyMasks || []}
             />
           </div>
           <div className="grid content-start gap-4">
-            {pageMessage &&
-              (!activeFilter ||
-                matched.some((item) => item.recordType === 'message' && item.page === page.page)) &&
-              buildSupplementalRecords([pageMessage], []).map((record) => (
-                <RecordCard
-                  key={record.id}
-                  record={record}
-                  onRecordReference={onRecordReference}
-                  showSourceAction={false}
-                />
-              ))}
-            {pageSupplements
-              .filter(
-                (item) =>
-                  !activeFilter ||
-                  matched.some(
-                    (record) =>
-                      record.recordType === 'supplement' &&
-                      record.page === item.page &&
-                      record.supplementIndex === item.supplementIndex,
-                  ),
-              )
-              .map((item) => {
-                const [record] = buildSupplementalRecords([], [item])
-                return record ? (
-                  <RecordCard
-                    key={item.id}
-                    record={record}
-                    onRecordReference={onRecordReference}
-                    showSourceAction={false}
-                  />
-                ) : null
-              })}
             {pageRecords.map((record) => (
               <RecordCard
                 key={record.fileName || record.id}
@@ -176,9 +124,7 @@ export function WrittenRecordPages({
                 showSourceAction={false}
               />
             ))}
-            {!pageMessage && !pageSupplements.length && !pageRecords.length && (
-              <EmptyState title="这张书面页没有对应的文字记录" />
-            )}
+            {!pageRecords.length && <EmptyState title="这张书面页没有对应的文字记录" />}
           </div>
         </div>
       </CardContent>
@@ -186,17 +132,7 @@ export function WrittenRecordPages({
   )
 }
 
-function SignedPageImage({
-  path,
-  page,
-  hidden,
-  privacyMasks,
-}: {
-  path: string
-  page: string
-  hidden: boolean
-  privacyMasks: RecordPage['privacyMasks']
-}) {
+function SignedPageImage({ path, page, hidden }: { path: string; page: string; hidden: boolean }) {
   const image = useSignedAsset(path, { variant: 'preview', width: 1200 })
   const imageFailure = useBoundedImageRetry(path, image.retry)
   const dimensions = useImageDimensions(path, true, 1200) || { width: 2856, height: 4282 }
@@ -258,7 +194,6 @@ function SignedPageImage({
           className={`absolute inset-0 size-full object-contain transition-opacity duration-(--interaction-duration-slow) ${ready && !imageFailure.failed ? 'opacity-100' : 'opacity-0'}`}
         />
       )}
-      {image.src && ready && !imageFailure.failed && <PrivacyMaskLayer masks={privacyMasks} />}
     </div>
   )
   if (!ready || imageFailure.failed || !image.src) return preview
@@ -267,7 +202,6 @@ function SignedPageImage({
       path={path}
       initialUrl={image.src}
       initialDimensions={dimensions}
-      privacyMasks={privacyMasks}
       alt={`${hidden ? '隐藏' : '手写'}记录第 ${page} 页`}
       trigger={
         <Button

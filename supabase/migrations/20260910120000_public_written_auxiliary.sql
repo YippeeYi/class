@@ -9,7 +9,7 @@ begin
         select 1
         from public.class_page_messages hidden_message
         join public.class_page_messages public_message
-          on public_message.page = regexp_replace(hidden_message.page, '^H(?=[0-9]+$)', '')
+          on public_message.page = substring(hidden_message.page from 2)
          and public_message.id <> hidden_message.id
         where hidden_message.page ~ '^H[0-9]+$'
     ) then
@@ -20,20 +20,20 @@ $$;
 
 update public.class_page_messages
 set
-    page = regexp_replace(page, '^H(?=[0-9]+$)', ''),
+    page = case when page ~ '^H[0-9]+$' then substring(page from 2) else page end,
     hidden = false,
     raw = case
-        when raw ? 'page' then jsonb_set(raw - 'hidden', '{page}', to_jsonb(regexp_replace(page, '^H(?=[0-9]+$)', '')), true)
+        when raw ? 'page' then jsonb_set(raw - 'hidden', '{page}', to_jsonb(case when page ~ '^H[0-9]+$' then substring(page from 2) else page end), true)
         else raw - 'hidden'
     end
 where hidden = true or page ~ '^H[0-9]+$' or raw ->> 'hidden' = 'true';
 
 update public.class_page_supplements
 set
-    page = regexp_replace(page, '^H(?=[0-9]+$)', ''),
+    page = case when page ~ '^H[0-9]+$' then substring(page from 2) else page end,
     hidden = false,
     raw = case
-        when raw ? 'page' then jsonb_set(raw - 'hidden', '{page}', to_jsonb(regexp_replace(page, '^H(?=[0-9]+$)', '')), true)
+        when raw ? 'page' then jsonb_set(raw - 'hidden', '{page}', to_jsonb(case when page ~ '^H[0-9]+$' then substring(page from 2) else page end), true)
         else raw - 'hidden'
     end
 where hidden = true or page ~ '^H[0-9]+$' or raw ->> 'hidden' = 'true';

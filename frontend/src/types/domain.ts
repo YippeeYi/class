@@ -69,20 +69,12 @@ export type CreditsPage = {
   updatedAt: string
 }
 
-export type PrivacyMask = {
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
 export type RecordPage = {
   page: string
   startFile: string
   endFile: string
   imagePath: string
   hidden: boolean
-  privacyMasks?: PrivacyMask[]
   [key: string]: unknown
 }
 

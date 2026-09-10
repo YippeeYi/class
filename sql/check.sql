@@ -8,9 +8,9 @@ content_tables(table_schema, table_name, has_hidden_column, admin_only) as (
     values
         ('public', 'class_records', true, false),
         ('public', 'class_people', false, false),
-        ('public', 'class_record_pages', true, false),
+        ('public', 'class_record_pages', true, true),
         ('public', 'class_page_messages', false, false),
-        ('public', 'class_page_supplements', true, false),
+        ('public', 'class_page_supplements', false, false),
         ('public', 'class_materials', false, false),
         ('public', 'class_quiz_questions', false, true),
         ('public', 'class_credits_page', false, false),
@@ -387,6 +387,7 @@ union all
 select
     'content.hidden_admin_policy.' || table_name,
     case
+        when admin_only and has_admin_policy then 'PASS'
         when not has_hidden_column then 'PASS'
         when hidden_admin_policy then 'PASS'
         else 'FAIL'

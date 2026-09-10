@@ -1,6 +1,6 @@
 import { BookOpenText, CalendarDays, Clock, Paperclip, UserRound } from 'lucide-react'
 import { memo, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link } from 'react-router'
 import { textLinkClassName } from '@/components/archive/interaction'
 import { MarkupContent } from '@/components/archive/markup-content'
 import { Badge } from '@/components/ui/badge'
@@ -10,8 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { recordAnchor } from '@/lib/markup'
-import { recordDisplayNumber, recordWrittenHref } from '@/lib/record-identity'
-import { isModifiedRecordClick, prepareRecordJump, recordClientHref } from '@/lib/record-navigation'
+import { recordDisplayNumber } from '@/lib/record-identity'
 import { signAssetUrl } from '@/services/data'
 import type { Attachment, RecordItem } from '@/types/domain'
 
@@ -56,14 +55,13 @@ export const RecordCard = memo(function RecordCard({
   record,
   onRecordReference,
   onSourceAction,
-  showSourceAction = true,
+  showSourceAction = false,
 }: {
   record: RecordItem
   onRecordReference?: (recordId: string, source: HTMLElement) => void
   onSourceAction?: (record: RecordItem, source: HTMLElement) => void
   showSourceAction?: boolean
 }) {
-  const navigate = useNavigate()
   const typeLabel =
     record.recordType === 'message' ? '箴言' : record.recordType === 'supplement' ? '补充' : ''
   const anchor = recordAnchor(record)
@@ -114,39 +112,18 @@ export const RecordCard = memo(function RecordCard({
                     }
                   />
                 )}
-                {showSourceAction && (
+                {showSourceAction && onSourceAction && (
                   <Tooltip>
                     <TooltipTrigger
                       render={
-                        onSourceAction ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={`在书面记录中查看${recordDisplayNumber(record)}`}
-                            className="record-source-action text-muted-foreground"
-                            onClick={(event) => onSourceAction(record, event.currentTarget)}
-                          />
-                        ) : (
-                          <Button
-                            nativeButton={false}
-                            render={
-                              <Link
-                                to={recordWrittenHref(record)}
-                                onClick={(event) => {
-                                  prepareRecordJump(anchor)
-                                  if (isModifiedRecordClick(event)) return
-                                  event.preventDefault()
-                                  navigate(recordClientHref(recordWrittenHref(record)))
-                                }}
-                              />
-                            }
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={`在书面记录中查看${recordDisplayNumber(record)}`}
-                            className="record-source-action text-muted-foreground"
-                          />
-                        )
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`在书面记录中查看${recordDisplayNumber(record)}`}
+                          className="record-source-action text-muted-foreground"
+                          onClick={(event) => onSourceAction(record, event.currentTarget)}
+                        />
                       }
                     >
                       <BookOpenText className="size-4" />
