@@ -2,6 +2,8 @@
 
 箴言文件存放在 `private-assets/content/messages/`，每页使用独立 JSON 文件，文件名必须与书面记录页码一致。例如 `private-assets/content/messages/01.json`：
 
+JSON 不填写 `page`。箴言 `01.json` 的页码为 `01`；补充记录 `01-02.json` 的页码为 `01`、序号为 `2`。导入器从文件名生成数据库的 `page` 列，正文中的字段不能覆盖页码。
+
 ```json
 {
   "content": "写给这一页的箴言。",

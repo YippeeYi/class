@@ -158,6 +158,9 @@ export function auditPublication({ tables, storageAssets, missingAssets = [] }) 
       add('warning', 'page.unmapped-content', `页 ${page} 有箴言或补充，但不在书面页清单中。`)
     }
     const kind = messages.includes(row) ? '箴言' : '补充'
+    if (row.raw && Object.hasOwn(row.raw, 'page')) {
+      add('error', 'page-content.redundant-page', `${kind} JSON 不应包含 page 字段，页码由文件名生成：${page}`)
+    }
     if ((row.hidden === true) !== (row.raw?.hidden === true)) {
       add('error', 'page-content.hidden', `${kind} hidden 列与源数据不一致：${page}`)
     }

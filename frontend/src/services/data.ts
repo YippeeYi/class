@@ -276,7 +276,7 @@ export function loadPageMessages({ force = false, hidden = false } = {}) {
         .map((row) => {
           const raw = objectValue(row.raw)
           return {
-            page: text(row.page ?? raw.page),
+            page: text(row.page),
             hidden: bool(row.hidden),
             content: text(row.content || raw.content || raw.text),
             author: text(row.author || raw.author || raw.recorder),
@@ -304,7 +304,7 @@ export function loadPageSupplements({ force = false, hidden = false } = {}) {
       return ((data || []) as Row[])
         .map((row, index) => {
           const raw = objectValue(row.raw)
-          const page = text(row.page ?? raw.page)
+          const page = text(row.page)
           const supplementIndex = Number(row.supplement_index ?? raw.supplementIndex ?? index + 1)
           return {
             id: text(row.file_name || raw.id || `supplement-${page}-${supplementIndex}`),

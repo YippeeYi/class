@@ -82,6 +82,11 @@ for (const table of ['class_records', 'class_page_messages', 'class_page_supplem
   const tables = new Map(goodTables)
   tables.set(table, { ...goodTables.get(table), rows })
   assert.equal(auditPublication({ tables, storageAssets }).ok, true, `${table} supports hidden annotations`)
+  if (table !== 'class_records') {
+    rows[0].raw.page = '99'
+    assert.ok(auditPublication({ tables, storageAssets }).errors.some((item) => item.code === 'page-content.redundant-page'))
+    delete rows[0].raw.page
+  }
   rows[0].raw.annotation = 42
   assert.ok(auditPublication({ tables, storageAssets }).errors.some((item) => item.code === 'record.annotation-type'))
   rows[0].raw.annotation = null
@@ -199,6 +204,13 @@ assert.match(
   'the publisher must preserve hidden auxiliary records and protect their annotation assets',
 )
 assert.doesNotMatch(messageImporter, /delete recordRaw\.hidden/, 'auxiliary hidden flags must never be discarded')
+assert.match(messageImporter, /sourcePage = fileBaseNameWithoutExt\(file\)/, 'message pages must come from filenames')
+const supplementImporter = adminSource.slice(adminSource.indexOf('const importPageSupplements'), adminSource.indexOf('const importMaterials'))
+assert.match(supplementImporter, /parsePageSupplementFileName\(file\)/)
+assert.match(supplementImporter, /page: parsed\.page/, 'supplement pages must come from filenames')
+assert.doesNotMatch(messageImporter + supplementImporter, /raw\.page/, 'source JSON must not override filename pages')
+const auxiliaryLoaders = dataSource.slice(dataSource.indexOf('export function loadPageMessages'), dataSource.indexOf('export async function loadSupplementalRecords'))
+assert.doesNotMatch(auxiliaryLoaders, /raw\.page/, 'readers must use the filename-derived database page column')
 assert.match(adminSource, /storageIncluded: true/, 'publication snapshots must include binary Storage content')
 assert.match(adminSource, /downloadStorageObject/, 'publication must download old Storage before mutation')
 assert.match(adminRuntimeSource, /rollback --snapshot TIMESTAMP --confirm-rollback/)

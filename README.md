@@ -317,7 +317,7 @@ private-assets/
 └─ meal-map/map.png                 # 地图原图；也兼容单独的 map.PNG
 ```
 
-页补充文件名必须是 `页面-编号.json`；上传脚本以文件名解析页码与排序。资料 ID 默认使用文件名去掉 `.json` 的部分，也可在 JSON 中提供业务 `id`；`sortOrder` 控制排序。详细页箴言格式见 [书面记录页箴言](docs/page-messages.md)，地图操作见 [地图部署说明](docs/meal-map-operation.md)。
+箴言文件名为 `页码.json`，页补充文件名必须是 `页码-编号.json`。两类 JSON 均不填写 `page`；导入器只从文件名解析页码与补充序号，并生成数据库对应列。资料 ID 默认使用文件名去掉 `.json` 的部分，也可在 JSON 中提供业务 `id`；`sortOrder` 控制排序。详细页箴言格式见 [书面记录页箴言](docs/page-messages.md)，地图操作见 [地图部署说明](docs/meal-map-operation.md)。
 
 ### 内容治理、发布与清理
 
