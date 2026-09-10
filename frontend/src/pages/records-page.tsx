@@ -675,9 +675,7 @@ export function RecordsPage() {
             <AlertDialogCancel onClick={() => fadeJumpHighlight(jumpFocusTarget.current)}>
               留在此处
             </AlertDialogCancel>
-            <AlertDialogAction onClick={returnToOrigin}>
-              返回
-            </AlertDialogAction>
+            <AlertDialogAction onClick={returnToOrigin}>返回</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
