@@ -675,7 +675,13 @@ export function RecordsPage() {
             <AlertDialogCancel onClick={() => fadeJumpHighlight(jumpFocusTarget.current)}>
               留在此处
             </AlertDialogCancel>
+<<<<<<< HEAD
             <AlertDialogAction onClick={returnToOrigin}>返回</AlertDialogAction>
+=======
+            <AlertDialogAction onClick={returnToOrigin}>
+              {jumpOrigin ? '返回原位置' : '返回上一页'}
+            </AlertDialogAction>
+>>>>>>> parent of ccf0aec (Update records-page.tsx)
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
