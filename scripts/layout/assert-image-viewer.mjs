@@ -1,17 +1,24 @@
 import assert from 'node:assert/strict'
 
-export async function assertFullscreenImageViewer(page, label) {
+export async function assertFullscreenImageViewer(page, label, { afterOpen } = {}) {
   const trigger = page.getByRole('button', { name: '打开全视口测试图片' })
   await trigger.scrollIntoViewIfNeeded()
   await page.evaluate(
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   )
-  const scrollBeforeOpen = await page.evaluate(() => window.scrollY)
+  const before = await page.evaluate(() => ({
+    scrollY: window.scrollY,
+    height: document.body.scrollHeight,
+    htmlAnchor: document.documentElement.style.overflowAnchor,
+    bodyAnchor: document.body.style.overflowAnchor,
+  }))
+  const scrollBeforeOpen = before.scrollY
   await trigger.click()
   const dialog = page.locator('.image-viewer-dialog[data-slot="dialog-content"]')
   await dialog.waitFor({ state: 'visible' })
   await dialog.locator('img[alt="全视口测试图片"]').waitFor({ state: 'visible' })
   await page.waitForFunction(() => document.querySelector('img[alt="全视口测试图片"]')?.naturalWidth > 0)
+  await afterOpen?.()
   const geometry = await page.evaluate(() => {
     const content = document.querySelector('.image-viewer-dialog[data-slot="dialog-content"]')
     const overlay = document.querySelector('[data-slot="dialog-overlay"]')
@@ -77,6 +84,7 @@ export async function assertFullscreenImageViewer(page, label) {
         ? toolbar.scrollWidth - toolbar.clientWidth
         : Number.POSITIVE_INFINITY,
       scrollY: window.scrollY,
+      height: document.body.scrollHeight,
     }
   })
   assert.equal(geometry.position, 'fixed', `${label} image viewer must be viewport-fixed`)
@@ -129,10 +137,14 @@ export async function assertFullscreenImageViewer(page, label) {
   assert.ok(geometry.toolbarOverflow <= 1, `${label} image toolbar must not overflow: ${JSON.stringify(geometry)}`)
   assert.ok(
     Math.abs(geometry.scrollY - scrollBeforeOpen) <= 1,
-    `${label} opening the viewer must not move the page: ${JSON.stringify({ scrollBeforeOpen, scrollAfterOpen: geometry.scrollY })}`,
+    `${label} opening the viewer must not move the page: ${JSON.stringify({ scrollBeforeOpen, scrollAfterOpen: geometry.scrollY, heightBeforeOpen: before.height, heightAfterOpen: geometry.height })}`,
   )
   await page.getByRole('button', { name: '关闭大图' }).click()
   await dialog.waitFor({ state: 'hidden' })
+  await page.waitForFunction(({ htmlAnchor, bodyAnchor }) =>
+    document.documentElement.style.overflowAnchor === htmlAnchor &&
+    document.body.style.overflowAnchor === bodyAnchor, before)
+
   assert.ok(
     Math.abs((await page.evaluate(() => window.scrollY)) - scrollBeforeOpen) <= 1,
     `${label} closing the viewer must restore the unchanged page position`,

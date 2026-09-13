@@ -2599,6 +2599,22 @@ try {
     })
     const densityErrors = []
     densityPage.on('pageerror', (error) => densityErrors.push(error.message))
+    // Deliberately finish record loading only after the viewer opens. This
+    // reproduces the 281px skeleton-to-content shrink seen in Linux CI.
+    let releaseRecordOrder
+    const recordOrderReady = new Promise((resolve) => { releaseRecordOrder = resolve })
+    await densityPage.route('**/rest/v1/rpc/get_class_record_order', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: apiHeaders })
+        return
+      }
+      await recordOrderReady
+      await route.fulfill({ status: 200, headers: apiHeaders, body: JSON.stringify([
+        { file_name: 'r1.json', page: '1' },
+        { file_name: 'r2.json', page: '1' },
+        { file_name: 'r3.json', page: '2' },
+      ]) })
+    })
     await densityPage.goto(origin, { waitUntil: 'domcontentloaded' })
     await densityPage.waitForFunction(() => window.__markupLayoutReady === true)
     const densityQuizEdges = await densityPage
@@ -2632,6 +2648,14 @@ try {
     await assertFullscreenImageViewer(
       densityPage,
       `rounded DPR ${deviceScaleFactor}`,
+      { afterOpen: async () => {
+        assert.ok(await densityPage.locator('[data-case="records"] [data-slot="skeleton"]').count() > 0)
+        releaseRecordOrder()
+        await densityPage.waitForFunction(() =>
+          document.querySelectorAll('[data-case="records"] .record-surface').length === 3)
+        await densityPage.evaluate(() => new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve))))
+      } },
     )
     assert.deepEqual(
       densityErrors,

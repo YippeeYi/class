@@ -1,10 +1,11 @@
-import { useEffect } from 'react'
+import { useLayoutEffect } from 'react'
 
 type LockedElement = {
   element: HTMLElement
   scrollLeft: number
   scrollTop: number
   overflow: string
+  overflowAnchor: string
   overscrollBehavior: string
   touchAction: string
 }
@@ -13,9 +14,11 @@ type LockedDocument = {
   scrollX: number
   scrollY: number
   htmlOverflow: string
+  htmlOverflowAnchor: string
   htmlOverscrollBehavior: string
   htmlTouchAction: string
   bodyOverflow: string
+  bodyOverflowAnchor: string
   bodyOverscrollBehavior: string
   bodyTouchAction: string
 }
@@ -72,12 +75,19 @@ function lockBackgroundScrolling() {
     scrollX: window.scrollX,
     scrollY: window.scrollY,
     htmlOverflow: html.style.overflow,
+    htmlOverflowAnchor: html.style.overflowAnchor,
     htmlOverscrollBehavior: html.style.overscrollBehavior,
     htmlTouchAction: html.style.touchAction,
     bodyOverflow: body.style.overflow,
+    bodyOverflowAnchor: body.style.overflowAnchor,
     bodyOverscrollBehavior: body.style.overscrollBehavior,
     bodyTouchAction: body.style.touchAction,
   }
+  // Async content can replace a skeleton behind the viewer. Overflow alone
+  // blocks gestures, but does not prevent the browser from moving its scroll
+  // anchor when that content changes height.
+  html.style.overflowAnchor = 'none'
+  body.style.overflowAnchor = 'none'
   html.style.overflow = 'hidden'
   html.style.overscrollBehavior = 'none'
   html.style.touchAction = 'none'
@@ -92,10 +102,12 @@ function lockBackgroundScrolling() {
     scrollLeft: element.scrollLeft,
     scrollTop: element.scrollTop,
     overflow: element.style.overflow,
+    overflowAnchor: element.style.overflowAnchor,
     overscrollBehavior: element.style.overscrollBehavior,
     touchAction: element.style.touchAction,
   }))
   for (const item of lockedElements) {
+    item.element.style.overflowAnchor = 'none'
     item.element.style.overflow = 'hidden'
     item.element.style.overscrollBehavior = 'none'
     item.element.style.touchAction = 'none'
@@ -113,6 +125,7 @@ function unlockBackgroundScrolling() {
   document.removeEventListener('keydown', stopBackgroundKey, true)
   for (const item of lockedElements) {
     item.element.style.overflow = item.overflow
+    item.element.style.overflowAnchor = item.overflowAnchor
     item.element.style.overscrollBehavior = item.overscrollBehavior
     item.element.style.touchAction = item.touchAction
     item.element.scrollTo({ left: item.scrollLeft, top: item.scrollTop, behavior: 'auto' })
@@ -123,9 +136,11 @@ function unlockBackgroundScrolling() {
     const body = document.body
     const snapshot = lockedDocument
     html.style.overflow = snapshot.htmlOverflow
+    html.style.overflowAnchor = snapshot.htmlOverflowAnchor
     html.style.overscrollBehavior = snapshot.htmlOverscrollBehavior
     html.style.touchAction = snapshot.htmlTouchAction
     body.style.overflow = snapshot.bodyOverflow
+    body.style.overflowAnchor = snapshot.bodyOverflowAnchor
     body.style.overscrollBehavior = snapshot.bodyOverscrollBehavior
     body.style.touchAction = snapshot.bodyTouchAction
     window.scrollTo({ left: snapshot.scrollX, top: snapshot.scrollY, behavior: 'auto' })
@@ -134,7 +149,7 @@ function unlockBackgroundScrolling() {
 }
 
 export function useBackgroundScrollLock(active: boolean) {
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!active) return
     lockBackgroundScrolling()
     return unlockBackgroundScrolling
