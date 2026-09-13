@@ -8,6 +8,18 @@ import { chromium } from 'playwright'
 import { preview } from 'vite'
 import { createAdminRequest, loadAdminDotEnv } from './admin-runtime.mjs'
 import { findSystemChromium } from './layout/browser-runtime.mjs'
+import qbAsset from '../frontend/src/lib/qb-asset.json' with { type: 'json' }
+
+const qbContent = (page) => qbAsset.ready
+  ? page.getByRole('img', { name: 'QB', exact: true })
+  : page.getByText('图片尚未提供', { exact: true })
+const waitQbContent = async (page) => {
+  await qbContent(page).waitFor()
+  if (qbAsset.ready) await page.waitForFunction(() => {
+    const image = document.querySelector('img[alt="QB"]')
+    return image?.complete && image.naturalWidth > 0
+  })
+}
 
 assert.equal(process.env.CLASS_RECORD_LIVE_RELEASE, '1', 'Explicit CLASS_RECORD_LIVE_RELEASE=1 is required: creates and cleans up temporary test invitations/sessions.')
 await loadAdminDotEnv(process.cwd())
@@ -27,7 +39,7 @@ const rpc = async (name, token, body = {}) => {
   assert.equal(response.status, 200, `RPC ${name} status`)
   return response.json()
 }
-const server = await preview({ configFile: path.resolve('frontend/vite.config.ts'), root: path.resolve('frontend'), logLevel: 'error' })
+const server = await preview({ base: '/class/', configFile: path.resolve('frontend/vite.config.ts'), root: path.resolve('frontend'), logLevel: 'error' })
 const browser = await chromium.launch({ headless: true, executablePath: await findSystemChromium() })
 const origin = server.resolvedUrls.local[0]
 try {
@@ -48,15 +60,28 @@ try {
     await page.goto(origin + 'qb')
     await page.getByLabel('邀请码', { exact: true }).fill(code)
     await page.getByRole('button', { name: '进入档案' }).click()
-    await page.getByText('图片尚未提供', { exact: true }).waitFor()
+    await waitQbContent(page)
+    if (qbAsset.ready) {
+      for (const width of [320, 390, 768, 1280]) {
+        await page.setViewportSize({ width, height: 900 })
+        const dimensions = await qbContent(page).evaluate((image) => {
+          const box = image.getBoundingClientRect()
+          return { x: box.x, y: box.y, width: box.width, height: box.height, naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight }
+        })
+        assert.ok(dimensions.width > 0 && dimensions.height > 0)
+        assert.ok(dimensions.x >= 0 && dimensions.y >= 0 && dimensions.x + dimensions.width <= width + 1 && dimensions.y + dimensions.height <= 901, `live QB fits ${width}`)
+        assert.ok(Math.abs(dimensions.width / dimensions.height - dimensions.naturalWidth / dimensions.naturalHeight) < 0.02, 'live QB preserves the supplied image aspect ratio')
+        assert.ok(dimensions.width <= dimensions.naturalWidth + 1, 'small QB image retains its natural size')
+      }
+    }
     const token = await page.evaluate(() => JSON.parse(localStorage.getItem('classRecord:inviteAccess')).token)
     const tokenHash = hash(token)
     tokenHashes.add(tokenHash)
     assert.equal(await rpc('has_class_record_admin_access', token), level === 'admin')
-    const security = await promisify(execFile)(process.execPath, ['scripts/verify-live-security.mjs', '--asset=images/private/meal-map.png'], { env: { ...process.env, CLASS_RECORD_ACCESS_TOKEN: token } })
+    const security = await promisify(execFile)(process.execPath, ['scripts/verify-live-security.mjs', `--asset=${qbAsset.ready ? qbAsset.path : 'images/private/meal-map.png'}`], { env: { ...process.env, CLASS_RECORD_ACCESS_TOKEN: token } })
     console.log(security.stdout.trim())
     await page.reload()
-    await page.getByText('图片尚未提供', { exact: true }).waitFor()
+    await waitQbContent(page)
     for (const route of ['records', 'people', 'quotes', 'timeline', 'quiz', 'materials', 'map', 'backgrounds', 'credits', 'search?q=记录']) {
       await page.goto(origin + route)
       await page.locator('main').waitFor()
@@ -65,13 +90,13 @@ try {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, route)
     }
     await page.goto(origin + 'qb')
-    await page.getByText('图片尚未提供', { exact: true }).waitFor()
+    await waitQbContent(page)
     const expiry = level === 'normal' ? { expires_at: new Date(Date.now() - 1000).toISOString() } : { revoked_at: new Date().toISOString() }
     await request(`/rest/v1/invite_access_sessions?token_hash=eq.${tokenHash}`, { method: 'PATCH', headers: json, body: JSON.stringify(expiry) })
     assert.equal(await rpc('refresh_invite_access', token, { input_token: token }), false)
     await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
     await page.getByLabel('邀请码', { exact: true }).waitFor()
-    assert.equal(await page.getByText('图片尚未提供', { exact: true }).count(), 0)
+    assert.equal(await qbContent(page).count(), 0)
     assert.equal(errors, 0, `${level} live browser console/page errors`)
     await context.close()
     console.log(`PASS live ${level}: invite, QB return/refresh, role RPC, main pages, ${level === 'normal' ? 'expiry' : 'revocation'} and access teardown.`)

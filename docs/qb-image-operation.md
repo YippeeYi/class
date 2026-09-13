@@ -2,9 +2,9 @@
 
 `https://yippeeyi.github.io/class/qb` 是仅 URL 可达的受保护路由，不加入导航、主页或搜索索引。页面沿用站点 title 和认证回跳，面包屑显示 QB。
 
-唯一待提供资源是图片。固定本地源位置：`private-assets/content/attachments/qb.png`（已被 Git 忽略）。固定私有对象位置：`classrecord-private/data/attachments/qb.png`。请勿放入 `frontend/public` 或提交图片到 Git。
+图片已接入并启用。固定本地源位置：`private-assets/content/attachments/qb.jpg`（已被 Git 忽略）。固定私有对象位置：`classrecord-private/data/attachments/qb.jpg`。请勿放入 `frontend/public` 或提交图片到 Git。
 
-图片提供后，将 `frontend/src/lib/qb-asset.json` 的 `ready` 改为 `true`，运行现有 `npm run content:audit` 和 `npm run content:plan` 检查发布计划，再按正式内容发布流程上传。管理脚本和前端读取同一份配置：图片会纳入缺失检查、上传、快照及保留清单，不会被下一次内容发布误删。上传完成后再发布前端。默认 `ready=false` 不访问不存在的对象，显示统一空状态。
+后续替换图片请保持 JPEG 格式；首次接入时，将 `frontend/src/lib/qb-asset.json` 的 `ready` 改为 `true`，运行现有 `npm run content:audit` 和 `npm run content:plan` 检查发布计划，再按正式内容发布流程上传。管理脚本和前端读取同一份配置：图片会纳入缺失检查、上传、快照及保留清单，不会被下一次内容发布误删。上传完成后再发布前端。默认 `ready=false` 不访问不存在的对象，显示统一空状态。
 
 前端只通过原有 `useSignedAsset`、`useBoundedImageRetry` 和私有 Storage RLS 获取图片，保留 loading/error/手动重试；按原比例缩小到视口内，小图保持自然尺寸。普通与管理员均可读，匿名及无效凭证不能签发访问地址。
 

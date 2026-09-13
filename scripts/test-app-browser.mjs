@@ -4,6 +4,18 @@ import { chromium, webkit } from 'playwright'
 import { createServer, preview } from 'vite'
 import { frontend } from './test-react-helpers.mjs'
 import { findSystemChromium } from './layout/browser-runtime.mjs'
+import qbAsset from '../frontend/src/lib/qb-asset.json' with { type: 'json' }
+
+const qbContent = (page) => qbAsset.ready
+  ? page.getByRole('img', { name: 'QB', exact: true })
+  : page.getByText('图片尚未提供', { exact: true })
+const waitQbContent = async (page) => {
+  await qbContent(page).waitFor()
+  if (qbAsset.ready) await page.waitForFunction(() => {
+    const image = document.querySelector('img[alt="QB"]')
+    return image?.complete && image.naturalWidth > 0
+  })
+}
 
 const annotation = '普通注解 [[person:p1|人物一]] [[author:p2|额外记录人]] [[record:r2|跳转记录]] [[material:m1|查看资料]] [[anno:嵌套 [[red:说明]]|注解提示]] [[illu:test.png|注解插图]] [[frac:[[sup:2]]|3]] [[arrow:加热|催化]] [[table:2x2|甲|乙|[[under:丙]]|[[del:丁]]]] [[hide:黑幕]] [[center:居中]] [[right:右对齐]]'
 const row = (id, hidden, raw = {}) => ({ record_id: id, file_name: `${id}.json`, record_index: Number(id.slice(1)), record_date: '2025-01-01', record_time: '', author: 'p1', content: `正文 ${id} [[person:p1|人物一]] [[quote:q${id}|原话${id}]]`, hidden, attachments: [], importance: 'normal', raw })
@@ -225,18 +237,18 @@ try {
     assert.equal(requests.slice(before).some((url) => url.includes('/storage/') || /class_records|class_people/.test(url)), false, 'anonymous QB must not fetch protected content')
     await visitor.getByLabel('邀请码', { exact: true }).fill('CR-TEST-TEST-TEST')
     await visitor.getByRole('button', { name: '进入档案' }).click()
-    await visitor.getByText('图片尚未提供', { exact: true }).waitFor()
+    await waitQbContent(visitor)
     assert.match(new URL(visitor.url()).pathname, /\/qb\/?$/)
     assert.equal(await visitor.locator('a[href$="/qb"], a[href$="/qb/"]').count(), 0, 'QB must have no navigation entry')
     await visitor.reload()
-    await visitor.getByText('图片尚未提供', { exact: true }).waitFor()
+    await waitQbContent(visitor)
     await visitor.goto(origin + 'people')
     await visitor.goBack()
-    await visitor.getByText('图片尚未提供', { exact: true }).waitFor()
+    await waitQbContent(visitor)
     validAccess = false
     await visitor.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
     await visitor.getByLabel('邀请码', { exact: true }).waitFor()
-    assert.equal(await visitor.getByText('图片尚未提供', { exact: true }).count(), 0, 'revocation must unmount protected QB')
+    assert.equal(await qbContent(visitor).count(), 0, 'revocation must unmount protected QB')
     await visitor.reload()
     await visitor.getByLabel('邀请码', { exact: true }).waitFor()
     validAccess = true
@@ -260,11 +272,17 @@ try {
   }
   await tablet.close()
   if (!process.env.CLASS_RECORD_PREVIEW) {
-    // Activate the private asset only in this isolated browser's module instance.
-    // The repository and release build keep ready=false until the image arrives.
+    // Exercise both placeholder and enabled states in this isolated browser,
+    // independently of whether the production image has already been supplied.
     const images = await contextFor()
     const picture = await images.newPage()
-    await picture.goto(origin + 'qb')
+    await picture.goto(origin + 'people')
+    await picture.evaluate(async (origin) => {
+      const { default: qbAsset } = await import(origin + 'src/lib/qb-asset.json?import')
+      qbAsset.ready = false
+      history.pushState({}, '', origin + 'qb')
+      dispatchEvent(new PopStateEvent('popstate'))
+    }, origin)
     await picture.getByText('图片尚未提供', { exact: true }).waitFor()
     await picture.evaluate(async (origin) => {
       const { default: qbAsset } = await import(origin + 'src/lib/qb-asset.json?import')
