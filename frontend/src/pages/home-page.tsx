@@ -147,6 +147,11 @@ export function HomePage() {
           </div>
 
           <aside className="grid content-center gap-3 border-t border-border/65 bg-background/28 p-4 sm:p-5 lg:border-t-0 lg:border-l lg:p-6">
+            <Alert className={guidePanelClassName}>
+              <ShieldAlert />
+              <AlertTitle className="font-semibold">仅供班级内部查看</AlertTitle>
+              <AlertDescription>请尊重档案中的个人信息与共同记忆，不要外传。</AlertDescription>
+            </Alert>
             {today.hasMatches && (
               <Button
                 variant="outline"
@@ -171,11 +176,6 @@ export function HomePage() {
                 <ArrowRight className="size-4 text-muted-foreground" />
               </Button>
             )}
-            <Alert className={guidePanelClassName}>
-              <ShieldAlert />
-              <AlertTitle className="font-semibold">仅供班级内部查看</AlertTitle>
-              <AlertDescription>请尊重档案中的个人信息与共同记忆，不要外传。</AlertDescription>
-            </Alert>
             <Card className={`${guidePanelClassName} min-h-12 flex-row items-center gap-3`}>
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                 <EyeOff className="size-4" />

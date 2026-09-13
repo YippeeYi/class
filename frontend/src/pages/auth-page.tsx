@@ -62,7 +62,7 @@ export function AuthPage() {
           </div>
           <CardTitle className="font-heading text-2xl">进入编日史</CardTitle>
           <CardDescription>
-            请输入一次性邀请码。验证成功后，本浏览器获得 90 天滑动访问权限。
+            验证成功后，本浏览器获得 90 天滑动访问权限。
           </CardDescription>
         </CardHeader>
         <CardContent>
