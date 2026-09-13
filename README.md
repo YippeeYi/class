@@ -10,7 +10,7 @@
 - 一次性邀请码由 `verify_invite_code` RPC 原子校验并作废，成功后换取一个 256 位随机访问 token；浏览器不保存原始邀请码。
 - token 通过 `x-class-record-access` 请求头发送。表 RLS、Storage policy 和签名 URL 都在服务端重新验证 token，修改浏览器本地数据不能生成权限。
 - 普通会话只能读取未隐藏档案；普通记录、箴言和补充均支持 `hidden`。管理员会话才可读取隐藏记录、全部书面页和隐藏题图。
-- 浏览器候选凭证采用 90 天闲置期限和 365 天绝对期限；每次恢复页面都要调用 `refresh_invite_access` 服务端复验。
+- 浏览器候选凭证采用 90 天闲置期限和 365 天绝对期限；每次恢复页面都要调用 `refresh_invite_access` 服务端复验；可见标签页每分钟、重新可见及跨标签页凭证变更时也会复验，过期或撤销后卸载受保护页面。
 - 前端不提交评论、收藏、表情、分享、答题结果、纠错或其他业务数据。仅访问凭证、缓存、外观偏好和全屏偏好保存在本机。
 - “移除访问权限”会清除凭证、外观和 Web Storage，并清理内存数据、签名 URL、IndexedDB、Cache Storage 和同源 Service Worker；下次访问需要新邀请码。
 - 已签发的普通资源 URL 最长有效 600 秒；地图、全部书面页、`hidden/` 和 `images/quiz/` 等敏感资源最长 180 秒。
@@ -61,7 +61,7 @@
 
 管理员在记录页键入 `qibaishihuaxia` 后，服务端再次确认权限，再以内存状态进入隐藏模式。隐藏模式表示“显示全部记录”：三类记录中的 `hidden=true` 与 `hidden=false` 同时显示，使用同一排序与筛选，并开放按条/书面切换。退出或刷新恢复未隐藏列表，直接访问 `view=written` 不能绕过门禁。书面页支持上一页、下一页、页码 Select 和相邻页预热；普通会话只通过 `get_class_record_order` 获取已获权记录的页序映射，不读取原图、起止范围或隐藏记录标识。
 
-三类记录均可添加可选字符串 `annotation`，存储在对应表的 `raw.annotation` 中。缺失、`null`、空字符串或仅空白均不显示入口，无须给历史 JSON 补空字段。注解复用正文的 `MarkupContent` 与完整嵌套标记语法。有效注解在共用记录卡片中提供“查看注解”按钮，桌面悬浮或键盘聚焦时显示，触摸设备直接可见；shadcn Dialog 内可滚动阅读，支持 ESC、关闭按钮、遮罩关闭及正文中的图片与跳转。
+三类记录均可添加可选字符串 `annotation`，存储在对应表的 `raw.annotation` 中。缺失、`null`、空字符串或仅空白均不显示入口，无须给历史 JSON 补空字段。注解复用正文的 `MarkupContent` 与完整嵌套标记语法。有效注解在共用记录卡片中提供“查看注解”按钮，桌面悬浮或键盘聚焦时显示，触摸设备直接可见；非模态 shadcn Popover 就近展示，自动避让视口，移动端优先下方；可滚动阅读，支持按钮切换、ESC、关闭按钮、点击外部及正文中的图片与跳转，不添加蒙版或背景模糊。
 
 ```json
 {
@@ -353,7 +353,7 @@ Vercel 与 GitHub Pages 都是正式入口，不区分主站与预览站：它�
 
 ### GitHub Pages
 
-`.github/workflows/deploy-pages.yml` 对指向 `main` 的 PR、`main` 推送和手动触发执行 `npm ci`、doctor、typecheck、lint、Node 回归、Playwright Chromium 布局回归和 build。PR 只验证不部署；`main` 推送和手动触发会将 `frontend/dist` 部署到 Pages，并复制 `index.html` 为 `404.html` 支持 SPA 回退。Vite 根据 `GITHUB_REPOSITORY` 自动设置项目子路径，BrowserRouter 使用同一 `BASE_URL` 作为 basename。
+`.github/workflows/deploy-pages.yml` 对指向 `main` 的 PR、`main` 推送和手动触发执行 `npm ci`、doctor、typecheck、lint、Node 回归、Playwright Chromium 布局回归和 build。PR 只验证不部署；`main` 推送和手动触发会将 `frontend/dist` 部署到 Pages，构建根据统一受保护路由表为每个正式路径生成空应用入口（如 `qb/index.html`），并生成 `404.html` 处理未知路径；深层路径首次访问及刷新不再依赖 HTTP 404。Vite 根据 `GITHUB_REPOSITORY` 自动设置项目子路径，BrowserRouter 使用同一 `BASE_URL` 作为 basename。
 
 首次部署需在仓库 `Settings → Pages → Build and deployment` 选择 GitHub Actions。
 
@@ -379,3 +379,7 @@ Vercel 的响应头 CSP 与 HTML CSP 保持同一资源白名单；更换 Supaba
 - 生产数据行为以 `services/data.ts`、`features/quiz/quiz-engine.ts`、`lib/markup.ts`、SQL 与管理脚本为准；修改规则时同步更新测试和本文档。
 - `.env`、`private-assets/`、邀请码、service role key、访问 token 和管理命令输出不得提交到 Git。
 - 发布前至少执行 `npm run check`、`npm run test:layout` 和 `npm run test:app`；CI 会为 PR 安装 Chromium，执行无需私密源数据的检查及两套浏览器回归。正式发布还需检查 Vercel 与 GitHub Pages 两个公开入口，并完成普通/管理员合法 token 的完整人工回归。
+
+### URL 彩蛋 `/qb`
+
+`/qb` 复用普通邀请码 AccessGate，无任何正常页面导航入口。图片配置为 `frontend/src/lib/qb-asset.json`；图片尚未提供时 `ready=false`，页面显示统一空状态且不请求图片。接入步骤及资源权限见 [QB 图片接入](docs/qb-image-operation.md)。

@@ -1,5 +1,4 @@
 (() => {
-  const backgroundKey = 'classRecord:background'
   const appearanceKey = 'classRecord:appearance:v1'
   const paletteKey = 'classRecord:backgroundPalette:v1'
   const images = {
@@ -47,7 +46,7 @@
 
   try {
     const appearance = JSON.parse(localStorage.getItem(appearanceKey) || 'null')
-    const stored = appearance?.background || localStorage.getItem(backgroundKey)
+    const stored = appearance?.background
     const id = stored === 'mountain' || stored === 'cloud' ? stored : 'default'
     const theme = themes.has(appearance?.theme) ? appearance.theme : 'auto'
     const root = document.documentElement

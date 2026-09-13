@@ -31,6 +31,7 @@ import {
   ItemMedia,
   ItemTitle,
 } from '@/components/ui/item'
+import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { useArchive } from '@/features/archive/archive-context'
@@ -172,24 +173,27 @@ export function HomePage() {
               <AlertTitle>仅供班级内部查看</AlertTitle>
               <AlertDescription>请尊重档案中的个人信息与共同记忆，不要外传。</AlertDescription>
             </Alert>
-            <div className="flex min-h-12 items-center gap-3 rounded-xl border border-border/65 bg-background/38 px-4 py-3">
+            <Card className="min-h-12 flex-row items-center gap-3 border-border/65 bg-background/38 px-4 py-3 shadow-none">
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                 <EyeOff className="size-4" />
               </span>
-              <label htmlFor="hide-profanity" className="min-w-0 flex-1 cursor-pointer">
+              <Label
+                htmlFor="hide-profanity"
+                className="block min-w-0 flex-1 cursor-pointer font-normal"
+              >
                 <span className="block text-sm font-semibold">隐藏脏话</span>
                 <span className="block text-xs leading-5 text-muted-foreground">
                   在全站正文中以 *** 替代粗俗用语
                 </span>
-              </label>
+              </Label>
               <Switch
                 id="hide-profanity"
                 checked={hideProfanity}
                 onCheckedChange={setHideProfanity}
                 aria-label="隐藏所有记录中的脏话"
               />
-            </div>
-            <div className="rounded-xl border border-border/65 bg-background/38 px-4 py-3">
+            </Card>
+            <Card className="gap-0 border-border/65 bg-background/38 px-4 py-3 shadow-none">
               <p className="mb-1 text-xs font-semibold tracking-[0.14em] text-primary/70">小提示</p>
               <p
                 className="guide-tip min-h-6 text-sm leading-6 text-muted-foreground"
@@ -202,7 +206,7 @@ export function HomePage() {
                   {(tips[tipIndex] || '').replace(/^小提示：/, '')}
                 </span>
               </p>
-            </div>
+            </Card>
           </aside>
         </CardContent>
       </Card>

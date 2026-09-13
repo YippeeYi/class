@@ -17,10 +17,11 @@ export const NAVIGATION_PAGE_NAMES = {
 
 export type PageName = (typeof NAVIGATION_PAGE_NAMES)[keyof typeof NAVIGATION_PAGE_NAMES]
 
-const ROUTE_PAGE_NAMES: Readonly<Record<string, PageName | '验证' | '错误'>> = {
+const ROUTE_PAGE_NAMES: Readonly<Record<string, PageName | '验证' | '错误' | 'QB'>> = {
   ...NAVIGATION_PAGE_NAMES,
   '/person': NAVIGATION_PAGE_NAMES['/people'],
   '/auth': '验证',
+  '/qb': 'QB',
   '/404': '错误',
 }
 

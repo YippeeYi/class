@@ -39,6 +39,7 @@ import {
     publicationSummary,
     safeSnapshotPath
 } from './archive-governance.mjs';
+import qbAsset from '../frontend/src/lib/qb-asset.json' with { type: 'json' };
 import { createAccessAdmin } from './admin-access.mjs';
 import {
     createAdminRequest,
@@ -942,6 +943,7 @@ const buildPublication = async () => {
         await importMaterials();
         await importQuiz();
         await importCreditsPage();
+        if (qbAsset.ready) registerStorageAsset(qbAsset.path);
     } finally {
         collectingPublication = false;
     }

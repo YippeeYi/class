@@ -171,7 +171,7 @@ function AuthorPieTooltip({
             <div className="flex min-w-0 items-center gap-2 font-medium">
               <i
                 aria-hidden="true"
-                className="size-2.5 shrink-0 rounded-[2px]"
+                className="size-2.5 shrink-0 rounded-sm"
                 style={{ backgroundColor: datum.color }}
               />
               <span className="truncate">{datum.name}</span>

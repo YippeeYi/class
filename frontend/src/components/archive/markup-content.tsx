@@ -119,7 +119,7 @@ function Annotation({ note, children }: { note: string; children: ReactNode }) {
             type="button"
             variant="link"
             size="xs"
-            className="record-annotation inline h-auto min-h-0 whitespace-normal rounded-[0.15em] border-0 px-0 py-0 align-baseline text-[1em] leading-[inherit] font-[inherit] text-foreground/90 underline decoration-primary/55 decoration-dotted decoration-[1.5px] underline-offset-[0.18em] select-text focus-visible:border-transparent"
+            className="record-annotation inline h-auto min-h-0 whitespace-normal rounded-sm border-0 px-0 py-0 align-baseline text-[1em] leading-[inherit] font-[inherit] text-foreground/90 underline decoration-primary/55 decoration-dotted decoration-[1.5px] underline-offset-[0.18em] select-text focus-visible:border-transparent"
             onPointerDown={(event) => {
               dismissedByScroll.current = false
               pointerType.current = event.pointerType

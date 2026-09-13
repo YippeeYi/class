@@ -29,6 +29,7 @@ const engine = process.env.CLASS_RECORD_BROWSER === 'webkit' ? webkit : chromium
 const browser = await engine.launch({ headless: true, ...(engine === chromium ? { executablePath: await findSystemChromium() } : {}) })
 const problems = []
 const requests = []
+let validAccess = true
 async function contextFor({ admin = false, mobile = false, authenticated = true } = {}) {
   const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1280, height: 900 }, hasTouch: mobile, reducedMotion: 'reduce' })
   if (authenticated) await context.addInitScript(({ admin }) => {
@@ -44,8 +45,8 @@ async function contextFor({ admin = false, mobile = false, authenticated = true 
     const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'content-type': 'application/json' }
     const respond = (data) => route.fulfill({ status: 200, headers, body: JSON.stringify(data) })
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
-    if (url.pathname.includes('/rpc/refresh_invite_access')) return respond(true)
-    if (url.pathname.includes('/rpc/verify_invite_code')) return respond({ ok: true, accessToken: 'fixture-normal' })
+    if (url.pathname.includes('/rpc/refresh_invite_access')) return respond(validAccess)
+    if (url.pathname.includes('/rpc/verify_invite_code')) return respond({ ok: true, accessToken: admin ? 'fixture-admin' : 'fixture-normal' })
     if (url.pathname.includes('/rpc/has_class_record_admin_access')) return respond(admin)
     if (url.pathname.includes('/rpc/get_class_record_order')) return respond(records.filter((r) => !r.hidden || (admin && request.postDataJSON()?.include_hidden)).map((r) => ({ file_name: r.file_name, page: '01' })))
     if (url.pathname.includes('/storage/v1/object/sign/')) {
@@ -97,6 +98,13 @@ try {
   await button.click()
   console.log('Annotation opened')
   const dialog = page.getByRole('dialog', { name: 'r1 · 注解', exact: false })
+  await dialog.waitFor()
+  assert.equal(await page.locator('[data-slot="dialog-overlay"]').count(), 0, 'annotation must not mount a modal overlay')
+  const annotationBounds = await dialog.boundingBox()
+  assert.ok(annotationBounds.x >= 0 && annotationBounds.x + annotationBounds.width <= 1280)
+  await button.click()
+  await dialog.waitFor({ state: 'hidden' })
+  await button.click()
   await dialog.waitFor()
   assert.equal(await dialog.locator('.record-table-scroll').count(), 1)
   assert.equal(await dialog.locator('.person-link').count(), 1)
@@ -156,7 +164,7 @@ try {
   await waitCards(page, 4)
   await page.screenshot({ path: '/tmp/class-release-records.png', fullPage: true })
 
-  for (const route of ['', 'records/', 'people', 'person?id=p1', 'quotes', 'timeline', 'backgrounds', 'quiz/', 'materials/', 'map/', 'credits', 'search?q=正文', '404', 'missing']) {
+  for (const route of ['', 'records/', 'qb', 'qb/', 'people', 'person?id=p1', 'quotes', 'timeline', 'backgrounds', 'quiz/', 'materials/', 'map/', 'credits', 'search?q=正文', '404', 'missing']) {
     console.log('Route', route || '/')
     await page.goto(origin + route)
     await page.locator('main').waitFor()
@@ -185,10 +193,16 @@ try {
   await longDialog.waitFor()
   await touch.touchscreen.tap(4, 4)
   await longDialog.waitFor({ state: 'hidden' })
+  await touch.locator('[data-slot="sidebar-trigger"]').click()
+  await touch.locator('[data-mobile="true"] a[href$="/people"]').click()
+  await touch.waitForURL(/people$/)
+  await touch.locator('[data-mobile="true"]').waitFor({ state: 'hidden' })
+  await touch.goto(origin + 'records')
+  await waitCards(touch, 4)
   await touch.locator('#record-r1').focus()
   await touch.keyboard.type('qibaishihuaxia')
   assert.equal(await touch.locator('#record-r3').count(), 0, 'normal session cannot unlock hidden records')
-  for (const route of ['', 'people', 'person?id=p1', 'quotes', 'timeline', 'backgrounds', 'quiz/', 'materials/', 'map/', 'credits', 'search?q=正文', 'missing']) {
+  for (const route of ['', 'qb', 'people', 'person?id=p1', 'quotes', 'timeline', 'backgrounds', 'quiz/', 'materials/', 'map/', 'credits', 'search?q=正文', 'missing']) {
     await touch.goto(origin + route)
     await touch.locator('main').waitFor()
     await touch.waitForFunction(() => !document.body.innerText.includes('正在打开档案') && !document.body.innerText.includes('正在准备页面插图') && !document.body.innerText.includes('正在验证访问权限'))
@@ -202,6 +216,79 @@ try {
   await auth.getByRole('button', { name: '进入档案' }).click()
   await waitCards(auth, 4)
   await anonymous.close()
+  for (const admin of [false, true]) {
+    const session = await contextFor({ authenticated: false, admin })
+    const visitor = await session.newPage()
+    const before = requests.length
+    await visitor.goto(origin + 'qb')
+    await visitor.getByLabel('邀请码', { exact: true }).waitFor()
+    assert.equal(requests.slice(before).some((url) => url.includes('/storage/') || /class_records|class_people/.test(url)), false, 'anonymous QB must not fetch protected content')
+    await visitor.getByLabel('邀请码', { exact: true }).fill('CR-TEST-TEST-TEST')
+    await visitor.getByRole('button', { name: '进入档案' }).click()
+    await visitor.getByText('图片尚未提供', { exact: true }).waitFor()
+    assert.match(new URL(visitor.url()).pathname, /\/qb\/?$/)
+    assert.equal(await visitor.locator('a[href$="/qb"], a[href$="/qb/"]').count(), 0, 'QB must have no navigation entry')
+    await visitor.reload()
+    await visitor.getByText('图片尚未提供', { exact: true }).waitFor()
+    await visitor.goto(origin + 'people')
+    await visitor.goBack()
+    await visitor.getByText('图片尚未提供', { exact: true }).waitFor()
+    validAccess = false
+    await visitor.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
+    await visitor.getByLabel('邀请码', { exact: true }).waitFor()
+    assert.equal(await visitor.getByText('图片尚未提供', { exact: true }).count(), 0, 'revocation must unmount protected QB')
+    await visitor.reload()
+    await visitor.getByLabel('邀请码', { exact: true }).waitFor()
+    validAccess = true
+    await visitor.getByLabel('邀请码', { exact: true }).fill('CR-TEST-TEST-TEST')
+    await visitor.getByRole('button', { name: '进入档案' }).click()
+    await visitor.locator('[data-slot="sidebar-menu-button"]').first().waitFor()
+    await visitor.getByRole('button', { name: '移除访问权限', exact: true }).click()
+    await visitor.getByRole('button', { name: '移除并清理', exact: true }).click()
+    await visitor.getByLabel('邀请码', { exact: true }).waitFor()
+    assert.equal(await visitor.evaluate(() => localStorage.getItem('classRecord:inviteAccess')), null, 'logout clears credentials')
+    await session.close()
+  }
+  const tablet = await contextFor()
+  const tabletPage = await tablet.newPage()
+  await tabletPage.setViewportSize({ width: 768, height: 1024 })
+  for (const route of ['qb', 'records', 'materials', 'timeline', 'quiz', 'backgrounds']) {
+    await tabletPage.goto(origin + route)
+    await tabletPage.locator('main').waitFor()
+    await tabletPage.waitForFunction(() => !/正在打开档案|正在验证访问权限|正在准备页面插图/.test(document.body.innerText))
+    assert.equal(await tabletPage.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `tablet ${route}`)
+  }
+  await tablet.close()
+  if (!process.env.CLASS_RECORD_PREVIEW) {
+    // Activate the private asset only in this isolated browser's module instance.
+    // The repository and release build keep ready=false until the image arrives.
+    const images = await contextFor()
+    const picture = await images.newPage()
+    await picture.goto(origin + 'qb')
+    await picture.getByText('图片尚未提供', { exact: true }).waitFor()
+    await picture.evaluate(async (origin) => {
+      const { default: qbAsset } = await import(origin + 'src/lib/qb-asset.json?import')
+      qbAsset.ready = true
+      history.pushState({}, '', origin + 'people')
+      dispatchEvent(new PopStateEvent('popstate'))
+    }, origin)
+    await picture.getByText('图片尚未提供', { exact: true }).waitFor({ state: 'hidden' })
+    await picture.evaluate((origin) => {
+      history.pushState({}, '', origin + 'qb')
+      dispatchEvent(new PopStateEvent('popstate'))
+    }, origin)
+    const qbImage = picture.getByRole('img', { name: 'QB', exact: true })
+    await qbImage.waitFor()
+    await picture.waitForFunction(() => { const img = document.querySelector('img[alt="QB"]'); return img?.complete && img.naturalWidth > 0 })
+    for (const width of [320, 390, 768, 1280]) {
+      await picture.setViewportSize({ width, height: 844 })
+      const box = await qbImage.boundingBox()
+      assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.width <= width && box.y + box.height <= 844, `QB image fits ${width}`)
+      assert.ok(Math.abs(box.width / box.height - 800 / 600) < 0.02, 'QB image preserves its aspect ratio')
+    }
+    await picture.screenshot({ path: '/tmp/class-release-qb-image.png' })
+    await images.close()
+  }
   assert.deepEqual(problems, [], 'browser console and page errors')
   console.log(`Application browser regression passed (${engine === webkit ? 'WebKit' : 'Chromium'}): routes, stream order, permissions, annotations, nested images, keyboard and mobile; API requests=${requests.length}.`)
 } finally {

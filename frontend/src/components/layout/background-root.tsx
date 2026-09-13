@@ -1,6 +1,5 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react'
 
-const BACKGROUND_KEY = 'classRecord:background'
 export const APPEARANCE_KEY = 'classRecord:appearance:v1'
 const PALETTE_KEY = 'classRecord:backgroundPalette:v1'
 let volatileAppearance: AppearancePreference | null = null
@@ -204,13 +203,8 @@ export function readAppearance(): AppearancePreference {
     const stored = JSON.parse(
       localStorage.getItem(APPEARANCE_KEY) || 'null',
     ) as Partial<AppearancePreference> | null
-    const legacyBackground = localStorage.getItem(BACKGROUND_KEY)
     return {
-      background: isBackgroundId(stored?.background)
-        ? stored.background
-        : isBackgroundId(legacyBackground)
-          ? legacyBackground
-          : 'default',
+      background: isBackgroundId(stored?.background) ? stored.background : 'default',
       theme: isThemePresetId(stored?.theme) ? stored.theme : 'auto',
     }
   } catch {

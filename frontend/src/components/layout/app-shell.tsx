@@ -63,7 +63,7 @@ import {
   RouteIllustrationGate,
 } from '@/features/illustrations/route-illustration-gate'
 import { normalizeAppPathname } from '@/lib/app-route'
-import { NAVIGATION_PAGE_NAMES } from '@/lib/page-title'
+import { NAVIGATION_PAGE_NAMES, pageNameForPath } from '@/lib/page-title'
 import { completeRecordJump, isRecordJumpActive } from '@/lib/record-navigation'
 import { preloadRoute } from '@/lib/route-preload'
 import { cn } from '@/lib/utils'
@@ -82,7 +82,7 @@ const navigation = [
 ]
 
 const FULLSCREEN_STORAGE_KEY = 'classRecord:keepFullscreen'
-const viewportLockedPaths = new Set(['/materials', '/quiz', '/map'])
+const viewportLockedPaths = new Set(['/materials', '/quiz', '/map', '/qb'])
 const wideContentPaths = new Set(['/timeline'])
 
 function navigationPath(pathname: string) {
@@ -118,12 +118,15 @@ function RouteScrollManager() {
     const last = previous.current
     const isInitialRender = last === null
     const changedPage = last?.pathname !== location.pathname
-    const changedPerson = location.pathname === '/person' && last?.search !== location.search
+    const changedPerson =
+      normalizeAppPathname(location.pathname) === '/person' && last?.search !== location.search
     // Record links own their one clamped movement. Resetting here in the same
     // layout commit races the records page when its data is already cached and
     // produces the visible overshoot/rebound that normal route resets avoid.
-    const recordJumpOwnsScroll = location.pathname === '/records' && isRecordJumpActive()
-    if (location.pathname !== '/records' && isRecordJumpActive()) completeRecordJump()
+    const recordJumpOwnsScroll =
+      normalizeAppPathname(location.pathname) === '/records' && isRecordJumpActive()
+    if (normalizeAppPathname(location.pathname) !== '/records' && isRecordJumpActive())
+      completeRecordJump()
     if (
       !recordJumpOwnsScroll &&
       (isInitialRender || (navigationType !== 'POP' && (changedPage || changedPerson)))
@@ -165,7 +168,6 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
 
   return (
     <Sidebar collapsible="icon" className="app-sidebar">
-      <CloseMobileSidebar key={location.pathname} />
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -201,7 +203,7 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
               {navigation.map(({ to, label, icon: Icon }) => {
                 const isActive = isNavigationActive(activePath, to)
                 const destination =
-                  location.pathname === to
+                  normalizeAppPathname(location.pathname) === to
                     ? {
                         pathname: location.pathname,
                         search: location.search,
@@ -276,7 +278,7 @@ export function AppShell() {
   const { clearAccess } = useAuth()
   const location = useLocation()
   const isViewportLocked = viewportLockedPaths.has(normalizeAppPathname(location.pathname))
-  const isWideContent = wideContentPaths.has(location.pathname)
+  const isWideContent = wideContentPaths.has(normalizeAppPathname(location.pathname))
   const [fullscreen, setFullscreen] = useState(Boolean(document.fullscreenElement))
   const [fullscreenPending, setFullscreenPending] = useState(false)
   const [registeredTitle, setRegisteredTitle] = useState<{
@@ -303,7 +305,7 @@ export function AppShell() {
       : ''
   const pageTitle = isPersonPage
     ? personName || NAVIGATION_PAGE_NAMES['/people']
-    : sectionTitle?.label || '档案'
+    : sectionTitle?.label || pageNameForPath(location.pathname)
   const isHomePage = normalizeAppPathname(location.pathname) === '/'
 
   useEffect(() => {
@@ -382,6 +384,7 @@ export function AppShell() {
       <TooltipProvider>
         <SidebarProvider className="min-w-0 max-w-full">
           <RouteScrollManager />
+          <CloseMobileSidebar key={location.pathname} />
           <a
             href="#page-content"
             className="sr-only fixed left-3 top-3 z-50 rounded-md bg-background px-3 py-2 text-sm font-medium shadow focus:not-sr-only"

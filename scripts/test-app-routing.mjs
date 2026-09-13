@@ -14,7 +14,7 @@ const vite = await createServer({
 })
 
 try {
-  const { normalizeAppPathname } = await vite.ssrLoadModule('/src/lib/app-route.ts')
+  const { normalizeAppPathname, protectedPaths } = await vite.ssrLoadModule('/src/lib/app-route.ts')
   const { NAVIGATION_PAGE_NAMES, formatDocumentTitle, formatRouteDocumentTitle, pageNameForPath } =
     await vite.ssrLoadModule('/src/lib/page-title.ts')
   assert.equal(normalizeAppPathname('/'), '/')
@@ -22,7 +22,12 @@ try {
   assert.equal(normalizeAppPathname('/records/'), '/records')
   assert.equal(normalizeAppPathname('/records///'), '/records')
   assert.equal(normalizeAppPathname('/records/unknown'), '/records/unknown')
+  assert.ok(protectedPaths.has('/qb'))
+  assert.equal(protectedPaths.has('/qb/unknown'), false)
+  assert.equal(pageNameForPath('/qb'), 'QB')
+  assert.equal('/qb' in NAVIGATION_PAGE_NAMES, false, 'QB must not become a navigation page')
   const expectedTitles = {
+    '/qb': '编日史',
     '/': '编日史',
     '/records': '编日史',
     '/people': '编日史',

@@ -4,15 +4,16 @@ import { useRef, useState } from 'react'
 import { MarkupContent } from '@/components/archive/markup-content'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useDismissOnVerticalScroll } from '@/hooks/use-dismiss-on-vertical-scroll'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 export function RecordAnnotation({
   annotation,
@@ -26,8 +27,10 @@ export function RecordAnnotation({
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const pendingReference = useRef('')
+  const mobile = useIsMobile()
+  useDismissOnVerticalScroll(open, trigger, () => setOpen(false))
   return (
-    <Dialog
+    <Popover
       open={open}
       onOpenChange={setOpen}
       onOpenChangeComplete={(nextOpen) => {
@@ -37,7 +40,7 @@ export function RecordAnnotation({
         if (trigger.current) onRecordReference?.(id, trigger.current)
       }}
     >
-      <DialogTrigger
+      <PopoverTrigger
         render={
           <Button
             ref={trigger}
@@ -51,29 +54,28 @@ export function RecordAnnotation({
           </Button>
         }
       />
-      <DialogContent
-        className="flex max-h-[calc(100dvh-2rem)] min-h-0 flex-col sm:max-w-2xl"
-        showCloseButton={false}
+      <PopoverContent
+        side={mobile ? 'bottom' : 'right'}
+        align="start"
+        sideOffset={8}
+        className="record-annotation-popup w-[min(28rem,calc(100vw-2rem))] max-h-[min(70dvh,var(--available-height))] min-h-0 p-3"
         finalFocus={pendingReference.current ? false : undefined}
         onClick={(event) => event.stopPropagation()}
       >
-        <DialogHeader className="shrink-0 pr-8">
-          <DialogTitle>{label} · 注解</DialogTitle>
-          <DialogDescription className="sr-only">记录的补充注解，可滚动阅读。</DialogDescription>
-        </DialogHeader>
-        <DialogClose
-          render={
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="absolute right-2 top-2"
-              aria-label="关闭注解"
-            />
-          }
+        <PopoverHeader className="shrink-0 pr-8">
+          <PopoverTitle>{label} · 注解</PopoverTitle>
+          <PopoverDescription className="sr-only">记录的补充注解，可滚动阅读。</PopoverDescription>
+        </PopoverHeader>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="absolute right-2 top-2"
+          aria-label="关闭注解"
+          onClick={() => setOpen(false)}
         >
           <X />
-        </DialogClose>
-        <ScrollArea className="min-h-0 max-h-[calc(100dvh-8rem)] [&>[data-slot=scroll-area-viewport]]:max-h-[calc(100dvh-8rem)]">
+        </Button>
+        <ScrollArea className="min-h-0 max-h-[min(55dvh,calc(var(--available-height)-5rem))] [&>[data-slot=scroll-area-viewport]]:max-h-[min(55dvh,calc(var(--available-height)-5rem))]">
           <div className="pr-3 [overflow-wrap:anywhere]">
             <MarkupContent
               content={annotation}
@@ -88,7 +90,7 @@ export function RecordAnnotation({
             />
           </div>
         </ScrollArea>
-      </DialogContent>
-    </Dialog>
+      </PopoverContent>
+    </Popover>
   )
 }

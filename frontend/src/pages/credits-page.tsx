@@ -75,10 +75,13 @@ export function CreditsPage() {
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
                 {resource.data.originalImages.map((item) => (
-                  <section key={item.id} className="rounded-xl border border-border/60 p-4">
+                  <Card
+                    key={item.id}
+                    className="gap-0 border-border/60 bg-transparent p-4 shadow-none"
+                  >
                     <h3 className="mb-2 font-medium">{item.title}</h3>
                     <MarkupContent content={item.content} />
-                  </section>
+                  </Card>
                 ))}
               </CardContent>
             </Card>

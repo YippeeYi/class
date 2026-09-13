@@ -6,6 +6,7 @@ export const routeModuleLoaders = {
   credits: () => import('@/pages/credits-page'),
   home: () => import('@/pages/home-page'),
   materials: () => import('@/pages/materials-page'),
+  qb: () => import('@/pages/qb-page'),
   map: () => import('@/pages/meal-map-page'),
   notFound: () => import('@/pages/not-found-page'),
   people: () => import('@/pages/people-page'),

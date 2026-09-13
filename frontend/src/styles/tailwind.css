@@ -856,7 +856,7 @@ body .app-interactive-media:not(:disabled):active {
 }
 
 .app-text-link:focus-visible {
-  border-radius: 0.2rem;
+  border-radius: var(--radius-sm);
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
@@ -906,7 +906,7 @@ body .app-interactive-media:not(:disabled):active {
   }
 
   .markup-link:focus-visible {
-    border-radius: 0.18em;
+    border-radius: var(--radius-sm);
     background: color-mix(in oklch, var(--primary) 8%, transparent);
     color: var(--primary);
     text-decoration-style: solid;
@@ -935,10 +935,10 @@ body .app-interactive-media:not(:disabled):active {
     text-underline-offset: 0.18em;
   }
   .record-red {
-    color: oklch(0.55 0.2 27);
+    color: var(--destructive);
   }
   .record-redacted {
-    border-radius: 0.18rem;
+    border-radius: var(--radius-sm);
     background: var(--foreground);
     color: transparent;
     padding-inline: 0.2rem;
@@ -1045,7 +1045,7 @@ body .app-interactive-media:not(:disabled):active {
   .record-stack-line::before {
     position: absolute;
     inset: 0 -0.34em;
-    border-radius: 999px;
+    border-radius: var(--radius-sm);
     background: currentColor;
     content: "";
   }
@@ -1278,7 +1278,7 @@ body .app-interactive-media:not(:disabled):active {
     white-space: inherit;
   }
   .quiz-answer-blank.is-revealed {
-    border-radius: 0.2rem 0.2rem 0 0;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
     background: color-mix(in oklch, var(--quiz-type-accent) 10%, transparent);
     user-select: text;
   }
@@ -2395,7 +2395,8 @@ body [data-slot="switch-thumb"] {
     pointer-events: none;
   }
   .record-surface:hover .record-annotation-action,
-  .record-surface:focus-within .record-annotation-action {
+  .record-surface:focus-within .record-annotation-action,
+  .record-annotation-action[data-popup-open] {
     opacity: 1;
     pointer-events: auto;
   }

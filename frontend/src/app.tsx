@@ -7,7 +7,7 @@ import { ArchiveProvider } from '@/features/archive/archive-context'
 import { AccessGate } from '@/features/auth/access-gate'
 import { ContentPreferenceProvider } from '@/features/preferences/content-preferences'
 import { DocumentTitleProvider } from '@/hooks/use-document-title'
-import { normalizeAppPathname } from '@/lib/app-route'
+import { normalizeAppPathname, protectedPaths } from '@/lib/app-route'
 import { routeModuleLoaders } from '@/lib/route-preload'
 
 const AuthPage = lazy(() =>
@@ -28,6 +28,7 @@ const MaterialsPage = lazy(() =>
 const MealMapPage = lazy(() =>
   routeModuleLoaders.map().then((module) => ({ default: module.MealMapPage })),
 )
+const QbPage = lazy(() => routeModuleLoaders.qb().then((module) => ({ default: module.QbPage })))
 const NotFoundPage = lazy(() =>
   routeModuleLoaders.notFound().then((module) => ({ default: module.NotFoundPage })),
 )
@@ -85,21 +86,6 @@ export function App() {
   )
 }
 
-const protectedPaths = new Set([
-  '/',
-  '/records',
-  '/people',
-  '/person',
-  '/quotes',
-  '/timeline',
-  '/search',
-  '/quiz',
-  '/materials',
-  '/map',
-  '/backgrounds',
-  '/credits',
-])
-
 function AppEntry(): ReactElement {
   const location = useLocation()
   const pathname = normalizeAppPathname(location.pathname)
@@ -122,6 +108,7 @@ function ProtectedApp(): ReactElement {
             <Route path="quiz" element={<QuizPage />} />
             <Route path="materials" element={<MaterialsPage />} />
             <Route path="map" element={<MealMapPage />} />
+            <Route path="qb" element={<QbPage />} />
             <Route path="backgrounds" element={<BackgroundsPage />} />
             <Route path="credits" element={<CreditsPage />} />
           </Route>

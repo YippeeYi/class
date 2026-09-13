@@ -234,7 +234,7 @@ assert.match(routePreload, /preloadRoute/, 'route chunks need an intent-preload 
 assert.match(shell, /onPointerEnter=\{\(\) => preloadNavigationTarget\(to\)\}/, 'sidebar route intent must preload its chunk and illustration dimensions')
 assert.match(
   shell,
-  /location\.pathname === to[\s\S]*search: location\.search,[\s\S]*hash: location\.hash,[\s\S]*render=\{<NavLink to=\{destination\} \/>\}/,
+  /normalizeAppPathname\(location\.pathname\) === to[\s\S]*search: location\.search,[\s\S]*hash: location\.hash,[\s\S]*render=\{<NavLink to=\{destination\} \/>\}/,
   'clicking the active record navigation item must preserve its written-view URL state',
 )
 assert.match(app, /<Spinner/, 'route-level loading must use the shadcn spinner')
@@ -668,7 +668,7 @@ assert.match(people, /isMainTeacher[\s\S]*border-l-primary/, 'main teachers must
 assert.doesNotMatch(people, /<Badge[\s\S]*主要/, 'main-teacher names must not carry a visible badge')
 assert.match(shell, /function RouteScrollManager/, 'route-level scroll behavior must have one owner')
 assert.match(shell, /navigationType !== 'POP'/, 'forward navigation must reset without breaking browser back scroll restoration')
-assert.match(shell, /location\.pathname === '\/person'[\s\S]*last\?\.search !== location\.search/, 'every person-to-person navigation must reset to the top')
+assert.match(shell, /normalizeAppPathname\(location\.pathname\) === '\/person'[\s\S]*last\?\.search !== location\.search/, 'every person-to-person navigation must reset to the top')
 for (const route of ['records', 'people', 'person', 'quotes', 'timeline', 'search', 'quiz', 'materials', 'map', 'backgrounds', 'credits']) {
   assert.match(app, new RegExp(`path="${route}"`), `${route} route is missing`)
 }
@@ -693,3 +693,11 @@ assert.match(
 assert.equal(await existsFrontend('public/style.css'), false, 'legacy CSS runtime should be absent')
 assert.equal(await existsFrontend('public/record.html'), false, 'legacy HTML runtime should be absent')
 console.log(`React static application checks passed: ${ui.length} CLI-generated shadcn Base UI components.`)
+
+const qb = await readFrontend("src/pages/qb-page.tsx")
+assert.match(qb, /useSignedAsset/, "QB must use the established private image loader")
+assert.doesNotMatch(qb, /public\/|https?:\/\//, "QB must never embed a public image URL")
+const adminPublisher = await readFrontend("../scripts/admin.mjs")
+assert.match(adminPublisher, /if \(qbAsset.ready\) registerStorageAsset\(qbAsset.path\)/, "QB must participate in the formal publication manifest")
+
+assert.ok(shell.indexOf("<CloseMobileSidebar key={location.pathname} />") > shell.indexOf("<SidebarProvider"), "Mobile route dismiss must remain outside the lazily mounted Sheet")

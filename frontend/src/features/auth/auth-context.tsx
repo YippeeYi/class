@@ -7,7 +7,12 @@ import {
   useMemo,
   useState,
 } from 'react'
-import { ACCESS_KEY, LAST_VISIT_KEY, REDIRECT_KEY } from '@/features/auth/auth-storage'
+import {
+  ACCESS_KEY,
+  getStoredAccessToken,
+  LAST_VISIT_KEY,
+  REDIRECT_KEY,
+} from '@/features/auth/auth-storage'
 import { clearAllSiteState } from '@/services/site-cache'
 import { clearSupabaseClients, getSupabase } from '@/services/supabase'
 
@@ -107,14 +112,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    const revalidate = () => setValidationRevision((value) => value + 1)
+    const visible = () => {
+      if (document.visibilityState === 'visible') revalidate()
+    }
+    const storage = (event: StorageEvent) => {
+      if (event.key === ACCESS_KEY || event.key === null) {
+        setState('loading')
+        revalidate()
+      }
+    }
     const restore = (event: PageTransitionEvent) => {
       if (event.persisted) {
         setState('loading')
         setValidationRevision((value) => value + 1)
       }
     }
+    const timer = window.setInterval(visible, 60_000)
     window.addEventListener('pageshow', restore)
-    return () => window.removeEventListener('pageshow', restore)
+    window.addEventListener('storage', storage)
+    document.addEventListener('visibilitychange', visible)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('pageshow', restore)
+      window.removeEventListener('storage', storage)
+      document.removeEventListener('visibilitychange', visible)
+    }
   }, [])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: validationRevision intentionally requests a full server revalidation after bfcache restoration.
@@ -135,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data, error } = await getSupabase(candidate.token).rpc('refresh_invite_access', {
           input_token: candidate.token,
         })
-        if (!active) return
+        if (!active || getStoredAccessToken() !== candidate.token) return
         if (error) {
           setState('error')
           return
@@ -148,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setToken(candidate.token)
         setState('authenticated')
       } catch {
-        if (active) setState('error')
+        if (active && getStoredAccessToken() === candidate.token) setState('error')
       }
     }
     void validate()

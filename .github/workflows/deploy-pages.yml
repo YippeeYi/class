@@ -51,12 +51,11 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+      - name: Verify GitHub Pages route artifacts
+        run: npm run test:pages
+
       - name: Check bundle budget
         run: npm run budget
-
-      - name: Add GitHub Pages SPA fallback
-        if: github.event_name != 'pull_request'
-        run: cp frontend/dist/index.html frontend/dist/404.html
 
       - name: Configure GitHub Pages
         if: github.event_name != 'pull_request'
