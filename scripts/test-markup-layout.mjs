@@ -2201,6 +2201,14 @@ try {
   assert.equal(await guide.getByRole('link', { name: /记录/ }).count() > 0, true, 'guide must expose the primary records entry')
   assert.equal(await guide.getByRole('link', { name: /致谢/ }).count(), 1, 'guide must restore the baseline credits entry')
   assert.equal(await guide.getByRole('button', { name: /历史上的今天/ }).count(), 1, 'guide must retain the date-matched history entry')
+  // Compare resting surfaces after scroll-induced hover transitions settle.
+  await page.mouse.move(0, 0)
+  await guide.locator('aside > *').evaluateAll(async (panels) => {
+    for (const panel of panels) getComputedStyle(panel).backgroundColor
+    await Promise.all(panels.flatMap((panel) => panel.getAnimations())
+      .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+      .map((animation) => animation.finished.catch(() => {})))
+  })
   const guidePanels = await guide.locator('aside > *').evaluateAll((panels) => panels.map((panel) => {
     const style = getComputedStyle(panel)
     return { radius: style.borderRadius, border: style.border, background: style.backgroundColor, padding: style.padding }
