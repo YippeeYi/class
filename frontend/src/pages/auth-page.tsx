@@ -61,9 +61,7 @@ export function AuthPage() {
             <KeyRound className="size-5" />
           </div>
           <CardTitle className="font-heading text-2xl">进入编日史</CardTitle>
-          <CardDescription>
-            验证成功后，本浏览器获得 90 天滑动访问权限。
-          </CardDescription>
+          <CardDescription>验证成功后，本浏览器获得 90 天滑动访问权限。</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={submit}>
