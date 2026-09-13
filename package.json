@@ -16,6 +16,8 @@
     "check": "npm run doctor && npm run db:check && npm run content:audit && npm run typecheck && npm run lint && npm test && npm run build && npm run budget",
     "admin": "node scripts/admin.mjs",
     "content:audit": "node scripts/admin.mjs audit",
+    "content:plan": "node scripts/admin.mjs publish",
+    "content:publish": "node scripts/admin.mjs publish --confirm-publish",
     "verify-security-live": "node scripts/verify-live-security.mjs",
     "db:check": "node scripts/check-migrations.mjs",
     "db:new": "supabase migration new",

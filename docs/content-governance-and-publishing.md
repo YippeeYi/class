@@ -1,8 +1,33 @@
 # 档案内容治理与发布流程
 
-这套流程把“检查内容”和“写入线上”分开。默认命令全部只读；只有明确加入
-`--confirm-publish` 才会修改 Supabase。发布以 `private-assets/` 中的完整本地源为准，
+`content:audit` 和 `content:plan` 只读；`content:publish` 明确执行线上同步，内部将
+`--confirm-publish` 直接传给同一管理脚本。发布以 `private-assets/` 中的完整本地源为准，
 会同步数据库行和专用私有 Storage，不适合只发布单个文件。
+
+## 命令与环境
+
+在项目根目录执行以下命令，不要在 `content:publish` 后再加确认参数：
+
+```bash
+npm run content:audit
+npm run content:plan
+# 确认差异符合预期后，才执行：
+npm run content:publish
+```
+
+根目录 `.env` 中配置 `SUPABASE_URL` 和 `SUPABASE_SERVICE_ROLE_KEY`；普通内容上传不需要 `INVITE_CODE_PEPPER`。本地内容必须是完整的 `private-assets/`，目录结构见根 README。不要把 `.env` 或私密源文件提交到 Git。
+
+`npm warn Unknown cli config "--confirm-publish"` 来自 npm 参数解析，不是 Supabase 上传错误。
+`npm run admin publish --confirm-publish` 缺少参数分隔符，确认参数可能被 npm 消耗，脚本只显示发布计划。
+推荐直接使用上面的固定命令。手动调用的正确等价写法为：
+
+```bash
+node scripts/admin.mjs publish --confirm-publish
+# 或保留 npm 的参数分隔符：
+npm run admin -- publish --confirm-publish
+```
+
+数据发布写入 Supabase，与 GitHub Pages 前端部署分开。仅更新档案数据无需重新构建前端；修改前端代码或 QB 的 `ready` 配置时，仍需走现有 GitHub Actions 部署流程。
 
 ## 1. 本地内容审计
 
@@ -26,9 +51,9 @@ npm --silent run admin -- audit --json
 ## 2. 只读线上差异预览
 
 ```bash
-npm run admin -- publish
+npm run content:plan
 # 精简的机器可读结果：
-npm --silent run admin -- publish --json
+npm run --silent content:plan -- --json
 ```
 
 该命令会先通过本地审计和线上 schema 校验，再比较本地发布清单与线上数据库、
@@ -50,7 +75,7 @@ add/upload-existing/remove。预览不会写表、上传对象或删除内容。
 确认后执行：
 
 ```bash
-npm run admin -- publish --confirm-publish
+npm run content:publish
 ```
 
 脚本会再次审计和读取线上状态，先在
@@ -60,7 +85,7 @@ npm run admin -- publish --confirm-publish
 ## 4. 发布后验证与回退
 
 发布后至少验证普通和管理员两类会话：记录列表、书面页、图片/附件、资料、地图和隐藏内容权限。
-随后重新运行 `npm run admin -- publish`，数据库应全部为 unchanged，Storage 不应出现 add/remove。
+随后重新运行 `npm run content:plan`，数据库应全部为 unchanged，Storage 不应出现 add/remove。
 
 发现问题时立即停止继续发布，选择发布前快照的时间戳执行：
 

@@ -938,7 +938,7 @@ body .app-interactive-media:not(:disabled):active {
     color: var(--destructive);
   }
   .record-redacted {
-    border-radius: var(--radius-sm);
+    border-radius: 0;
     background: var(--foreground);
     color: transparent;
     padding-inline: 0.2rem;

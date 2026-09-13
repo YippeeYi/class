@@ -30,13 +30,13 @@ CLASS_RECORD_BUCKET=classrecord-private
 
    ```bash
    npm run content:audit
-   npm run admin -- publish
+   npm run content:plan
    ```
 
 4. 备份 `private-assets/` 并确认差异后执行：
 
    ```bash
-   npm run admin -- publish --confirm-publish
+   npm run content:publish
    ```
 
    脚本校验 PNG 签名与尺寸，以 `image/png` 和 `private, max-age=180` 上传，并使用 upsert 覆盖同一私有对象；然后更新无路径的元数据行。它不会输出密钥或 URL。完整发布会把蹭饭图列入清单，不会把它当成陈旧对象删除。发布前快照包含旧图片字节；任一对象备份失败都会在写入前终止，详细备份和回退要求见 [档案内容治理与发布流程](content-governance-and-publishing.md)。

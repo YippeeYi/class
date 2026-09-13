@@ -498,6 +498,7 @@ try {
   await page.waitForFunction(() => document.title === '编日史')
 
   const nestedRedaction = page.locator('[data-case="nested-redaction"] .record-redacted')
+  assert.equal(await nestedRedaction.evaluate((element) => getComputedStyle(element).borderRadius), '0px', 'redaction must keep square corners')
   const nestedRedactionLink = nestedRedaction.locator('.markup-link').first()
   const concealedNestedRedaction = await nestedRedactionLink.evaluate((link) => ({
     color: getComputedStyle(link).color,
@@ -2200,6 +2201,14 @@ try {
   assert.equal(await guide.getByRole('link', { name: /记录/ }).count() > 0, true, 'guide must expose the primary records entry')
   assert.equal(await guide.getByRole('link', { name: /致谢/ }).count(), 1, 'guide must restore the baseline credits entry')
   assert.equal(await guide.getByRole('button', { name: /历史上的今天/ }).count(), 1, 'guide must retain the date-matched history entry')
+  const guidePanels = await guide.locator('aside > *').evaluateAll((panels) => panels.map((panel) => {
+    const style = getComputedStyle(panel)
+    return { radius: style.borderRadius, border: style.border, background: style.backgroundColor, padding: style.padding }
+  }))
+  assert.equal(guidePanels.length, 4, 'guide must retain all four information panels')
+  for (const panel of guidePanels.slice(1)) {
+    assert.deepEqual(panel, guidePanels[0], 'guide panels must share radius, border, background and spacing')
+  }
   const guideRecordItem = guide.locator('a.app-interactive-item[href="/records"]').last()
   const guideTimelineItem = guide.locator('a.app-interactive-item[href="/timeline"]')
   const readGuideItemState = (item) =>

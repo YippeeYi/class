@@ -37,7 +37,15 @@ export function parseAdminArguments(values) {
 }
 
 export function printAdminUsage() {
-    console.log(`Usage:
+    console.log(`Content publishing from the project root:
+  npm run content:audit
+  npm run content:plan
+  npm run content:publish
+
+content:publish writes to Supabase; it passes --confirm-publish internally.
+Do not append --confirm-publish to the npm command.
+
+Direct script usage:
   node scripts/admin.mjs audit [--json]
   node scripts/admin.mjs publish [--json]
   node scripts/admin.mjs publish --confirm-publish

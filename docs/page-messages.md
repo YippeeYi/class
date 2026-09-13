@@ -19,5 +19,5 @@ JSON 不填写 `page`。箴言 `01.json` 的页码为 `01`；补充记录 `01-02
 - 没有对应 JSON 的书面页不会渲染箴言或空占位。
 
 添加或更新箴言后，先执行 `npm run content:audit` 和只读的
-`npm run admin -- publish`；确认完整差异后再使用
-`npm run admin -- publish --confirm-publish` 同步至 `class_page_messages`。
+`npm run content:plan`；确认完整差异后再使用
+`npm run content:publish` 同步至 `class_page_messages`。

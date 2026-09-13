@@ -18,8 +18,8 @@
  *
  * Cross-platform commands (configuration is loaded from the ignored .env file):
  *   npm run admin -- audit
- *   npm run admin -- publish
- *   npm run admin -- publish --confirm-publish
+ *   npm run content:plan
+ *   npm run content:publish
  *   npm run admin -- invites generate --count 30 --expires-days 14
  *   npm run admin -- invites list
  *   npm run admin -- invites check --code CR-ABCD-EFGH-2345
@@ -1241,7 +1241,7 @@ const runPublish = async () => {
     printPublicationPlan(diff, { audit: report, json });
     if (!confirmPublish) {
         if (!json) {
-            console.log('Plan only: no remote data was changed. Re-run with --confirm-publish to create a snapshot and publish this exact local source.');
+            console.log('Plan only: no remote data was changed. Run npm run content:publish to create a snapshot and publish this exact local source.');
         }
         return;
     }

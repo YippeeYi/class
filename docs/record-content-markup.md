@@ -73,7 +73,7 @@ JSON 字符串还需要转义反斜杠。例如正文中的 `A|B` 可写为：
 
 ```bash
 npm run content:audit
-npm run admin -- publish
+npm run content:plan
 node scripts/test-record-markup.mjs
 npm run test:layout
 ```

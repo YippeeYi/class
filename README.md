@@ -325,13 +325,13 @@ private-assets/
 
 ```bash
 npm run content:audit
-npm run admin -- publish
-npm --silent run admin -- publish --json
-npm run admin -- publish --confirm-publish
+npm run content:plan
+npm run --silent content:plan -- --json
+npm run content:publish
 npm run admin -- rollback --snapshot <时间戳> --confirm-rollback
 ```
 
-`content:audit` 只检查本地内容，不需要凭据；它会验证日期、唯一 ID、正文引用、书面页范围、hidden 一致性以及私有资源存在性。`publish` 默认只读取线上 schema、表和 Storage 并显示新增、更新、未变与删除差异。只有 `--confirm-publish` 会创建发布前完整快照并执行同步与清理。
+`content:audit` 只检查本地内容，不需要凭据；它会验证日期、唯一 ID、正文引用、书面页范围、hidden 一致性以及私有资源存在性。`publish` 默认只读取线上 schema、表和 Storage 并显示新增、更新、未变与删除差异。`content:publish` 内置 `--confirm-publish` 参数，创建发布前完整快照并执行同步与清理；无需在命令后追加该参数。
 
 正式发布会把本地完整源作为唯一清单，删除线上陈旧表行和 bucket 对象。发布前快照包含数据库 JSON、Storage 清单及每个旧二进制对象；任一对象下载失败都会在远端写入前终止。回滚命令先验证快照完整性，再为当前线上状态创建第二份安全快照，最后恢复表和 Storage。详细检查和操作边界见 [档案内容治理与发布流程](docs/content-governance-and-publishing.md)。
 

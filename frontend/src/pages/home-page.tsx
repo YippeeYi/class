@@ -37,6 +37,9 @@ import { Switch } from '@/components/ui/switch'
 import { useArchive } from '@/features/archive/archive-context'
 import { useContentPreferences } from '@/features/preferences/content-preferences'
 
+const guidePanelClassName =
+  'rounded-xl border border-border/65 bg-card/88 px-4 py-3 shadow-none ring-0'
+
 const tips = [
   '小提示：Logo 会带你回到主页。',
   '小提示：图片均可点击查看大图。',
@@ -147,7 +150,7 @@ export function HomePage() {
             {today.hasMatches && (
               <Button
                 variant="outline"
-                className="h-auto justify-between gap-4 bg-background/52 px-4 py-3 text-left"
+                className={`${guidePanelClassName} h-auto justify-between gap-4 text-left`}
                 onClick={() =>
                   navigate(
                     `/records?month=${encodeURIComponent(today.month)}&day=${encodeURIComponent(today.day)}`,
@@ -162,18 +165,18 @@ export function HomePage() {
                     <span className="text-xs font-normal text-muted-foreground">
                       {today.month}.{today.day}
                     </span>
-                    <span>历史上的今天</span>
+                    <span className="font-semibold">历史上的今天</span>
                   </span>
                 </span>
                 <ArrowRight className="size-4 text-muted-foreground" />
               </Button>
             )}
-            <Alert className="border-primary/20 bg-background/48">
+            <Alert className={guidePanelClassName}>
               <ShieldAlert />
-              <AlertTitle>仅供班级内部查看</AlertTitle>
+              <AlertTitle className="font-semibold">仅供班级内部查看</AlertTitle>
               <AlertDescription>请尊重档案中的个人信息与共同记忆，不要外传。</AlertDescription>
             </Alert>
-            <Card className="min-h-12 flex-row items-center gap-3 border-border/65 bg-background/38 px-4 py-3 shadow-none">
+            <Card className={`${guidePanelClassName} min-h-12 flex-row items-center gap-3`}>
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                 <EyeOff className="size-4" />
               </span>
@@ -193,8 +196,8 @@ export function HomePage() {
                 aria-label="隐藏所有记录中的脏话"
               />
             </Card>
-            <Card className="gap-0 border-border/65 bg-background/38 px-4 py-3 shadow-none">
-              <p className="mb-1 text-xs font-semibold tracking-[0.14em] text-primary/70">小提示</p>
+            <Card className={`${guidePanelClassName} gap-0`}>
+              <p className="mb-1 text-sm font-semibold">小提示</p>
               <p
                 className="guide-tip min-h-6 text-sm leading-6 text-muted-foreground"
                 aria-live="polite"

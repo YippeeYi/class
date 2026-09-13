@@ -83,9 +83,7 @@ export function AuthPage() {
                   aria-invalid={Boolean(displayedError)}
                   aria-describedby={displayedError ? 'invite-code-error' : undefined}
                 />
-                <FieldDescription>
-                  邀请码仅在验证时发送到 Supabase，不会写入页面源码。
-                </FieldDescription>
+                <FieldDescription>请找管理员获取邀请码。</FieldDescription>
                 <FieldError id="invite-code-error">{displayedError}</FieldError>
               </Field>
               <Button
