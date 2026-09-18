@@ -5,6 +5,7 @@ import { BackgroundRoot } from '@/components/layout/background-root'
 import { Spinner } from '@/components/ui/spinner'
 import { ArchiveProvider } from '@/features/archive/archive-context'
 import { AccessGate } from '@/features/auth/access-gate'
+import { DataUpdateMonitor } from '@/features/data/data-update-monitor'
 import { ContentPreferenceProvider } from '@/features/preferences/content-preferences'
 import { DocumentTitleProvider } from '@/hooks/use-document-title'
 import { normalizeAppPathname, protectedPaths } from '@/lib/app-route'
@@ -95,6 +96,7 @@ function AppEntry(): ReactElement {
 function ProtectedApp(): ReactElement {
   return (
     <AccessGate>
+      <DataUpdateMonitor />
       <ArchiveProvider>
         <Routes>
           <Route element={<AppShell />}>

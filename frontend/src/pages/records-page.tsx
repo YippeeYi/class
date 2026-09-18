@@ -173,6 +173,10 @@ export function RecordsPage() {
     records: RecordItem[]
     positions: RecordPagePosition[]
   } | null>(null)
+  const refreshedHidden = useAsyncData(
+    () => (hidden ? loadRecordStreamData(true) : Promise.resolve(null)),
+    [hidden],
+  )
   const [hiddenError, setHiddenError] = useState('')
   const [pageIndex, setPageIndex] = useState(0)
   const replaceRouteState = useCallback(
@@ -291,7 +295,7 @@ export function RecordsPage() {
     }
   }, [hidden, replaceRouteState])
 
-  const streamData = hidden ? hiddenData : recordsResource.data
+  const streamData = hidden ? refreshedHidden.data || hiddenData : recordsResource.data
   const stream = useMemo(
     () => buildRecordStream(streamData?.records || [], streamData?.positions || [], hidden),
     [hidden, streamData],
@@ -554,7 +558,6 @@ export function RecordsPage() {
     <div>
       <PageHeading
         title="记录"
-        description="按日期、关键词与重要程度浏览班级共同经历。"
         actions={
           hidden ? (
             <RecordViewControls

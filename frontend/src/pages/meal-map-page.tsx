@@ -32,13 +32,7 @@ export function MealMapPage() {
   }, [resource.data])
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <PageHeading
-        eyebrow={null}
-        title="地图"
-        description="点击图片可缩放、拖动并查看原始细节。图片始终在当前视口内完整显示。"
-        className="shrink-0"
-        compact
-      />
+      <PageHeading eyebrow={null} title="地图" className="shrink-0" compact />
       <Card className="content-frame min-h-0 flex-1 gap-0 py-0">
         <figure className="relative grid min-h-0 flex-1 place-items-center overflow-hidden">
           {src && !imageFailure.failed ? (

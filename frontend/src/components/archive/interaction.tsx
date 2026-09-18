@@ -27,3 +27,6 @@ export type InteractiveSurfaceVariants = VariantProps<typeof interactiveSurfaceV
 
 export const textLinkClassName = 'app-text-link'
 export const mediaAffordanceClassName = 'app-media-affordance'
+
+export const archiveItemSurfaceClassName =
+  'border-border/65 bg-card/88 text-card-foreground shadow-none'

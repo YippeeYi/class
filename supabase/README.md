@@ -27,3 +27,7 @@ npm run db:push
 ## 当前前端要求
 
 上线前应用 `20260911000000_record_stream_order.sql`。它提供仅返回调用者可读普通记录页序的 `get_class_record_order(boolean)`，并将箴言、补充的 `hidden=true` 行限制为管理员读取。annotation 使用现有 `raw` JSONB，不增加冗余列，也不重写历史内容。回滚移除 RPC，但保留隐藏辅助记录的权限保护；恢复此前宽松策略会暴露新加入的隐藏内容，因此不能作为自动回滚步骤。
+
+## 业务数据版本
+
+本次前端还要求 `20260918000000_business_data_version.sql`。先应用迁移，再发布前端。它为九张业务表增加事务内版本触发器，并提供沿用邀请码鉴权的 `get_class_data_version()`；不修改业务数据或认证期限。运行 `npm test` 可在嵌入式 PostgreSQL 中验证触发器、权限及回滚。客户端更新规则、缓存边界和上线操作见 `docs/business-data-updates.md`。

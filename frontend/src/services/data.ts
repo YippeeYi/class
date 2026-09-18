@@ -148,26 +148,25 @@ export function loadPeople(force = false) {
   )
 }
 
+// Quotes are derived from the supplied record snapshot, not an independent cache.
 export async function loadQuotes(records?: RecordItem[]) {
-  return cached<Quote[]>('quotes', async () => {
-    const source = records || (await loadRecords())
-    const map = new Map<string, Quote>()
-    for (const record of source) {
-      for (const marker of extractQuoteMarkers(record.content)) {
-        if (!marker.id || map.has(marker.id)) continue
-        map.set(marker.id, {
-          id: marker.id,
-          quote: marker.quote,
-          content: marker.quote,
-          recordFile: record.fileName || record.id,
-          sourceDate: record.date,
-        })
-      }
+  const source = records || (await loadRecords())
+  const map = new Map<string, Quote>()
+  for (const record of source) {
+    for (const marker of extractQuoteMarkers(record.content)) {
+      if (!marker.id || map.has(marker.id)) continue
+      map.set(marker.id, {
+        id: marker.id,
+        quote: marker.quote,
+        content: marker.quote,
+        recordFile: record.fileName || record.id,
+        sourceDate: record.date,
+      })
     }
-    return [...map.values()].sort(
-      (a, b) => a.sourceDate.localeCompare(b.sourceDate) || a.id.localeCompare(b.id),
-    )
-  })
+  }
+  return [...map.values()].sort(
+    (a, b) => a.sourceDate.localeCompare(b.sourceDate) || a.id.localeCompare(b.id),
+  )
 }
 
 export function loadMaterials(force = false) {

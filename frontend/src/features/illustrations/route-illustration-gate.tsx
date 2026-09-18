@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useState } from 'react'
 import { useLocation } from 'react-router'
-
 import { Spinner } from '@/components/ui/spinner'
+import { useDataVersion } from '@/hooks/use-data-version'
 import { normalizeAppPathname } from '@/lib/app-route'
 import { extractMarkupReferences } from '@/lib/markup'
 import {
@@ -11,6 +11,7 @@ import {
   loadRecords,
   loadSupplementalRecords,
 } from '@/services/data'
+import { subscribeDataVersion } from '@/services/data-revision'
 import { preloadImageDimensionList } from '@/services/image-metadata'
 
 type MarkupSource = string | null | undefined
@@ -105,10 +106,12 @@ export function preloadRouteIllustrationDimensions(path: string) {
 }
 
 export function RouteIllustrationGate({ children }: { children: ReactNode }) {
+  const version = useDataVersion()
   const location = useLocation()
   const routeKey = normalizeAppPathname(location.pathname)
   const [settledKey, setSettledKey] = useState(() => (settledRoutes.has(routeKey) ? routeKey : ''))
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new business version re-scans markup without hiding the mounted page.
   useEffect(() => {
     if (settledRoutes.has(routeKey)) {
       setSettledKey(routeKey)
@@ -121,7 +124,7 @@ export function RouteIllustrationGate({ children }: { children: ReactNode }) {
     return () => {
       active = false
     }
-  }, [location.pathname, routeKey])
+  }, [location.pathname, routeKey, version])
 
   if (settledKey !== routeKey) {
     return (
@@ -143,3 +146,10 @@ if (typeof window !== 'undefined') {
     inflightRoutes.clear()
   })
 }
+
+// Re-scan changed markup, retaining all already decoded image dimensions.
+subscribeDataVersion(() => {
+  generation += 1
+  settledRoutes.clear()
+  inflightRoutes.clear()
+})

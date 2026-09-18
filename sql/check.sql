@@ -32,6 +32,7 @@ required_functions(function_name, arg_types, should_be_public_executable) as (
         ('has_class_record_access', '', true),
         ('has_class_record_admin_access', '', true),
         ('get_class_record_order', 'boolean', true),
+        ('get_class_data_version', '', true),
         ('revoke_invite_access_session', 'uuid', false),
         ('revoke_all_invite_access_sessions', '', false),
         ('get_invite_access_session_overview', '', false),
@@ -467,9 +468,9 @@ union all
 select
     'function.search_path.' || function_name,
     case
-        when function_name = 'get_class_record_order'
+        when function_name in ('get_class_record_order', 'get_class_data_version')
             and proconfig ilike '%search_path=public, pg_temp%' then 'PASS'
-        when function_name <> 'get_class_record_order'
+        when function_name not in ('get_class_record_order', 'get_class_data_version')
             and proconfig ilike '%search_path=public, extensions%' then 'PASS'
         else 'FAIL'
     end,
@@ -645,3 +646,21 @@ select
 from invite_hardening
 
 order by check_item;
+
+-- The business revision table has no anonymous/direct read or write grants.
+select 'business_version.private_table' as check_name,
+    case when not has_table_privilege('anon', 'public.class_data_version', 'select')
+          and not has_table_privilege('authenticated', 'public.class_data_version', 'select')
+          and not has_table_privilege('anon', 'public.class_data_version', 'update')
+         then 'PASS' else 'FAIL' end as status;
+select 'business_version.triggers' as check_name,
+    case when count(*) = 9 then 'PASS' else 'FAIL' end as status
+from pg_trigger
+where tgname = 'business_data_changed' and not tgisinternal and tgenabled = 'O'
+  and tgrelid in (
+    'public.class_records'::regclass, 'public.class_people'::regclass,
+    'public.class_record_pages'::regclass, 'public.class_page_messages'::regclass,
+    'public.class_page_supplements'::regclass, 'public.class_materials'::regclass,
+    'public.class_quiz_questions'::regclass, 'public.class_credits_page'::regclass,
+    'public.class_private_assets'::regclass
+  );

@@ -199,10 +199,7 @@ export function PeoplePage() {
 
   return (
     <div>
-      <PageHeading
-        title="人物"
-        description="同学、老师与其他人物按组同时呈现；每一组可独立排序。"
-      />
+      <PageHeading title="人物" />
       {resource.loading && <PageSkeleton rows={5} />}
       {resource.error && <ErrorState title="人物加载失败" onRetry={resource.retry} />}
       {resource.data && resource.data.people.length === 0 && (

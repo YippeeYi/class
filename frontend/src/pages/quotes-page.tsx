@@ -41,7 +41,6 @@ export function QuotesPage() {
     <div>
       <PageHeading
         title="名言"
-        description="这些原话直接从记录标记中派生，并保留与原始事件之间的关联。"
         actions={
           <>
             <Select value={sort} onValueChange={(value) => setSort(value as 'id' | 'quote')}>

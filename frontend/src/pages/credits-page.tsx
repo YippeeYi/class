@@ -17,10 +17,7 @@ export function CreditsPage() {
   )
   return (
     <div>
-      <PageHeading
-        title={resource.data?.title || '致谢'}
-        description="感谢所有记录、整理、校对与守护这份共同记忆的人。"
-      />
+      <PageHeading title={resource.data?.title || '致谢'} />
       {resource.loading && <PageSkeleton rows={4} />}
       {resource.error && <ErrorState title="致谢内容加载失败" onRetry={resource.retry} />}
       {!resource.loading && !resource.error && !hasContent && (

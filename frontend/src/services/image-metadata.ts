@@ -86,6 +86,7 @@ export function preloadImageDimensions(path: string, previewWidth = DEFAULT_ASSE
   const requestGeneration = generation
   const request = loadCached<ImageDimensions>({
     key: `image-dimensions:${normalized}`,
+    business: false,
     persistent:
       !normalized.startsWith('hidden/') &&
       !normalized.startsWith('images/quiz/') &&

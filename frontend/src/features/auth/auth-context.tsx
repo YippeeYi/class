@@ -118,6 +118,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     const storage = (event: StorageEvent) => {
       if (event.key === ACCESS_KEY || event.key === null) {
+        // Validation timestamps are bookkeeping, not a new access grant.
+        // Do not echo identical grants back and forth between browser tabs.
+        if (event.key === ACCESS_KEY && event.oldValue && event.newValue) {
+          try {
+            const previous = JSON.parse(event.oldValue) as AccessRecord
+            const next = JSON.parse(event.newValue) as AccessRecord
+            if (
+              previous.type === 'invite' &&
+              next.type === 'invite' &&
+              previous.token &&
+              previous.token === next.token &&
+              previous.authorizedAt === next.authorizedAt
+            )
+              return
+          } catch {
+            /* Invalid storage still requires the existing validation path. */
+          }
+        }
         setState('loading')
         revalidate()
       }

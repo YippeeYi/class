@@ -155,7 +155,6 @@ export function PersonPage() {
       title={displayName}
       headerTitle={personTitleName || '人物'}
       showTitleInContent
-      description="人物资料与相关记录"
       actions={
         <Link to="/people" className={buttonVariants({ variant: 'outline' })}>
           返回人物

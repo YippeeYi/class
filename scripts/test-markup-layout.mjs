@@ -84,6 +84,8 @@ try {
   const consoleProblems = []
   const imageRequests = []
   const storageRequests = []
+  let releaseProgressiveOriginal
+  const progressiveOriginalReady = new Promise((resolve) => { releaseProgressiveOriginal = resolve })
   let expectedHarnessNetworkFailures = 0
   page.on('pageerror', (error) => pageErrors.push(error.message))
   page.on('request', (request) => {
@@ -131,7 +133,11 @@ try {
       /\/fixtures\/progressive-(?:original|cancel)\.svg$/u.test(url.pathname) &&
       url.searchParams.get('rendition') === 'original'
     ) {
-      await new Promise((resolve) => setTimeout(resolve, 180))
+      if (url.pathname.endsWith('/fixtures/progressive-original.svg')) {
+        await progressiveOriginalReady
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 180))
+      }
     }
     const svg = url.pathname.endsWith('/fixtures/quiz-wide.svg')
       ? '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600"><rect width="1200" height="600" fill="#233a5b"/></svg>'
@@ -1024,7 +1030,6 @@ try {
   await privateViewerDialog.evaluate((dialog) => {
     const samples = []
     window.__viewerOpenSamples = samples
-    const started = performance.now()
     const capture = () => {
       const image = dialog.querySelector('img[alt="按需高清测试图片"]')
       if (image) {
@@ -1035,16 +1040,13 @@ try {
           original: image.src.includes('rendition=original'),
         })
       }
-      if (dialog.isConnected && performance.now() - started < 1200) requestAnimationFrame(capture)
+      if (dialog.isConnected && !samples.some((sample) => sample.original)) requestAnimationFrame(capture)
     }
     requestAnimationFrame(capture)
   })
-  await page.waitForFunction(() =>
-    document
-      .querySelector('img[alt="按需高清测试图片"]')
-      ?.src.includes('/fixtures/progressive-original.svg'),
-  )
-  await page.waitForTimeout(80)
+  await page.waitForFunction(() => window.__viewerOpenSamples?.some((sample) => !sample.original))
+  releaseProgressiveOriginal()
+  await page.waitForFunction(() => window.__viewerOpenSamples?.some((sample) => sample.original))
   const viewerOpenSamples = await page.evaluate(() => window.__viewerOpenSamples || [])
   assert.ok(
     viewerOpenSamples.some((sample) => !sample.original) &&
@@ -2200,7 +2202,7 @@ try {
   assert.equal(guideLogoSemantics.imageUserSelect, 'none', 'guide logo image must not be selectable')
   assert.equal(await guide.getByRole('link', { name: /记录/ }).count() > 0, true, 'guide must expose the primary records entry')
   assert.equal(await guide.getByRole('link', { name: /致谢/ }).count(), 1, 'guide must restore the baseline credits entry')
-  assert.equal(await guide.getByRole('button', { name: /历史上的今天/ }).count(), 1, 'guide must retain the date-matched history entry')
+  assert.equal(await guide.getByRole('link', { name: /历史上的今天/ }).count(), 1, 'guide must retain the date-matched history entry')
   // Compare resting surfaces after scroll-induced hover transitions settle.
   await page.mouse.move(0, 0)
   await guide.locator('aside > *').evaluateAll(async (panels) => {
@@ -2273,6 +2275,76 @@ try {
   assert.ok(guideGeometry.overflow <= 1, 'guide layout must not overflow its content lane')
   assert.equal(guideGeometry.primaryLinks, 3, 'guide must retain all three primary archive entries')
   assert.equal(guideGeometry.toolLinks, 7, 'guide must retain all baseline secondary entries')
+  const todayPanel = guide.getByRole('link', { name: /历史上的今天/ })
+  const panelPaint = (element) => {
+    const style = getComputedStyle(element)
+    return { background: style.backgroundColor, border: style.borderColor, color: style.color, radius: style.borderRadius }
+  }
+  const originalTheme = await page.evaluate(() => ({ preset: document.documentElement.dataset.themePreset, dark: document.documentElement.classList.contains('dark') }))
+  for (const preset of ['paper', 'midnight']) {
+    await page.evaluate((preset) => {
+      document.documentElement.dataset.themePreset = preset
+      document.documentElement.classList.toggle('dark', preset === 'midnight')
+    }, preset)
+    // Theme color transitions can cascade through inherited card colors.
+    await page.waitForTimeout(650)
+    for (const width of [320, 390, 768, 1280]) {
+      await page.setViewportSize({ width, height: 1000 })
+      await page.mouse.move(0, 0)
+      await page.evaluate(() => document.activeElement?.blur())
+      await page.waitForTimeout(300)
+      const panels = await guide.locator('[data-guide-panel]').evaluateAll((elements) => elements.map((element) => {
+        const style = (selector) => {
+          const node = selector ? element.querySelector(selector) : element
+          const s = getComputedStyle(node)
+          return { radius: s.borderRadius, background: s.backgroundColor, border: s.borderColor, color: s.color, font: s.font, height: s.height, padding: s.padding, gap: s.gap }
+        }
+        return { surface: style(''), icon: style('[data-slot="item-media"]'), title: style('[data-slot="item-title"]'), text: (() => { const { height, ...text } = style('[data-slot="item-description"]'); return text })() }
+      }))
+      for (const panel of panels.slice(1)) assert.deepEqual(panel, panels[0], `guide panel structure matches ${preset}/${width}`)
+      assert.deepEqual(await todayPanel.evaluate(panelPaint), await guideTimelineItem.evaluate(panelPaint), `history matches navigation surfaces in ${preset}/${width}`)
+      assert.equal(await guide.evaluate((e) => e.scrollWidth <= e.clientWidth + 1), true)
+      if (width === 390) await guide.screenshot({ path: `/tmp/class-guide-${preset}-mobile.png` })
+    }
+    for (const element of [todayPanel, guideTimelineItem]) {
+      await element.hover()
+      await page.waitForTimeout(300)
+      const hover = await element.evaluate(panelPaint)
+      if (element === todayPanel) await page.evaluate((paint) => { window.__historyHover = paint }, hover)
+      else assert.deepEqual(hover, await page.evaluate(() => window.__historyHover), 'history and navigation share hover paint')
+      await page.mouse.down()
+      await page.waitForTimeout(160)
+      const pressed = await element.evaluate(panelPaint)
+      await page.mouse.move(0, 0)
+      await page.mouse.up()
+      if (element === todayPanel) await page.evaluate((paint) => { window.__historyPressed = paint }, pressed)
+      else assert.deepEqual(pressed, await page.evaluate(() => window.__historyPressed), 'history and navigation share pressed paint')
+    }
+    await page.keyboard.press('Tab')
+    await todayPanel.focus()
+    assert.equal(await todayPanel.evaluate((e) => e.matches(':focus-visible')), true)
+    assert.notEqual(await todayPanel.evaluate((e) => getComputedStyle(e).boxShadow), 'none')
+    await page.mouse.move(0, 0)
+    await guide.screenshot({ path: `/tmp/class-guide-${preset}.png` })
+  }
+  const star = guide.getByRole('link', { name: /为项目点亮 Star/ })
+  assert.equal(await star.getAttribute('href'), 'https://github.com/YippeeYi/classRecord')
+  assert.equal(await star.getAttribute('rel'), 'noopener noreferrer')
+  await page.context().route('https://github.com/YippeeYi/classRecord', (route) => route.fulfill({ contentType: 'text/html', body: '<title>Star destination</title>' }))
+  await star.focus()
+  const popupReady = page.waitForEvent('popup')
+  await page.keyboard.press('Enter')
+  const popup = await popupReady
+  await popup.waitForLoadState()
+  assert.equal(popup.url(), 'https://github.com/YippeeYi/classRecord')
+  assert.equal(await popup.evaluate(() => opener === null), true)
+  await popup.close()
+  await page.evaluate(({ preset, dark }) => {
+    if (preset) document.documentElement.dataset.themePreset = preset
+    else delete document.documentElement.dataset.themePreset
+    document.documentElement.classList.toggle('dark', dark)
+  }, originalTheme)
+  console.log('Guide panels and Star passed: light/dark, four widths, matching typography/icons/height/states and safe keyboard navigation.')
   if (process.env.CLASS_RECORD_LAYOUT_SCREENSHOT) {
     await page.screenshot({ path: process.env.CLASS_RECORD_LAYOUT_SCREENSHOT, fullPage: true })
   }

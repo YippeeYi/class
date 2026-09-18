@@ -272,7 +272,6 @@ export function TimelinePage() {
     <div>
       <PageHeading
         title="统计"
-        description="从全局、年度、月度和每日四个层级查看记录密度、作者与关联人物。"
         actions={
           <Tabs value={metric} onValueChange={(value) => setMetric(value as Metric)}>
             <SegmentedTabsList value={metric} items={metricItems} ariaLabel="统计指标" />

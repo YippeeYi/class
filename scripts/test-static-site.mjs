@@ -126,7 +126,8 @@ assert.match(
   'lazy chunk failures need a dedicated reload recovery path',
 )
 assert.match(home, /BASE_URL.*logo-guide-preview\.png/, 'logo must use the compressed Vite asset')
-assert.match(home, /隐藏脏话[\s\S]*<Switch/, 'the homepage must expose the shared profanity preference')
+assert.match(home, /隐藏脏话[\s\S]*onCheckedChange: setHideProfanity/, 'the homepage must expose the shared profanity preference')
+assert.match(await readFrontend('src/components/archive/guide-panel.tsx'), /<Switch[\s\S]*onCheckedChange=\{toggle.onCheckedChange\}/, 'guide panels must use the shared shadcn switch')
 assert.match(contentPreferences, /classRecord:contentPreferences:v1/, 'content preferences must persist separately')
 assert.match(contentPreferences, /hideProfanity: true/, 'profanity hiding must have an explicit safe default')
 assert.match(profanity, /PROFANITY_TERMS[\s\S]*PROFANITY_LATIN_TOKENS/, 'profanity terms must be maintained centrally')
@@ -195,16 +196,10 @@ assert.match(person, /正在补全书面记录/, 'non-blocking supplemental load
 assert.match(person, /WeakMap<RecordItem, string\[\]>/, 'person relationship parsing must be cached per record')
 assert.doesNotMatch(home, /fixed top-3 left-3/, 'today history must not cover the top-left navigation')
 assert.equal(home.match(/历史上的今天/g)?.length, 1, 'today history must mount only one responsive control')
-assert.match(
-  home,
-  /<Button nativeButton=\{false\} render=\{<Link to="\/records" \/>\}>/,
-  'guide record navigation must declare link semantics to the shared shadcn Button',
-)
-assert.match(
-  home,
-  /<Button variant="outline" nativeButton=\{false\} render=\{<Link to="\/search" \/>\}>/,
-  'guide search navigation must declare link semantics to the shared shadcn Button',
-)
+assert.doesNotMatch(home, /浏览记录|搜索档案/, 'duplicate hero navigation must be removed')
+assert.match(home, /为项目点亮 Star/, 'guide retains the requested Star entry')
+assert.match(home, /https:\/\/github.com\/YippeeYi\/classRecord/, 'Star opens the requested repository')
+assert.match(home, /target="_blank"[\s\S]*rel="noopener noreferrer"/, 'external repository link is isolated from its opener')
 assert.equal(
   home.match(/interactiveSurfaceVariants\(\{ kind: 'item' \}\)/g)?.length,
   2,

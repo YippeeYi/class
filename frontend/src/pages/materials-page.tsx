@@ -27,13 +27,7 @@ export function MaterialsPage() {
   }
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <PageHeading
-        eyebrow={null}
-        title="资料"
-        description="班级档案的补充材料与专题内容。目录和正文可分别滚动。"
-        className="shrink-0"
-        compact
-      />
+      <PageHeading eyebrow={null} title="资料" className="shrink-0" compact />
       {resource.loading && (
         <div className="min-h-0 flex-1 overflow-hidden">
           <PageSkeleton rows={4} />

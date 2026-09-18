@@ -291,7 +291,7 @@ export function SecretImage({ path }: { path: string }) {
 export function QuizPage() {
   const resource = useArchive()
   const { hideProfanity } = useContentPreferences()
-  const adminResource = useAsyncData(() => hasAdminAccess())
+  const adminResource = useAsyncData(() => hasAdminAccess(), [], { business: false })
   const supplementalResource = useAsyncData(() => loadSupplementalRecords())
   const [enabledTypes, setEnabledTypes] = useState<Set<PlayQuestion['type']>>(
     new Set(['choice', 'fill', 'judge']),
@@ -300,6 +300,13 @@ export function QuizPage() {
     new Set(['author', 'date', 'person', 'quote']),
   )
   const [secret, setSecret] = useState<PlayQuestion[]>([])
+  const secretResource = useAsyncData(
+    async () =>
+      secret.length
+        ? (await loadQuizQuestions()).filter((item) => item.answer).map(normalizeSecretQuestion)
+        : null,
+    [Boolean(secret.length)],
+  )
   const [current, setCurrent] = useState<PlayQuestion | null>(null)
   const [input, setInput] = useState('')
   const [result, setResult] = useState<'correct' | 'wrong' | null>(null)
@@ -327,9 +334,9 @@ export function QuizPage() {
             resource.data.records.concat(supplementalResource.data || []),
             resource.data.people,
             resource.data.quotes,
-          ).concat(secret)
+          ).concat(secretResource.data || secret)
         : [],
-    [resource.data, secret, supplementalResource.data],
+    [resource.data, secret, secretResource.data, supplementalResource.data],
   )
   const candidates = useMemo(
     () => filteredQuestions(questions, enabledTypes, enabledContent),
@@ -533,7 +540,6 @@ export function QuizPage() {
       <PageHeading
         eyebrow={null}
         title="答题"
-        description="题目从记录、人物与名言实时生成；筛选题型和内容后开始挑战。"
         className="shrink-0"
         compact
         actions={

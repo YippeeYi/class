@@ -5,11 +5,10 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react'
-
-import { clearDataCache, loadPeople, loadQuotes, loadRecords } from '@/services/data'
+import { useDataVersion } from '@/hooks/use-data-version'
+import { loadPeople, loadQuotes, loadRecords } from '@/services/data'
 import type { Person, Quote, RecordItem } from '@/types/domain'
 
 type ArchiveData = { records: RecordItem[]; people: Person[]; quotes: Quote[] }
@@ -20,27 +19,38 @@ type ArchiveContextValue = {
   ensure: () => Promise<void>
   retry: () => void
 }
-
 const ArchiveContext = createContext<ArchiveContextValue | null>(null)
 
 export function ArchiveProvider({ children }: { children: ReactNode }) {
+  const version = useDataVersion()
+  const [requested, setRequested] = useState(false)
+  const [revision, setRevision] = useState(0)
   const [data, setData] = useState<ArchiveData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
-  const request = useRef<Promise<void> | null>(null)
-
   const ensure = useCallback(async () => {
-    if (data || request.current) return request.current || Promise.resolve()
-    setLoading(true)
+    setRequested(true)
+  }, [])
+  const retry = useCallback(() => setRevision((value) => value + 1), [])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: version invalidates business data; data itself must not restart its loader.
+  useEffect(() => {
+    if (!requested) return
+    let active = true
+    let timer: ReturnType<typeof setTimeout> | undefined
+    setLoading(!data)
     setError(null)
-    request.current = (async () => {
+    const refresh = async () => {
       const failures: string[] = []
-      const [recordsResult, peopleResult] = await Promise.allSettled([loadRecords(), loadPeople()])
+      const [recordsResult, peopleResult] = await Promise.allSettled([
+        loadRecords({ force: revision > 0 }),
+        loadPeople(revision > 0),
+      ])
       const records = recordsResult.status === 'fulfilled' ? recordsResult.value : []
       const people = peopleResult.status === 'fulfilled' ? peopleResult.value : []
       if (recordsResult.status === 'rejected') failures.push('记录')
       if (peopleResult.status === 'rejected') failures.push('人物')
-
+      if (!active) return
       let quotes: Quote[] = []
       if (recordsResult.status === 'fulfilled') {
         try {
@@ -49,21 +59,18 @@ export function ArchiveProvider({ children }: { children: ReactNode }) {
           failures.push('名言')
         }
       }
-
-      setData({ records, people, quotes })
-      if (failures.length)
-        setError(new Error(`以下档案数据加载失败：${[...new Set(failures)].join('、')}`))
+      if (!active) return
+      setData((current) => (failures.length && current ? current : { records, people, quotes }))
+      setError(failures.length ? new Error(`以下档案数据加载失败：${failures.join('、')}`) : null)
       setLoading(false)
-      request.current = null
-    })()
-    return request.current
-  }, [data])
-
-  const retry = useCallback(() => {
-    clearDataCache()
-    setData(null)
-    setError(null)
-  }, [])
+      if (failures.length) timer = setTimeout(() => void refresh(), 30_000)
+    }
+    void refresh()
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
+  }, [requested, revision, version])
 
   const value = useMemo(
     () => ({ data, loading, error, ensure, retry }),
@@ -79,7 +86,6 @@ export function useArchive() {
   }, [archive.ensure])
   return archive
 }
-
 export function useArchiveSnapshot() {
   const archive = use(ArchiveContext)
   if (!archive) throw new Error('useArchiveSnapshot must be used inside ArchiveProvider')

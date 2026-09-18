@@ -1,6 +1,7 @@
 import { ACCESS_KEY } from '@/features/auth/auth-storage'
+import { getDataVersion, subscribeDataVersion } from '@/services/data-revision'
 
-type CacheEntry<T> = { time: number; data: T }
+type CacheEntry<T> = { time: number; data: T; version?: string }
 
 const VERSION = 'v6'
 const SESSION_PREFIX = `classRecord:dataCache:${VERSION}:`
@@ -10,6 +11,7 @@ const DEFAULT_FRESH = 24 * 60 * 60 * 1000
 const DEFAULT_STALE = 7 * 24 * 60 * 60 * 1000
 const memory = new Map<string, CacheEntry<unknown>>()
 const inflight = new Map<string, Promise<unknown>>()
+const businessKeys = new Set<string>()
 let generation = 0
 
 function accessScope() {
@@ -35,13 +37,18 @@ function sessionKey(scoped: string) {
   return `${SESSION_PREFIX}${scoped}`
 }
 
-function readSession<T>(key: string, ttl: number): CacheEntry<T> | null {
+function readSession<T>(key: string, ttl: number, version: string): CacheEntry<T> | null {
   if (ttl <= 0) return null
   try {
     const item = JSON.parse(
       sessionStorage.getItem(sessionKey(key)) || 'null',
     ) as CacheEntry<T> | null
-    if (!item || !Number.isFinite(item.time) || Date.now() - item.time >= ttl) {
+    if (
+      !item ||
+      (item.version || '') !== version ||
+      !Number.isFinite(item.time) ||
+      Date.now() - item.time >= ttl
+    ) {
       sessionStorage.removeItem(sessionKey(key))
       return null
     }
@@ -89,7 +96,12 @@ function openDatabase(): Promise<IDBDatabase | null> {
   })
 }
 
-async function readPersistent<T>(scoped: string, freshTtl: number, staleTtl: number) {
+async function readPersistent<T>(
+  scoped: string,
+  freshTtl: number,
+  staleTtl: number,
+  version: string,
+) {
   const database = await openDatabase()
   if (!database) return null
   try {
@@ -99,7 +111,12 @@ async function readPersistent<T>(scoped: string, freshTtl: number, staleTtl: num
       request.onsuccess = () => resolve((request.result as CacheEntry<T> | undefined) || null)
       request.onerror = transaction.onabort = () => resolve(null)
     })
-    if (!result || !Number.isFinite(result.time) || Date.now() - result.time >= staleTtl)
+    if (
+      !result ||
+      (result.version || '') !== version ||
+      !Number.isFinite(result.time) ||
+      Date.now() - result.time >= staleTtl
+    )
       return null
     return { ...result, stale: Date.now() - result.time >= freshTtl }
   } catch {
@@ -109,11 +126,16 @@ async function readPersistent<T>(scoped: string, freshTtl: number, staleTtl: num
   }
 }
 
-async function writePersistent<T>(scoped: string, entry: CacheEntry<T>, requestGeneration: number) {
+async function writePersistent<T>(
+  scoped: string,
+  entry: CacheEntry<T>,
+  requestGeneration: number,
+  business: boolean,
+) {
   const database = await openDatabase()
   if (!database) return
   try {
-    if (requestGeneration !== generation) return
+    if (requestGeneration !== generation || (business && entry.version !== getDataVersion())) return
     await new Promise<void>((resolve) => {
       const transaction = database.transaction(STORE_NAME, 'readwrite')
       transaction.oncomplete = transaction.onerror = transaction.onabort = () => resolve()
@@ -134,6 +156,7 @@ export async function loadCached<T>({
   staleTtl = DEFAULT_STALE,
   sessionTtl = 15 * 60 * 1000,
   persistent = true,
+  business = true,
 }: {
   key: string
   loader: () => Promise<T>
@@ -142,18 +165,26 @@ export async function loadCached<T>({
   staleTtl?: number
   sessionTtl?: number
   persistent?: boolean
+  business?: boolean
 }) {
   const now = Date.now()
   const scoped = scopedKey(key)
+  const version = business ? getDataVersion() : ''
+  if (business) businessKeys.add(scoped)
   const cached = memory.get(scoped) as CacheEntry<T> | undefined
-  if (!force && cached && now - cached.time < freshTtl) return cached.data
+  if (!force && cached && (cached.version || '') === version && now - cached.time < freshTtl)
+    return cached.data
   const pending = inflight.get(scoped)
   if (pending) return pending as Promise<T>
 
   const requestGeneration = generation
   const scope = accessScope()
   const assertCurrent = () => {
-    if (requestGeneration !== generation || scope !== accessScope())
+    if (
+      requestGeneration !== generation ||
+      scope !== accessScope() ||
+      (business && version !== getDataVersion())
+    )
       throw new Error('访问范围已改变，请重新加载。')
   }
   // Register before IndexedDB or the network can yield, including forced retries.
@@ -162,13 +193,18 @@ export async function loadCached<T>({
       let stale: CacheEntry<T> | null = null
       assertCurrent()
       if (!force) {
-        const session = readSession<T>(scoped, sessionTtl)
+        const session = readSession<T>(scoped, sessionTtl, version)
         if (session) {
           memory.set(scoped, session)
           return session.data
         }
         if (persistent) {
-          const stored = await readPersistent<T>(scoped, freshTtl, Math.max(staleTtl, freshTtl))
+          const stored = await readPersistent<T>(
+            scoped,
+            freshTtl,
+            Math.max(staleTtl, freshTtl),
+            version,
+          )
           assertCurrent()
           if (stored && !stored.stale) {
             memory.set(scoped, stored)
@@ -181,10 +217,10 @@ export async function loadCached<T>({
       try {
         const data = await loader()
         assertCurrent()
-        const entry = { time: Date.now(), data }
+        const entry = { time: Date.now(), data, version }
         memory.set(scoped, entry)
         if (sessionTtl > 0) writeSession(scoped, entry)
-        if (persistent) void writePersistent(scoped, entry, requestGeneration)
+        if (persistent) void writePersistent(scoped, entry, requestGeneration, business)
         return data
       } catch (error) {
         assertCurrent()
@@ -207,6 +243,7 @@ export function clearRuntimeCache() {
   generation += 1
   memory.clear()
   inflight.clear()
+  businessKeys.clear()
 }
 
 export async function deletePersistentCaches() {
@@ -219,3 +256,12 @@ export async function deletePersistentCaches() {
     request.onblocked = () => resolve()
   })
 }
+
+// Keep downloaded images and signed URLs intact; only database reads use this cache.
+subscribeDataVersion(() => {
+  for (const key of businessKeys) {
+    memory.delete(key)
+    inflight.delete(key)
+  }
+  businessKeys.clear()
+})

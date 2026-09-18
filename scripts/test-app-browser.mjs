@@ -42,11 +42,14 @@ const browser = await engine.launch({ headless: true, ...(engine === chromium ? 
 const problems = []
 const requests = []
 let validAccess = true
+let businessVersion = '1'
+let businessDelay = 0
 async function contextFor({ admin = false, mobile = false, authenticated = true } = {}) {
   const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1280, height: 900 }, hasTouch: mobile, reducedMotion: 'reduce' })
   if (authenticated) await context.addInitScript(({ admin }) => {
     if (!location.protocol.startsWith('http')) return
     const now = new Date().toISOString()
+    if (localStorage.getItem('classRecord:inviteAccess')) return
     localStorage.setItem('classRecord:inviteAccess', JSON.stringify({ type: 'invite', token: admin ? 'fixture-admin' : 'fixture-normal', authorizedAt: now }))
     localStorage.setItem('classRecord:lastVisitAt', now)
   }, { admin })
@@ -57,6 +60,7 @@ async function contextFor({ admin = false, mobile = false, authenticated = true 
     const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'content-type': 'application/json' }
     const respond = (data) => route.fulfill({ status: 200, headers, body: JSON.stringify(data) })
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
+    if (url.pathname.includes('/rpc/get_class_data_version')) return respond(businessVersion)
     if (url.pathname.includes('/rpc/refresh_invite_access')) return respond(validAccess)
     if (url.pathname.includes('/rpc/verify_invite_code')) return respond({ ok: true, accessToken: admin ? 'fixture-admin' : 'fixture-normal' })
     if (url.pathname.includes('/rpc/has_class_record_admin_access')) return respond(admin)
@@ -66,6 +70,7 @@ async function contextFor({ admin = false, mobile = false, authenticated = true 
       return route.fulfill({ status: 200, headers: { ...headers, 'content-type': 'image/svg+xml' }, body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="#779999"/></svg>' })
     }
     const table = url.pathname.split('/').at(-1)
+    if (businessDelay && table?.startsWith('class_')) await new Promise((resolve) => setTimeout(resolve, businessDelay))
     if (table === 'class_records') return respond(records.filter((r) => r.hidden === (url.searchParams.get('hidden') === 'eq.true') && (!r.hidden || admin)))
     if ((table === 'class_record_pages' || table === 'class_quiz_questions') && !admin) return respond([])
     if (['class_page_messages', 'class_page_supplements'].includes(table)) return respond(tables[table].filter((r) => r.hidden === (url.searchParams.get('hidden') === 'eq.true') && (!r.hidden || admin)))
@@ -306,6 +311,75 @@ try {
     }
     await picture.screenshot({ path: '/tmp/class-release-qb-image.png' })
     await images.close()
+  }
+  if (!process.env.CLASS_RECORD_PREVIEW) {
+    const tabs = await contextFor()
+    const first = await tabs.newPage()
+    const second = await tabs.newPage()
+    const now = new Date()
+    await first.clock.install({ time: now })
+    await second.clock.install({ time: now })
+    await first.goto(origin + 'records')
+    await waitCards(first, 4)
+    await second.goto(origin + 'materials')
+    await second.getByText('资料正文', { exact: false }).waitFor()
+    await first.waitForFunction(() => localStorage.getItem('classRecord:businessVersion') === '1')
+    const grantBefore = await first.evaluate(() => JSON.parse(localStorage.getItem('classRecord:inviteAccess')))
+    await first.evaluate(async (origin) => {
+      const { signAssetUrl } = await import(origin + 'src/services/data.ts')
+      const { preloadImageDimensions } = await import(origin + 'src/services/image-metadata.ts')
+      await signAssetUrl('data/attachments/cache-proof.png')
+      await preloadImageDimensions('data/attachments/cache-proof.png')
+      await (await caches.open('static-proof')).put('/static-proof', new Response('preserved'))
+      window.__recordNode = document.querySelector('#record-r1')
+    }, origin)
+    const signCount = () => requests.filter((path) => path.includes('/storage/v1/object/sign/')).length
+    const businessCount = () => requests.filter((path) => /\/class_|get_class_record_order/.test(path)).length
+    const authCount = () => requests.filter((path) => path.endsWith('refresh_invite_access')).length
+    const initialReads = businessCount()
+    const initialAuth = authCount()
+    const initialSigns = signCount()
+    await first.clock.fastForward(60_000)
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    assert.equal(businessCount(), initialReads, 'unchanged version must not reload any business data')
+    assert.ok(authCount() <= initialAuth + 2, 'same-token storage notifications must not cause an auth request storm')
+    // A hidden second tab does not poll; it still receives the revision broadcast.
+    await second.evaluate(() => Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' }))
+    records[0].content += ' 数据版本已更新'
+    tables.class_materials[0].content = '更新后的资料正文'
+    people[0].name = '人物一更新'
+    businessVersion = '2'
+    businessDelay = 200
+    await first.clock.fastForward(60_000)
+    assert.ok(await first.locator('#record-r1').count(), 'existing records stay mounted during revalidation')
+    await first.getByText('数据版本已更新', { exact: false }).first().waitFor()
+    await second.getByText('更新后的资料正文', { exact: false }).waitFor()
+    businessDelay = 0
+    assert.equal(await first.evaluate(() => document.querySelector('#record-r1') === window.__recordNode), true, 'background refresh updates in place')
+    assert.equal(await second.evaluate(() => localStorage.getItem('classRecord:businessVersion')), '2')
+    await first.evaluate(async (origin) => {
+      const { signAssetUrl } = await import(origin + 'src/services/data.ts')
+      const { getImageDimensions } = await import(origin + 'src/services/image-metadata.ts')
+      await signAssetUrl('data/attachments/cache-proof.png')
+      if (!getImageDimensions('data/attachments/cache-proof.png')) throw new Error('image dimensions were discarded')
+      if (!(await caches.match('/static-proof'))) throw new Error('static cache was discarded')
+    }, origin)
+    assert.equal(signCount(), initialSigns, 'database changes must not re-sign unchanged images')
+    const grantAfter = await first.evaluate(() => JSON.parse(localStorage.getItem('classRecord:inviteAccess')))
+    assert.equal(grantAfter.token, grantBefore.token)
+    assert.equal(grantAfter.authorizedAt, grantBefore.authorizedAt)
+    assert.equal(await first.getByLabel('邀请码', { exact: true }).count(), 0)
+    const readsAfter = businessCount()
+    await first.clock.fastForward(60_000)
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    assert.equal(businessCount(), readsAfter, 'settled version must not create a refresh loop')
+    await first.reload()
+    await first.getByText('数据版本已更新', { exact: false }).first().waitFor()
+    assert.equal((await first.evaluate(() => JSON.parse(localStorage.getItem('classRecord:inviteAccess')))).token, grantBefore.token, 'page refresh retains access')
+    await first.goto(origin + 'people')
+    await first.getByRole('link', { name: '人物一更新', exact: true }).waitFor()
+    await tabs.close()
+    console.log('Business updates passed: open clients, hidden second tab, retained credentials, reload, in-place UI, idle dedupe, image/static cache preservation.')
   }
   assert.deepEqual(problems, [], 'browser console and page errors')
   console.log(`Application browser regression passed (${engine === webkit ? 'WebKit' : 'Chromium'}): routes, stream order, permissions, annotations, nested images, keyboard and mobile; API requests=${requests.length}.`)

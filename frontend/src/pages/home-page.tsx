@@ -7,67 +7,54 @@ import {
   EyeOff,
   FileText,
   Image,
+  Lightbulb,
   Map as MapIcon,
   MessageSquareQuote,
   Search,
   ShieldAlert,
   Sparkles,
+  Star,
   Users,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link } from 'react-router'
 
 import { ErrorState } from '@/components/archive/async-state'
-import { interactiveSurfaceVariants } from '@/components/archive/interaction'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { GuidePanel } from '@/components/archive/guide-panel'
 import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemMedia,
-  ItemTitle,
-} from '@/components/ui/item'
-import { Label } from '@/components/ui/label'
+  archiveItemSurfaceClassName,
+  interactiveSurfaceVariants,
+} from '@/components/archive/interaction'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Item, ItemActions, ItemContent, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Switch } from '@/components/ui/switch'
 import { useArchive } from '@/features/archive/archive-context'
 import { useContentPreferences } from '@/features/preferences/content-preferences'
 
-const guidePanelClassName =
-  'rounded-xl border border-border/65 bg-card/88 px-4 py-3 shadow-none ring-0'
-
 const tips = [
-  '小提示：Logo 会带你回到主页。',
   '小提示：图片均可点击查看大图。',
   '小提示：人名可点击跳转至个人界面。',
   '小提示：可以在风格页分别调整配色和背景。',
   '小提示：看看注释吧！',
-  '小提示：挑战一下答题吗？',
-  '小提示：每天看看左上角吧。',
 ]
 
 const secondary = [
   {
     to: '/timeline',
     label: '统计',
-    description: '按年月查看档案数据',
     icon: ChartNoAxesCombined,
   },
-  { to: '/search', label: '搜索', description: '搜索记录、人物、名言与资料', icon: Search },
-  { to: '/quiz', label: '答题', description: '从共同记忆里抽一道题', icon: BrainCircuit },
-  { to: '/materials', label: '资料', description: '阅读补充资料与专题', icon: FileText },
-  { to: '/map', label: '地图', description: '查看班级成员内部地图', icon: MapIcon },
-  { to: '/backgrounds', label: '风格', description: '调整配色与背景', icon: Image },
-  { to: '/credits', label: '致谢', description: '查看档案的制作与贡献者', icon: Sparkles },
+  { to: '/search', label: '搜索', icon: Search },
+  { to: '/quiz', label: '答题', icon: BrainCircuit },
+  { to: '/materials', label: '资料', icon: FileText },
+  { to: '/map', label: '地图', icon: MapIcon },
+  { to: '/backgrounds', label: '风格', icon: Image },
+  { to: '/credits', label: '致谢', icon: Sparkles },
 ]
 
 export function HomePage() {
   const resource = useArchive()
-  const navigate = useNavigate()
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * tips.length))
   const [logoFailed, setLogoFailed] = useState(false)
   const { hideProfanity, setHideProfanity } = useContentPreferences()
@@ -108,10 +95,7 @@ export function HomePage() {
       <Card className="guide-hero relative gap-0 overflow-hidden border-border/70 bg-card/88 py-0">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_12%,color-mix(in_oklch,var(--primary)_18%,transparent),transparent_34%),linear-gradient(135deg,transparent_48%,color-mix(in_oklch,var(--secondary)_32%,transparent))]" />
         <CardContent className="relative grid p-0 lg:grid-cols-[minmax(0,1.45fr)_minmax(17rem,.72fr)]">
-          <div className="px-5 py-6 sm:px-7 sm:py-7 lg:px-8 lg:py-8">
-            <Badge variant="outline" className="mb-3 bg-background/55">
-              CLASS ARCHIVE · 共同记忆
-            </Badge>
+          <div className="flex flex-col justify-center px-5 py-6 sm:px-7 sm:py-7 lg:px-8 lg:py-8">
             <div className="mb-3 w-fit max-w-full select-none" aria-label="编日史 Logo" role="img">
               {logoFailed ? (
                 <span className="pointer-events-none block select-none font-heading text-4xl font-semibold tracking-tight">
@@ -131,85 +115,61 @@ export function HomePage() {
                 />
               )}
             </div>
-            <p className="max-w-2xl text-data leading-7 text-muted-foreground sm:text-base">
-              把散落在日常里的事件、人物、话语和资料，整理成一部可以搜索、回看，也可以继续生长的班级档案。
-            </p>
             <div className="mt-5 flex flex-wrap gap-2.5">
-              <Button nativeButton={false} render={<Link to="/records" />}>
-                浏览记录
-                <ArrowRight data-icon="inline-end" />
-              </Button>
-              <Button variant="outline" nativeButton={false} render={<Link to="/search" />}>
-                <Search data-icon="inline-start" />
-                搜索档案
+              <Button
+                variant="outline"
+                nativeButton={false}
+                role="link"
+                render={
+                  <a
+                    href="https://github.com/YippeeYi/classRecord"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="为项目点亮 Star（在新标签页打开 GitHub）"
+                  />
+                }
+              >
+                <Star data-icon="inline-start" aria-hidden="true" />
+                为项目点亮 Star
               </Button>
             </div>
           </div>
 
-          <aside className="grid content-center gap-3 border-t border-border/65 bg-background/28 p-4 sm:p-5 lg:border-t-0 lg:border-l lg:p-6">
-            <Alert className={guidePanelClassName}>
-              <ShieldAlert />
-              <AlertTitle className="font-semibold">仅供班级内部查看</AlertTitle>
-              <AlertDescription>请尊重档案中的个人信息与共同记忆，不要外传。</AlertDescription>
-            </Alert>
+          <aside className="grid auto-rows-fr content-center gap-3 border-t border-border/65 bg-background/28 p-4 sm:p-5 lg:border-t-0 lg:border-l lg:p-6">
+            <GuidePanel icon={ShieldAlert} title="仅供班级内部查看">
+              请尊重个人信息与共同记忆，不要外传。
+            </GuidePanel>
             {today.hasMatches && (
-              <Button
-                variant="outline"
-                className={`${guidePanelClassName} h-auto justify-between gap-4 text-left`}
-                onClick={() =>
-                  navigate(
-                    `/records?month=${encodeURIComponent(today.month)}&day=${encodeURIComponent(today.day)}`,
-                  )
-                }
+              <GuidePanel
+                icon={CalendarDays}
+                title="历史上的今天"
+                to={`/records?month=${today.month}&day=${today.day}`}
               >
-                <span className="flex items-center gap-3">
-                  <span className="grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
-                    <CalendarDays className="size-4" />
-                  </span>
-                  <span className="grid gap-0.5">
-                    <span className="text-xs font-normal text-muted-foreground">
-                      {today.month}.{today.day}
-                    </span>
-                    <span className="font-semibold">历史上的今天</span>
-                  </span>
-                </span>
-                <ArrowRight className="size-4 text-muted-foreground" />
-              </Button>
+                {today.month}.{today.day}
+              </GuidePanel>
             )}
-            <Card className={`${guidePanelClassName} min-h-12 flex-row items-center gap-3`}>
-              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-                <EyeOff className="size-4" />
-              </span>
-              <Label
-                htmlFor="hide-profanity"
-                className="block min-w-0 flex-1 cursor-pointer font-normal"
-              >
-                <span className="block text-sm font-semibold">隐藏脏话</span>
-                <span className="block text-xs leading-5 text-muted-foreground">
-                  在全站正文中以 *** 替代粗俗用语
-                </span>
-              </Label>
-              <Switch
-                id="hide-profanity"
-                checked={hideProfanity}
-                onCheckedChange={setHideProfanity}
-                aria-label="隐藏所有记录中的脏话"
-              />
-            </Card>
-            <Card className={`${guidePanelClassName} gap-0`}>
-              <p className="mb-1 text-sm font-semibold">小提示</p>
-              <p
-                className="guide-tip min-h-6 text-sm leading-6 text-muted-foreground"
-                aria-live="polite"
-              >
+            <GuidePanel
+              icon={EyeOff}
+              title="隐藏脏话"
+              toggle={{
+                id: 'hide-profanity',
+                checked: hideProfanity,
+                onCheckedChange: setHideProfanity,
+                label: '隐藏所有记录中的脏话',
+              }}
+            >
+              以 *** 替代粗俗用语
+            </GuidePanel>
+            <GuidePanel icon={Lightbulb} title="小提示">
+              <span className="guide-tip block min-h-5" aria-live="polite">
                 <span
                   key={tipIndex}
                   className="inline-block motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow)"
                 >
                   {(tips[tipIndex] || '').replace(/^小提示：/, '')}
                 </span>
-              </p>
-            </Card>
+              </span>
+            </GuidePanel>
           </aside>
         </CardContent>
       </Card>
@@ -217,7 +177,6 @@ export function HomePage() {
       <Card className="gap-0 overflow-hidden bg-card/90 py-0">
         <CardHeader className="border-b border-border/65 px-5 py-4 sm:px-6">
           <CardTitle className="font-heading text-xl">核心档案</CardTitle>
-          <CardDescription>从最常用的三个入口开始浏览。</CardDescription>
         </CardHeader>
         <CardContent className="p-3 sm:p-4">
           {(resource.loading || (!archiveData && !resource.error)) && (
@@ -228,7 +187,7 @@ export function HomePage() {
               aria-busy="true"
             >
               {['records', 'people', 'quotes'].map((key) => (
-                <Skeleton key={key} className="h-40 rounded-xl" />
+                <Skeleton key={key} className="h-28 rounded-xl" />
               ))}
             </div>
           )}
@@ -244,28 +203,25 @@ export function HomePage() {
                   to: '/records',
                   label: '记录',
                   value: archiveData.records.length,
-                  description: '按日期整理的共同经历',
                   icon: BookOpenText,
                 },
                 {
                   to: '/people',
                   label: '人物',
                   value: archiveData.people.length,
-                  description: '档案里的同学、老师与朋友',
                   icon: Users,
                 },
                 {
                   to: '/quotes',
                   label: '名言',
                   value: archiveData.quotes.length,
-                  description: '从原始记录中派生的原话',
                   icon: MessageSquareQuote,
                 },
-              ].map(({ to, label, value, description, icon: Icon }) => (
+              ].map(({ to, label, value, icon: Icon }) => (
                 <Item
                   key={to}
                   variant="outline"
-                  className={`${interactiveSurfaceVariants({ kind: 'item' })} grid h-full min-h-40 content-between gap-0 bg-background/32 p-4 sm:p-5`}
+                  className={`${interactiveSurfaceVariants({ kind: 'item' })} ${archiveItemSurfaceClassName} grid h-full min-h-28 content-between gap-0 p-4 sm:p-5`}
                   render={<Link to={to} />}
                 >
                   <div className="flex items-center justify-between gap-3">
@@ -279,14 +235,13 @@ export function HomePage() {
                       <ArrowRight className="size-4 text-muted-foreground" />
                     </ItemActions>
                   </div>
-                  <div className="mt-5">
+                  <div className="mt-3">
                     <div className="flex items-baseline justify-between gap-3">
                       <h2 className="font-heading text-lg font-semibold">{label}</h2>
                       <strong className="font-heading text-2xl font-semibold tracking-tight tabular-nums">
                         {value.toLocaleString()}
                       </strong>
                     </div>
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
                   </div>
                 </Item>
               ))}
@@ -298,14 +253,13 @@ export function HomePage() {
       <Card className="gap-0 overflow-hidden bg-card/90 py-0">
         <CardHeader className="border-b border-border/65 px-5 py-4 sm:px-6">
           <CardTitle className="font-heading text-xl">继续探索</CardTitle>
-          <CardDescription>统计、工具与档案补充入口集中在这里。</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2.5 p-3 sm:grid-cols-2 sm:p-4 xl:grid-cols-3">
-          {secondary.map(({ to, label, description, icon: Icon }) => (
+          {secondary.map(({ to, label, icon: Icon }) => (
             <Item
               key={to}
               variant="outline"
-              className={`${interactiveSurfaceVariants({ kind: 'item' })} min-h-20 bg-background/32 px-4 py-3`}
+              className={`${interactiveSurfaceVariants({ kind: 'item' })} ${archiveItemSurfaceClassName} min-h-16 px-4 py-3`}
               render={<Link to={to} />}
             >
               <ItemMedia
@@ -316,7 +270,6 @@ export function HomePage() {
               </ItemMedia>
               <ItemContent>
                 <ItemTitle>{label}</ItemTitle>
-                <ItemDescription>{description}</ItemDescription>
               </ItemContent>
               <ItemActions>
                 <ArrowRight className="size-4 text-muted-foreground" />

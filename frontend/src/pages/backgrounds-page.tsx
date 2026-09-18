@@ -28,20 +28,18 @@ const themeModeGroups = [
   {
     mode: 'light' as const,
     label: '浅色模式',
-    description: '适合明亮环境，正文和控件保持清晰深色层级。',
     icon: Sun,
   },
   {
     mode: 'dark' as const,
     label: '深色模式',
-    description: '适合低光环境，卡片、边框和强调色均同步降亮。',
     icon: Moon,
   },
 ]
 
 const appearanceSections = [
-  { value: 'palette', label: '配色', icon: Palette, description: '界面色彩' },
-  { value: 'background', label: '背景', icon: ImageIcon, description: '底层画面' },
+  { value: 'palette', label: '配色', icon: Palette },
+  { value: 'background', label: '背景', icon: ImageIcon },
 ] as const
 
 function ThemePresetOption({ preset, selected }: { preset: ThemePreset; selected: boolean }) {
@@ -158,10 +156,7 @@ export function BackgroundsPage() {
   const chooseTheme = (id: ThemePresetId) => setThemePreset(id)
   return (
     <div>
-      <PageHeading
-        title="风格"
-        description="配色与背景共同组成全站视觉风格；所有选择都会保存在当前浏览器中。"
-      />
+      <PageHeading title="风格" />
       <Tabs value={section} onValueChange={setSection} className="gap-4">
         <SegmentedTabsList
           value={section as (typeof appearanceSections)[number]['value']}
@@ -173,15 +168,12 @@ export function BackgroundsPage() {
 
         <TabsContent value="palette" className="app-tabs-content">
           <Card className="appearance-preset-panel gap-0 overflow-hidden border-border/70 bg-card/88 py-0">
-            <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
+            <div className="flex items-start gap-3 border-b border-border/55 px-4 py-3 sm:px-5">
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                 <Palette className="size-4" />
               </span>
               <div className="min-w-0">
                 <CardTitle className="text-base">配色</CardTitle>
-                <p className="mt-0.5 text-sm leading-5 text-muted-foreground">
-                  选择完整的明暗与强调色关系，或让界面自动跟随当前背景。
-                </p>
               </div>
             </div>
             <CardContent className="p-3 sm:p-4">
@@ -196,9 +188,6 @@ export function BackgroundsPage() {
                   className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/60 pb-3"
                 >
                   <AutomaticThemeOption selected={appearance.theme === 'auto'} />
-                  <p className="min-w-48 flex-1 text-meta leading-5 text-muted-foreground">
-                    从当前背景提取强调色；已缓存的配色会直接复用。
-                  </p>
                 </section>
                 {themeModeGroups.map((group) => {
                   const Icon = group.icon
@@ -215,9 +204,6 @@ export function BackgroundsPage() {
                         </span>
                         <div className="min-w-0 flex-1">
                           <h3 className="text-sm font-semibold">{group.label}</h3>
-                          <p className="text-meta leading-5 text-muted-foreground">
-                            {group.description}
-                          </p>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -239,15 +225,12 @@ export function BackgroundsPage() {
 
         <TabsContent value="background" className="app-tabs-content">
           <Card className="gap-0 overflow-hidden border-border/70 bg-card/88 py-0">
-            <div className="flex items-start gap-3 border-b border-border/55 px-4 py-4 sm:px-5">
+            <div className="flex items-start gap-3 border-b border-border/55 px-4 py-3 sm:px-5">
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                 <ImageIcon className="size-4" />
               </span>
               <div className="min-w-0">
                 <CardTitle className="text-base">背景</CardTitle>
-                <p className="mt-0.5 text-sm leading-5 text-muted-foreground">
-                  选择页面底层画面；它会与配色方案自然组合。
-                </p>
               </div>
             </div>
             <CardContent className="p-3 sm:p-4">
@@ -299,9 +282,6 @@ export function BackgroundsPage() {
                               {current === item.id ? '使用中' : item.category}
                             </Badge>
                           </div>
-                          <p className="line-clamp-2 text-sm leading-5 text-muted-foreground">
-                            {item.description}
-                          </p>
                         </div>
                         <RadioGroupItem
                           id={`background-${item.id}`}
