@@ -2185,9 +2185,9 @@ try {
   const guide = page.locator('[data-case="guide"]')
   await guide.scrollIntoViewIfNeeded()
   await guide.getByRole('link', { name: /记录/ }).first().waitFor({ state: 'visible' })
-  const guideLogo = guide.locator('.guide-hero [role="img"]').first()
+  const guideLogo = guide.locator('[data-guide-header] img').first()
   const guideLogoSemantics = await guideLogo.evaluate((logo) => {
-    const image = logo.querySelector('img')
+    const image = logo
     return {
       tag: logo.tagName,
       interactiveAncestor: Boolean(logo.closest('a, button, [role="button"]')),
@@ -2199,7 +2199,7 @@ try {
       imageUserSelect: image ? getComputedStyle(image).userSelect : '',
     }
   })
-  assert.equal(guideLogoSemantics.tag, 'DIV', 'guide logo must be a presentational container')
+  assert.equal(guideLogoSemantics.tag, 'IMG', 'guide logo must remain a semantic display image')
   assert.equal(guideLogoSemantics.interactiveAncestor, false, 'guide logo must not retain a link, button or button role')
   assert.equal(guideLogoSemantics.tabIndex, null, 'guide logo must not be keyboard focusable')
   assert.notEqual(guideLogoSemantics.cursor, 'pointer', 'guide logo must not advertise click behavior')
@@ -2210,23 +2210,11 @@ try {
   assert.equal(await guide.getByRole('link', { name: /记录/ }).count() > 0, true, 'guide must expose the primary records entry')
   assert.equal(await guide.getByRole('link', { name: /致谢/ }).count(), 1, 'guide must restore the baseline credits entry')
   assert.equal(await guide.getByRole('link', { name: /历史上的今天/ }).count(), 1, 'guide must retain the date-matched history entry')
-  // Compare resting surfaces after scroll-induced hover transitions settle.
+  assert.equal(await guide.locator('.guide-project').getByRole('link', { name: /为项目点亮 Star/ }).count(), 1, 'Star remains in the supporting footer')
+  assert.equal(await guide.locator('.guide-archive').getByRole('link', { name: /历史上的今天/ }).count(), 1, 'history remains beside the archive entries')
+  assert.equal(await guide.locator('[data-guide-info]').count(), 2, 'privacy and tips remain quiet information')
   await page.mouse.move(0, 0)
-  await guide.locator('aside > *').evaluateAll(async (panels) => {
-    for (const panel of panels) getComputedStyle(panel).backgroundColor
-    await Promise.all(panels.flatMap((panel) => panel.getAnimations())
-      .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
-      .map((animation) => animation.finished.catch(() => {})))
-  })
-  const guidePanels = await guide.locator('aside > *').evaluateAll((panels) => panels.map((panel) => {
-    const style = getComputedStyle(panel)
-    return { radius: style.borderRadius, border: style.border, background: style.backgroundColor, padding: style.padding }
-  }))
-  assert.equal(guidePanels.length, 2, 'header actions contain Star and history; preferences have a separate region')
-  assert.equal(await guide.locator('[data-guide-info]').count(), 2, 'privacy and tips are separate quiet information')
-  for (const panel of guidePanels.slice(1)) {
-    assert.deepEqual(panel, guidePanels[0], 'guide panels must share radius, border, background and spacing')
-  }
+  await page.waitForTimeout(220)
   const guideRecordItem = guide.locator('a.app-interactive-item[href="/records"]').last()
   const guideTimelineItem = guide.locator('a.app-interactive-item[href="/timeline"]')
   const readGuideItemState = (item) =>
@@ -2276,7 +2264,6 @@ try {
   )
   const guideGeometry = await guide.evaluate((section) => ({
     overflow: section.scrollWidth - section.clientWidth,
-    heroColumns: getComputedStyle(section.querySelector('.guide-hero [data-guide-header]')).gridTemplateColumns,
     primaryLinks: new Set([...section.querySelectorAll('a[href="/records"], a[href="/people"], a[href="/quotes"]')].map((link) => link.getAttribute('href'))).size,
     toolLinks: new Set([...section.querySelectorAll('a[href="/timeline"], a[href="/search"], a[href="/quiz"], a[href="/materials"], a[href="/map"], a[href="/backgrounds"], a[href="/credits"]')].map((link) => link.getAttribute('href'))).size,
   }))
@@ -2296,19 +2283,11 @@ try {
     }, preset)
     // Theme color transitions can cascade through inherited card colors.
     await page.waitForTimeout(650)
-    for (const width of [320, 390, 768, 1280]) {
+    for (const width of [320, 390, 768, 1024, 1280, 1920]) {
       await page.setViewportSize({ width, height: 1000 })
       await page.mouse.move(0, 0)
       await page.evaluate(() => document.activeElement?.blur())
       await page.waitForTimeout(300)
-      const panels = await guide.locator('aside [data-guide-panel]').evaluateAll((elements) => elements.map((element) => {
-        const style = (selector) => {
-          const node = selector ? element.querySelector(selector) : element
-          const s = getComputedStyle(node)
-          return { radius: s.borderRadius, background: s.backgroundColor, border: s.borderColor, color: s.color, font: s.font, padding: s.padding, gap: s.gap }
-        }
-        return { surface: style(''), icon: style('[data-slot="item-media"]'), title: style('[data-slot="item-title"]'), text: (() => { const { height, ...text } = style('[data-slot="item-description"]'); return text })() }
-      }))
       for (const info of await guide.locator('[data-guide-info]').all()) {
         const before = await info.evaluate(panelPaint)
         await info.hover()
@@ -2317,21 +2296,27 @@ try {
         assert.equal(await info.evaluate(e => e.matches('a,button,label') || e.tabIndex >= 0 || getComputedStyle(e).cursor === 'pointer'), false)
       }
       await page.mouse.move(0, 0)
-      for (const panel of panels.slice(1)) assert.deepEqual(panel, panels[0], `guide panel structure matches ${preset}/${width}`)
       assert.deepEqual(await todayPanel.evaluate(panelPaint), await guideTimelineItem.evaluate(panelPaint), `history matches navigation surfaces in ${preset}/${width}`)
       assert.equal(await guide.evaluate((e) => e.scrollWidth <= e.clientWidth + 1), true)
       const regions = await guide.locator('[data-guide-navigation]').evaluate(element => {
-        const sections = [...element.querySelectorAll('section')].map(e => { const r = e.getBoundingClientRect(); return { x:r.x, y:r.y, right:r.right, bottom:r.bottom } })
-        const lines = [...element.querySelectorAll('[data-slot="separator"]')].filter(e => getComputedStyle(e).display !== 'none').map(e => { const r = e.getBoundingClientRect(); return { width:r.width, height:r.height } })
-        return { sections, lines }
+        const rect = e => { const r = e.getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, right:r.right, bottom:r.bottom } }
+        return {
+          archive: rect(element.querySelector('.guide-archive')),
+          tools: rect(element.querySelector('.guide-explore')),
+          columns: getComputedStyle(element).gridTemplateColumns.split(' ').length,
+          links: [...element.querySelectorAll('a')].map(rect),
+          bounds: rect(element),
+        }
       })
-      assert.equal(regions.lines.length, 1, 'one divider separates functional groups')
-      if (width >= 1024) {
-        assert.ok(regions.sections[0].right < regions.sections[1].x, 'desktop groups sit side by side')
-        assert.equal(regions.lines[0].width, 1)
+      for (const link of regions.links) {
+        assert.ok(link.x >= regions.bounds.x - 1 && link.right <= regions.bounds.right + 1, `guide links remain inside the lane at ${preset}/${width}`)
+        assert.ok(link.bottom - link.y >= 44, 'guide links retain usable touch targets')
+      }
+      if (regions.columns === 2) {
+        assert.ok(regions.archive.right < regions.tools.x, 'wide groups sit side by side')
+        assert.ok(regions.archive.width > regions.tools.width, 'archive leads with a wider content lane')
       } else {
-        assert.ok(regions.sections[0].bottom < regions.sections[1].y, 'narrow groups follow a vertical reading order')
-        assert.equal(regions.lines[0].height, 1)
+        assert.ok(regions.archive.bottom < regions.tools.y, 'narrow groups follow archive-first reading order')
       }
 
       if (width === 390) await guide.screenshot({ path: `/tmp/class-guide-${preset}-mobile.png` })
@@ -2374,7 +2359,8 @@ try {
     else delete document.documentElement.dataset.themePreset
     document.documentElement.classList.toggle('dark', dark)
   }, originalTheme)
-  console.log('Guide panels and Star passed: light/dark, four widths, matching typography/icons/height/states and safe keyboard navigation.')
+  await page.setViewportSize({ width: 1280, height: 1000 })
+  console.log('Guide and Star passed: light/dark, six widths, archive-first hierarchy, shared interaction states, touch targets and safe keyboard navigation.')
   if (process.env.CLASS_RECORD_LAYOUT_SCREENSHOT) {
     await page.screenshot({ path: process.env.CLASS_RECORD_LAYOUT_SCREENSHOT, fullPage: true })
   }
