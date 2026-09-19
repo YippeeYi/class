@@ -19,7 +19,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ErrorState } from '@/components/archive/async-state'
 import { GitHubStarPanel } from '@/components/archive/github-star-panel'
 import { GuideInfo, GuidePanel } from '@/components/archive/guide-panel'
-import { CardContent } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useArchive } from '@/features/archive/archive-context'
 import { useContentPreferences } from '@/features/preferences/content-preferences'
@@ -85,9 +85,12 @@ export function HomePage() {
   return (
     <div className="grid gap-8 rounded-xl bg-card/90 p-4 text-card-foreground sm:gap-10 sm:p-6 lg:p-8">
       <section className="guide-hero">
-        <CardContent className="grid gap-6 p-0 lg:grid-cols-[minmax(0,1.45fr)_minmax(17rem,.72fr)] lg:gap-10">
-          <div className="flex min-w-0 flex-col justify-center gap-6 py-2 sm:py-4">
-            <div className="mb-3 w-fit max-w-full select-none" aria-label="编日史 Logo" role="img">
+        <div
+          data-guide-header
+          className="grid items-center gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(17rem,1fr)] lg:gap-12"
+        >
+          <div className="flex min-w-0 flex-col gap-4">
+            <div className="w-fit max-w-full select-none" aria-label="编日史 Logo" role="img">
               {logoFailed ? (
                 <span className="pointer-events-none block select-none font-heading text-4xl font-semibold tracking-tight">
                   编日史
@@ -106,19 +109,9 @@ export function HomePage() {
                 />
               )}
             </div>
-            <div className="grid max-w-xl gap-5 sm:grid-cols-2">
+            <div className="max-w-sm">
               <GuideInfo icon={ShieldAlert} title="仅供班级内部查看">
                 请尊重个人信息与共同记忆，不要外传。
-              </GuideInfo>
-              <GuideInfo icon={Lightbulb} title="小提示">
-                <span className="guide-tip block min-h-10" aria-live="polite">
-                  <span
-                    key={tipIndex}
-                    className="inline-block motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow)"
-                  >
-                    {(tips[tipIndex] || '').replace(/^小提示：/, '')}
-                  </span>
-                </span>
               </GuideInfo>
             </div>
           </div>
@@ -134,83 +127,104 @@ export function HomePage() {
                 {today.month}.{today.day}
               </GuidePanel>
             )}
-            <GuidePanel
-              icon={EyeOff}
-              title="隐藏脏话"
-              toggle={{
-                id: 'hide-profanity',
-                checked: hideProfanity,
-                onCheckedChange: setHideProfanity,
-                label: '隐藏所有记录中的脏话',
-              }}
-            >
-              以 *** 替代粗俗用语
-            </GuidePanel>
           </aside>
-        </CardContent>
+        </div>
       </section>
 
-      <section className="grid gap-3" aria-label="核心档案">
-        <h2 className="font-heading text-lg font-semibold">核心档案</h2>
-        <div>
-          {(resource.loading || (!archiveData && !resource.error)) && (
-            <div
-              className="grid gap-3 md:grid-cols-3"
-              role="status"
-              aria-label="正在加载档案概览"
-              aria-busy="true"
+      <Separator className="bg-border/60" />
+      <div
+        data-guide-navigation
+        className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_1px_minmax(0,1.4fr)] lg:gap-8"
+      >
+        <section className="grid content-start gap-4" aria-label="核心档案">
+          <h2 className="font-heading text-lg font-semibold">核心档案</h2>
+          <div>
+            {(resource.loading || (!archiveData && !resource.error)) && (
+              <div
+                className="grid gap-2"
+                role="status"
+                aria-label="正在加载档案概览"
+                aria-busy="true"
+              >
+                {['records', 'people', 'quotes'].map((key) => (
+                  <Skeleton key={key} className="h-20 rounded-xl" />
+                ))}
+              </div>
+            )}
+            {resource.error && (
+              <div className="mb-3">
+                <ErrorState title="档案概览加载失败" onRetry={resource.retry} />
+              </div>
+            )}
+            {archiveData && (
+              <div className="grid gap-2">
+                {[
+                  {
+                    to: '/records',
+                    label: '记录',
+                    value: archiveData.records.length,
+                    icon: BookOpenText,
+                  },
+                  {
+                    to: '/people',
+                    label: '人物',
+                    value: archiveData.people.length,
+                    icon: Users,
+                  },
+                  {
+                    to: '/quotes',
+                    label: '名言',
+                    value: archiveData.quotes.length,
+                    icon: MessageSquareQuote,
+                  },
+                ].map(({ to, label, value, icon: Icon }) => (
+                  <GuidePanel key={to} to={to} title={label} icon={Icon}>
+                    <span className="font-heading text-2xl font-semibold tracking-tight text-foreground tabular-nums">
+                      {value.toLocaleString()}
+                    </span>
+                  </GuidePanel>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <Separator className="bg-border/60 lg:hidden" />
+        <Separator orientation="vertical" className="hidden bg-border/60 lg:block" />
+        <section className="grid content-start gap-4" aria-label="继续探索">
+          <h2 className="font-heading text-lg font-semibold">继续探索</h2>
+          <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+            {secondary.map(({ to, label, icon: Icon }) => (
+              <GuidePanel key={to} to={to} title={label} icon={Icon} />
+            ))}
+          </div>
+        </section>
+      </div>
+      <Separator className="bg-border/60" />
+      <div data-guide-preferences className="grid items-center gap-5 sm:grid-cols-2 lg:gap-12">
+        <GuidePanel
+          icon={EyeOff}
+          title="隐藏脏话"
+          toggle={{
+            id: 'hide-profanity',
+            checked: hideProfanity,
+            onCheckedChange: setHideProfanity,
+            label: '隐藏所有记录中的脏话',
+          }}
+        >
+          以 *** 替代粗俗用语
+        </GuidePanel>
+        <GuideInfo icon={Lightbulb} title="小提示">
+          <span className="guide-tip block min-h-10" aria-live="polite">
+            <span
+              key={tipIndex}
+              className="inline-block motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow)"
             >
-              {['records', 'people', 'quotes'].map((key) => (
-                <Skeleton key={key} className="h-28 rounded-xl" />
-              ))}
-            </div>
-          )}
-          {resource.error && (
-            <div className="mb-3">
-              <ErrorState title="档案概览加载失败" onRetry={resource.retry} />
-            </div>
-          )}
-          {archiveData && (
-            <div className="grid gap-3 md:grid-cols-3">
-              {[
-                {
-                  to: '/records',
-                  label: '记录',
-                  value: archiveData.records.length,
-                  icon: BookOpenText,
-                },
-                {
-                  to: '/people',
-                  label: '人物',
-                  value: archiveData.people.length,
-                  icon: Users,
-                },
-                {
-                  to: '/quotes',
-                  label: '名言',
-                  value: archiveData.quotes.length,
-                  icon: MessageSquareQuote,
-                },
-              ].map(({ to, label, value, icon: Icon }) => (
-                <GuidePanel key={to} to={to} title={label} icon={Icon}>
-                  <span className="font-heading text-2xl font-semibold tracking-tight text-foreground tabular-nums">
-                    {value.toLocaleString()}
-                  </span>
-                </GuidePanel>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="grid gap-3" aria-label="继续探索">
-        <h2 className="font-heading text-lg font-semibold">继续探索</h2>
-        <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-          {secondary.map(({ to, label, icon: Icon }) => (
-            <GuidePanel key={to} to={to} title={label} icon={Icon} />
-          ))}
-        </div>
-      </section>
+              {(tips[tipIndex] || '').replace(/^小提示：/, '')}
+            </span>
+          </span>
+        </GuideInfo>
+      </div>
     </div>
   )
 }

@@ -2222,7 +2222,7 @@ try {
     const style = getComputedStyle(panel)
     return { radius: style.borderRadius, border: style.border, background: style.backgroundColor, padding: style.padding }
   }))
-  assert.equal(guidePanels.length, 3, 'guide action area contains Star, history and preference')
+  assert.equal(guidePanels.length, 2, 'header actions contain Star and history; preferences have a separate region')
   assert.equal(await guide.locator('[data-guide-info]').count(), 2, 'privacy and tips are separate quiet information')
   for (const panel of guidePanels.slice(1)) {
     assert.deepEqual(panel, guidePanels[0], 'guide panels must share radius, border, background and spacing')
@@ -2276,7 +2276,7 @@ try {
   )
   const guideGeometry = await guide.evaluate((section) => ({
     overflow: section.scrollWidth - section.clientWidth,
-    heroColumns: getComputedStyle(section.querySelector('.guide-hero [data-slot="card-content"]')).gridTemplateColumns,
+    heroColumns: getComputedStyle(section.querySelector('.guide-hero [data-guide-header]')).gridTemplateColumns,
     primaryLinks: new Set([...section.querySelectorAll('a[href="/records"], a[href="/people"], a[href="/quotes"]')].map((link) => link.getAttribute('href'))).size,
     toolLinks: new Set([...section.querySelectorAll('a[href="/timeline"], a[href="/search"], a[href="/quiz"], a[href="/materials"], a[href="/map"], a[href="/backgrounds"], a[href="/credits"]')].map((link) => link.getAttribute('href'))).size,
   }))
@@ -2320,6 +2320,20 @@ try {
       for (const panel of panels.slice(1)) assert.deepEqual(panel, panels[0], `guide panel structure matches ${preset}/${width}`)
       assert.deepEqual(await todayPanel.evaluate(panelPaint), await guideTimelineItem.evaluate(panelPaint), `history matches navigation surfaces in ${preset}/${width}`)
       assert.equal(await guide.evaluate((e) => e.scrollWidth <= e.clientWidth + 1), true)
+      const regions = await guide.locator('[data-guide-navigation]').evaluate(element => {
+        const sections = [...element.querySelectorAll('section')].map(e => { const r = e.getBoundingClientRect(); return { x:r.x, y:r.y, right:r.right, bottom:r.bottom } })
+        const lines = [...element.querySelectorAll('[data-slot="separator"]')].filter(e => getComputedStyle(e).display !== 'none').map(e => { const r = e.getBoundingClientRect(); return { width:r.width, height:r.height } })
+        return { sections, lines }
+      })
+      assert.equal(regions.lines.length, 1, 'one divider separates functional groups')
+      if (width >= 1024) {
+        assert.ok(regions.sections[0].right < regions.sections[1].x, 'desktop groups sit side by side')
+        assert.equal(regions.lines[0].width, 1)
+      } else {
+        assert.ok(regions.sections[0].bottom < regions.sections[1].y, 'narrow groups follow a vertical reading order')
+        assert.equal(regions.lines[0].height, 1)
+      }
+
       if (width === 390) await guide.screenshot({ path: `/tmp/class-guide-${preset}-mobile.png` })
     }
     for (const element of [todayPanel, guideTimelineItem]) {
