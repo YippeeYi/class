@@ -2208,15 +2208,15 @@ try {
   assert.equal(guideLogoSemantics.imagePointerEvents, 'none', 'guide logo image must not receive pointer events')
   assert.equal(guideLogoSemantics.imageUserSelect, 'none', 'guide logo image must not be selectable')
   assert.equal(await guide.getByRole('link', { name: /记录/ }).count() > 0, true, 'guide must expose the primary records entry')
-  assert.equal(await guide.getByRole('link', { name: /致谢/ }).count(), 1, 'guide must restore the baseline credits entry')
+  assert.equal(await guide.getByRole('link', { name: /致谢/ }).count(), 0, 'guide must not duplicate the sidebar credits entry')
   assert.equal(await guide.getByRole('link', { name: /历史上的今天/ }).count(), 1, 'guide must retain the date-matched history entry')
   assert.equal(await guide.locator('.guide-project').getByRole('link', { name: /为项目点亮 Star/ }).count(), 1, 'Star remains in the supporting footer')
-  assert.equal(await guide.locator('.guide-archive').getByRole('link', { name: /历史上的今天/ }).count(), 1, 'history remains beside the archive entries')
+  assert.equal(await guide.locator('.guide-history').getByRole('link', { name: /历史上的今天/ }).count(), 1, 'history remains beside the archive entries')
   assert.equal(await guide.locator('[data-guide-info]').count(), 2, 'privacy and tips remain quiet information')
   await page.mouse.move(0, 0)
   await page.waitForTimeout(220)
   const guideRecordItem = guide.locator('a.app-interactive-item[href="/records"]').last()
-  const guideTimelineItem = guide.locator('a.app-interactive-item[href="/timeline"]')
+  const guideQuoteItem = guide.locator('a.app-interactive-item[href="/quotes"]')
   const readGuideItemState = (item) =>
     item.evaluate((link) => {
       const bounds = link.getBoundingClientRect()
@@ -2241,9 +2241,9 @@ try {
       guidePrimaryAfter.border !== guideItemBefore.border,
     `guide entry hover must expose the shared item feedback: ${JSON.stringify({ guideItemBefore, guidePrimaryAfter })}`,
   )
-  await guideTimelineItem.hover()
+  await guideQuoteItem.hover()
   await page.waitForTimeout(220)
-  const guideSecondaryAfter = await readGuideItemState(guideTimelineItem)
+  const guideSecondaryAfter = await readGuideItemState(guideQuoteItem)
   assert.deepEqual(
     {
       background: guidePrimaryAfter.background,
@@ -2269,7 +2269,7 @@ try {
   }))
   assert.ok(guideGeometry.overflow <= 1, 'guide layout must not overflow its content lane')
   assert.equal(guideGeometry.primaryLinks, 3, 'guide must retain all three primary archive entries')
-  assert.equal(guideGeometry.toolLinks, 7, 'guide must retain all baseline secondary entries')
+  assert.equal(guideGeometry.toolLinks, 0, 'pure navigation stays in the sidebar instead of repeating on the homepage')
   const todayPanel = guide.getByRole('link', { name: /历史上的今天/ })
   const panelPaint = (element) => {
     const style = getComputedStyle(element)
@@ -2296,13 +2296,13 @@ try {
         assert.equal(await info.evaluate(e => e.matches('a,button,label') || e.tabIndex >= 0 || getComputedStyle(e).cursor === 'pointer'), false)
       }
       await page.mouse.move(0, 0)
-      assert.deepEqual(await todayPanel.evaluate(panelPaint), await guideTimelineItem.evaluate(panelPaint), `history matches navigation surfaces in ${preset}/${width}`)
+      assert.deepEqual(await todayPanel.evaluate(panelPaint), await guideQuoteItem.evaluate(panelPaint), `history matches navigation surfaces in ${preset}/${width}`)
       assert.equal(await guide.evaluate((e) => e.scrollWidth <= e.clientWidth + 1), true)
       const regions = await guide.locator('[data-guide-navigation]').evaluate(element => {
         const rect = e => { const r = e.getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, right:r.right, bottom:r.bottom } }
         return {
-          archive: rect(element.querySelector('.guide-archive')),
-          tools: rect(element.querySelector('.guide-explore')),
+          archive: rect(element.querySelector('.guide-main')),
+          tools: rect(element.querySelector('.guide-margin')),
           columns: getComputedStyle(element).gridTemplateColumns.split(' ').length,
           links: [...element.querySelectorAll('a')].map(rect),
           bounds: rect(element),
@@ -2321,7 +2321,7 @@ try {
 
       if (width === 390) await guide.screenshot({ path: `/tmp/class-guide-${preset}-mobile.png` })
     }
-    for (const element of [todayPanel, guideTimelineItem]) {
+    for (const element of [todayPanel, guideQuoteItem]) {
       await element.hover()
       await page.waitForTimeout(300)
       const hover = await element.evaluate(panelPaint)

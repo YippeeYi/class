@@ -1,58 +1,37 @@
 import {
   ArrowRight,
-  BookOpenText,
-  BrainCircuit,
   CalendarDays,
-  ChartNoAxesCombined,
   EyeOff,
-  FileText,
-  Image,
   Lightbulb,
-  Map as MapIcon,
-  MessageSquareQuote,
-  Search,
+  Quote as QuoteIcon,
   ShieldAlert,
-  Sparkles,
-  Users,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 
 import { ErrorState } from '@/components/archive/async-state'
 import { GitHubStarPanel } from '@/components/archive/github-star-panel'
 import { GuideInfo, GuidePanel } from '@/components/archive/guide-panel'
 import { interactiveSurfaceVariants } from '@/components/archive/interaction'
-import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useArchive } from '@/features/archive/archive-context'
 import { useContentPreferences } from '@/features/preferences/content-preferences'
+import { stripMarkup } from '@/lib/markup'
+import { filterProfanity } from '@/lib/profanity'
+import { recordAnchorId, recordHref } from '@/lib/record-identity'
+import { isModifiedRecordClick, prepareRecordJump, recordClientHref } from '@/lib/record-navigation'
 import '@/styles/home.css'
 
 const tips = [
-  '小提示：图片均可点击查看大图。',
-  '小提示：人名可点击跳转至个人界面。',
-  '小提示：可以在风格页分别调整配色和背景。',
-  '小提示：看看注释吧！',
-]
-
-const tools = [
-  {
-    to: '/timeline',
-    label: '统计',
-    icon: ChartNoAxesCombined,
-  },
-  { to: '/quiz', label: '答题', icon: BrainCircuit },
-  { to: '/materials', label: '资料', icon: FileText },
-  { to: '/map', label: '地图', icon: MapIcon },
-]
-
-const utilities = [
-  { to: '/backgrounds', label: '风格', icon: Image },
-  { to: '/credits', label: '致谢', icon: Sparkles },
+  '图片均可点击查看大图。',
+  '人名可点击跳转至个人界面。',
+  '可以在风格页分别调整配色和背景。',
+  '看看注释吧！',
 ]
 
 export function HomePage() {
   const resource = useArchive()
+  const navigate = useNavigate()
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * tips.length))
   const [logoFailed, setLogoFailed] = useState(false)
   const { hideProfanity, setHideProfanity } = useContentPreferences()
@@ -75,18 +54,34 @@ export function HomePage() {
     return () => window.clearInterval(timer)
   }, [])
 
-  const today = useMemo(() => {
+  const archiveData = resource.data
+  const edition = useMemo(() => {
     const now = new Date()
     const month = String(now.getMonth() + 1).padStart(2, '0')
     const day = String(now.getDate()).padStart(2, '0')
-    const records = resource.data?.records || []
-    const matches = records
+    const visible = (archiveData?.records || []).filter((record) => !record.hidden)
+    const dated = visible
       .filter((record) => /^\d{4}-\d{2}-\d{2}$/.test(record.date))
-      .filter((record) => record.date.slice(5, 7) === month && record.date.slice(8, 10) === day)
-    return { month, day, hasMatches: matches.length > 0 }
-  }, [resource.data])
-
-  const archiveData = resource.data
+      .sort(
+        (a, b) =>
+          b.date.localeCompare(a.date) ||
+          b.time.localeCompare(a.time) ||
+          b.recordIndex - a.recordIndex,
+      )
+    const matches = dated.filter((record) => record.date.slice(5) === `${month}-${day}`)
+    return {
+      month,
+      day,
+      matches,
+      latest: dated[0] || visible[0],
+      firstDate: dated.at(-1)?.date,
+      lastDate: dated[0]?.date,
+    }
+  }, [archiveData])
+  const preview = (value: string) =>
+    filterProfanity(stripMarkup(value), hideProfanity).replace(/\s+/g, ' ').trim()
+  const latest = edition.latest
+  const quote = archiveData?.quotes[0]
 
   return (
     <div className="guide-home bg-card/90 text-card-foreground">
@@ -113,130 +108,147 @@ export function HomePage() {
         </GuideInfo>
       </header>
 
-      <div data-guide-navigation className="guide-body">
-        <section className="guide-archive" aria-labelledby="guide-archive-title">
-          <h2 id="guide-archive-title" className="guide-section-title">
-            核心档案
-          </h2>
-          {(resource.loading || (!archiveData && !resource.error)) && (
-            <div
-              className="guide-stats"
-              role="status"
-              aria-label="正在加载档案概览"
-              aria-busy="true"
-            >
-              <Skeleton className="guide-record h-56 rounded-xl" />
-              <div className="grid gap-4">
-                <Skeleton className="h-24" />
-                <Skeleton className="h-24" />
+      {(resource.loading || (!archiveData && !resource.error)) && (
+        <div className="guide-loading" role="status" aria-label="正在加载档案概览" aria-busy="true">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-48 w-full" />
+          <Skeleton className="h-24 w-2/3" />
+        </div>
+      )}
+      {resource.error && <ErrorState title="档案概览加载失败" onRetry={resource.retry} />}
+      {archiveData && (
+        <div data-guide-navigation className="guide-body">
+          <div className="guide-main">
+            <section className="guide-archive" aria-labelledby="guide-archive-title">
+              <div className="guide-section-heading">
+                <h2 id="guide-archive-title">最近的记录</h2>
+                {edition.firstDate && edition.lastDate && (
+                  <span className="guide-date-range">
+                    {edition.firstDate.slice(0, 4) === edition.lastDate.slice(0, 4)
+                      ? `收录于 ${edition.firstDate.slice(0, 4)} 年`
+                      : `${edition.firstDate.slice(0, 4)} — ${edition.lastDate.slice(0, 4)}`}
+                  </span>
+                )}
               </div>
-            </div>
-          )}
-          {resource.error && <ErrorState title="档案概览加载失败" onRetry={resource.retry} />}
-          {archiveData && (
-            <div className="guide-stats">
+              {latest ? (
+                <>
+                  <div className="guide-dateline">
+                    <span className="guide-date font-heading">{latest.date || '未标注日期'}</span>
+                    {latest.time && (
+                      <span className="text-sm text-muted-foreground">{latest.time}</span>
+                    )}
+                  </div>
+                  <p className="guide-record-excerpt">
+                    {preview(latest.content) || '这条记录暂无文字内容。'}
+                  </p>
+                  <Link
+                    to={recordHref(latest)}
+                    className={`guide-inline-link ${interactiveSurfaceVariants({ kind: 'item' })}`}
+                    onClick={(event) => {
+                      if (isModifiedRecordClick(event)) return
+                      event.preventDefault()
+                      prepareRecordJump(recordAnchorId(latest))
+                      navigate(recordClientHref(recordHref(latest)))
+                    }}
+                  >
+                    打开这条记录 <ArrowRight className="size-4" aria-hidden="true" />
+                  </Link>
+                </>
+              ) : (
+                <p className="guide-empty">暂无记录</p>
+              )}
               <Link
                 to="/records"
-                className={`guide-record ${interactiveSurfaceVariants({ kind: 'item' })}`}
+                className={`guide-total ${interactiveSurfaceVariants({ kind: 'item' })}`}
               >
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <BookOpenText className="size-5" aria-hidden="true" />
-                  记录
+                <span>
+                  <strong className="font-heading tabular-nums">
+                    {archiveData.records.length.toLocaleString()}
+                  </strong>{' '}
+                  条记录
                 </span>
-                <span className="guide-record-count font-heading tabular-nums">
-                  {archiveData.records.length.toLocaleString()}
+                <span className="guide-action">
+                  查看全部 <ArrowRight className="size-4" aria-hidden="true" />
                 </span>
-                <ArrowRight className="size-5 self-end" aria-hidden="true" />
               </Link>
-              <div className="guide-index">
-                {[
-                  { to: '/people', label: '人物', value: archiveData.people.length, icon: Users },
-                  {
-                    to: '/quotes',
-                    label: '名言',
-                    value: archiveData.quotes.length,
-                    icon: MessageSquareQuote,
-                  },
-                ].map(({ to, label, value, icon: Icon }) => (
-                  <Link
-                    key={to}
-                    to={to}
-                    className={`guide-index-link ${interactiveSurfaceVariants({ kind: 'item' })}`}
-                  >
-                    <span className="flex items-center gap-2 text-sm">
-                      <Icon className="size-4 text-primary" aria-hidden="true" />
-                      {label}
-                    </span>
-                    <span className="flex items-end justify-between gap-1">
-                      <span className="font-heading text-[clamp(1.5rem,3cqi,1.875rem)] font-medium tracking-tight tabular-nums">
-                        {value.toLocaleString()}
-                      </span>
-                      <ArrowRight
-                        className="mb-1 size-4 text-muted-foreground"
-                        aria-hidden="true"
-                      />
-                    </span>
-                  </Link>
-                ))}
+            </section>
+            <section className="guide-quote" aria-labelledby="guide-quote-title">
+              <div className="guide-section-heading">
+                <h2 id="guide-quote-title">名言摘录</h2>
+                <QuoteIcon className="size-6 text-primary/60" aria-hidden="true" />
               </div>
-            </div>
-          )}
-          {today.hasMatches && (
-            <Link
-              to={`/records?month=${today.month}&day=${today.day}`}
-              className={`guide-today ${interactiveSurfaceVariants({ kind: 'item' })}`}
-            >
-              <CalendarDays className="size-4 text-primary" aria-hidden="true" />
-              <span className="font-heading text-2xl tracking-tight tabular-nums">
-                {today.month}.{today.day}
-              </span>
-              <span className="text-sm">历史上的今天</span>
-              <ArrowRight className="ml-auto size-4 shrink-0" aria-hidden="true" />
-            </Link>
-          )}
-        </section>
-
-        <nav className="guide-explore" aria-labelledby="guide-explore-title">
-          <h2 id="guide-explore-title" className="guide-section-title">
-            继续探索
-          </h2>
-          <Link
-            to="/search"
-            className={`guide-search ${interactiveSurfaceVariants({ kind: 'item' })}`}
-          >
-            <Search className="size-5 text-primary" aria-hidden="true" />
-            <span className="flex-1 text-base font-medium">搜索</span>
-            <ArrowRight className="size-4" aria-hidden="true" />
-          </Link>
-          <div className="guide-tools">
-            {tools.map(({ to, label, icon: Icon }) => (
+              {quote ? (
+                <blockquote className="guide-quote-text">
+                  {preview(quote.quote || quote.content) || '这条名言暂无文字内容。'}
+                </blockquote>
+              ) : (
+                <p className="guide-empty">暂无名言</p>
+              )}
+              {quote?.sourceDate && <p className="guide-source">{quote.sourceDate}</p>}
               <Link
-                key={to}
-                to={to}
-                className={`guide-tool ${interactiveSurfaceVariants({ kind: 'item' })}`}
+                to="/quotes"
+                className={`guide-inline-link ${interactiveSurfaceVariants({ kind: 'item' })}`}
               >
-                <Icon className="size-4 text-primary" aria-hidden="true" />
-                <span>{label}</span>
-                <ArrowRight className="ml-auto size-3.5 text-muted-foreground" aria-hidden="true" />
+                查看 {archiveData.quotes.length.toLocaleString()} 则名言{' '}
+                <ArrowRight className="size-4" aria-hidden="true" />
               </Link>
-            ))}
+            </section>
           </div>
-          <Separator className="my-3 bg-border/60" />
-          <div className="guide-utilities">
-            {utilities.map(({ to, label, icon: Icon }) => (
+          <div className="guide-margin">
+            {edition.matches.length > 0 && (
+              <section className="guide-history" aria-labelledby="guide-history-title">
+                <h2 id="guide-history-title" className="guide-section-heading">
+                  <CalendarDays className="size-4" aria-hidden="true" />
+                  历史上的今天
+                </h2>
+                <p className="guide-calendar font-heading tabular-nums">
+                  {edition.month}
+                  <span> / </span>
+                  {edition.day}
+                </p>
+                <p className="guide-history-excerpt">
+                  {preview(edition.matches[0]?.content || '') || '这一天留下了记录。'}
+                </p>
+                <Link
+                  to={`/records?month=${edition.month}&day=${edition.day}`}
+                  aria-labelledby="guide-history-title"
+                  className={`guide-inline-link ${interactiveSurfaceVariants({ kind: 'item' })}`}
+                >
+                  查看这一天的 {edition.matches.length.toLocaleString()} 条记录{' '}
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </Link>
+              </section>
+            )}
+            <section className="guide-people" aria-labelledby="guide-people-title">
+              <h2 id="guide-people-title" className="guide-section-heading">
+                档案中的人物
+              </h2>
+              <p className="guide-people-count font-heading tabular-nums">
+                {archiveData.people.length.toLocaleString()}
+                <span> 位</span>
+              </p>
+              <ul className="guide-names" aria-label="人物预览">
+                {archiveData.people.slice(0, 4).map((person) => (
+                  <li key={person.id}>
+                    <Link
+                      to={`/person?id=${encodeURIComponent(person.id)}`}
+                      className={`guide-person-link ${interactiveSurfaceVariants({ kind: 'item' })}`}
+                    >
+                      {preview(person.name || person.alias || person.id)}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
               <Link
-                key={to}
-                to={to}
-                className={`guide-tool ${interactiveSurfaceVariants({ kind: 'item' })}`}
+                to="/people"
+                className={`guide-inline-link ${interactiveSurfaceVariants({ kind: 'item' })}`}
               >
-                <Icon className="size-4" aria-hidden="true" />
-                <span>{label}</span>
+                查看人物档案 <ArrowRight className="size-4" aria-hidden="true" />
               </Link>
-            ))}
+            </section>
           </div>
-        </nav>
-      </div>
-
+        </div>
+      )}
       <footer className="guide-footer">
         <div data-guide-preferences className="guide-reading">
           <GuidePanel
@@ -253,7 +265,7 @@ export function HomePage() {
           </GuidePanel>
           <GuideInfo icon={Lightbulb} title="小提示">
             <span className="guide-tip block min-h-10" aria-live="polite">
-              {(tips[tipIndex] || '').replace(/^小提示：/, '')}
+              {tips[tipIndex]}
             </span>
           </GuideInfo>
         </div>

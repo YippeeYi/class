@@ -330,6 +330,34 @@ try {
     await images.close()
   }
   {
+    const originalContent = records[1].content
+    const hiddenDate = records[2].record_date
+    records[1].content = '首页摘录 [[red:标记文字]] 傻逼 [[quote:home|摘录名言]]'
+    records[2].record_date = '2099-01-01'
+    const homeContext = await contextFor()
+    const home = await homeContext.newPage()
+    await home.goto(origin)
+    const excerpt = home.locator('.guide-record-excerpt')
+    await excerpt.waitFor()
+    assert.equal(await excerpt.innerText(), '首页摘录 标记文字 *** 摘录名言')
+    assert.equal(await home.locator('.guide-home a[href="/search"]').count(), 0, 'sidebar-only navigation must not repeat on the home')
+    assert.equal(await home.locator('.guide-home a[href="/person?id=p1"]').count(), 1, 'people preview retains a direct profile link')
+    const source = home.getByRole('link', { name: '打开这条记录' })
+    assert.equal(await source.getAttribute('href'), '/records#record-r2', 'newest public record wins; hidden records never become previews')
+    await home.getByRole('switch', { name: '隐藏所有记录中的脏话' }).click()
+    assert.match(await excerpt.innerText(), /傻逼/)
+    await home.reload()
+    await excerpt.waitFor()
+    assert.match(await excerpt.innerText(), /傻逼/, 'the preview follows persisted content preferences')
+    await source.click()
+    await home.locator('#record-r2').waitFor()
+    await home.waitForFunction(() => location.hash === '#record-r2')
+    await homeContext.close()
+    records[1].content = originalContent
+    records[2].record_date = hiddenDate
+    console.log('Home content passed: visible latest record, stripped markup, reversible profanity, profile links and source navigation.')
+  }
+  {
     const starContext = await contextFor()
     const starPage = await starContext.newPage()
     starDelay = 600

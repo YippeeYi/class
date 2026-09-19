@@ -225,7 +225,7 @@ for (const route of ['/materials', '/quiz', '/map']) {
 }
 assert.doesNotMatch(shell, /footer className="fixed/, 'credits must not cover content with a fixed footer')
 assert.match(shell, /to: '\/credits'/, 'credits must remain available from the global sidebar')
-assert.match(home, /to: '\/credits'/, 'the baseline credits entry must remain discoverable from the guide')
+assert.doesNotMatch(home, /to=["']\/(?:timeline|search|quiz|materials|map|backgrounds|credits)["']/, 'the guide must not duplicate pure sidebar navigation')
 assert.match(home, /resource\.loading \|\| \(!archiveData && !resource\.error\)/, 'the guide must reserve its core navigation geometry before archive data arrives')
 assert.match(app, /lazy\(\(\) =>\s*routeModuleLoaders/, 'route-level code splitting is missing')
 assert.match(routePreload, /import\('@\/pages\//, 'route modules must remain dynamic imports')
@@ -278,7 +278,7 @@ assert.match(
   'global navigation must read the style-page name from the shared title map',
 )
 assert.match(pageTitle, /'\/backgrounds': '风格'/, 'the shared route map must expose the style page under its new name')
-assert.match(home, /label: '风格'/, 'the homepage must expose the style page under its current name')
+assert.match(home, /可以在风格页分别调整配色和背景/, 'the homepage tip retains the current style-page name')
 assert.match(backgroundsPage, /value: 'palette'[\s\S]*value: 'background'/, 'palette and background must be the only style sections')
 assert.doesNotMatch(backgroundsPage, /value: 'box'|方框|data-box-style-id/, 'the removed box-style feature must not remain in the style page')
 assert.match(backgroundsPage, /<SegmentedTabsList[\s\S]{0,240}ariaLabel="风格设置分区"/, 'style section navigation must reuse the shadcn Tabs moving-selection composition')
