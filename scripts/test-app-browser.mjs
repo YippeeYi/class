@@ -337,7 +337,7 @@ try {
     await starPage.goto(origin)
     const link = starPage.getByRole('link', { name: /为项目点亮 Star/ })
     await link.waitFor()
-    assert.equal(await starPage.locator('.guide-hero aside').getByRole('link', { name: /为项目点亮 Star/ }).count(), 1)
+    assert.equal(await starPage.locator('.guide-project').getByRole('link', { name: /为项目点亮 Star/ }).count(), 1)
     assert.equal(await link.locator('svg.lucide-github').count(), 1)
     const emptyBox = await link.boundingBox()
     await link.getByText('17 Stars').waitFor()

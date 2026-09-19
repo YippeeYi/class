@@ -1,0 +1,177 @@
+/* Editorial flow: the archive leads; tools and support occupy a quieter rail.
+   Container queries also accommodate the site's expanded/collapsed sidebar. */
+.guide-home {
+  container-type: inline-size;
+  border-radius: var(--radius-xl);
+  padding: clamp(1rem, 3vw, 2.5rem);
+}
+
+.guide-masthead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem 3rem;
+  padding-bottom: 2rem;
+}
+
+.guide-body {
+  display: grid;
+  gap: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.guide-body > *,
+.guide-stats > *,
+.guide-footer > * {
+  min-width: 0;
+}
+
+.guide-section-title {
+  margin-bottom: 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.guide-stats {
+  display: grid;
+  gap: 1rem;
+}
+
+.guide-record {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: color-mix(in oklch, var(--primary) 8%, var(--card));
+}
+
+.guide-record-count {
+  margin-block: auto;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: clamp(3rem, 9cqi, 5.5rem);
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -0.06em;
+}
+
+.guide-index {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.guide-index-link {
+  display: grid;
+  align-content: center;
+  gap: 0.75rem;
+  padding: 1rem 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.guide-today {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  padding: 0.75rem;
+}
+
+.guide-search {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--muted);
+}
+
+.guide-tools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem 0.75rem;
+  margin-top: 1rem;
+}
+
+.guide-tool {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 2.75rem;
+  padding: 0.625rem;
+  font-size: 0.875rem;
+}
+
+.guide-tool svg {
+  flex-shrink: 0;
+}
+
+.guide-utilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  color: var(--muted-foreground);
+}
+
+.guide-footer {
+  display: grid;
+  align-items: start;
+  gap: 1.5rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.guide-reading {
+  display: grid;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.guide-reading > [data-guide-info] {
+  padding-inline: 0.75rem;
+}
+
+@container (min-width: 32rem) {
+  .guide-stats {
+    grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  }
+
+  .guide-index {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+    gap: 1rem;
+  }
+
+  .guide-reading {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .guide-project {
+    max-width: 22rem;
+  }
+}
+
+@container (min-width: 50rem) {
+  .guide-body,
+  .guide-footer {
+    grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
+    column-gap: clamp(2rem, 5cqi, 4rem);
+  }
+
+  .guide-explore {
+    padding-top: 2rem;
+  }
+
+  .guide-tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .guide-footer {
+    margin-top: 2.5rem;
+  }
+}

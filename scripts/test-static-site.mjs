@@ -133,7 +133,7 @@ assert.match(profanity, /PROFANITY_TERMS[\s\S]*PROFANITY_LATIN_TOKENS/, 'profani
 assert.match(profanity, /value\.replace\(profanityPattern, '\*\*\*'\)/, 'matched display text must use one reversible replacement')
 assert.doesNotMatch(home, /tapLogo|logoAnimation|logoTapCount|logoTapTimer/, 'the guide logo must not retain click or animation state')
 assert.doesNotMatch(home, /<Button[\s\S]{0,500}logo-guide\.png/, 'the guide logo must not be wrapped in a button')
-assert.match(home, /role="img"[\s\S]*draggable=\{false\}[\s\S]*pointer-events-none[\s\S]*select-none/, 'the guide logo must be a non-draggable, non-selectable display image')
+assert.match(home, /<img[\s\S]*alt="编日史"[\s\S]*draggable=\{false\}[\s\S]*pointer-events-none[\s\S]*select-none/, 'the guide logo must be a non-draggable, non-selectable display image')
 assert.match(backgrounds, /BASE_URL/, 'background assets must use the Vite base URL')
 assert.match(backgrounds, /extractPalette/, 'image backgrounds must update the theme palette')
 assert.match(backgrounds, /PALETTE_KEY/, 'derived background palettes must be cached')
@@ -202,11 +202,13 @@ assert.match(home, /<aside[\s\S]*<GitHubStarPanel/, 'Star is in the right guide 
 assert.match(starPanel, /为项目点亮 Star/, 'guide retains the Star entry')
 assert.match(githubProject, /YippeeYi\/class/, 'Star uses the actual configured repository')
 assert.match(await readFrontend('src/components/archive/guide-panel.tsx'), /target="_blank"[\s\S]*rel="noopener noreferrer"/, 'external links isolate the opener')
-assert.equal(
-  home.match(/<GuidePanel key=\{to\}/g)?.length,
-  2,
-  'primary and secondary guide entries must call the same interactive item contract',
-)
+for (const link of home.match(/<Link\s[\s\S]*?(?=\n\s*>)/g) || []) {
+  assert.match(
+    link,
+    /interactiveSurfaceVariants\(\{ kind: 'item' \}\)/,
+    'all guide links must share the same interactive item contract',
+  )
+}
 assert.doesNotMatch(
   home,
   /interactiveSurfaceVariants\(\{ kind: 'card' \}\)/,
