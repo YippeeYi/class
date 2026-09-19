@@ -13,19 +13,18 @@ import {
   Search,
   ShieldAlert,
   Sparkles,
-  Star,
   Users,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
 import { ErrorState } from '@/components/archive/async-state'
+import { GitHubStarPanel } from '@/components/archive/github-star-panel'
 import { GuidePanel } from '@/components/archive/guide-panel'
 import {
   archiveItemSurfaceClassName,
   interactiveSurfaceVariants,
 } from '@/components/archive/interaction'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Item, ItemActions, ItemContent, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -115,27 +114,10 @@ export function HomePage() {
                 />
               )}
             </div>
-            <div className="mt-5 flex flex-wrap gap-2.5">
-              <Button
-                variant="outline"
-                nativeButton={false}
-                role="link"
-                render={
-                  <a
-                    href="https://github.com/YippeeYi/classRecord"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="为项目点亮 Star（在新标签页打开 GitHub）"
-                  />
-                }
-              >
-                <Star data-icon="inline-start" aria-hidden="true" />
-                为项目点亮 Star
-              </Button>
-            </div>
           </div>
 
           <aside className="grid auto-rows-fr content-center gap-3 border-t border-border/65 bg-background/28 p-4 sm:p-5 lg:border-t-0 lg:border-l lg:p-6">
+            <GitHubStarPanel />
             <GuidePanel icon={ShieldAlert} title="仅供班级内部查看">
               请尊重个人信息与共同记忆，不要外传。
             </GuidePanel>

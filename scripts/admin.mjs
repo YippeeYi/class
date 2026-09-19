@@ -40,6 +40,7 @@ import {
     safeSnapshotPath
 } from './archive-governance.mjs';
 import qbAsset from '../frontend/src/lib/qb-asset.json' with { type: 'json' };
+import { privateAssetCacheControl, repairStorageCache } from './storage-cache.mjs';
 import { createAccessAdmin } from './admin-access.mjs';
 import {
     createAdminRequest,
@@ -100,7 +101,7 @@ if (command === 'help' || command === '--help' || command === '-h') {
     process.exit(0);
 }
 
-if (!['audit', 'publish', 'rollback', 'invites', 'sessions', 'attempts'].includes(command)) {
+if (!['audit', 'publish', 'rollback', 'invites', 'sessions', 'attempts', 'storage-cache'].includes(command)) {
     console.error(`Unknown command: ${command}`);
     printAdminUsage();
     process.exit(1);
@@ -742,7 +743,7 @@ const uploadStorageObject = (remotePath, body) => request(
         method: 'POST',
         headers: {
             'Content-Type': contentTypeFor(remotePath),
-            'Cache-Control': '3600',
+            'Cache-Control': privateAssetCacheControl(remotePath),
             'x-upsert': 'true'
         },
         body
@@ -857,7 +858,7 @@ const uploadPrivateFiles = async () => {
             method: 'POST',
             headers: {
                 'Content-Type': contentTypeFor(item.localPath),
-                'Cache-Control': '3600',
+                'Cache-Control': privateAssetCacheControl(item.remotePath),
                 'x-upsert': 'true'
             },
             body
@@ -1254,6 +1255,10 @@ try {
     if (command === 'audit') await runAudit();
     else if (command === 'publish') await runPublish();
     else if (command === 'rollback') await runRollback();
+    else if (command === 'storage-cache') {
+        assertFlagArguments(new Set(['--apply']));
+        console.log(JSON.stringify(await repairStorageCache({ request, bucket, root, apply: argv.has('--apply') })));
+    }
     else if (command === 'invites' && commandArgs[0] === 'generate') await createInvites();
     else if (command === 'invites' && commandArgs[0] === 'list') await listInvites();
     else if (command === 'invites' && commandArgs[0] === 'check') await checkInvite();

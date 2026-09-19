@@ -26,7 +26,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Tabs } from '@/components/ui/tabs'
-import { preloadMarkupIllustrationDimensions } from '@/features/illustrations/route-illustration-gate'
 import { useContentPreferences } from '@/features/preferences/content-preferences'
 import { useRecordJumpHighlight } from '@/features/records/use-record-jump-highlight'
 import { loadWrittenRecordData } from '@/features/records/written-record-data'
@@ -276,7 +275,6 @@ export function RecordsPage() {
         setHiddenError('')
         if (!(await hasAdminAccess())) return
         const nextData = await loadRecordStreamData(true)
-        await preloadMarkupIllustrationDimensions(nextData.records.map((record) => record.content))
         if (!active) return
         setHiddenData(nextData)
         setHidden(true)

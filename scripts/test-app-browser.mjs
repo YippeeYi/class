@@ -44,6 +44,13 @@ const requests = []
 let validAccess = true
 let businessVersion = '1'
 let businessDelay = 0
+let versionDelay = 0
+let versionFailure = false
+let starCount = 17
+let starFailure = false
+let starRequests = 0
+let starDelay = 0
+const networkEvents = []
 async function contextFor({ admin = false, mobile = false, authenticated = true } = {}) {
   const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1280, height: 900 }, hasTouch: mobile, reducedMotion: 'reduce' })
   if (authenticated) await context.addInitScript(({ admin }) => {
@@ -57,10 +64,15 @@ async function contextFor({ admin = false, mobile = false, authenticated = true 
     const request = route.request()
     const url = new URL(request.url())
     requests.push(url.pathname)
+    if (request.method() !== 'OPTIONS') networkEvents.push({ path: url.pathname, method: request.method(), body: request.postData() || '' })
     const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'content-type': 'application/json' }
     const respond = (data) => route.fulfill({ status: 200, headers, body: JSON.stringify(data) })
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
-    if (url.pathname.includes('/rpc/get_class_data_version')) return respond(businessVersion)
+    if (url.pathname.includes('/rpc/get_class_data_version')) {
+      if (versionDelay) await new Promise((resolve) => setTimeout(resolve, versionDelay))
+      if (versionFailure) return route.fulfill({ status: 503, headers, body: JSON.stringify({ message: 'fixture unavailable' }) })
+      return respond(businessVersion)
+    }
     if (url.pathname.includes('/rpc/refresh_invite_access')) return respond(validAccess)
     if (url.pathname.includes('/rpc/verify_invite_code')) return respond({ ok: true, accessToken: admin ? 'fixture-admin' : 'fixture-normal' })
     if (url.pathname.includes('/rpc/has_class_record_admin_access')) return respond(admin)
@@ -77,9 +89,14 @@ async function contextFor({ admin = false, mobile = false, authenticated = true 
     if (table in tables) return respond(tables[table])
     throw new Error(`Unexpected API request ${url.pathname}`)
   })
+  await context.route('https://api.github.com/repos/YippeeYi/class', async (route) => {
+    starRequests++
+    if (starDelay) await new Promise((resolve) => setTimeout(resolve, starDelay))
+    return route.fulfill({ status: starFailure ? 429 : 200, contentType: 'application/json', body: JSON.stringify({ stargazers_count: starCount }) })
+  })
   context.on('page', (page) => {
     page.on('pageerror', (error) => problems.push(error.message))
-    page.on('console', (msg) => { if (['error', 'warning'].includes(msg.type())) problems.push(msg.text()) })
+    page.on('console', (msg) => { if (versionFailure && msg.location().url.includes('/rpc/get_class_data_version')) return; if (starFailure && msg.location().url.startsWith('https://api.github.com/')) return; if (['error', 'warning'].includes(msg.type())) problems.push(msg.text()) })
   })
   return context
 }
@@ -311,6 +328,113 @@ try {
     }
     await picture.screenshot({ path: '/tmp/class-release-qb-image.png' })
     await images.close()
+  }
+  {
+    const starContext = await contextFor()
+    const starPage = await starContext.newPage()
+    starDelay = 600
+    const before = starRequests
+    await starPage.goto(origin)
+    const link = starPage.getByRole('link', { name: /为项目点亮 Star/ })
+    await link.waitFor()
+    assert.equal(await starPage.locator('.guide-hero aside').getByRole('link', { name: /为项目点亮 Star/ }).count(), 1)
+    assert.equal(await link.locator('svg.lucide-github').count(), 1)
+    const emptyBox = await link.boundingBox()
+    await link.getByText('17 Stars').waitFor()
+    const filledBox = await link.boundingBox()
+    assert.equal(filledBox.height, emptyBox.height, 'Star count must not resize its card')
+    assert.equal(starRequests, before + 1)
+    await starPage.reload()
+    await starPage.getByText('17 Stars', { exact: true }).waitFor()
+    await starPage.waitForTimeout(1300)
+    assert.equal(starRequests, before + 1, 'repeat visits reuse the public statistics cache')
+    await starPage.evaluate(() => {
+      const key = 'classRecord:githubStars:YippeeYi/class'
+      const value = JSON.parse(localStorage.getItem(key))
+      value.checkedAt -= 31 * 60_000
+      localStorage.setItem(key, JSON.stringify(value))
+    })
+    starCount = 18
+    await starPage.reload()
+    await starPage.getByText('18 Stars', { exact: true }).waitFor()
+    starFailure = true
+    const offlineContext = await contextFor()
+    const offlinePage = await offlineContext.newPage()
+    await offlinePage.goto(origin)
+    const fallback = offlinePage.getByRole('link', { name: /为项目点亮 Star/ })
+    await fallback.waitFor()
+    await offlinePage.waitForTimeout(2000)
+    assert.equal(await fallback.getAttribute('href'), 'https://github.com/YippeeYi/class')
+    assert.equal(await fallback.getByText(/\d+ Stars/).count(), 0)
+    await offlineContext.close()
+    await starContext.close()
+    starFailure = false
+    starDelay = 0
+    starCount = 17
+    console.log('GitHub panel passed: right column, official icon, non-blocking count, stable geometry, cached revisit, updated count and rate-limit fallback.')
+  }
+  {
+    const cacheContext = await contextFor()
+    const cachedPage = await cacheContext.newPage()
+    await cachedPage.addInitScript(() => {
+      window.__performance = { shifts: 0, longTasks: [], lcp: 0 }
+      for (const type of ['layout-shift', 'longtask', 'largest-contentful-paint']) {
+        new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            if (type === 'layout-shift' && !entry.hadRecentInput) window.__performance.shifts += entry.value
+            if (type === 'longtask') window.__performance.longTasks.push(entry.duration)
+            if (type === 'largest-contentful-paint') window.__performance.lcp = entry.startTime
+          }
+        }).observe({ type, buffered: true })
+      }
+    })
+    const originalContent = records[0].content
+    records[0].content += ' [[illu:offscreen-proof.jpg|尚未展开的插图]]'
+    const since = networkEvents.length
+    versionDelay = 300
+    await cachedPage.goto(origin + 'records')
+    await waitCards(cachedPage, 4)
+    const cold = networkEvents.slice(since)
+    const business = (events) => events.filter((e) => /\/class_|get_class_record_order/.test(e.path))
+    const versions = (events) => events.filter((e) => e.path.endsWith('get_class_data_version'))
+    assert.equal(versions(cold).length, 1, 'cold concurrent readers share one initial version check')
+    assert.equal(cold.some((e) => e.path.includes('offscreen-proof')), false, 'closed illustrations must not be prefetched')
+    assert.equal(new Set(business(cold).map((e) => e.path)).size, business(cold).length, 'cold business loads are deduplicated')
+    const grant = await cachedPage.evaluate(() => JSON.parse(localStorage.getItem('classRecord:inviteAccess')))
+    const warmStart = networkEvents.length
+    await cachedPage.reload()
+    await waitCards(cachedPage, 4)
+    const warm = networkEvents.slice(warmStart)
+    assert.equal(versions(warm).length, 1, 'full reload checks the version once')
+    assert.equal(business(warm).length, 0, 'unchanged reload uses cached business data exclusively')
+    await cachedPage.evaluate(() => sessionStorage.clear())
+    const reopenedStart = networkEvents.length
+    await cachedPage.reload()
+    await waitCards(cachedPage, 4)
+    assert.equal(business(networkEvents.slice(reopenedStart)).length, 0, 'reopened site reuses IndexedDB when session cache is absent')
+    businessVersion = '2'
+    records[0].content += ' 再次进入前已更新'
+    const updatedStart = networkEvents.length
+    await cachedPage.reload()
+    await cachedPage.getByText('再次进入前已更新', { exact: false }).waitFor()
+    const updated = networkEvents.slice(updatedStart)
+    assert.equal(versions(updated).length, 1)
+    assert.equal(business(updated).length, business(cold).length, 'new revision loads each resource once, without an old-data first pass')
+    versionDelay = 0
+    versionFailure = true
+    const failedStart = networkEvents.length
+    await cachedPage.reload()
+    await cachedPage.getByText('再次进入前已更新', { exact: false }).waitFor()
+    assert.equal(business(networkEvents.slice(failedStart)).length, 0, 'version outage keeps valid cached content usable')
+    const after = await cachedPage.evaluate(() => JSON.parse(localStorage.getItem('classRecord:inviteAccess')))
+    assert.equal(after.token, grant.token)
+    assert.equal(after.authorizedAt, grant.authorizedAt)
+    const metrics = await cachedPage.evaluate(() => ({ ...window.__performance, resources: performance.getEntriesByType('resource').length }))
+    console.log('Cache entry performance:', JSON.stringify({ coldBusinessReads: business(cold).length, warmBusinessReads: business(warm).length, versionChecksPerEntry: versions(warm).length, ...metrics }))
+    versionFailure = false
+    businessVersion = '1'
+    records[0].content = originalContent
+    await cacheContext.close()
   }
   if (!process.env.CLASS_RECORD_PREVIEW) {
     const tabs = await contextFor()

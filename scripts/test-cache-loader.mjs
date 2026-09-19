@@ -29,7 +29,15 @@ const memoryStorage = () => {
   const entries = new Map()
   return { getItem: (key) => entries.get(key) ?? null, setItem: (key, value) => entries.set(key, value), removeItem: (key) => entries.delete(key), clear: () => entries.clear(), entries }
 }
-globalThis.window = {}
+globalThis.window = { addEventListener() {} }
+let versionRequests = 0
+let finishVersion
+const versionReady = new Promise((resolve) => { finishVersion = resolve })
+globalThis.fetch = async () => {
+  versionRequests++
+  await versionReady
+  return new Response('\"1\"', { headers: { 'content-type': 'application/json' } })
+}
 globalThis.localStorage = memoryStorage()
 globalThis.sessionStorage = memoryStorage()
 const setScope = (authorizedAt) => localStorage.setItem('classRecord:inviteAccess', JSON.stringify({ type: 'invite', token: 'fixture', authorizedAt }))
@@ -57,7 +65,12 @@ try {
   const { loadCached, clearRuntimeCache } = await vite.ssrLoadModule('/src/services/cache.ts')
   let requests = 0
   const loader = async () => { requests += 1; return ['loaded'] }
-  const values = await Promise.all(Array.from({ length: 10 }, () => loadCached({ key: 'shared', loader })))
+  const initialReads = Promise.all(Array.from({ length: 10 }, () => loadCached({ key: 'shared', loader })))
+  await new Promise(setImmediate)
+  assert.equal(requests, 0, 'business reads wait for the single initial revision result')
+  assert.equal(versionRequests, 1, 'simultaneous readers share one version request')
+  finishVersion()
+  const values = await initialReads
   assert.equal(requests, 1, 'concurrent IndexedDB misses must make one request')
   assert.equal(values.length, 10)
   clearRuntimeCache()
@@ -85,9 +98,11 @@ try {
   failTransaction = false
   clearRuntimeCache()
   const timestamp = Date.now() - 2000
-  stored.set('v6:access-second:stale', { time: timestamp, data: ['offline'] })
+  stored.set('v6:access-second:stale', { time: timestamp, version: '1', data: ['offline'] })
   assert.deepEqual(await loadCached({ key: 'stale', freshTtl: 1000, staleTtl: 5000, loader: () => Promise.reject(new Error('offline')) }), ['offline'])
   assert.equal(stored.get('v6:access-second:stale').time, timestamp, 'stale fallback cannot renew data freshness')
+  stored.set('v6:access-second:verified-stale', { time: Date.now() - 2 * 24 * 60 * 60 * 1000, version: '1', data: ['still current'] })
+  assert.deepEqual(await loadCached({ key: 'verified-stale', loader: () => assert.fail('verified revision must reuse retained data beyond the soft TTL') }), ['still current'])
   const { acceptDataVersion, getDataVersion } = await vite.ssrLoadModule('/src/services/data-revision.ts')
   const imageLoader = () => loadCached({ key: 'image-dimensions:retained', business: false, loader: async () => { requests++; return { width: 136, height: 127 } } })
   const dimensions = await imageLoader()

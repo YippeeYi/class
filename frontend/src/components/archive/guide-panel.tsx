@@ -22,6 +22,7 @@ type GuidePanelProps = {
   title: string
   children: ReactNode
   to?: string
+  href?: string
   toggle?: {
     id: string
     checked: boolean
@@ -30,7 +31,7 @@ type GuidePanelProps = {
   }
 }
 
-export function GuidePanel({ icon: Icon, title, children, to, toggle }: GuidePanelProps) {
+export function GuidePanel({ icon: Icon, title, children, to, href, toggle }: GuidePanelProps) {
   return (
     <Item
       variant="outline"
@@ -38,9 +39,25 @@ export function GuidePanel({ icon: Icon, title, children, to, toggle }: GuidePan
       className={cn(
         'min-h-20 flex-nowrap gap-3 rounded-xl px-4 py-3 font-normal leading-5',
         archiveItemSurfaceClassName,
-        to || toggle ? interactiveSurfaceVariants({ kind: 'item' }) : 'app-interactive-item',
+        to || href || toggle
+          ? interactiveSurfaceVariants({ kind: 'item' })
+          : 'app-interactive-item',
       )}
-      render={to ? <Link to={to} /> : toggle ? <Label htmlFor={toggle.id} /> : undefined}
+      render={
+        to ? (
+          <Link to={to} />
+        ) : href ? (
+          // biome-ignore lint/a11y/useAnchorContent: Item supplies the shared title and description as anchor children.
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`${title}（在新标签页打开 GitHub）`}
+          />
+        ) : toggle ? (
+          <Label htmlFor={toggle.id} />
+        ) : undefined
+      }
     >
       <ItemMedia
         variant="icon"
@@ -54,7 +71,7 @@ export function GuidePanel({ icon: Icon, title, children, to, toggle }: GuidePan
           {children}
         </ItemDescription>
       </ItemContent>
-      {to && (
+      {(to || href) && (
         <ItemActions>
           <ArrowRight className="size-4" aria-hidden="true" />
         </ItemActions>

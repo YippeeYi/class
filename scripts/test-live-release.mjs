@@ -43,20 +43,37 @@ const server = await preview({ base: '/class/', configFile: path.resolve('fronte
 const browser = await chromium.launch({ headless: true, executablePath: await findSystemChromium() })
 const origin = server.resolvedUrls.local[0]
 try {
+  // An UPDATE matching no rows verifies statement triggers without changing
+  // production content. The only changed value is the business revision.
+  const beforeVersion = Number((await request('/rest/v1/class_data_version?select=revision'))[0].revision)
+  for (const [table, column] of Object.entries({ class_records: 'file_name', class_people: 'id', class_record_pages: 'page', class_page_messages: 'page', class_page_supplements: 'file_name', class_materials: 'id', class_quiz_questions: 'id', class_credits_page: 'id', class_private_assets: 'asset_key' })) {
+    const absent = `release-probe-${randomUUID()}`
+    await request(`/rest/v1/${table}?${column}=eq.${absent}`, { method: 'PATCH', headers: json, body: JSON.stringify({ [column]: absent }) })
+  }
+  const afterVersion = Number((await request('/rest/v1/class_data_version?select=revision'))[0].revision)
+  assert.ok(afterVersion >= beforeVersion + 9, 'all live business tables must advance the shared revision')
+  console.log('PASS live business revision triggers: nine tables; no content rows changed.')
   for (const level of ['normal', 'admin']) {
     const code = `CR-${randomBytes(12).toString('hex').toUpperCase()}`
     await request('/rest/v1/invite_codes', { method: 'POST', headers: json, body: JSON.stringify({ code_hash: hash(code), access_level: level, note, used: false, expires_at: new Date(Date.now() + 600_000).toISOString() }) })
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' })
     const page = await context.newPage()
     page.setDefaultTimeout(60_000)
-    let errors = 0
+    const errors = []
+    let intentionalInvalidation = false
     page.on('response', async (response) => {
       if (!response.url().endsWith('/rpc/verify_invite_code')) return
       const result = await response.json().catch(() => null)
       if (typeof result?.accessToken === 'string') tokenHashes.add(hash(result.accessToken))
     })
-    page.on('pageerror', () => errors++)
-    page.on('console', (message) => { if (['error', 'warning'].includes(message.type())) errors++ })
+    page.on('pageerror', (error) => errors.push({ kind: 'page', message: error.message.replace(/https?:\/\/\S+/g, '[url]') }))
+    page.on('console', (message) => {
+      if (!['error', 'warning'].includes(message.type())) return
+      const url = message.location().url || origin
+      const pathname = new URL(url).pathname
+      if (intentionalInvalidation && pathname.endsWith('/rpc/get_class_data_version')) return
+      errors.push({ kind: message.type(), path: pathname, message: message.text().replace(/https?:\/\/\S+/g, '[url]') })
+    })
     await page.goto(origin + 'qb')
     await page.getByLabel('邀请码', { exact: true }).fill(code)
     await page.getByRole('button', { name: '进入档案' }).click()
@@ -78,6 +95,7 @@ try {
     const tokenHash = hash(token)
     tokenHashes.add(tokenHash)
     assert.equal(await rpc('has_class_record_admin_access', token), level === 'admin')
+    assert.match(await rpc('get_class_data_version', token), /^\d+$/)
     const security = await promisify(execFile)(process.execPath, ['scripts/verify-live-security.mjs', `--asset=${qbAsset.ready ? qbAsset.path : 'images/private/meal-map.png'}`], { env: { ...process.env, CLASS_RECORD_ACCESS_TOKEN: token } })
     console.log(security.stdout.trim())
     await page.reload()
@@ -91,13 +109,14 @@ try {
     }
     await page.goto(origin + 'qb')
     await waitQbContent(page)
+    intentionalInvalidation = true
     const expiry = level === 'normal' ? { expires_at: new Date(Date.now() - 1000).toISOString() } : { revoked_at: new Date().toISOString() }
     await request(`/rest/v1/invite_access_sessions?token_hash=eq.${tokenHash}`, { method: 'PATCH', headers: json, body: JSON.stringify(expiry) })
     assert.equal(await rpc('refresh_invite_access', token, { input_token: token }), false)
     await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
     await page.getByLabel('邀请码', { exact: true }).waitFor()
     assert.equal(await qbContent(page).count(), 0)
-    assert.equal(errors, 0, `${level} live browser console/page errors`)
+    assert.deepEqual(errors, [], `${level} live browser console/page errors`)
     await context.close()
     console.log(`PASS live ${level}: invite, QB return/refresh, role RPC, main pages, ${level === 'normal' ? 'expiry' : 'revocation'} and access teardown.`)
   }

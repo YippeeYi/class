@@ -55,13 +55,10 @@ try {
   )
   const app = await readFrontend('src/app.tsx')
   const shell = await readFrontend('src/components/layout/app-shell.tsx')
-  const illustrationGate = await readFrontend('src/features/illustrations/route-illustration-gate.tsx')
   assert.match(app, /<DocumentTitleProvider/, 'the router must own title updates')
-  assert.match(shell, /<Suspense[\s\S]*<RouteIllustrationGate>[\s\S]*<Outlet/, 'route loading must stay inside the persistent application shell')
+  assert.match(shell, /<Suspense[\s\S]*<Outlet/, 'route loading must stay inside the persistent application shell')
   assert.doesNotMatch(shell, /<(?:RouteIllustrationGate|Outlet)[^>]*key=\{location\.pathname\}/, 'route changes must not remount the complete content frame')
   assert.doesNotMatch(shell, /id="page-content"[\s\S]{0,300}animate-in|id="page-content"[\s\S]{0,300}fade-in/, 'the complete page frame must not fade on every route change')
-  assert.match(illustrationGate, /settledRoutes[\s\S]*inflightRoutes/, 'illustration gates must deduplicate and remember settled routes')
-  assert.match(illustrationGate, /if \(settledRoutes\.has\(routeKey\)\)/, 'cache-hit routes must not re-enter the visible loading gate')
   const titleHook = await readFrontend('src/hooks/use-document-title.ts')
   assert.match(
     titleHook,

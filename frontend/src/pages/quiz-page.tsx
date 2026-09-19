@@ -45,7 +45,6 @@ import { filterProfanity } from '@/lib/profanity'
 import { cn } from '@/lib/utils'
 import { hasAdminAccess, loadQuizQuestions, loadSupplementalRecords } from '@/services/data'
 import {
-  preloadImageDimensionList,
   preloadImageDimensions,
   rememberImageDimensions,
   useImageDimensions,
@@ -313,11 +312,7 @@ export function QuizPage() {
   const [secretProgress, setSecretProgress] = useState<string[]>([])
   const [secretHint, setSecretHint] = useState('')
   const [secretError, setSecretError] = useState('')
-  const [secretPreparation, setSecretPreparation] = useState<{
-    completed: number
-    phase: 'questions' | 'dimensions'
-    total: number
-  } | null>(null)
+  const [secretPreparation, setSecretPreparation] = useState(false)
   const [score, setScore] = useState({ correct: 0, total: 0 })
   const visiblePrompt = useFilteredText(current?.prompt || '')
   const visibleAnswer = useFilteredText(current?.answer || '')
@@ -390,32 +385,12 @@ export function QuizPage() {
       secretUnlocking.current = true
       if (active) {
         setSecretError('')
-        setSecretPreparation({ phase: 'questions', completed: 0, total: 0 })
+        setSecretPreparation(true)
       }
       try {
         const rows = await loadQuizQuestions(true)
         const extra = rows.filter((item) => item.answer).map(normalizeSecretQuestion)
         if (!extra.length) throw new Error('题库为空')
-        const imagePaths = [
-          ...new Set(
-            extra.map((question) => question.image).filter((path): path is string => Boolean(path)),
-          ),
-        ]
-        if (active) {
-          setSecretPreparation({ phase: 'dimensions', completed: 0, total: imagePaths.length })
-        }
-        const dimensionSummary = await preloadImageDimensionList(imagePaths, 4, (progress) => {
-          if (active) {
-            setSecretPreparation({
-              phase: 'dimensions',
-              completed: progress.completed,
-              total: progress.total,
-            })
-          }
-        })
-        if (dimensionSummary.failed > 0) {
-          throw new Error('题图尺寸读取失败')
-        }
         if (!active) return
         setSecret(extra)
         setSecretError('')
@@ -423,7 +398,7 @@ export function QuizPage() {
         if (active) setSecretError('隐藏题库暂时无法加载，请稍后重试。')
       } finally {
         secretUnlocking.current = false
-        if (active) setSecretPreparation(null)
+        if (active) setSecretPreparation(false)
       }
     }
     window.addEventListener('keydown', listener)
@@ -570,27 +545,7 @@ export function QuizPage() {
               aria-live="polite"
             >
               <Spinner aria-hidden="true" />
-              <AlertTitle>
-                {secretPreparation.phase === 'questions' ? '正在读取隐藏题库' : '正在准备隐藏题图'}
-              </AlertTitle>
-              <AlertDescription className="grid gap-2">
-                {secretPreparation.phase === 'questions' ? (
-                  <span>正在读取题库，随后会预加载全部题图尺寸。</span>
-                ) : (
-                  <span>
-                    正在读取题图尺寸（{secretPreparation.completed} / {secretPreparation.total}
-                    ），完成后开放选择。
-                  </span>
-                )}
-                <Progress
-                  value={
-                    secretPreparation.phase === 'dimensions' && secretPreparation.total
-                      ? (secretPreparation.completed / secretPreparation.total) * 100
-                      : 0
-                  }
-                  aria-label="隐藏题图尺寸读取进度"
-                />
-              </AlertDescription>
+              <AlertTitle>正在读取隐藏题库</AlertTitle>
             </Alert>
           )}
           <Card

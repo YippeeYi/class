@@ -58,10 +58,6 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAuth } from '@/features/auth/auth-context'
-import {
-  preloadRouteIllustrationDimensions,
-  RouteIllustrationGate,
-} from '@/features/illustrations/route-illustration-gate'
 import { normalizeAppPathname } from '@/lib/app-route'
 import { NAVIGATION_PAGE_NAMES, pageNameForPath } from '@/lib/page-title'
 import { completeRecordJump, isRecordJumpActive } from '@/lib/record-navigation'
@@ -97,7 +93,7 @@ function isNavigationActive(activePath: string, destination: string) {
 }
 
 function preloadNavigationTarget(pathname: string) {
-  void Promise.allSettled([preloadRoute(pathname), preloadRouteIllustrationDimensions(pathname)])
+  void preloadRoute(pathname)
 }
 
 function RouteScrollManager() {
@@ -483,9 +479,7 @@ export function AppShell() {
                   </div>
                 }
               >
-                <RouteIllustrationGate>
-                  <Outlet />
-                </RouteIllustrationGate>
+                <Outlet />
               </Suspense>
             </div>
           </SidebarInset>

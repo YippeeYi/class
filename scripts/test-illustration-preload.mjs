@@ -109,8 +109,8 @@ assert.doesNotMatch(component, /<img[^>]+data-secure-src/, 'signed paths must no
 assert.match(service, /Range: `bytes=0-\$\{METADATA_RANGE_BYTES - 1\}`/, 'metadata should use a bounded Range request')
 assert.match(service, /image-dimensions:/, 'intrinsic geometry needs an access-scoped persistent cache')
 assert.match(service, /30 \* 24 \* 60 \* 60 \* 1000/, 'dimension metadata should remain fresh for 30 days')
-assert.match(service, /Promise\.race\([\s\S]*timeoutMs/, 'a failed dimension request must not block route entry forever')
-assert.match(service, /onProgress\?\.\(/, 'bulk dimension loading must retain progress reporting')
+assert.match(service, /controller.abort\(\)/, 'metadata requests must time out')
+assert.match(service, /createRequestQueue\(4\)/, 'metadata network work must be bounded globally')
 assert.doesNotMatch(
   app,
   /ImageMetadataPreloader/,
@@ -145,16 +145,22 @@ try {
   const runtime = await vite.ssrLoadModule('/src/services/image-metadata.ts')
   runtime.rememberImageDimensions('data/attachments/a.png', { width: 640, height: 360 })
   runtime.rememberImageDimensions('data/attachments/b.png', { width: 800, height: 600 })
-  const progress = []
-  const summary = await runtime.preloadImageDimensionList(
-    [' data/attachments/a.png ', 'data/attachments/a.png', 'data/attachments/b.png'],
-    2,
-    (value) => progress.push(value),
-    25,
-  )
-  assert.deepEqual(summary, { total: 2, loaded: 2, failed: 0 })
-  assert.equal(progress.length, 2, 'deduplicated cached dimensions should report exactly once each')
-  assert.deepEqual(progress.at(-1), { completed: 2, failed: 0, total: 2 })
+  assert.deepEqual(runtime.getImageDimensions('data/attachments/a.png'), { width: 640, height: 360 })
+  const { createRequestQueue } = await vite.ssrLoadModule('/src/services/request-queue.ts')
+  const run = createRequestQueue(4)
+  let active = 0
+  let peak = 0
+  const results = await Promise.allSettled(Array.from({ length: 20 }, (_, index) => run(async () => {
+    active++
+    peak = Math.max(peak, active)
+    await new Promise((resolve) => setTimeout(resolve, 3))
+    active--
+    if (index === 5) throw new Error('fixture failure')
+    return index
+  })))
+  assert.equal(peak, 4)
+  assert.equal(results.filter((result) => result.status === 'fulfilled').length, 19)
+  assert.equal(active, 0, 'failed jobs must release a slot')
 } finally {
   await vite.close()
 }

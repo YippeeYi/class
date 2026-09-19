@@ -159,6 +159,11 @@ try {
     'access-control-allow-headers': '*',
     'content-type': 'application/json',
   }
+  const mockVersion = (target) => target.route('**/rest/v1/rpc/get_class_data_version', (route) =>
+    route.fulfill({ status: route.request().method() === 'OPTIONS' ? 204 : 200, headers: apiHeaders, body: '"1"' }),
+  )
+  await page.context().route('https://api.github.com/repos/YippeeYi/class', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ stargazers_count: 17 }) }))
+  await mockVersion(page)
   await page.route('**/rest/v1/rpc/has_class_record_admin_access', (route) =>
     route.fulfill({ status: 200, headers: apiHeaders, body: 'true' }),
   )
@@ -2215,7 +2220,7 @@ try {
     const style = getComputedStyle(panel)
     return { radius: style.borderRadius, border: style.border, background: style.backgroundColor, padding: style.padding }
   }))
-  assert.equal(guidePanels.length, 4, 'guide must retain all four information panels')
+  assert.equal(guidePanels.length, 5, 'guide must retain four information panels and the GitHub panel')
   for (const panel of guidePanels.slice(1)) {
     assert.deepEqual(panel, guidePanels[0], 'guide panels must share radius, border, background and spacing')
   }
@@ -2328,15 +2333,15 @@ try {
     await guide.screenshot({ path: `/tmp/class-guide-${preset}.png` })
   }
   const star = guide.getByRole('link', { name: /为项目点亮 Star/ })
-  assert.equal(await star.getAttribute('href'), 'https://github.com/YippeeYi/classRecord')
+  assert.equal(await star.getAttribute('href'), 'https://github.com/YippeeYi/class')
   assert.equal(await star.getAttribute('rel'), 'noopener noreferrer')
-  await page.context().route('https://github.com/YippeeYi/classRecord', (route) => route.fulfill({ contentType: 'text/html', body: '<title>Star destination</title>' }))
+  await page.context().route('https://github.com/YippeeYi/class', (route) => route.fulfill({ contentType: 'text/html', body: '<title>Star destination</title>' }))
   await star.focus()
   const popupReady = page.waitForEvent('popup')
   await page.keyboard.press('Enter')
   const popup = await popupReady
   await popup.waitForLoadState()
-  assert.equal(popup.url(), 'https://github.com/YippeeYi/classRecord')
+  assert.equal(popup.url(), 'https://github.com/YippeeYi/class')
   assert.equal(await popup.evaluate(() => opener === null), true)
   await popup.close()
   await page.evaluate(({ preset, dark }) => {
@@ -2664,6 +2669,8 @@ try {
   )
 
   const touchPage = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true })
+  await touchPage.route('https://api.github.com/**', (route) => route.fulfill({ contentType: 'application/json', body: '{}' }))
+  await mockVersion(touchPage)
   const touchErrors = []
   touchPage.on('pageerror', (error) => touchErrors.push(error.message))
   await touchPage.goto(origin, { waitUntil: 'domcontentloaded' })
@@ -2686,6 +2693,8 @@ try {
       viewport: { width: 960, height: 720 },
       deviceScaleFactor,
     })
+    await densityPage.route('https://api.github.com/**', (route) => route.fulfill({ contentType: 'application/json', body: '{}' }))
+    await mockVersion(densityPage)
     const densityErrors = []
     densityPage.on('pageerror', (error) => densityErrors.push(error.message))
     // Deliberately finish record loading only after the viewer opens. This

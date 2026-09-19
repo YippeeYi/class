@@ -7,6 +7,7 @@ import {
 } from '@/lib/image-metadata'
 import { loadCached } from '@/services/cache'
 import { DEFAULT_ASSET_PREVIEW_WIDTH, signAssetUrl } from '@/services/data'
+import { createRequestQueue } from '@/services/request-queue'
 
 const METADATA_RANGE_BYTES = 64 * 1024
 const FRESH_TTL = 30 * 24 * 60 * 60 * 1000
@@ -17,7 +18,7 @@ const listeners = new Map<string, Set<() => void>>()
 const failures = new Map<string, number>()
 let generation = 0
 const FAILURE_RETRY_MS = 5 * 60 * 1000
-const DEFAULT_GATE_TIMEOUT_MS = 8_000
+const runMetadataRequest = createRequestQueue(4)
 
 function notify(path: string) {
   listeners.get(path)?.forEach((listener) => {
@@ -42,11 +43,20 @@ function loadDimensionsWithImage(url: string) {
   return new Promise<ImageDimensions | null>((resolve) => {
     const image = new Image()
     image.decoding = 'async'
+    const timer = setTimeout(() => {
+      image.onload = image.onerror = null
+      image.src = ''
+      resolve(null)
+    }, 6000)
     image.onload = () => {
+      clearTimeout(timer)
       const value = { width: image.naturalWidth, height: image.naturalHeight }
       resolve(validImageDimensions(value) ? value : null)
     }
-    image.onerror = () => resolve(null)
+    image.onerror = () => {
+      clearTimeout(timer)
+      resolve(null)
+    }
     image.src = url
   })
 }
@@ -55,8 +65,11 @@ async function loadDimensionsFromNetwork(path: string, previewWidth: number) {
   const url = await signAssetUrl(path, { variant: 'preview', width: previewWidth })
   if (!url) throw new Error(`图片地址不可用：${path}`)
   let value: ImageDimensions | null = null
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 6000)
   try {
     const response = await fetch(url, {
+      signal: controller.signal,
       headers: { Range: `bytes=0-${METADATA_RANGE_BYTES - 1}` },
     })
     if (response.ok) {
@@ -67,6 +80,8 @@ async function loadDimensionsFromNetwork(path: string, previewWidth: number) {
     }
   } catch {
     // Full image decoding below is the compatibility fallback for servers without Range support.
+  } finally {
+    clearTimeout(timer)
   }
   value ||= await loadDimensionsWithImage(url)
   if (!value) throw new Error(`无法读取图片尺寸：${path}`)
@@ -94,7 +109,11 @@ export function preloadImageDimensions(path: string, previewWidth = DEFAULT_ASSE
     freshTtl: FRESH_TTL,
     staleTtl: STALE_TTL,
     sessionTtl: normalized.startsWith('data/attachments/') ? 24 * 60 * 60 * 1000 : 0,
-    loader: () => loadDimensionsFromNetwork(normalized, previewWidth),
+    loader: () =>
+      runMetadataRequest(() => {
+        if (requestGeneration !== generation) throw new Error('访问范围已改变，请重新加载。')
+        return loadDimensionsFromNetwork(normalized, previewWidth)
+      }),
   })
     .then((value) => {
       if (requestGeneration !== generation) return null
@@ -110,67 +129,6 @@ export function preloadImageDimensions(path: string, previewWidth = DEFAULT_ASSE
     })
   inflight.set(normalized, request)
   return request
-}
-
-export type ImageDimensionPreloadProgress = {
-  completed: number
-  failed: number
-  total: number
-}
-
-export type ImageDimensionPreloadSummary = {
-  failed: number
-  loaded: number
-  total: number
-}
-
-export function preloadImageDimensionList(
-  paths: Iterable<string>,
-  concurrency?: number,
-  timeoutMs?: number,
-): Promise<ImageDimensionPreloadSummary>
-export function preloadImageDimensionList(
-  paths: Iterable<string>,
-  concurrency: number,
-  onProgress: (progress: ImageDimensionPreloadProgress) => void,
-  timeoutMs?: number,
-): Promise<ImageDimensionPreloadSummary>
-export async function preloadImageDimensionList(
-  paths: Iterable<string>,
-  concurrency = 4,
-  progressOrTimeout:
-    | number
-    | ((progress: ImageDimensionPreloadProgress) => void) = DEFAULT_GATE_TIMEOUT_MS,
-  callbackTimeoutMs = DEFAULT_GATE_TIMEOUT_MS,
-): Promise<ImageDimensionPreloadSummary> {
-  const queue = [...new Set([...paths].map((path) => path.trim()).filter(Boolean))]
-  const onProgress = typeof progressOrTimeout === 'function' ? progressOrTimeout : undefined
-  const timeoutMs = typeof progressOrTimeout === 'number' ? progressOrTimeout : callbackTimeoutMs
-  let cursor = 0
-  let loaded = 0
-  let failed = 0
-  const worker = async () => {
-    while (cursor < queue.length) {
-      const index = cursor
-      const path = queue[index]
-      cursor += 1
-      if (!path) continue
-      let timeout: ReturnType<typeof setTimeout> | undefined
-      const result = await Promise.race([
-        preloadImageDimensions(path),
-        new Promise<null>((resolve) => {
-          timeout = setTimeout(() => resolve(null), timeoutMs)
-        }),
-      ])
-      if (timeout) clearTimeout(timeout)
-      if (result) loaded += 1
-      else failed += 1
-      onProgress?.({ completed: loaded + failed, failed, total: queue.length })
-    }
-  }
-  const workerCount = Math.min(Math.max(1, Math.floor(concurrency)), queue.length)
-  await Promise.all(Array.from({ length: workerCount }, worker))
-  return { total: queue.length, loaded, failed }
 }
 
 export function useImageDimensions(

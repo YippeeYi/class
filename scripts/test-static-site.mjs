@@ -54,7 +54,6 @@ const selectionMotion = await readFrontend('src/components/archive/selection-mot
 const dismissOnScroll = await readFrontend('src/hooks/use-dismiss-on-vertical-scroll.ts')
 const archiveContext = await readFrontend('src/features/archive/archive-context.tsx')
 const contentPreferences = await readFrontend('src/features/preferences/content-preferences.tsx')
-const illustrationGate = await readFrontend('src/features/illustrations/route-illustration-gate.tsx')
 const markup = await readFrontend('src/lib/markup.ts')
 const profanity = await readFrontend('src/lib/profanity.ts')
 const searchIndex = await readFrontend('src/lib/search-index.ts')
@@ -197,9 +196,12 @@ assert.match(person, /WeakMap<RecordItem, string\[\]>/, 'person relationship par
 assert.doesNotMatch(home, /fixed top-3 left-3/, 'today history must not cover the top-left navigation')
 assert.equal(home.match(/历史上的今天/g)?.length, 1, 'today history must mount only one responsive control')
 assert.doesNotMatch(home, /浏览记录|搜索档案/, 'duplicate hero navigation must be removed')
-assert.match(home, /为项目点亮 Star/, 'guide retains the requested Star entry')
-assert.match(home, /https:\/\/github.com\/YippeeYi\/classRecord/, 'Star opens the requested repository')
-assert.match(home, /target="_blank"[\s\S]*rel="noopener noreferrer"/, 'external repository link is isolated from its opener')
+const starPanel = await readFrontend('src/components/archive/github-star-panel.tsx')
+const githubProject = await readFrontend('src/lib/github-project.ts')
+assert.match(home, /<aside[\s\S]*<GitHubStarPanel/, 'Star is in the right guide area')
+assert.match(starPanel, /为项目点亮 Star/, 'guide retains the Star entry')
+assert.match(githubProject, /YippeeYi\/class/, 'Star uses the actual configured repository')
+assert.match(await readFrontend('src/components/archive/guide-panel.tsx'), /target="_blank"[\s\S]*rel="noopener noreferrer"/, 'external links isolate the opener')
 assert.equal(
   home.match(/interactiveSurfaceVariants\(\{ kind: 'item' \}\)/g)?.length,
   2,
@@ -233,9 +235,7 @@ assert.match(
   'clicking the active record navigation item must preserve its written-view URL state',
 )
 assert.match(app, /<Spinner/, 'route-level loading must use the shadcn spinner')
-assert.match(shell, /<RouteIllustrationGate>[\s\S]*<Outlet \/>/, 'every business route must wait for illustration dimensions')
-assert.match(illustrationGate, /extractMarkupReferences[\s\S]*illustrationPaths/, 'the gate must parse and deduplicate illu paths')
-assert.match(illustrationGate, /preloadImageDimensionList\(illustrationPaths\(sources\), 4\)/, 'dimension fetching must use the shared bounded loader')
+assert.doesNotMatch(shell, /RouteIllustrationGate|preloadRouteIllustrationDimensions/, 'routes must not crawl images before displaying content')
 assert.match(imageMetadata, /headers: \{ Range:/, 'dimension probing must use byte ranges before a preview fallback')
 assert.match(imageMetadata, /const inflight = new Map/, 'dimension requests must deduplicate concurrent work')
 assert.match(app, /normalizeAppPathname\(location\.pathname\)/, 'protected routes must accept a trailing slash without widening unknown routes')

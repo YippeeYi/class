@@ -3,6 +3,7 @@ import { extractQuoteMarkers } from '@/lib/markup'
 import { buildSupplementalRecords } from '@/lib/record-identity'
 import { type RecordPagePosition, recordAnnotation } from '@/lib/record-stream'
 import { clearRuntimeCache, loadCached } from '@/services/cache'
+import { createRequestQueue } from '@/services/request-queue'
 import { getSupabase, supabaseConfig } from '@/services/supabase'
 import type {
   CreditsPage,
@@ -19,6 +20,7 @@ import type {
 type Row = Record<string, unknown>
 type SignedUrlEntry = { promise: Promise<string>; refreshAt: number; value: string }
 const signedUrls = new Map<string, SignedUrlEntry>()
+const runSignatureRequest = createRequestQueue(4)
 export const DEFAULT_ASSET_PREVIEW_WIDTH = 1280
 export const DEFAULT_ASSET_PREVIEW_QUALITY = 72
 export type AssetVariant = 'original' | 'preview'
@@ -485,11 +487,14 @@ export async function signAssetUrl(path: string, options: number | AssetSignOpti
     refreshAt: Date.now() + expiresIn * 800,
     value: '',
   }
-  entry.promise = (async () => {
+  const accessToken = getStoredAccessToken()
+  const client = currentClient()
+  entry.promise = runSignatureRequest(async () => {
+    if (accessToken !== getStoredAccessToken()) throw new Error('访问范围已改变，请重新加载。')
     // Storage transformations keep the original object path and RLS policy while
     // producing a separately cached, modern-format rendition for inline display.
-    const { data, error } = await currentClient()
-      .storage.from(supabaseConfig.bucket)
+    const { data, error } = await client.storage
+      .from(supabaseConfig.bucket)
       .createSignedUrl(
         safePath,
         Math.min(900, Math.max(30, expiresIn)),
@@ -497,7 +502,7 @@ export async function signAssetUrl(path: string, options: number | AssetSignOpti
       )
     if (error) throw error
     return data.signedUrl
-  })()
+  })
     .then((url) => {
       entry.value = url
       return url

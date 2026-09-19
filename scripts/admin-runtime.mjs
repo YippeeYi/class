@@ -41,6 +41,8 @@ export function printAdminUsage() {
   npm run content:audit
   npm run content:plan
   npm run content:publish
+  npm run admin -- storage-cache
+  npm run admin -- storage-cache --apply
 
 content:publish writes to Supabase; it passes --confirm-publish internally.
 Do not append --confirm-publish to the npm command.

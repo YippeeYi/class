@@ -45,7 +45,7 @@ export const markupLayoutHarness = String.raw`<!doctype html>
       const access = { type: 'invite', token: 'layout-test-token', authorizedAt: 'layout-test' }
       localStorage.setItem('classRecord:inviteAccess', JSON.stringify(access))
       const cachePrefix = 'classRecord:dataCache:v6:v6:access-layout-test:'
-      const cacheEntry = (data) => JSON.stringify({ time: Date.now(), data })
+      const cacheEntry = (data) => JSON.stringify({ time: Date.now(), version: '1', data })
       const today = new Date()
       const todayDate = String(today.getFullYear()) + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0')
       const recordFixture = (id, recordIndex, date, content) => ({

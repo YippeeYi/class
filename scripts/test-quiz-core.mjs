@@ -34,12 +34,12 @@ assert.doesNotMatch(quiz, /fileName: item\.fileName/, 'quiz source labels must n
 assert.match(quiz, /secretProgress/, 'secret fill questions must retain correct character positions')
 assert.match(
   quiz,
-  /loadQuizQuestions\(true\)[\s\S]*await preloadImageDimensionList\([\s\S]*setSecret\(extra\)/,
-  'the admin pool must gate rendering on intrinsic dimensions without preloading original pixels',
+  /loadQuizQuestions\(true\)[\s\S]*setSecret\(extra\)/,
+  'the admin pool must become available after its data arrives',
 )
 assert.doesNotMatch(
   quiz,
-  /preloadQuizImage|quizImagePreloadCache/,
+  /preloadQuizImage|quizImagePreloadCache|preloadImageDimensionList/,
   'the dimension gate must not restore hidden original-image preloading',
 )
 assert.match(

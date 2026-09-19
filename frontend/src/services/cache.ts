@@ -1,5 +1,6 @@
 import { ACCESS_KEY } from '@/features/auth/auth-storage'
 import { getDataVersion, subscribeDataVersion } from '@/services/data-revision'
+import { ensureInitialDataVersion, isDataVersionVerified } from '@/services/data-updates'
 
 type CacheEntry<T> = { time: number; data: T; version?: string }
 
@@ -167,12 +168,25 @@ export async function loadCached<T>({
   persistent?: boolean
   business?: boolean
 }) {
+  const initialScope = accessScope()
+  const initialGeneration = generation
+  if (business) await ensureInitialDataVersion()
+  if (initialScope !== accessScope() || initialGeneration !== generation)
+    throw new Error('访问范围已改变，请重新加载。')
+  // A matching server revision extends freshness only within the existing retention window.
+  const effectiveFreshTtl =
+    business && isDataVersionVerified() ? Math.max(freshTtl, staleTtl) : freshTtl
   const now = Date.now()
   const scoped = scopedKey(key)
   const version = business ? getDataVersion() : ''
   if (business) businessKeys.add(scoped)
   const cached = memory.get(scoped) as CacheEntry<T> | undefined
-  if (!force && cached && (cached.version || '') === version && now - cached.time < freshTtl)
+  if (
+    !force &&
+    cached &&
+    (cached.version || '') === version &&
+    now - cached.time < effectiveFreshTtl
+  )
     return cached.data
   const pending = inflight.get(scoped)
   if (pending) return pending as Promise<T>
@@ -201,8 +215,8 @@ export async function loadCached<T>({
         if (persistent) {
           const stored = await readPersistent<T>(
             scoped,
-            freshTtl,
-            Math.max(staleTtl, freshTtl),
+            effectiveFreshTtl,
+            Math.max(staleTtl, effectiveFreshTtl),
             version,
           )
           assertCurrent()
