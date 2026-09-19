@@ -34,6 +34,14 @@ export const markupLayoutHarness = String.raw`<!doctype html>
       import '/src/styles/tailwind.css'
 
       const e = React.createElement
+      window.__setupLoadingTest = () => {
+        const host = document.createElement('div')
+        host.id = 'illustration-loading-tests'
+        document.body.prepend(host)
+        const root = createRoot(host)
+        window.__loadingRender = content => root.render(e(MemoryRouter, null, e(ContentPreferenceProvider, null, e(MarkupContent, { content }))))
+        window.__loadingCleanup = () => { root.unmount(); host.remove() }
+      }
       const extremeSixColumns = '[[table:2x6|超长中文内容需要在窄屏内自然换行并保持全部可见|SUPERCALIFRAGILISTICEXPIALIDOCIOUSWITHOUTBREAKS|1234567890123456789012345678901234567890|https://example.invalid/a/very/long/path/without/a/natural/break|[[red:混合标记]][[frac:长分子文本|denominator-without-breaks]]|短|甲|B|3|[[under:嵌套标记]]|普通内容|末列]]'
       const manyColumns = '[[table:3x12|一|two|333333333333333333333333|四列较长中文文本用于测试换行|five-with-an-extremely-long-token|6|七|https://example.invalid/really/long/url|[[red:九]]|10|十一|12|第二行中文超长内容在很多列时仍然需要完整显示|b|c|d|e|f|g|h|i|j|k|l|甲|乙|丙|丁|戊|己|庚|辛|壬|癸|子|丑]]'
       const stackContent = '正文甲 [[frac:中英文Mixed numerator 123|较长的中文分母文本]] 正文乙 [[arrow:reaction condition 温度 120°C|催化剂与补充条件]] 正文丙'

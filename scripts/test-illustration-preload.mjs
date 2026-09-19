@@ -61,7 +61,7 @@ assert.deepEqual(imageMetadata.parseImageDimensions(svg, 'image/svg+xml'), {
 
 assert.match(component, /IllustrationReference/, 'illustrations need an isolated interactive component')
 assert.match(component, /ImageViewer/, 'illustrations must be opened with the shared image viewer')
-assert.match(component, /requested \? path : ''/, 'illustration previews must load only after interaction')
+assert.match(component, /requested && dimensions \? path : ''/, 'illustration previews must load only after interaction')
 assert.match(
   component,
   /onPointerEnter=\{\(event\) => \{[\s\S]*requestPreview\(\)[\s\S]*rememberPointerPosition\(event\)/,

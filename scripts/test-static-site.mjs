@@ -203,7 +203,7 @@ assert.match(starPanel, /为项目点亮 Star/, 'guide retains the Star entry')
 assert.match(githubProject, /YippeeYi\/class/, 'Star uses the actual configured repository')
 assert.match(await readFrontend('src/components/archive/guide-panel.tsx'), /target="_blank"[\s\S]*rel="noopener noreferrer"/, 'external links isolate the opener')
 assert.equal(
-  home.match(/interactiveSurfaceVariants\(\{ kind: 'item' \}\)/g)?.length,
+  home.match(/<GuidePanel key=\{to\}/g)?.length,
   2,
   'primary and secondary guide entries must call the same interactive item contract',
 )

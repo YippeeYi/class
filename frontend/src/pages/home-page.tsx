@@ -1,5 +1,4 @@
 import {
-  ArrowRight,
   BookOpenText,
   BrainCircuit,
   CalendarDays,
@@ -16,17 +15,11 @@ import {
   Users,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router'
 
 import { ErrorState } from '@/components/archive/async-state'
 import { GitHubStarPanel } from '@/components/archive/github-star-panel'
-import { GuidePanel } from '@/components/archive/guide-panel'
-import {
-  archiveItemSurfaceClassName,
-  interactiveSurfaceVariants,
-} from '@/components/archive/interaction'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Item, ItemActions, ItemContent, ItemMedia, ItemTitle } from '@/components/ui/item'
+import { GuideInfo, GuidePanel } from '@/components/archive/guide-panel'
+import { CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useArchive } from '@/features/archive/archive-context'
 import { useContentPreferences } from '@/features/preferences/content-preferences'
@@ -90,11 +83,10 @@ export function HomePage() {
   const archiveData = resource.data
 
   return (
-    <div className="grid gap-5 sm:gap-6">
-      <Card className="guide-hero relative gap-0 overflow-hidden border-border/70 bg-card/88 py-0">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_12%,color-mix(in_oklch,var(--primary)_18%,transparent),transparent_34%),linear-gradient(135deg,transparent_48%,color-mix(in_oklch,var(--secondary)_32%,transparent))]" />
-        <CardContent className="relative grid p-0 lg:grid-cols-[minmax(0,1.45fr)_minmax(17rem,.72fr)]">
-          <div className="flex flex-col justify-center px-5 py-6 sm:px-7 sm:py-7 lg:px-8 lg:py-8">
+    <div className="grid gap-8 rounded-xl bg-card/90 p-4 text-card-foreground sm:gap-10 sm:p-6 lg:p-8">
+      <section className="guide-hero">
+        <CardContent className="grid gap-6 p-0 lg:grid-cols-[minmax(0,1.45fr)_minmax(17rem,.72fr)] lg:gap-10">
+          <div className="flex min-w-0 flex-col justify-center gap-6 py-2 sm:py-4">
             <div className="mb-3 w-fit max-w-full select-none" aria-label="编日史 Logo" role="img">
               {logoFailed ? (
                 <span className="pointer-events-none block select-none font-heading text-4xl font-semibold tracking-tight">
@@ -114,13 +106,25 @@ export function HomePage() {
                 />
               )}
             </div>
+            <div className="grid max-w-xl gap-5 sm:grid-cols-2">
+              <GuideInfo icon={ShieldAlert} title="仅供班级内部查看">
+                请尊重个人信息与共同记忆，不要外传。
+              </GuideInfo>
+              <GuideInfo icon={Lightbulb} title="小提示">
+                <span className="guide-tip block min-h-10" aria-live="polite">
+                  <span
+                    key={tipIndex}
+                    className="inline-block motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow)"
+                  >
+                    {(tips[tipIndex] || '').replace(/^小提示：/, '')}
+                  </span>
+                </span>
+              </GuideInfo>
+            </div>
           </div>
 
-          <aside className="grid auto-rows-fr content-center gap-3 border-t border-border/65 bg-background/28 p-4 sm:p-5 lg:border-t-0 lg:border-l lg:p-6">
+          <aside className="grid content-center gap-3">
             <GitHubStarPanel />
-            <GuidePanel icon={ShieldAlert} title="仅供班级内部查看">
-              请尊重个人信息与共同记忆，不要外传。
-            </GuidePanel>
             {today.hasMatches && (
               <GuidePanel
                 icon={CalendarDays}
@@ -142,25 +146,13 @@ export function HomePage() {
             >
               以 *** 替代粗俗用语
             </GuidePanel>
-            <GuidePanel icon={Lightbulb} title="小提示">
-              <span className="guide-tip block min-h-5" aria-live="polite">
-                <span
-                  key={tipIndex}
-                  className="inline-block motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow)"
-                >
-                  {(tips[tipIndex] || '').replace(/^小提示：/, '')}
-                </span>
-              </span>
-            </GuidePanel>
           </aside>
         </CardContent>
-      </Card>
+      </section>
 
-      <Card className="gap-0 overflow-hidden bg-card/90 py-0">
-        <CardHeader className="border-b border-border/65 px-5 py-4 sm:px-6">
-          <CardTitle className="font-heading text-xl">核心档案</CardTitle>
-        </CardHeader>
-        <CardContent className="p-3 sm:p-4">
+      <section className="grid gap-3" aria-label="核心档案">
+        <h2 className="font-heading text-lg font-semibold">核心档案</h2>
+        <div>
           {(resource.loading || (!archiveData && !resource.error)) && (
             <div
               className="grid gap-3 md:grid-cols-3"
@@ -200,66 +192,25 @@ export function HomePage() {
                   icon: MessageSquareQuote,
                 },
               ].map(({ to, label, value, icon: Icon }) => (
-                <Item
-                  key={to}
-                  variant="outline"
-                  className={`${interactiveSurfaceVariants({ kind: 'item' })} ${archiveItemSurfaceClassName} grid h-full min-h-28 content-between gap-0 p-4 sm:p-5`}
-                  render={<Link to={to} />}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <ItemMedia
-                      variant="icon"
-                      className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary"
-                    >
-                      <Icon className="size-5" />
-                    </ItemMedia>
-                    <ItemActions>
-                      <ArrowRight className="size-4 text-muted-foreground" />
-                    </ItemActions>
-                  </div>
-                  <div className="mt-3">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <h2 className="font-heading text-lg font-semibold">{label}</h2>
-                      <strong className="font-heading text-2xl font-semibold tracking-tight tabular-nums">
-                        {value.toLocaleString()}
-                      </strong>
-                    </div>
-                  </div>
-                </Item>
+                <GuidePanel key={to} to={to} title={label} icon={Icon}>
+                  <span className="font-heading text-2xl font-semibold tracking-tight text-foreground tabular-nums">
+                    {value.toLocaleString()}
+                  </span>
+                </GuidePanel>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      <Card className="gap-0 overflow-hidden bg-card/90 py-0">
-        <CardHeader className="border-b border-border/65 px-5 py-4 sm:px-6">
-          <CardTitle className="font-heading text-xl">继续探索</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2.5 p-3 sm:grid-cols-2 sm:p-4 xl:grid-cols-3">
+      <section className="grid gap-3" aria-label="继续探索">
+        <h2 className="font-heading text-lg font-semibold">继续探索</h2>
+        <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
           {secondary.map(({ to, label, icon: Icon }) => (
-            <Item
-              key={to}
-              variant="outline"
-              className={`${interactiveSurfaceVariants({ kind: 'item' })} ${archiveItemSurfaceClassName} min-h-16 px-4 py-3`}
-              render={<Link to={to} />}
-            >
-              <ItemMedia
-                variant="icon"
-                className="grid size-9 place-items-center rounded-lg bg-primary/9 text-primary"
-              >
-                <Icon />
-              </ItemMedia>
-              <ItemContent>
-                <ItemTitle>{label}</ItemTitle>
-              </ItemContent>
-              <ItemActions>
-                <ArrowRight className="size-4 text-muted-foreground" />
-              </ItemActions>
-            </Item>
+            <GuidePanel key={to} to={to} title={label} icon={Icon} />
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </div>
   )
 }

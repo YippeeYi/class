@@ -5,6 +5,7 @@ import path from 'node:path'
 import { chromium } from 'playwright'
 import { createServer } from 'vite'
 
+import { assertIllustrationLoading } from './layout/assert-illustration-loading.mjs'
 import { assertFullscreenImageViewer } from './layout/assert-image-viewer.mjs'
 import { findSystemChromium } from './layout/browser-runtime.mjs'
 import { markupLayoutHarness } from './layout/markup-layout-harness.mjs'
@@ -203,6 +204,7 @@ try {
   await page.goto(origin, { waitUntil: 'domcontentloaded' })
   await waitForMarkupLayoutReady(page, { pageErrors, consoleProblems })
   assert.deepEqual(pageErrors, [], `browser page errors during initial render: ${pageErrors.join('; ')}`)
+  await assertIllustrationLoading(page)
   assert.equal(await page.title(), '编日史')
   for (const route of ['/records', '/person?id=p01', '/credits', '/unknown', '/']) {
     await page.evaluate((nextRoute) => window.__memoryNavigate(nextRoute), route)
@@ -2220,7 +2222,8 @@ try {
     const style = getComputedStyle(panel)
     return { radius: style.borderRadius, border: style.border, background: style.backgroundColor, padding: style.padding }
   }))
-  assert.equal(guidePanels.length, 5, 'guide must retain four information panels and the GitHub panel')
+  assert.equal(guidePanels.length, 3, 'guide action area contains Star, history and preference')
+  assert.equal(await guide.locator('[data-guide-info]').count(), 2, 'privacy and tips are separate quiet information')
   for (const panel of guidePanels.slice(1)) {
     assert.deepEqual(panel, guidePanels[0], 'guide panels must share radius, border, background and spacing')
   }
@@ -2298,14 +2301,22 @@ try {
       await page.mouse.move(0, 0)
       await page.evaluate(() => document.activeElement?.blur())
       await page.waitForTimeout(300)
-      const panels = await guide.locator('[data-guide-panel]').evaluateAll((elements) => elements.map((element) => {
+      const panels = await guide.locator('aside [data-guide-panel]').evaluateAll((elements) => elements.map((element) => {
         const style = (selector) => {
           const node = selector ? element.querySelector(selector) : element
           const s = getComputedStyle(node)
-          return { radius: s.borderRadius, background: s.backgroundColor, border: s.borderColor, color: s.color, font: s.font, height: s.height, padding: s.padding, gap: s.gap }
+          return { radius: s.borderRadius, background: s.backgroundColor, border: s.borderColor, color: s.color, font: s.font, padding: s.padding, gap: s.gap }
         }
         return { surface: style(''), icon: style('[data-slot="item-media"]'), title: style('[data-slot="item-title"]'), text: (() => { const { height, ...text } = style('[data-slot="item-description"]'); return text })() }
       }))
+      for (const info of await guide.locator('[data-guide-info]').all()) {
+        const before = await info.evaluate(panelPaint)
+        await info.hover()
+        await page.waitForTimeout(150)
+        assert.deepEqual(await info.evaluate(panelPaint), before, 'display information has no hover feedback')
+        assert.equal(await info.evaluate(e => e.matches('a,button,label') || e.tabIndex >= 0 || getComputedStyle(e).cursor === 'pointer'), false)
+      }
+      await page.mouse.move(0, 0)
       for (const panel of panels.slice(1)) assert.deepEqual(panel, panels[0], `guide panel structure matches ${preset}/${width}`)
       assert.deepEqual(await todayPanel.evaluate(panelPaint), await guideTimelineItem.evaluate(panelPaint), `history matches navigation surfaces in ${preset}/${width}`)
       assert.equal(await guide.evaluate((e) => e.scrollWidth <= e.clientWidth + 1), true)

@@ -11,7 +11,7 @@ const signedAssetHook = await readFrontend('src/hooks/use-signed-asset.ts')
 const imageViewer = await readFrontend('src/components/archive/image-viewer.tsx')
 const imageMetadata = await readFrontend('src/services/image-metadata.ts')
 const boundedRetryHook = await readFrontend('src/hooks/use-bounded-image-retry.ts')
-assert.match(markupComponent, /useSignedAsset\(requested \? path : ''/, 'record illustrations must be signed only on demand')
+assert.match(markupComponent, /useSignedAsset\(requested && dimensions \? path : ''/, 'record illustrations must be signed only on demand')
 assert.match(markupComponent, /preview\.loading/, 'illustrations need an explicit loading state')
 assert.match(
   signedAssetHook,

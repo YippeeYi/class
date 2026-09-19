@@ -38,10 +38,8 @@ import {
 function previewFrame(dimensions: ImageDimensions | null) {
   const maxWidth = Math.max(1, Math.min(360, window.innerWidth - 40))
   const maxHeight = Math.max(1, Math.min(280, window.innerHeight - 40))
-  if (!dimensions) {
-    const scale = Math.min(maxWidth / 240, maxHeight / 180)
-    return { width: Math.round(240 * scale), height: Math.round(180 * scale) }
-  }
+  if (!dimensions) return null
+
   const scale = Math.min(1, maxWidth / dimensions.width, maxHeight / dimensions.height)
   return {
     width: Math.max(1, Math.round(dimensions.width * scale)),
@@ -171,6 +169,8 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
   const [open, setOpen] = useState(false)
   const [ready, setReady] = useState(false)
   const [decodeFailed, setDecodeFailed] = useState(false)
+  const [decodeAttempt, setDecodeAttempt] = useState(0)
+  const [dimensionsFailed, setDimensionsFailed] = useState(false)
   const [lockedAlignOffset, setLockedAlignOffset] = useState(0)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const pointerClientX = useRef<number | null>(null)
@@ -178,9 +178,13 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
   const openRef = useRef(false)
   const openRequest = useRef(0)
   const dismissedByScroll = useRef(false)
-  const preview = useSignedAsset(requested ? path : '', { variant: 'preview', width: 720 })
+  const preview = useSignedAsset(requested && dimensions ? path : '', {
+    variant: 'preview',
+    width: 720,
+  })
   const frame = previewFrame(lockedDimensions || dimensions)
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: An explicit retry must decode again even when the cached signed URL is unchanged.
   useEffect(() => {
     if (!preview.src) return
     let active = true
@@ -189,20 +193,36 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
     const image = new Image()
     image.decoding = 'async'
     image.fetchPriority = 'high'
+    const timer = window.setTimeout(() => {
+      image.onload = image.onerror = null
+      if (active) setDecodeFailed(true)
+    }, 12000)
     image.onload = () => {
       if (!active || !image.naturalWidth || !image.naturalHeight) return
+      window.clearTimeout(timer)
       const next = { width: image.naturalWidth, height: image.naturalHeight }
       rememberImageDimensions(path, next)
       setReady(true)
     }
     image.onerror = () => {
+      window.clearTimeout(timer)
       if (active) setDecodeFailed(true)
     }
     image.src = preview.src
     return () => {
       active = false
+      window.clearTimeout(timer)
+      image.onload = image.onerror = null
     }
-  }, [path, preview.src])
+  }, [path, preview.src, decodeAttempt])
+
+  useEffect(
+    () => () => {
+      openRequest.current += 1
+      openRef.current = false
+    },
+    [],
+  )
 
   const requestPreview = () => {
     setRequested(true)
@@ -218,7 +238,7 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
     pointerClientX.current = event.clientX
     if (resumedAfterScroll) changeOpen(true)
   }
-  const showAtLockedPointer = (nextDimensions: ImageDimensions) => {
+  const showAtLockedPointer = (nextDimensions: ImageDimensions | null) => {
     const bounds = triggerRef.current?.getBoundingClientRect()
     const pointerX = pointerClientX.current
     setLockedAlignOffset(
@@ -239,10 +259,12 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
     requestPreview()
     const request = ++openRequest.current
     const known = getImageDimensions(path) || dimensions
-    showAtLockedPointer(known || { width: 240, height: 180 })
+    setDimensionsFailed(false)
+    showAtLockedPointer(known)
     if (known) return
     void preloadImageDimensions(path, 720).then((loaded) => {
-      if (request !== openRequest.current || !openRef.current || !loaded) return
+      if (request !== openRequest.current || !openRef.current) return
+      setDimensionsFailed(!loaded)
       setLockedDimensions(loaded)
     })
   }
@@ -300,36 +322,54 @@ function IllustrationReference({ path, children }: { path: string; children: Rea
         alignOffset={lockedAlignOffset}
         className="record-illustration-popup w-auto max-w-[calc(100vw-1rem)] p-2"
       >
-        <div
-          className="grid place-items-center overflow-hidden rounded-md bg-muted/55"
-          style={{ width: frame.width, height: frame.height }}
-        >
-          {(preview.loading || (preview.src && !ready && !decodeFailed)) && (
-            <Spinner className="size-6" />
-          )}
-          {(preview.error || decodeFailed) && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setDecodeFailed(false)
-                void preview.retry()
-              }}
-            >
-              图片加载失败，重试
-            </Button>
-          )}
-          {preview.src && ready && (
-            <img
-              src={preview.src}
-              alt="记录插图预览"
-              width={lockedDimensions?.width || dimensions?.width}
-              height={lockedDimensions?.height || dimensions?.height}
-              decoding="async"
-              className="size-full object-contain motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow)"
-            />
-          )}
-        </div>
+        {!frame ? (
+          <span
+            className="flex items-center gap-2 px-1 text-xs text-muted-foreground"
+            role="status"
+          >
+            {dimensionsFailed ? (
+              '无法获取图片尺寸，请稍后重试'
+            ) : (
+              <>
+                <Spinner className="size-4" aria-hidden="true" />
+                图片加载中
+              </>
+            )}
+          </span>
+        ) : (
+          <div
+            data-illustration-frame
+            className="grid place-items-center overflow-hidden rounded-md bg-muted/55"
+            style={{ width: frame.width, height: frame.height }}
+          >
+            {(preview.loading || (preview.src && !ready && !decodeFailed)) && (
+              <Spinner className="size-6" />
+            )}
+            {(preview.error || decodeFailed) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setDecodeFailed(false)
+                  setDecodeAttempt((attempt) => attempt + 1)
+                  void preview.retry()
+                }}
+              >
+                图片加载失败，重试
+              </Button>
+            )}
+            {preview.src && ready && (
+              <img
+                src={preview.src}
+                alt="记录插图预览"
+                width={lockedDimensions?.width || dimensions?.width}
+                height={lockedDimensions?.height || dimensions?.height}
+                decoding="async"
+                className="size-full object-contain motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow)"
+              />
+            )}
+          </div>
+        )}
       </HoverCardContent>
     </HoverCard>
   )
@@ -631,7 +671,7 @@ export function MarkupContent({
           return <Fragment key={key}>{renderNodes(node.children, key)}</Fragment>
         } else {
           return (
-            <IllustrationReference key={key} path={node.path}>
+            <IllustrationReference key={`${key}:${node.path}`} path={node.path}>
               {renderNodes(node.children, key)}
             </IllustrationReference>
           )
