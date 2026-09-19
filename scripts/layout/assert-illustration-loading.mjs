@@ -50,10 +50,7 @@ export async function assertIllustrationLoading(page) {
   await popup.getByText('无法获取图片尺寸，请稍后重试').waitFor()
   assert.equal(await popup.locator('[data-illustration-frame]').count(), 0)
   // Known metadata with a delayed, then corrupt, image body is a separate error phase.
-  await page.evaluate(async () => {
-    const { rememberImageDimensions } = await import('/src/services/image-metadata.ts')
-    rememberImageDimensions('data/attachments/loading-body.png', { width: 300, height: 600 })
-  })
+  await page.evaluate(() => window.__rememberLoadingDimensions('data/attachments/loading-body.png', { width: 300, height: 600 }))
   await render('[[illu:loading-body.png|坏图片]]')
   await page.getByRole('button', { name: '坏图片' }).hover()
   await popup.locator('[data-illustration-frame]').waitFor()

@@ -34,6 +34,7 @@ export const markupLayoutHarness = String.raw`<!doctype html>
       import '/src/styles/tailwind.css'
 
       const e = React.createElement
+      window.__rememberLoadingDimensions = rememberImageDimensions
       window.__setupLoadingTest = () => {
         const host = document.createElement('div')
         host.id = 'illustration-loading-tests'
