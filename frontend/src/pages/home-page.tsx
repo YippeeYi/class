@@ -3,8 +3,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
 import { ErrorState } from '@/components/archive/async-state'
-import { GuideInfo, GuidePanel } from '@/components/archive/guide-panel'
+import { ChronicleLogo } from '@/components/archive/chronicle-logo'
+import { GuideInfo } from '@/components/archive/guide-panel'
 import { interactiveSurfaceVariants } from '@/components/archive/interaction'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { useArchive } from '@/features/archive/archive-context'
 import { useContentPreferences } from '@/features/preferences/content-preferences'
 import { stripMarkup } from '@/lib/markup'
@@ -69,26 +72,43 @@ export function HomePage() {
     <div className="guide-home text-card-foreground">
       <div className="guide-foundation">
         <section className="guide-privacy" aria-labelledby="guide-privacy-title" data-guide-info>
-          <ShieldAlert className="size-5 text-primary" aria-hidden="true" />
+          <ChronicleLogo className="guide-brand" />
+          <ShieldAlert className="guide-privacy-icon size-4 text-primary" aria-hidden="true" />
           <h1 id="guide-privacy-title" className="font-heading">
             仅供班级内部查看
           </h1>
           <p>请尊重个人信息与共同记忆，不要外传。</p>
         </section>
-        <section className="guide-setting" aria-label="脏话隐藏">
-          <GuidePanel
-            icon={EyeOff}
-            title="隐藏脏话"
-            toggle={{
-              id: 'hide-profanity',
-              checked: hideProfanity,
-              onCheckedChange: setHideProfanity,
-              label: '隐藏所有记录中的脏话',
-            }}
+        <section className="guide-setting" aria-labelledby="guide-setting-title">
+          <Label
+            htmlFor="hide-profanity"
+            data-guide-panel="interactive"
+            className={`guide-setting-control ${interactiveSurfaceVariants({ kind: 'item' })}`}
           >
-            <span className="guide-setting-state">{hideProfanity ? '已开启' : '已关闭'}</span>
-            <span className="block">以 *** 替代粗俗用语</span>
-          </GuidePanel>
+            <span className="guide-setting-icon" aria-hidden="true">
+              <EyeOff className="size-4" strokeWidth={2} />
+            </span>
+            <span className="guide-setting-copy">
+              <span className="guide-setting-heading">
+                <span id="guide-setting-title">脏话隐藏</span>
+                <span
+                  id="guide-setting-state"
+                  className="guide-setting-state"
+                  data-enabled={hideProfanity}
+                  aria-live="polite"
+                >
+                  {hideProfanity ? '已开启' : '已关闭'}
+                </span>
+              </span>
+              <span className="guide-setting-description">在全部记录中以 *** 替代粗俗用语</span>
+            </span>
+            <Switch
+              id="hide-profanity"
+              checked={hideProfanity}
+              onCheckedChange={setHideProfanity}
+              aria-label="隐藏所有记录中的脏话"
+            />
+          </Label>
         </section>
         <aside className="guide-tip">
           <GuideInfo icon={Lightbulb} title="小提示">

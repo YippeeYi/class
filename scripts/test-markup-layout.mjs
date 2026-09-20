@@ -2187,6 +2187,9 @@ try {
   await history.waitFor()
   assert.equal(await guide.locator('a').count(), 1)
   assert.equal(await guide.locator('[data-guide-info]').count(), 2)
+  const logo = guide.locator('[data-guide-logo]')
+  assert.equal(await logo.locator('svg').count(), 1, 'guide identity uses the original inline vector mark')
+  assert.equal(await logo.locator('img').count(), 0, 'guide identity has no external image dependency')
   const panelPaint = element => {
     const style = getComputedStyle(element)
     return { background: style.backgroundColor, border: style.borderColor, color: style.color, transform: `${style.translate} ${style.scale}` }
@@ -2217,11 +2220,13 @@ try {
         }
         return {
           overflow: element.scrollWidth > element.clientWidth + 1,
-          privacy: rect('.guide-privacy'), setting: rect('.guide-setting'), tip: rect('.guide-tip'), history: rect('.guide-history'),
+          privacy: rect('.guide-privacy'), logo: rect('[data-guide-logo]'), setting: rect('.guide-setting'), tip: rect('.guide-tip'), history: rect('.guide-history'),
           columns: getComputedStyle(element.querySelector('.guide-foundation')).gridTemplateColumns.split(' ').length,
         }
       })
       assert.equal(geometry.overflow, false)
+      assert.ok(geometry.logo.x >= geometry.privacy.x && geometry.logo.right <= geometry.privacy.right)
+      assert.ok(geometry.logo.width < geometry.privacy.width, 'logo lockup leaves room for the privacy copy')
       if (geometry.columns === 2) {
         assert.ok(geometry.privacy.right < geometry.setting.x)
         assert.ok(geometry.privacy.width > geometry.setting.width)
