@@ -46,10 +46,7 @@ let businessVersion = '1'
 let businessDelay = 0
 let versionDelay = 0
 let versionFailure = false
-let starCount = 17
-let starFailure = false
 let starRequests = 0
-let starDelay = 0
 const networkEvents = []
 async function contextFor({ admin = false, mobile = false, authenticated = true } = {}) {
   const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1280, height: 900 }, hasTouch: mobile, reducedMotion: 'reduce' })
@@ -91,12 +88,11 @@ async function contextFor({ admin = false, mobile = false, authenticated = true 
   })
   await context.route('https://api.github.com/repos/YippeeYi/class', async (route) => {
     starRequests++
-    if (starDelay) await new Promise((resolve) => setTimeout(resolve, starDelay))
-    return route.fulfill({ status: starFailure ? 429 : 200, contentType: 'application/json', body: JSON.stringify({ stargazers_count: starCount }) })
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ stargazers_count: 17 }) })
   })
   context.on('page', (page) => {
     page.on('pageerror', (error) => problems.push(error.message))
-    page.on('console', (msg) => { if (versionFailure && msg.location().url.includes('/rpc/get_class_data_version')) return; if (starFailure && msg.location().url.startsWith('https://api.github.com/')) return; if (['error', 'warning'].includes(msg.type())) problems.push(msg.text()) })
+    page.on('console', (msg) => { if (versionFailure && msg.location().url.includes('/rpc/get_class_data_version')) return; if (['error', 'warning'].includes(msg.type())) problems.push(msg.text()) })
   })
   return context
 }
@@ -330,77 +326,70 @@ try {
     await images.close()
   }
   {
-    const originalContent = records[1].content
-    const hiddenDate = records[2].record_date
-    records[1].content = '首页摘录 [[red:标记文字]] 傻逼 [[quote:home|摘录名言]]'
-    records[2].record_date = '2099-01-01'
-    const homeContext = await contextFor()
-    const home = await homeContext.newPage()
-    await home.goto(origin)
-    const excerpt = home.locator('.guide-record-excerpt')
-    await excerpt.waitFor()
-    assert.equal(await excerpt.innerText(), '首页摘录 标记文字 *** 摘录名言')
-    const homeLinks = await home.locator('.guide-home a').evaluateAll(links => links.map(link => link.href))
-    assert.equal(homeLinks.includes(new URL('search', origin).href), false, 'sidebar-only navigation must not repeat on the home')
-    assert.equal(homeLinks.filter(href => href === new URL('person?id=p1', origin).href).length, 1, 'people preview retains a direct profile link')
-    const source = home.getByRole('link', { name: '打开这条记录' })
-    assert.equal(await source.evaluate(link => link.href), new URL('records#record-r2', origin).href, 'newest public record wins; hidden records never become previews')
-    await home.getByRole('switch', { name: '隐藏所有记录中的脏话' }).click()
-    assert.match(await excerpt.innerText(), /傻逼/)
-    await home.reload()
-    await excerpt.waitFor()
-    assert.match(await excerpt.innerText(), /傻逼/, 'the preview follows persisted content preferences')
-    await source.click()
-    await home.locator('#record-r2').waitFor()
-    await home.waitForFunction(() => location.hash === '#record-r2')
-    await homeContext.close()
-    records[1].content = originalContent
-    records[2].record_date = hiddenDate
-    console.log('Home content passed: visible latest record, stripped markup, reversible profanity, profile links and source navigation.')
-  }
-  {
-    const starContext = await contextFor()
-    const starPage = await starContext.newPage()
-    starDelay = 600
-    const before = starRequests
-    await starPage.goto(origin)
-    const link = starPage.getByRole('link', { name: /为项目点亮 Star/ })
-    await link.waitFor()
-    assert.equal(await starPage.locator('.guide-project').getByRole('link', { name: /为项目点亮 Star/ }).count(), 1)
-    assert.equal(await link.locator('svg.lucide-github').count(), 1)
-    const emptyBox = await link.boundingBox()
-    await link.getByText('17 Stars').waitFor()
-    const filledBox = await link.boundingBox()
-    assert.equal(filledBox.height, emptyBox.height, 'Star count must not resize its card')
-    assert.equal(starRequests, before + 1)
-    await starPage.reload()
-    await starPage.getByText('17 Stars', { exact: true }).waitFor()
-    await starPage.waitForTimeout(1300)
-    assert.equal(starRequests, before + 1, 'repeat visits reuse the public statistics cache')
-    await starPage.evaluate(() => {
-      const key = 'classRecord:githubStars:YippeeYi/class'
-      const value = JSON.parse(localStorage.getItem(key))
-      value.checkedAt -= 31 * 60_000
-      localStorage.setItem(key, JSON.stringify(value))
-    })
-    starCount = 18
-    await starPage.reload()
-    await starPage.getByText('18 Stars', { exact: true }).waitFor()
-    starFailure = true
-    const offlineContext = await contextFor()
-    const offlinePage = await offlineContext.newPage()
-    await offlinePage.goto(origin)
-    const fallback = offlinePage.getByRole('link', { name: /为项目点亮 Star/ })
-    await fallback.waitFor()
-    await offlinePage.waitForTimeout(2000)
-    assert.equal(await fallback.getAttribute('href'), 'https://github.com/YippeeYi/class')
-    assert.equal(await fallback.getByText(/\d+ Stars/).count(), 0)
-    await offlineContext.close()
-    await starContext.close()
-    starFailure = false
-    starDelay = 0
-    starCount = 17
-    console.log('GitHub panel passed: right column, official icon, non-blocking count, stable geometry, cached revisit, updated count and rate-limit fallback.')
+    const originals = records.map(record => ({ ...record }))
+    const beforeStars = starRequests
+    for (const hasHistory of [true, false]) {
+      const homeContext = await contextFor({ admin: true })
+      const home = await homeContext.newPage()
+      const { today, other, month, day } = await home.evaluate(() => {
+        const now = new Date()
+        const month = String(now.getMonth() + 1).padStart(2, '0')
+        const day = String(now.getDate()).padStart(2, '0')
+        return { today: `2025-${month}-${day}`, other: `2025-${month}-${day === '01' ? '02' : '01'}`, month, day }
+      })
+      records[0].record_date = other
+      records[1].record_date = hasHistory ? today : other
+      records[1].content = '历史摘录 [[red:标记文字]] 傻逼 [[quote:home|摘录名言]]'
+      records[2].record_date = today
+      await home.goto(origin)
+      const setting = home.getByRole('switch', { name: '隐藏所有记录中的脏话' })
+      await setting.waitFor()
+      await home.waitForLoadState('networkidle')
+      await home.waitForTimeout(300)
+      const excerpt = home.locator('.guide-history-excerpt')
+      if (hasHistory) {
+        await excerpt.waitFor()
+        assert.equal(await excerpt.innerText(), '历史摘录 标记文字 *** 摘录名言')
+      }
+      assert.equal(await home.locator('.guide-history').count(), Number(hasHistory), 'hidden records cannot create a history module')
+      assert.equal(await home.locator('.guide-home a').count(), Number(hasHistory), 'only history navigation remains')
+      for (const preset of ['paper', 'midnight']) {
+        await home.evaluate(preset => {
+          document.documentElement.dataset.themePreset = preset
+          document.documentElement.classList.toggle('dark', preset === 'midnight')
+        }, preset)
+        await home.waitForTimeout(650)
+        for (const width of [320, 390, 768, 1024, 1920]) {
+          await home.setViewportSize({ width, height: 900 })
+          assert.equal(await home.locator('.guide-home').evaluate(e => e.scrollWidth <= e.clientWidth + 1), true, `history=${hasHistory} fits ${preset}/${width}`)
+          assert.equal(await home.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+          if (width === 390 || width === 1920) await home.locator('.guide-home').screenshot({ path: `/tmp/class-guide-history-${hasHistory}-${preset}-${width}.png` })
+        }
+      }
+      await setting.focus()
+      await home.keyboard.press('Space')
+      assert.equal(await setting.getAttribute('aria-checked'), 'false')
+      await home.getByText('已关闭', { exact: true }).waitFor()
+      if (hasHistory) assert.match(await excerpt.innerText(), /傻逼/)
+      await home.reload()
+      await setting.waitFor()
+      assert.equal(await setting.getAttribute('aria-checked'), 'false', 'preference persists across reload')
+      await setting.click()
+      assert.equal(await setting.getAttribute('aria-checked'), 'true')
+      if (hasHistory) {
+        await excerpt.waitFor()
+        assert.doesNotMatch(await excerpt.innerText(), /傻逼/)
+        const history = home.getByRole('link', { name: '历史上的今天' })
+        assert.equal(await history.evaluate(link => link.href), new URL(`records?month=${month}&day=${day}`, origin).href)
+        await history.click()
+        await home.waitForURL(`**/records?month=${month}&day=${day}`)
+        await home.locator('#record-r2').waitFor()
+      }
+      await homeContext.close()
+    }
+    records.forEach((record, index) => Object.assign(record, originals[index]))
+    assert.equal(starRequests, beforeStars, 'home no longer loads project statistics')
+    console.log('Home passed: conditional history, hidden records, filtered preview, responsive presence/absence, keyboard setting, persistence and date navigation.')
   }
   {
     const cacheContext = await contextFor()

@@ -2183,105 +2183,20 @@ try {
   assert.equal(await teacherSection.locator('tbody tr').first().getByRole('link').textContent(), '重点老师', 'main-teacher priority must still move the marked person first')
 
   const guide = page.locator('[data-case="guide"]')
-  await guide.scrollIntoViewIfNeeded()
-  await guide.getByRole('link', { name: /记录/ }).first().waitFor({ state: 'visible' })
-  const guideLogo = guide.locator('[data-guide-header] img').first()
-  const guideLogoSemantics = await guideLogo.evaluate((logo) => {
-    const image = logo
-    return {
-      tag: logo.tagName,
-      interactiveAncestor: Boolean(logo.closest('a, button, [role="button"]')),
-      tabIndex: logo.getAttribute('tabindex'),
-      cursor: getComputedStyle(logo).cursor,
-      userSelect: getComputedStyle(logo).userSelect,
-      imageDraggable: image?.draggable,
-      imagePointerEvents: image ? getComputedStyle(image).pointerEvents : '',
-      imageUserSelect: image ? getComputedStyle(image).userSelect : '',
-    }
-  })
-  assert.equal(guideLogoSemantics.tag, 'IMG', 'guide logo must remain a semantic display image')
-  assert.equal(guideLogoSemantics.interactiveAncestor, false, 'guide logo must not retain a link, button or button role')
-  assert.equal(guideLogoSemantics.tabIndex, null, 'guide logo must not be keyboard focusable')
-  assert.notEqual(guideLogoSemantics.cursor, 'pointer', 'guide logo must not advertise click behavior')
-  assert.equal(guideLogoSemantics.userSelect, 'none', 'guide logo must not be selectable')
-  assert.equal(guideLogoSemantics.imageDraggable, false, 'guide logo image must not be draggable')
-  assert.equal(guideLogoSemantics.imagePointerEvents, 'none', 'guide logo image must not receive pointer events')
-  assert.equal(guideLogoSemantics.imageUserSelect, 'none', 'guide logo image must not be selectable')
-  assert.equal(await guide.getByRole('link', { name: /记录/ }).count() > 0, true, 'guide must expose the primary records entry')
-  assert.equal(await guide.getByRole('link', { name: /致谢/ }).count(), 0, 'guide must not duplicate the sidebar credits entry')
-  assert.equal(await guide.getByRole('link', { name: /历史上的今天/ }).count(), 1, 'guide must retain the date-matched history entry')
-  assert.equal(await guide.locator('.guide-project').getByRole('link', { name: /为项目点亮 Star/ }).count(), 1, 'Star remains in the supporting footer')
-  assert.equal(await guide.locator('.guide-history').getByRole('link', { name: /历史上的今天/ }).count(), 1, 'history remains beside the archive entries')
-  assert.equal(await guide.locator('[data-guide-info]').count(), 2, 'privacy and tips remain quiet information')
-  await page.mouse.move(0, 0)
-  await page.waitForTimeout(220)
-  const guideRecordItem = guide.locator('a.app-interactive-item[href="/records"]').last()
-  const guideQuoteItem = guide.locator('a.app-interactive-item[href="/quotes"]')
-  const readGuideItemState = (item) =>
-    item.evaluate((link) => {
-      const bounds = link.getBoundingClientRect()
-      const styles = getComputedStyle(link)
-      return {
-        bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
-        background: styles.backgroundColor,
-        border: styles.borderColor,
-      }
-    })
-  const guideItemBefore = await readGuideItemState(guideRecordItem)
-  await guideRecordItem.hover()
-  await page.waitForTimeout(220)
-  const guidePrimaryAfter = await readGuideItemState(guideRecordItem)
-  assert.deepEqual(
-    guidePrimaryAfter.bounds,
-    guideItemBefore.bounds,
-    'guide entry hover must not move or resize the shared interactive item',
-  )
-  assert.ok(
-    guidePrimaryAfter.background !== guideItemBefore.background ||
-      guidePrimaryAfter.border !== guideItemBefore.border,
-    `guide entry hover must expose the shared item feedback: ${JSON.stringify({ guideItemBefore, guidePrimaryAfter })}`,
-  )
-  await guideQuoteItem.hover()
-  await page.waitForTimeout(220)
-  const guideSecondaryAfter = await readGuideItemState(guideQuoteItem)
-  assert.deepEqual(
-    {
-      background: guidePrimaryAfter.background,
-      border: guidePrimaryAfter.border,
-    },
-    {
-      background: guideSecondaryAfter.background,
-      border: guideSecondaryAfter.border,
-    },
-    'primary and secondary guide entries must share the same hover colors',
-  )
-  await page.keyboard.press('Tab')
-  await guideRecordItem.focus()
-  assert.notEqual(
-    await guideRecordItem.evaluate((link) => getComputedStyle(link).boxShadow),
-    'none',
-    'guide entry keyboard focus must expose the shared focus-visible ring',
-  )
-  const guideGeometry = await guide.evaluate((section) => ({
-    overflow: section.scrollWidth - section.clientWidth,
-    primaryLinks: new Set([...section.querySelectorAll('a[href="/records"], a[href="/people"], a[href="/quotes"]')].map((link) => link.getAttribute('href'))).size,
-    toolLinks: new Set([...section.querySelectorAll('a[href="/timeline"], a[href="/search"], a[href="/quiz"], a[href="/materials"], a[href="/map"], a[href="/backgrounds"], a[href="/credits"]')].map((link) => link.getAttribute('href'))).size,
-  }))
-  assert.ok(guideGeometry.overflow <= 1, 'guide layout must not overflow its content lane')
-  assert.equal(guideGeometry.primaryLinks, 3, 'guide must retain all three primary archive entries')
-  assert.equal(guideGeometry.toolLinks, 0, 'pure navigation stays in the sidebar instead of repeating on the homepage')
-  const todayPanel = guide.getByRole('link', { name: /历史上的今天/ })
-  const panelPaint = (element) => {
+  const history = guide.getByRole('link', { name: '历史上的今天' })
+  await history.waitFor()
+  assert.equal(await guide.locator('a').count(), 1)
+  assert.equal(await guide.locator('[data-guide-info]').count(), 2)
+  const panelPaint = element => {
     const style = getComputedStyle(element)
-    return { background: style.backgroundColor, border: style.borderColor, color: style.color, radius: style.borderRadius }
+    return { background: style.backgroundColor, border: style.borderColor, color: style.color, transform: `${style.translate} ${style.scale}` }
   }
   const originalTheme = await page.evaluate(() => ({ preset: document.documentElement.dataset.themePreset, dark: document.documentElement.classList.contains('dark') }))
   for (const preset of ['paper', 'midnight']) {
-    await page.evaluate((preset) => {
+    await page.evaluate(preset => {
       document.documentElement.dataset.themePreset = preset
       document.documentElement.classList.toggle('dark', preset === 'midnight')
     }, preset)
-    // Theme color transitions can cascade through inherited card colors.
     await page.waitForTimeout(650)
     for (const width of [320, 390, 768, 1024, 1280, 1920]) {
       await page.setViewportSize({ width, height: 1000 })
@@ -2292,75 +2207,64 @@ try {
         const before = await info.evaluate(panelPaint)
         await info.hover()
         await page.waitForTimeout(150)
-        assert.deepEqual(await info.evaluate(panelPaint), before, 'display information has no hover feedback')
-        assert.equal(await info.evaluate(e => e.matches('a,button,label') || e.tabIndex >= 0 || getComputedStyle(e).cursor === 'pointer'), false)
+        assert.deepEqual(await info.evaluate(panelPaint), before, 'pure information has no hover feedback')
+        assert.equal(await info.evaluate(e => e.tabIndex >= 0 || getComputedStyle(e).cursor === 'pointer'), false)
       }
-      await page.mouse.move(0, 0)
-      assert.deepEqual(await todayPanel.evaluate(panelPaint), await guideQuoteItem.evaluate(panelPaint), `history matches navigation surfaces in ${preset}/${width}`)
-      assert.equal(await guide.evaluate((e) => e.scrollWidth <= e.clientWidth + 1), true)
-      const regions = await guide.locator('[data-guide-navigation]').evaluate(element => {
-        const rect = e => { const r = e.getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, right:r.right, bottom:r.bottom } }
+      const geometry = await guide.evaluate(element => {
+        const rect = selector => {
+          const e = element.querySelector(selector), r = e.getBoundingClientRect()
+          return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width }
+        }
         return {
-          archive: rect(element.querySelector('.guide-main')),
-          tools: rect(element.querySelector('.guide-margin')),
-          columns: getComputedStyle(element).gridTemplateColumns.split(' ').length,
-          links: [...element.querySelectorAll('a')].map(rect),
-          bounds: rect(element),
+          overflow: element.scrollWidth > element.clientWidth + 1,
+          privacy: rect('.guide-privacy'), setting: rect('.guide-setting'), tip: rect('.guide-tip'), history: rect('.guide-history'),
+          columns: getComputedStyle(element.querySelector('.guide-foundation')).gridTemplateColumns.split(' ').length,
         }
       })
-      for (const link of regions.links) {
-        assert.ok(link.x >= regions.bounds.x - 1 && link.right <= regions.bounds.right + 1, `guide links remain inside the lane at ${preset}/${width}`)
-        assert.ok(link.bottom - link.y >= 44, 'guide links retain usable touch targets')
-      }
-      if (regions.columns === 2) {
-        assert.ok(regions.archive.right < regions.tools.x, 'wide groups sit side by side')
-        assert.ok(regions.archive.width > regions.tools.width, 'archive leads with a wider content lane')
-      } else {
-        assert.ok(regions.archive.bottom < regions.tools.y, 'narrow groups follow archive-first reading order')
-      }
-
-      if (width === 390) await guide.screenshot({ path: `/tmp/class-guide-${preset}-mobile.png` })
+      assert.equal(geometry.overflow, false)
+      if (geometry.columns === 2) {
+        assert.ok(geometry.privacy.right < geometry.setting.x)
+        assert.ok(geometry.privacy.width > geometry.setting.width)
+      } else assert.ok(geometry.privacy.bottom <= geometry.setting.y)
+      assert.ok(geometry.setting.bottom <= geometry.tip.y)
+      assert.ok(geometry.history.y >= Math.max(geometry.tip.bottom, geometry.privacy.bottom))
+      assert.ok((await history.boundingBox()).height >= 44)
+      assert.ok((await guide.locator('[data-guide-panel]').boundingBox()).height >= 44)
+      if (width === 390 || width === 1920) await guide.screenshot({ path: `/tmp/class-guide-${preset}-${width}.png` })
     }
-    for (const element of [todayPanel, guideQuoteItem]) {
-      await element.hover()
-      await page.waitForTimeout(300)
-      const hover = await element.evaluate(panelPaint)
-      if (element === todayPanel) await page.evaluate((paint) => { window.__historyHover = paint }, hover)
-      else assert.deepEqual(hover, await page.evaluate(() => window.__historyHover), 'history and navigation share hover paint')
+    for (const control of [history, guide.locator('[data-guide-panel]')]) {
+      await page.mouse.move(0, 0)
+      await page.waitForTimeout(220)
+      const before = await control.evaluate(panelPaint)
+      await control.hover()
+      await page.waitForTimeout(220)
+      assert.notEqual((await control.evaluate(panelPaint)).background, before.background)
       await page.mouse.down()
-      await page.waitForTimeout(160)
-      const pressed = await element.evaluate(panelPaint)
+      await page.waitForTimeout(180)
+      assert.notEqual((await control.evaluate(panelPaint)).transform, before.transform)
       await page.mouse.move(0, 0)
       await page.mouse.up()
-      if (element === todayPanel) await page.evaluate((paint) => { window.__historyPressed = paint }, pressed)
-      else assert.deepEqual(pressed, await page.evaluate(() => window.__historyPressed), 'history and navigation share pressed paint')
     }
-    await page.keyboard.press('Tab')
-    await todayPanel.focus()
-    assert.equal(await todayPanel.evaluate((e) => e.matches(':focus-visible')), true)
-    assert.notEqual(await todayPanel.evaluate((e) => getComputedStyle(e).boxShadow), 'none')
-    await page.mouse.move(0, 0)
-    await guide.screenshot({ path: `/tmp/class-guide-${preset}.png` })
+    for (const control of [history, guide.getByRole('switch')]) {
+      await page.keyboard.press('Tab')
+      await control.focus()
+      assert.equal(await control.evaluate(e => e.matches(':focus-visible')), true)
+      assert.notEqual(await control.evaluate(e => getComputedStyle(e).boxShadow), 'none')
+    }
+    const excerpt = guide.locator('.guide-history-excerpt')
+    const originalText = await excerpt.innerText()
+    await excerpt.evaluate(e => { e.textContent = '超长历史内容'.repeat(100) + 'Unbroken'.repeat(100) })
+    await page.setViewportSize({ width: 320, height: 1000 })
+    assert.equal(await guide.evaluate(e => e.scrollWidth <= e.clientWidth + 1), true)
+    await excerpt.evaluate((e, text) => { e.textContent = text }, originalText)
   }
-  const star = guide.getByRole('link', { name: /为项目点亮 Star/ })
-  assert.equal(await star.getAttribute('href'), 'https://github.com/YippeeYi/class')
-  assert.equal(await star.getAttribute('rel'), 'noopener noreferrer')
-  await page.context().route('https://github.com/YippeeYi/class', (route) => route.fulfill({ contentType: 'text/html', body: '<title>Star destination</title>' }))
-  await star.focus()
-  const popupReady = page.waitForEvent('popup')
-  await page.keyboard.press('Enter')
-  const popup = await popupReady
-  await popup.waitForLoadState()
-  assert.equal(popup.url(), 'https://github.com/YippeeYi/class')
-  assert.equal(await popup.evaluate(() => opener === null), true)
-  await popup.close()
   await page.evaluate(({ preset, dark }) => {
     if (preset) document.documentElement.dataset.themePreset = preset
     else delete document.documentElement.dataset.themePreset
     document.documentElement.classList.toggle('dark', dark)
   }, originalTheme)
   await page.setViewportSize({ width: 1280, height: 1000 })
-  console.log('Guide and Star passed: light/dark, six widths, archive-first hierarchy, shared interaction states, touch targets and safe keyboard navigation.')
+  console.log('Guide passed: four content roles, light/dark, six widths, reading order, hover/press/focus and long text.')
   if (process.env.CLASS_RECORD_LAYOUT_SCREENSHOT) {
     await page.screenshot({ path: process.env.CLASS_RECORD_LAYOUT_SCREENSHOT, fullPage: true })
   }
