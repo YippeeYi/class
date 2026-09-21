@@ -88,11 +88,15 @@ export function HomePage() {
       }
       const style = getComputedStyle(cover)
       animation = cover.animate(
-        [{ transform: 'translateY(0)' }, { transform: 'translateY(-100%)' }],
+        [
+          { transform: 'translateY(0)', opacity: 1 },
+          { transform: 'translateY(-12%)', opacity: 0.65, offset: 0.55 },
+          { transform: 'translateY(-100%)', opacity: 0 },
+        ],
         {
           duration:
-            Number.parseFloat(style.getPropertyValue('--interaction-duration-scene')) || 500,
-          easing: style.getPropertyValue('--interaction-ease-standard').trim() || 'ease-out',
+            Number.parseFloat(style.getPropertyValue('--guide-cover-exit-duration')) || 1400,
+          easing: 'ease-in-out',
           fill: 'forwards',
         },
       )

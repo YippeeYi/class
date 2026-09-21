@@ -1,12 +1,23 @@
+html:has(.guide-home),
+body:has(.guide-home) {
+  scrollbar-width: none;
+}
+html:has(.guide-home)::-webkit-scrollbar,
+body:has(.guide-home)::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
 .guide-home {
   container-type: inline-size;
-  max-width: 68rem;
+  max-width: 60rem;
   margin-inline: auto;
   padding: 0 clamp(1.25rem, 4vw, 3rem) clamp(1.5rem, 4vw, 2.5rem);
   border-radius: var(--radius-xl);
   background: color-mix(in oklch, var(--card) 90%, transparent);
 }
 .guide-cover {
+  --guide-cover-exit-duration: 1400ms;
   position: fixed;
   inset: 0;
   z-index: 60;
@@ -28,16 +39,46 @@
   }
 }
 .guide-masthead {
+  position: relative;
   display: grid;
   justify-items: center;
   width: calc(100% - clamp(2.5rem, 10vw, 12rem));
   max-width: 68rem;
   margin-inline: auto;
   padding-block: clamp(0.75rem, 3vh, 2rem);
-  border-top: 1px solid var(--border);
-  border-bottom: 3px solid color-mix(in oklch, var(--foreground) 72%, var(--card));
+  border-top: 1px solid transparent;
+  border-bottom: 3px solid transparent;
   animation: guide-cover-enter var(--interaction-duration-scene) var(--interaction-ease-standard)
     both;
+}
+.guide-masthead::before,
+.guide-masthead::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  transform-origin: center;
+  animation: guide-rule-unfold calc(var(--interaction-duration-scene) * 2)
+    var(--interaction-ease-standard) 150ms both;
+}
+.guide-masthead::before {
+  top: -1px;
+  height: 1px;
+  background: var(--border);
+}
+.guide-masthead::after {
+  bottom: -3px;
+  height: 3px;
+  background: color-mix(in oklch, var(--foreground) 72%, var(--card));
+}
+@keyframes guide-rule-unfold {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
 }
 .guide-brand {
   width: clamp(12rem, 38vw, 24rem);
@@ -104,6 +145,8 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .guide-masthead,
+  .guide-masthead::before,
+  .guide-masthead::after,
   .guide-scroll-hint p {
     animation: none;
   }
@@ -125,19 +168,13 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: calc(100vh - 4rem);
-  padding-block: 2rem;
-}
-@supports (height: 100dvh) {
-  .guide-body {
-    min-height: calc(100dvh - 4rem);
-  }
+  padding-block: 1rem;
 }
 .guide-content {
   display: grid;
   gap: 0.75rem;
   width: 100%;
-  max-width: 48rem;
+  max-width: 42rem;
   margin-inline: auto;
 }
 .guide-content > * {
@@ -148,11 +185,11 @@
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
-  gap: 0.625rem;
+  gap: 0.5rem;
   width: 100%;
   height: 100%;
-  min-height: 4rem;
-  padding: 0.875rem 1rem;
+  min-height: 3.5rem;
+  padding: 0.75rem 0.875rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   background: var(--card);
@@ -221,7 +258,7 @@
 }
 .guide-calendar {
   margin-block: 0.25rem;
-  font-size: clamp(2.5rem, 5cqi, 3rem);
+  font-size: clamp(2.5rem, 5cqi, 2.75rem);
   line-height: 1.2;
   letter-spacing: -0.055em;
 }
@@ -260,7 +297,7 @@
 @container (min-width: 40rem) {
   .guide-content {
     grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-    gap: 0.875rem;
+    gap: 0.75rem;
   }
   .guide-content[data-has-history="true"] .guide-history {
     grid-row: span 2;

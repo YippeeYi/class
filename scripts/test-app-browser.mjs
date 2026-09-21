@@ -384,7 +384,9 @@ try {
           assert.equal(await home.locator('#root').evaluate(e => e.inert), false)
           assert.equal(await home.evaluate(() => document.documentElement.style.overflow), '')
           await home.mouse.wheel(0, 160)
-          await home.waitForFunction(() => window.scrollY > 0)
+          assert.equal(await home.evaluate(() => window.scrollY), 0, 'default guide fits without vertical scrolling')
+          assert.equal(await home.evaluate(() => getComputedStyle(document.documentElement).scrollbarWidth), 'none')
+          assert.ok((await home.locator('.guide-content').boundingBox()).width <= 672)
           await home.mouse.wheel(0, -1200)
           await home.keyboard.press('Home')
           await home.evaluate(() => window.scrollTo(0, 0))
@@ -407,16 +409,49 @@ try {
         await home.keyboard.press('Tab')
         await home.getByRole('button', { name: '进入导览内容' }).press('Enter')
         await home.locator('.guide-cover').waitFor({ state: 'detached' })
+        if (await home.evaluate(() => document.documentElement.scrollHeight > innerHeight)) {
+          await home.keyboard.press('PageDown')
+          await home.waitForFunction(() => window.scrollY > 0)
+        }
       }
       await home.setViewportSize({ width: 1920, height: 900 })
       await home.emulateMedia({ reducedMotion: 'no-preference' })
       await home.reload()
       await home.locator('.guide-cover').waitFor()
+      const ruleFrames = await home.locator('.guide-masthead').evaluate(element => {
+        const animations = element.getAnimations({ subtree: true }).filter(animation => animation.animationName === 'guide-rule-unfold')
+        const sample = time => {
+          for (const animation of animations) { animation.pause(); animation.currentTime = time }
+          return ['::before', '::after'].map(pseudo => {
+            const style = getComputedStyle(element, pseudo)
+            return { scale: new DOMMatrix(style.transform).a, opacity: Number(style.opacity) }
+          })
+        }
+        const frames = { count: animations.length, start: sample(0), middle: sample(650), end: sample(1150) }
+        for (const animation of animations) animation.finish()
+        return frames
+      })
+      assert.equal(ruleFrames.count, 2)
+      assert.deepEqual(ruleFrames.start, [{ scale: 0, opacity: 0 }, { scale: 0, opacity: 0 }])
+      assert.deepEqual(ruleFrames.middle[0], ruleFrames.middle[1], 'masthead rules expand symmetrically')
+      assert.ok(ruleFrames.middle[0].scale > 0 && ruleFrames.middle[0].scale < 1)
+      assert.deepEqual(ruleFrames.end, [{ scale: 1, opacity: 1 }, { scale: 1, opacity: 1 }])
       await home.mouse.move(960, 500)
       await home.mouse.wheel(0, 80)
       await home.waitForFunction(() => document.querySelector('.guide-cover')?.dataset.state === 'leaving')
       await home.mouse.wheel(0, 120)
       assert.equal(await home.locator('.guide-cover').evaluate(e => e.getAnimations().length), 1, 'inertia cannot start a second exit animation')
+      const exitState = await home.locator('.guide-cover').evaluate(element => {
+        const animation = element.getAnimations()[0]
+        const duration = animation.effect.getTiming().duration
+        animation.pause()
+        animation.currentTime = duration / 2
+        const result = { duration, opacity: Number(getComputedStyle(element).opacity), logoBottom: element.querySelector('[data-guide-logo]').getBoundingClientRect().bottom }
+        animation.play()
+        return result
+      })
+      assert.ok(exitState.duration >= 1200, 'cover departure is deliberately slower')
+      assert.ok(exitState.opacity > 0.6 && exitState.opacity < 1 && exitState.logoBottom > 0, 'logo remains visible halfway through departure')
       await home.locator('.guide-cover').waitFor({ state: 'detached' })
       await home.emulateMedia({ reducedMotion: 'reduce' })
       await setting.focus()
@@ -483,6 +518,7 @@ try {
       await touchPage.locator('.guide-cover').waitFor({ state: 'detached' })
       assert.equal(await touchPage.locator('#root').evaluate(e => e.inert), false, 'route unmount clears inert')
       assert.equal(await touchPage.evaluate(() => document.documentElement.style.overflow), '', 'route unmount clears the scroll lock')
+      assert.notEqual(await touchPage.evaluate(() => getComputedStyle(document.documentElement).scrollbarWidth), 'none', 'guide scrollbar styling does not leak to other routes')
       await touchContext.close()
     }
     records.forEach((record, index) => Object.assign(record, originals[index]))
