@@ -379,7 +379,17 @@ try {
           await home.mouse.move(width / 2, 500)
           await home.mouse.wheel(0, 8)
           assert.equal(await home.locator('.guide-cover').count(), 1, 'small trackpad jitter cannot dismiss the cover')
-          await home.mouse.wheel(0, 72)
+          const reducedExit = await home.locator('.guide-cover').evaluate(element => {
+            element.dispatchEvent(new WheelEvent('wheel', { deltaY: 72, cancelable: true }))
+            const animation = element.getAnimations().find(item => item.id === 'guide-cover-exit')
+            animation.pause()
+            animation.currentTime = 120
+            const opacity = Number(getComputedStyle(element).opacity)
+            animation.play()
+            return { opacity, duration: animation.effect.getTiming().duration }
+          })
+          assert.equal(reducedExit.duration, 240)
+          assert.ok(reducedExit.opacity > 0 && reducedExit.opacity < 1, 'reduced motion fades instead of removing the logo instantly')
           await home.locator('.guide-cover').waitFor({ state: 'detached' })
           assert.equal(await home.locator('#root').evaluate(e => e.inert), false)
           assert.equal(await home.evaluate(() => document.documentElement.style.overflow), '')
@@ -407,6 +417,7 @@ try {
         assert.ok(fit.width <= fit.viewportWidth)
         const privacy = await home.locator('.guide-privacy').boundingBox()
         assert.ok(privacy.y + privacy.height <= viewport.height, 'privacy footer stays visible')
+        assert.ok(privacy.y + privacy.height > viewport.height * 0.75, 'guide sections use the available screen height')
         if (viewport.width === 1366) await home.screenshot({ path: `/tmp/class-guide-roomy-${hasHistory}.png` })
       }
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }, { width: 390, height: 667 }]) {
@@ -452,9 +463,9 @@ try {
       await home.waitForFunction(() => document.querySelector('.guide-cover')?.dataset.state === 'leaving')
       await home.mouse.wheel(0, 600)
       await home.mouse.wheel(0, -300)
-      assert.equal(await home.locator('.guide-cover').evaluate(e => e.getAnimations().length), 1, 'inertia cannot start a second exit animation')
+      assert.equal(await home.locator('.guide-cover').evaluate(e => e.getAnimations().filter(item => item.id === 'guide-cover-exit').length), 1, 'inertia cannot start a second exit animation')
       const exitState = await home.locator('.guide-cover').evaluate(element => {
-        const animation = element.getAnimations()[0]
+        const animation = element.getAnimations().find(item => item.id === 'guide-cover-exit')
         const duration = animation.effect.getTiming().duration
         animation.pause()
         const masthead = element.querySelector('.guide-masthead')
@@ -463,7 +474,15 @@ try {
         animation.currentTime = duration / 2
         darkening.currentTime = duration / 2
         const brightness = getComputedStyle(masthead).filter
-        const result = { duration, brightness, opacity: Number(getComputedStyle(element).opacity), logoBottom: element.querySelector('[data-guide-logo]').getBoundingClientRect().bottom }
+        const samples = [0.2, 0.5, 0.85].map(progress => {
+          animation.currentTime = duration * progress
+          darkening.currentTime = duration * progress
+          const style = getComputedStyle(masthead)
+          return { opacity: Number(style.opacity), y: masthead.getBoundingClientRect().y }
+        })
+        animation.currentTime = duration / 2
+        darkening.currentTime = duration / 2
+        const result = { duration, brightness, samples, opacity: Number(getComputedStyle(element).opacity), logoBottom: element.querySelector('[data-guide-logo]').getBoundingClientRect().bottom }
         animation.play()
         darkening.play()
         return result
@@ -472,6 +491,12 @@ try {
       const brightness = Number(exitState.brightness.match(/brightness\(([^)]+)\)/)?.[1])
       assert.ok(brightness > 0.5 && brightness < 1, 'logo dims gradually without turning black')
       assert.ok(exitState.opacity > 0.6 && exitState.opacity < 1 && exitState.logoBottom > 0, 'logo remains visible halfway through departure')
+      for (let i = 1; i < exitState.samples.length; i++) {
+        assert.ok(exitState.samples[i].opacity < exitState.samples[i - 1].opacity)
+        assert.ok(exitState.samples[i].y < exitState.samples[i - 1].y)
+        assert.ok(exitState.samples[i].y > 0, 'logo stays on screen while fading, rather than sliding out abruptly')
+      }
+      await home.locator('.guide-cover').screenshot({ path: `/tmp/class-guide-exit-${hasHistory}.png` })
       await home.locator('.guide-cover').waitFor({ state: 'detached' })
       await home.emulateMedia({ reducedMotion: 'reduce' })
       await setting.focus()

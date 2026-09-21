@@ -83,36 +83,36 @@ export function HomePage() {
       if (leaving) return
       leaving = true
       cover.dataset.state = 'leaving'
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        setCoverOpen(false)
-        return
-      }
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       const style = getComputedStyle(cover)
-      const duration =
-        Number.parseFloat(style.getPropertyValue('--guide-cover-exit-duration')) || 1800
-      mastheadAnimation = cover
-        .querySelector('.guide-masthead')
-        ?.animate(
-          [
-            { filter: 'brightness(1)' },
-            { filter: 'brightness(1)', offset: 0.2 },
-            { filter: 'brightness(0.65)', offset: 0.65 },
-            { filter: 'brightness(0.3)' },
-          ],
-          { duration, easing: 'ease-in-out', fill: 'forwards' },
-        )
-      animation = cover.animate(
+      const duration = reducedMotion
+        ? 240
+        : Number.parseFloat(style.getPropertyValue('--guide-cover-exit-duration')) || 1800
+      mastheadAnimation = cover.querySelector('.guide-masthead')?.animate(
         [
-          { transform: 'translateY(0)', opacity: 1 },
-          { transform: 'translateY(-12%)', opacity: 0.65, offset: 0.55 },
-          { transform: 'translateY(-100%)', opacity: 0 },
+          { translate: '0 0', filter: 'brightness(1)', opacity: 1 },
+          {
+            translate: reducedMotion ? '0 0' : '0 -2vh',
+            filter: 'brightness(0.9)',
+            opacity: 0.85,
+            offset: 0.3,
+          },
+          {
+            translate: reducedMotion ? '0 0' : '0 -8vh',
+            filter: 'brightness(0.55)',
+            opacity: 0.35,
+            offset: 0.7,
+          },
+          { translate: reducedMotion ? '0 0' : '0 -12vh', filter: 'brightness(0.3)', opacity: 0 },
         ],
-        {
-          duration,
-          easing: 'ease-in-out',
-          fill: 'forwards',
-        },
+        { id: 'guide-masthead-exit', duration, easing: 'ease-in-out', fill: 'forwards' },
       )
+      animation = cover.animate([{ opacity: 1 }, { opacity: 1, offset: 0.35 }, { opacity: 0 }], {
+        id: 'guide-cover-exit',
+        duration,
+        easing: 'ease-in-out',
+        fill: 'forwards',
+      })
       animation.onfinish = () => setCoverOpen(false)
     }
     enterCoverRef.current = enter

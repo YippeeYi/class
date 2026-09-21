@@ -8,7 +8,14 @@ body:has(.guide-home)::-webkit-scrollbar {
   width: 0;
   height: 0;
 }
+#page-content:has(> .guide-home) {
+  display: flex;
+  flex-direction: column;
+}
 .guide-home {
+  display: flex;
+  flex: 1;
+  width: 100%;
   container-type: inline-size;
   max-width: 68rem;
   margin-inline: auto;
@@ -169,12 +176,14 @@ body:has(.guide-home)::-webkit-scrollbar {
   outline: none;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  padding-block: clamp(0.75rem, 2vh, 1.5rem);
+  flex: 1;
+  padding-block: clamp(1rem, 3vh, 2rem);
 }
 .guide-content {
   display: grid;
-  gap: 0.75rem;
+  flex: 1;
+  align-content: space-evenly;
+  gap: clamp(1rem, 2.5vh, 1.75rem);
   width: 100%;
   max-width: 50rem;
   margin-inline: auto;
@@ -281,7 +290,7 @@ body:has(.guide-home)::-webkit-scrollbar {
   padding: 0.75rem 0.25rem 0;
 }
 .guide-privacy {
-  margin-top: clamp(1.25rem, 3vh, 2rem);
+  margin-top: clamp(1.5rem, 4vh, 3rem);
   color: var(--muted-foreground);
   text-align: center;
   font-size: 0.75rem;
@@ -299,7 +308,6 @@ body:has(.guide-home)::-webkit-scrollbar {
 @container (min-width: 36rem) {
   .guide-content {
     grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-    gap: 0.75rem;
   }
   .guide-content[data-has-history="true"] .guide-history {
     grid-row: span 2;
