@@ -125,10 +125,10 @@ assert.match(
   /Failed to fetch dynamically imported module[\s\S]*重新加载/,
   'lazy chunk failures need a dedicated reload recovery path',
 )
-assert.doesNotMatch(home, /GitHubStarPanel|logo-guide|guide-total|guide-people|guide-quote|Skeleton/, 'home contains only the four requested content categories')
+assert.doesNotMatch(home, /GitHubStarPanel|guide-total|guide-people|guide-quote|Skeleton/, 'home contains only the four requested content categories')
 assert.match(home, /edition\.matches\.length > 0 &&/, 'history has no empty or loading placeholder')
-assert.match(home, /脏话隐藏[\s\S]*onCheckedChange=\{setHideProfanity\}/, 'the homepage must expose the shared profanity preference')
-assert.match(home, /<ChronicleLogo className="guide-brand"/, 'the guide must place the project identity with its primary information')
+assert.match(home, /onClick=\{\(\) => setHideProfanity\(!hideProfanity\)\}/, 'the homepage must expose the shared profanity preference')
+assert.match(home, /src=\{`\$\{import.meta.env.BASE_URL\}logo-guide-preview.png`\}/, 'the guide must place the project identity with its primary information')
 assert.match(chronicleLogo, /<svg[\s\S]*viewBox="0 0 64 64"[\s\S]*vectorEffect="non-scaling-stroke"/, 'the guide logo must be a resolution-independent inline mark')
 assert.match(chronicleLogo, /编日史项目标识[\s\S]*编日史/, 'the standalone project mark needs an accessible name and wordmark')
 assert.doesNotMatch(chronicleLogo, /<img|https?:\/\//, 'the project logo must not depend on an external image')
@@ -204,13 +204,8 @@ const githubProject = await readFrontend('src/lib/github-project.ts')
 assert.match(starPanel, /为项目点亮 Star/, 'the standalone Star component retains its entry')
 assert.match(githubProject, /YippeeYi\/class/, 'Star uses the actual configured repository')
 assert.match(await readFrontend('src/components/archive/guide-panel.tsx'), /target="_blank"[\s\S]*rel="noopener noreferrer"/, 'external links isolate the opener')
-for (const link of home.match(/<Link\s[\s\S]*?(?=\n\s*>)/g) || []) {
-  assert.match(
-    link,
-    /interactiveSurfaceVariants\(\{ kind: 'item' \}\)/,
-    'all guide links must share the same interactive item contract',
-  )
-}
+assert.match(home, /actionClassName = `guide-action \$\{interactiveSurfaceVariants\(\{ kind: 'item' \}\)\}`/, 'all guide actions share the interactive item contract')
+assert.equal(home.match(/data-guide-panel="interactive"/g)?.length, 3, 'guide has three shared action surfaces')
 assert.doesNotMatch(
   home,
   /interactiveSurfaceVariants\(\{ kind: 'card' \}\)/,

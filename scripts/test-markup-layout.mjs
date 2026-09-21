@@ -213,7 +213,7 @@ try {
   }
 
   const profanityCase = page.locator('[data-case="profanity"]')
-  const profanitySwitch = page.locator('[data-case="guide"] [data-slot="switch"]')
+  const profanitySwitch = page.locator('[data-case="guide"] [role="switch"]')
   await profanitySwitch.waitFor({ state: 'visible' })
   assert.equal(
     await profanitySwitch.getAttribute('aria-label'),
@@ -2188,8 +2188,8 @@ try {
   assert.equal(await guide.locator('a').count(), 1)
   assert.equal(await guide.locator('[data-guide-info]').count(), 2)
   const logo = guide.locator('[data-guide-logo]')
-  assert.equal(await logo.locator('svg').count(), 1, 'guide identity uses the original inline vector mark')
-  assert.equal(await logo.locator('img').count(), 0, 'guide identity has no external image dependency')
+  assert.equal(await logo.locator('img').count(), 1)
+  assert.ok((await logo.locator('img').getAttribute('src')).endsWith('/logo-guide-preview.png'))
   const panelPaint = element => {
     const style = getComputedStyle(element)
     return { background: style.backgroundColor, border: style.borderColor, color: style.color, transform: `${style.translate} ${style.scale}` }
@@ -2221,23 +2221,19 @@ try {
         return {
           overflow: element.scrollWidth > element.clientWidth + 1,
           privacy: rect('.guide-privacy'), logo: rect('[data-guide-logo]'), setting: rect('.guide-setting'), tip: rect('.guide-tip'), history: rect('.guide-history'),
-          columns: getComputedStyle(element.querySelector('.guide-foundation')).gridTemplateColumns.split(' ').length,
+          columns: getComputedStyle(element.querySelector('.guide-content')).gridTemplateColumns.split(' ').length,
         }
       })
       assert.equal(geometry.overflow, false)
-      assert.ok(geometry.logo.x >= geometry.privacy.x && geometry.logo.right <= geometry.privacy.right)
-      assert.ok(geometry.logo.width < geometry.privacy.width, 'logo lockup leaves room for the privacy copy')
-      if (geometry.columns === 2) {
-        assert.ok(geometry.privacy.right < geometry.setting.x)
-        assert.ok(geometry.privacy.width > geometry.setting.width)
-      } else assert.ok(geometry.privacy.bottom <= geometry.setting.y)
-      assert.ok(geometry.setting.bottom <= geometry.tip.y)
-      assert.ok(geometry.history.y >= Math.max(geometry.tip.bottom, geometry.privacy.bottom))
-      assert.ok((await history.boundingBox()).height >= 44)
-      assert.ok((await guide.locator('[data-guide-panel]').boundingBox()).height >= 44)
+      assert.ok(Math.abs(geometry.logo.x + geometry.logo.width / 2 - (geometry.privacy.x + geometry.privacy.width / 2)) < 1, 'logo is centered')
+      assert.ok(geometry.logo.bottom <= Math.min(geometry.history.y, geometry.setting.y))
+      assert.ok(geometry.privacy.y > Math.max(geometry.tip.bottom, geometry.history.bottom, geometry.setting.bottom))
+      for (const control of await guide.locator('[data-guide-panel]').all()) {
+        assert.ok((await control.boundingBox()).height >= 44)
+      }
       if (width === 390 || width === 1920) await guide.screenshot({ path: `/tmp/class-guide-${preset}-${width}.png` })
     }
-    for (const control of [history, guide.locator('[data-guide-panel]')]) {
+    for (const control of await guide.locator('[data-guide-panel]').all()) {
       await page.mouse.move(0, 0)
       await page.waitForTimeout(220)
       const before = await control.evaluate(panelPaint)
@@ -2250,7 +2246,7 @@ try {
       await page.mouse.move(0, 0)
       await page.mouse.up()
     }
-    for (const control of [history, guide.getByRole('switch')]) {
+    for (const control of await guide.locator('[data-guide-panel]').all()) {
       await page.keyboard.press('Tab')
       await control.focus()
       assert.equal(await control.evaluate(e => e.matches(':focus-visible')), true)

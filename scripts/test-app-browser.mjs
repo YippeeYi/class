@@ -345,8 +345,8 @@ try {
       const setting = home.getByRole('switch', { name: '隐藏所有记录中的脏话' })
       await setting.waitFor()
       const logo = home.locator('[data-guide-logo]')
-      assert.equal(await logo.locator('svg').count(), 1)
-      assert.equal(await logo.locator('img').count(), 0, 'logo stays vector-only')
+      assert.equal(await logo.locator('img').count(), 1)
+      assert.ok((await logo.locator('img').getAttribute('src')).endsWith('/logo-guide-preview.png'))
       await home.waitForLoadState('networkidle')
       await home.waitForTimeout(300)
       const excerpt = home.locator('.guide-history-excerpt')
@@ -368,14 +368,14 @@ try {
           assert.equal(await home.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
           const logoBounds = await logo.boundingBox()
           assert.ok(logoBounds.x >= 0 && logoBounds.x + logoBounds.width <= width, `logo fits ${preset}/${width}`)
-          const settingBounds = await home.locator('[data-guide-panel]').boundingBox()
+          const settingBounds = await home.locator('.guide-setting').boundingBox()
           assert.ok(settingBounds.height >= 44, `setting keeps a touch target at ${preset}/${width}`)
           assert.ok(settingBounds.x >= 0 && settingBounds.x + settingBounds.width <= width, `setting fits ${preset}/${width}`)
           if (width === 390 || width === 1920) await home.locator('.guide-home').screenshot({ path: `/tmp/class-guide-history-${hasHistory}-${preset}-${width}.png` })
         }
       }
       await setting.focus()
-      assert.notEqual(await home.locator('[data-guide-panel]').evaluate(element => getComputedStyle(element).boxShadow), 'none', 'setting focus remains visible across the full row')
+      assert.notEqual(await home.locator('.guide-setting').evaluate(element => getComputedStyle(element).boxShadow), 'none', 'setting focus remains visible across the full row')
       await home.keyboard.press('Space')
       assert.equal(await setting.getAttribute('aria-checked'), 'false')
       await home.getByText('已关闭', { exact: true }).waitFor()
@@ -394,6 +394,10 @@ try {
         await home.waitForURL(`**/records?month=${month}&day=${day}`)
         await home.locator('#record-r2').waitFor()
       }
+      await home.goto(origin)
+      await home.getByRole('button', { name: '随机记录' }).click()
+      await home.waitForURL('**/records*')
+      await home.locator('#record-r1, #record-r2').first().waitFor()
       await homeContext.close()
     }
     records.forEach((record, index) => Object.assign(record, originals[index]))
