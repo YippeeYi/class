@@ -75,6 +75,7 @@ export function HomePage() {
 
     let leaving = false
     let animation: Animation | undefined
+    let mastheadAnimation: Animation | undefined
     let distance = 0
     let lastWheelAt = 0
     let touchStart: { x: number; y: number } | undefined
@@ -87,6 +88,19 @@ export function HomePage() {
         return
       }
       const style = getComputedStyle(cover)
+      const duration =
+        Number.parseFloat(style.getPropertyValue('--guide-cover-exit-duration')) || 1800
+      mastheadAnimation = cover
+        .querySelector('.guide-masthead')
+        ?.animate(
+          [
+            { filter: 'brightness(1)' },
+            { filter: 'brightness(1)', offset: 0.2 },
+            { filter: 'brightness(0.65)', offset: 0.65 },
+            { filter: 'brightness(0.3)' },
+          ],
+          { duration, easing: 'ease-in-out', fill: 'forwards' },
+        )
       animation = cover.animate(
         [
           { transform: 'translateY(0)', opacity: 1 },
@@ -94,8 +108,7 @@ export function HomePage() {
           { transform: 'translateY(-100%)', opacity: 0 },
         ],
         {
-          duration:
-            Number.parseFloat(style.getPropertyValue('--guide-cover-exit-duration')) || 1400,
+          duration,
           easing: 'ease-in-out',
           fill: 'forwards',
         },
@@ -155,6 +168,7 @@ export function HomePage() {
     cover.addEventListener('keydown', onKeyDown)
     return () => {
       animation?.cancel()
+      mastheadAnimation?.cancel()
       enterCoverRef.current = () => {}
       cover.removeEventListener('wheel', onWheel)
       cover.removeEventListener('touchstart', onTouchStart)

@@ -370,7 +370,7 @@ try {
           const hint = await home.locator('.guide-scroll-hint').boundingBox()
           const masthead = await home.locator('.guide-masthead').boundingBox()
           assert.ok(cover.y === 0 && cover.height >= 899, 'opaque cover fills the viewport')
-          assert.ok(brand.y > 100 && brand.y + brand.height / 2 < 450, 'masthead is above center with a safe top margin')
+          assert.ok(brand.y > 100 && Math.abs(brand.y + brand.height / 2 - 450) <= 40, 'masthead is centered with a safe top margin')
           assert.ok(masthead.width >= Math.min(width * 0.75, 1088) && masthead.width <= width - 32, 'long rules retain side margins')
           assert.ok(hint.y > brand.y + brand.height && hint.y + hint.height < 880)
           assert.equal(await home.locator('#root').evaluate(e => e.inert), true, 'covered content cannot receive focus')
@@ -386,7 +386,7 @@ try {
           await home.mouse.wheel(0, 160)
           assert.equal(await home.evaluate(() => window.scrollY), 0, 'default guide fits without vertical scrolling')
           assert.equal(await home.evaluate(() => getComputedStyle(document.documentElement).scrollbarWidth), 'none')
-          assert.ok((await home.locator('.guide-content').boundingBox()).width <= 672)
+          assert.ok((await home.locator('.guide-content').boundingBox()).width <= 800)
           await home.mouse.wheel(0, -1200)
           await home.keyboard.press('Home')
           await home.evaluate(() => window.scrollTo(0, 0))
@@ -397,6 +397,17 @@ try {
           assert.ok(settingBounds.height >= 44 && settingBounds.x >= 0 && settingBounds.x + settingBounds.width <= width)
           if (width === 390 || width === 1920) await home.screenshot({ path: `/tmp/class-curtain-content-${hasHistory}-${preset}-${width}.png` })
         }
+      }
+      for (const viewport of [{ width: 1280, height: 600 }, { width: 1366, height: 768 }, { width: 1440, height: 900 }, { width: 1536, height: 864 }, { width: 1024, height: 600 }]) {
+        await home.setViewportSize(viewport)
+        await home.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+        await home.evaluate(() => window.scrollTo(0, 0))
+        const fit = await home.evaluate(() => ({ height: document.documentElement.scrollHeight, viewport: innerHeight, width: document.documentElement.scrollWidth, viewportWidth: innerWidth }))
+        assert.ok(fit.height <= fit.viewport + 1, `desktop content fits one screen: ${JSON.stringify({ viewport, fit })}`)
+        assert.ok(fit.width <= fit.viewportWidth)
+        const privacy = await home.locator('.guide-privacy').boundingBox()
+        assert.ok(privacy.y + privacy.height <= viewport.height, 'privacy footer stays visible')
+        if (viewport.width === 1366) await home.screenshot({ path: `/tmp/class-guide-roomy-${hasHistory}.png` })
       }
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }, { width: 390, height: 667 }]) {
         await home.setViewportSize(viewport)
@@ -439,18 +450,27 @@ try {
       await home.mouse.move(960, 500)
       await home.mouse.wheel(0, 80)
       await home.waitForFunction(() => document.querySelector('.guide-cover')?.dataset.state === 'leaving')
-      await home.mouse.wheel(0, 120)
+      await home.mouse.wheel(0, 600)
+      await home.mouse.wheel(0, -300)
       assert.equal(await home.locator('.guide-cover').evaluate(e => e.getAnimations().length), 1, 'inertia cannot start a second exit animation')
       const exitState = await home.locator('.guide-cover').evaluate(element => {
         const animation = element.getAnimations()[0]
         const duration = animation.effect.getTiming().duration
         animation.pause()
+        const masthead = element.querySelector('.guide-masthead')
+        const darkening = masthead.getAnimations().find(item => item.effect.getKeyframes().some(frame => frame.filter))
+        darkening.pause()
         animation.currentTime = duration / 2
-        const result = { duration, opacity: Number(getComputedStyle(element).opacity), logoBottom: element.querySelector('[data-guide-logo]').getBoundingClientRect().bottom }
+        darkening.currentTime = duration / 2
+        const brightness = getComputedStyle(masthead).filter
+        const result = { duration, brightness, opacity: Number(getComputedStyle(element).opacity), logoBottom: element.querySelector('[data-guide-logo]').getBoundingClientRect().bottom }
         animation.play()
+        darkening.play()
         return result
       })
-      assert.ok(exitState.duration >= 1200, 'cover departure is deliberately slower')
+      assert.ok(exitState.duration >= 1600 && exitState.duration <= 2000, 'cover departure is deliberately slower')
+      const brightness = Number(exitState.brightness.match(/brightness\(([^)]+)\)/)?.[1])
+      assert.ok(brightness > 0.5 && brightness < 1, 'logo dims gradually without turning black')
       assert.ok(exitState.opacity > 0.6 && exitState.opacity < 1 && exitState.logoBottom > 0, 'logo remains visible halfway through departure')
       await home.locator('.guide-cover').waitFor({ state: 'detached' })
       await home.emulateMedia({ reducedMotion: 'reduce' })
