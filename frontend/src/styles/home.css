@@ -6,68 +6,69 @@
   border-radius: var(--radius-xl);
   background: color-mix(in oklch, var(--card) 90%, transparent);
 }
-/* Match the existing shell's topbar and responsive content inset without changing it. */
-#page-content .guide-home {
-  --guide-shell-offset: 5.5rem;
-}
-@media (min-width: 640px) {
-  #page-content .guide-home {
-    --guide-shell-offset: 5.75rem;
-  }
-}
-@media (min-width: 1024px) {
-  #page-content .guide-home {
-    --guide-shell-offset: 6rem;
-  }
-}
 .guide-cover {
-  position: relative;
-  display: grid;
-  place-items: center;
-  min-height: max(20rem, calc(100vh - var(--guide-shell-offset, 0rem)));
-  padding-block: 5rem;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow: hidden;
+  background: var(--card);
+  color: var(--card-foreground);
+  outline: none;
+  overscroll-behavior: none;
 }
-@supports (height: 100dvh) {
-  .guide-cover {
-    min-height: max(20rem, calc(100dvh - var(--guide-shell-offset, 0rem)));
+.guide-cover-page {
+  position: relative;
+  height: 100vh;
+  padding-top: max(env(safe-area-inset-top, 0px), 18vh);
+}
+@supports (height: 100svh) {
+  .guide-cover-page {
+    height: 100svh;
+    padding-top: max(env(safe-area-inset-top, 0px), 18svh);
   }
 }
 .guide-masthead {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: clamp(0.75rem, 3cqi, 2rem);
-  width: 100%;
-  max-width: 48rem;
+  display: grid;
+  justify-items: center;
+  width: calc(100% - clamp(2.5rem, 10vw, 12rem));
+  max-width: 68rem;
+  margin-inline: auto;
+  padding-block: clamp(0.75rem, 3vh, 2rem);
+  border-top: 1px solid var(--border);
+  border-bottom: 3px solid color-mix(in oklch, var(--foreground) 72%, var(--card));
   animation: guide-cover-enter var(--interaction-duration-scene) var(--interaction-ease-standard)
     both;
 }
-.guide-masthead::before,
-.guide-masthead::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: color-mix(in oklch, var(--border) 65%, transparent);
-}
 .guide-brand {
-  flex-shrink: 0;
-  width: clamp(12rem, 48cqi, 24rem);
+  width: clamp(12rem, 38vw, 24rem);
   max-width: 78%;
+  aspect-ratio: 480 / 214;
   margin: 0;
 }
 @media (max-height: 500px) {
-  .guide-cover {
-    padding-block: 2rem 5rem;
-    min-height: calc(100vh - var(--guide-shell-offset, 0rem));
-  }
-  @supports (height: 100dvh) {
-    .guide-cover {
-      min-height: calc(100dvh - var(--guide-shell-offset, 0rem));
-    }
-  }
   .guide-brand {
-    width: min(48cqi, 45vh);
+    width: min(48vw, 45vh);
   }
+}
+.guide-cover-access {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.guide-cover-access:focus-visible {
+  top: 65%;
+  left: 50%;
+  width: auto;
+  height: auto;
+  padding: 0.625rem 1rem;
+  clip-path: none;
+  transform: translateX(-50%);
+  border: 1px solid var(--ring);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: 0 0 0 3px var(--interaction-focus);
 }
 .guide-scroll-hint {
   position: absolute;
@@ -78,7 +79,7 @@
   transition: opacity var(--interaction-duration-slow) var(--interaction-ease-standard);
   pointer-events: none;
 }
-.guide-scroll-hint[data-scrolled="true"] {
+.guide-cover[data-state="leaving"] .guide-scroll-hint {
   opacity: 0;
 }
 .guide-scroll-hint p {
@@ -113,12 +114,14 @@
 .guide-brand img {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: contain;
 }
 .dark .guide-brand img {
   filter: invert(1);
 }
 .guide-body {
+  outline: none;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -157,19 +160,22 @@
   text-align: left;
   font-weight: 400;
 }
-.guide-home .guide-action:focus-visible {
+.guide-home .guide-action:focus-visible,
+.guide-home .guide-action:focus-within {
   border-color: var(--ring);
   box-shadow: 0 0 0 3px var(--interaction-focus);
 }
 @media (hover: hover) and (pointer: fine) {
   .guide-home .guide-action:enabled:hover,
-  .guide-home a.guide-action:hover {
+  .guide-home a.guide-action:hover,
+  .guide-home label.guide-action:hover {
     border-color: var(--interaction-border-hover);
     background: var(--interaction-surface-hover);
   }
 }
 .guide-home .guide-action:enabled:active,
-.guide-home a.guide-action:active {
+.guide-home a.guide-action:active,
+.guide-home label.guide-action:active {
   border-color: var(--interaction-border-selected);
   background: var(--interaction-surface-pressed);
 }
@@ -191,8 +197,13 @@
   color: var(--primary);
 }
 .guide-action-arrow,
-.guide-setting-state {
+.guide-setting-status {
   margin-left: auto;
+}
+.guide-setting-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 .guide-action-description,
 .guide-setting-state {

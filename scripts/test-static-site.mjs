@@ -127,7 +127,7 @@ assert.match(
 )
 assert.doesNotMatch(home, /GitHubStarPanel|guide-total|guide-people|guide-quote|Skeleton/, 'home contains only the four requested content categories')
 assert.match(home, /edition\.matches\.length > 0 &&/, 'history has no empty or loading placeholder')
-assert.match(home, /onClick=\{\(\) => setHideProfanity\(!hideProfanity\)\}/, 'the homepage must expose the shared profanity preference')
+assert.match(home, /onCheckedChange=\{setHideProfanity\}/, 'the homepage must expose the shared profanity preference')
 assert.match(home, /src=\{`\$\{import.meta.env.BASE_URL\}logo-guide-preview.png`\}/, 'the guide must place the project identity with its primary information')
 assert.match(chronicleLogo, /<svg[\s\S]*viewBox="0 0 64 64"[\s\S]*vectorEffect="non-scaling-stroke"/, 'the guide logo must be a resolution-independent inline mark')
 assert.match(chronicleLogo, /编日史项目标识[\s\S]*编日史/, 'the standalone project mark needs an accessible name and wordmark')

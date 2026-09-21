@@ -30,6 +30,11 @@ async function waitForMarkupLayoutReady(
       error.message += `\nBrowser page errors: ${pageErrors.join('; ') || 'none'}\nBrowser console problems: ${consoleProblems.join('; ') || 'none'}`
       throw error
     })
+  const coverLogo = page.locator('.guide-cover [data-guide-logo] img')
+  assert.ok((await coverLogo.getAttribute('src')).endsWith('/logo-guide-preview.png'))
+  await page.locator('.guide-cover').focus()
+  await page.keyboard.press('Enter')
+  await page.locator('.guide-cover').waitFor({ state: 'detached' })
 }
 
 const vite = await createServer({
@@ -2187,9 +2192,6 @@ try {
   await history.waitFor()
   assert.equal(await guide.locator('a').count(), 1)
   assert.equal(await guide.locator('[data-guide-info]').count(), 2)
-  const logo = guide.locator('[data-guide-logo]')
-  assert.equal(await logo.locator('img').count(), 1)
-  assert.ok((await logo.locator('img').getAttribute('src')).endsWith('/logo-guide-preview.png'))
   const panelPaint = element => {
     const style = getComputedStyle(element)
     return { background: style.backgroundColor, border: style.borderColor, color: style.color, transform: `${style.translate} ${style.scale}` }
@@ -2220,13 +2222,11 @@ try {
         }
         return {
           overflow: element.scrollWidth > element.clientWidth + 1,
-          privacy: rect('.guide-privacy'), logo: rect('[data-guide-logo]'), setting: rect('.guide-setting'), tip: rect('.guide-tip'), history: rect('.guide-history'),
+          privacy: rect('.guide-privacy'), setting: rect('.guide-setting'), tip: rect('.guide-tip'), history: rect('.guide-history'),
           columns: getComputedStyle(element.querySelector('.guide-content')).gridTemplateColumns.split(' ').length,
         }
       })
       assert.equal(geometry.overflow, false)
-      assert.ok(Math.abs(geometry.logo.x + geometry.logo.width / 2 - (geometry.privacy.x + geometry.privacy.width / 2)) < 1, 'logo is centered')
-      assert.ok(geometry.logo.bottom <= Math.min(geometry.history.y, geometry.setting.y))
       assert.ok(geometry.privacy.y > Math.max(geometry.tip.bottom, geometry.history.bottom, geometry.setting.bottom))
       for (const control of await guide.locator('[data-guide-panel]').all()) {
         assert.ok((await control.boundingBox()).height >= 44)
@@ -2248,8 +2248,9 @@ try {
     }
     for (const control of await guide.locator('[data-guide-panel]').all()) {
       await page.keyboard.press('Tab')
-      await control.focus()
-      assert.equal(await control.evaluate(e => e.matches(':focus-visible')), true)
+      const focusTarget = await control.evaluate(e => e.tagName === 'LABEL') ? control.getByRole('switch') : control
+      await focusTarget.focus()
+      assert.equal(await focusTarget.evaluate(e => e.matches(':focus-visible')), true)
       assert.notEqual(await control.evaluate(e => getComputedStyle(e).boxShadow), 'none')
     }
     const excerpt = guide.locator('.guide-history-excerpt')
@@ -2630,7 +2631,7 @@ try {
       ]) })
     })
     await densityPage.goto(origin, { waitUntil: 'domcontentloaded' })
-    await densityPage.waitForFunction(() => window.__markupLayoutReady === true)
+    await waitForMarkupLayoutReady(densityPage)
     const densityQuizEdges = await densityPage
       .locator('[data-quiz-theme-fixture]')
       .evaluateAll((cards) =>
