@@ -44,6 +44,7 @@ const requests = []
 let validAccess = true
 let businessVersion = '1'
 let businessDelay = 0
+let authDelay = 0
 let versionDelay = 0
 let versionFailure = false
 let starRequests = 0
@@ -70,7 +71,10 @@ async function contextFor({ admin = false, mobile = false, authenticated = true 
       if (versionFailure) return route.fulfill({ status: 503, headers, body: JSON.stringify({ message: 'fixture unavailable' }) })
       return respond(businessVersion)
     }
-    if (url.pathname.includes('/rpc/refresh_invite_access')) return respond(validAccess)
+    if (url.pathname.includes('/rpc/refresh_invite_access')) {
+      if (authDelay) await new Promise((resolve) => setTimeout(resolve, authDelay))
+      return respond(validAccess)
+    }
     if (url.pathname.includes('/rpc/verify_invite_code')) return respond({ ok: true, accessToken: admin ? 'fixture-admin' : 'fixture-normal' })
     if (url.pathname.includes('/rpc/has_class_record_admin_access')) return respond(admin)
     if (url.pathname.includes('/rpc/get_class_record_order')) return respond(records.filter((r) => !r.hidden || (admin && request.postDataJSON()?.include_hidden)).map((r) => ({ file_name: r.file_name, page: '01' })))
@@ -331,6 +335,62 @@ try {
     await images.close()
   }
   {
+    const entryContext = await contextFor({ admin: true })
+    const entry = await entryContext.newPage()
+    await entry.addInitScript(() => {
+      window.__homeEntry = { states: [], requested: false }
+      const observe = () => {
+        const sample = window.__homeEntry
+        if (sample.requested) return
+        const stage = document.querySelector('.guide-body') ? 'guide'
+          : document.querySelector('.guide-cover') ? 'logo'
+          : document.body?.innerText.includes('正在打开档案') ? 'route-loading'
+          : document.body?.innerText.includes('正在验证访问权限') ? 'verification'
+          : ''
+        if (stage && sample.states.at(-1) !== stage) sample.states.push(stage)
+      }
+      new MutationObserver(observe).observe(document, { childList: true, subtree: true })
+    })
+    authDelay = 450
+    businessDelay = 450
+    for (const visit of ['first', 'reload']) {
+      const firstRecordRequest = visit === 'first'
+        ? entry.waitForRequest((request) => request.url().includes('/class_records'))
+        : null
+      if (visit === 'first') await entry.goto(origin)
+      else await entry.reload()
+      await entry.getByText('正在验证访问权限…').waitFor()
+      if (firstRecordRequest) {
+        await firstRecordRequest
+        assert.equal(await entry.locator('.guide-cover').count(), 0, 'Logo waits for initial archive data')
+        await entry.getByText('正在验证访问权限…').waitFor()
+      }
+      await entry.locator('.guide-cover').waitFor()
+      await entry.waitForTimeout(550)
+      assert.deepEqual(await entry.evaluate(() => window.__homeEntry.states), ['verification', 'logo'], `${visit} must go straight from access validation to the logo`)
+      assert.equal(await entry.locator('.guide-body').count(), 0, 'guide content must not mount before entry')
+      await entry.evaluate(() => { window.__homeEntry.requested = true })
+      await entry.keyboard.press('Enter')
+      await entry.locator('.guide-cover').waitFor({ state: 'detached' })
+      await entry.locator('.guide-content').waitFor()
+      assert.equal(await entry.locator('.guide-cover').count(), 0, 'logo must not restart after entry')
+    }
+    authDelay = 0
+    businessDelay = 0
+    await entryContext.close()
+    const firstAccessContext = await contextFor({ authenticated: false })
+    const firstAccess = await firstAccessContext.newPage()
+    await firstAccess.goto(origin)
+    await firstAccess.getByLabel('邀请码', { exact: true }).fill('CR-TEST-TEST-TEST')
+    await firstAccess.getByRole('button', { name: '进入档案' }).click()
+    await firstAccess.locator('.guide-cover').waitFor()
+    assert.equal(await firstAccess.locator('.guide-body').count(), 0, 'a new grant opens at the logo')
+    await firstAccess.keyboard.press('Enter')
+    await firstAccess.locator('.guide-content').waitFor()
+    await firstAccessContext.close()
+    console.log('Home entry passed: new grant, slow validation, slow data, cached reload and no pre-entry guide mount.')
+  }
+  {
     const originals = records.map(record => ({ ...record }))
     const beforeStars = starRequests
     for (const hasHistory of [true, false]) {
@@ -352,6 +412,9 @@ try {
       await logo.waitFor()
       assert.equal(await logo.locator('img').count(), 1)
       assert.ok((await logo.locator('img').getAttribute('src')).endsWith('/logo-guide-preview.png'))
+      assert.equal(await home.locator('.guide-body').count(), 0, 'the logo phase has no guide body')
+      await home.keyboard.press('Enter')
+      await home.locator('.guide-cover').waitFor({ state: 'detached' })
       await home.waitForLoadState('networkidle')
       await home.waitForTimeout(300)
       const excerpt = home.locator('.guide-history-excerpt')
@@ -370,6 +433,7 @@ try {
           await home.setViewportSize({ width, height: 900 })
           await home.reload()
           await home.locator('.guide-cover').waitFor()
+          assert.equal(await home.locator('.guide-body').count(), 0)
           await home.evaluate(preset => {
             document.documentElement.dataset.themePreset = preset
             document.documentElement.classList.toggle('dark', preset === 'midnight')

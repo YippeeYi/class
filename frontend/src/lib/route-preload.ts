@@ -4,7 +4,6 @@ export const routeModuleLoaders = {
   auth: () => import('@/pages/auth-page'),
   backgrounds: () => import('@/pages/backgrounds-page'),
   credits: () => import('@/pages/credits-page'),
-  home: () => import('@/pages/home-page'),
   materials: () => import('@/pages/materials-page'),
   qb: () => import('@/pages/qb-page'),
   map: () => import('@/pages/meal-map-page'),
@@ -19,7 +18,6 @@ export const routeModuleLoaders = {
 } satisfies Record<string, RouteModuleLoader>
 
 const loadersByPath = new Map<string, RouteModuleLoader>([
-  ['/', routeModuleLoaders.home],
   ['/auth', routeModuleLoaders.auth],
   ['/backgrounds', routeModuleLoaders.backgrounds],
   ['/credits', routeModuleLoaders.credits],

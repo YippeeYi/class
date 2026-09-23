@@ -4,6 +4,17 @@ import { Navigate, useLocation } from 'react-router'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/features/auth/auth-context'
 
+export function AccessChecking() {
+  return (
+    <div className="grid min-h-svh place-items-center bg-background">
+      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+        <Spinner className="size-5" />
+        正在验证访问权限…
+      </div>
+    </div>
+  )
+}
+
 export function AccessGate({ children }: { children: ReactNode }) {
   const auth = useAuth()
   const location = useLocation()
@@ -13,15 +24,7 @@ export function AccessGate({ children }: { children: ReactNode }) {
     if (auth.state === 'anonymous' || auth.state === 'error') auth.rememberTarget(target)
   }, [auth, target])
 
-  if (auth.state === 'loading')
-    return (
-      <div className="grid min-h-svh place-items-center bg-background">
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <Spinner className="size-5" />
-          正在验证访问权限…
-        </div>
-      </div>
-    )
+  if (auth.state === 'loading') return <AccessChecking />
   if (auth.state !== 'authenticated') return <Navigate to="/auth" replace />
   return children
 }

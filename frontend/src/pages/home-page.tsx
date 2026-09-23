@@ -33,11 +33,14 @@ const tips = [
   '看看注释吧！',
 ]
 
+type HomePhase = 'cover' | 'entering' | 'guide'
+
 export function HomePage() {
   const resource = useArchive()
   const navigate = useNavigate()
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * tips.length))
-  const [coverOpen, setCoverOpen] = useState(true)
+  const [phase, setPhase] = useState<HomePhase>('cover')
+  const coverOpen = phase !== 'guide'
   const coverRef = useRef<HTMLElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const enterCoverRef = useRef(() => {})
@@ -82,6 +85,7 @@ export function HomePage() {
     const enter = () => {
       if (leaving) return
       leaving = true
+      setPhase('entering')
       cover.dataset.state = 'leaving'
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       const duration = reducedMotion ? 240 : 1100
@@ -110,7 +114,7 @@ export function HomePage() {
         easing: 'ease-in-out',
         fill: 'forwards',
       })
-      animation.onfinish = () => setCoverOpen(false)
+      animation.onfinish = () => setPhase('guide')
     }
     enterCoverRef.current = enter
     const onWheel = (event: WheelEvent) => {
@@ -265,100 +269,102 @@ export function HomePage() {
           </section>,
           document.body,
         )}
-      <div className="guide-body" ref={contentRef} tabIndex={-1}>
-        <div className="guide-content">
-          {edition.matches.length > 0 && (
-            <section className="guide-history" aria-labelledby="guide-history-title">
-              <Item
-                className={actionClassName}
-                data-guide-panel="interactive"
-                render={<Link to={`/records?month=${edition.month}&day=${edition.day}`} />}
-                aria-labelledby="guide-history-title"
-              >
-                <span className="guide-action-heading" id="guide-history-title">
-                  <CalendarDays className="size-4" aria-hidden="true" />
-                  历史上的今天
-                  <ArrowRight className="guide-action-arrow size-4" aria-hidden="true" />
+      {phase !== 'cover' && (
+        <div className="guide-body" ref={contentRef} tabIndex={-1}>
+          <div className="guide-content">
+            {edition.matches.length > 0 && (
+              <section className="guide-history" aria-labelledby="guide-history-title">
+                <Item
+                  className={actionClassName}
+                  data-guide-panel="interactive"
+                  render={<Link to={`/records?month=${edition.month}&day=${edition.day}`} />}
+                  aria-labelledby="guide-history-title"
+                >
+                  <span className="guide-action-heading" id="guide-history-title">
+                    <CalendarDays className="size-4" aria-hidden="true" />
+                    历史上的今天
+                    <ArrowRight className="guide-action-arrow size-4" aria-hidden="true" />
+                  </span>
+                  <span className="guide-calendar font-heading tabular-nums">
+                    {edition.month}
+                    <span> / </span>
+                    {edition.day}
+                  </span>
+                  <span className="guide-history-excerpt">
+                    {preview(edition.matches[0]?.content || '') || '这一天留下了记录。'}
+                  </span>
+                </Item>
+                {resource.error && <ErrorState title="记录加载失败" onRetry={resource.retry} />}
+              </section>
+            )}
+            {archiveData && !resource.error && edition.matches.length === 0 && (
+              <section className="guide-history" aria-labelledby="guide-history-empty-title">
+                <Item className="guide-action guide-history-note" data-guide-panel="static">
+                  <span className="guide-action-heading" id="guide-history-empty-title">
+                    <CalendarDays className="size-4" aria-hidden="true" />
+                    今日留白
+                  </span>
+                  <span className="guide-calendar font-heading tabular-nums">
+                    {edition.month}
+                    <span> / </span>
+                    {edition.day}
+                  </span>
+                  <span className="guide-history-excerpt">今天的篇章，留给正在发生的故事。</span>
+                </Item>
+              </section>
+            )}
+            <Item
+              className={`${actionClassName} guide-setting`}
+              data-guide-panel="interactive"
+              render={<Label htmlFor="guide-hide-profanity" />}
+            >
+              <span className="guide-action-heading">
+                <EyeOff className="size-4" aria-hidden="true" />
+                隐藏脏话
+                <span className="guide-setting-status">
+                  <span className="guide-setting-state" data-enabled={hideProfanity}>
+                    {hideProfanity ? '已开启' : '已关闭'}
+                  </span>
+                  <Switch
+                    id="guide-hide-profanity"
+                    checked={hideProfanity}
+                    onCheckedChange={setHideProfanity}
+                    aria-label="隐藏所有记录中的脏话"
+                    className="focus-visible:ring-0"
+                  />
                 </span>
-                <span className="guide-calendar font-heading tabular-nums">
-                  {edition.month}
-                  <span> / </span>
-                  {edition.day}
-                </span>
-                <span className="guide-history-excerpt">
-                  {preview(edition.matches[0]?.content || '') || '这一天留下了记录。'}
-                </span>
-              </Item>
-              {resource.error && <ErrorState title="记录加载失败" onRetry={resource.retry} />}
-            </section>
-          )}
-          {archiveData && !resource.error && edition.matches.length === 0 && (
-            <section className="guide-history" aria-labelledby="guide-history-empty-title">
-              <Item className="guide-action guide-history-note" data-guide-panel="static">
-                <span className="guide-action-heading" id="guide-history-empty-title">
-                  <CalendarDays className="size-4" aria-hidden="true" />
-                  今日留白
-                </span>
-                <span className="guide-calendar font-heading tabular-nums">
-                  {edition.month}
-                  <span> / </span>
-                  {edition.day}
-                </span>
-                <span className="guide-history-excerpt">今天的篇章，留给正在发生的故事。</span>
-              </Item>
-            </section>
-          )}
-          <Item
-            className={`${actionClassName} guide-setting`}
-            data-guide-panel="interactive"
-            render={<Label htmlFor="guide-hide-profanity" />}
-          >
-            <span className="guide-action-heading">
-              <EyeOff className="size-4" aria-hidden="true" />
-              隐藏脏话
-              <span className="guide-setting-status">
-                <span className="guide-setting-state" data-enabled={hideProfanity}>
-                  {hideProfanity ? '已开启' : '已关闭'}
-                </span>
-                <Switch
-                  id="guide-hide-profanity"
-                  checked={hideProfanity}
-                  onCheckedChange={setHideProfanity}
-                  aria-label="隐藏所有记录中的脏话"
-                  className="focus-visible:ring-0"
-                />
               </span>
-            </span>
-            <span className="guide-action-description">在全部记录中以 *** 替代粗俗用语</span>
-          </Item>
-          <Item
-            className={`${actionClassName} guide-random`}
-            data-guide-panel="interactive"
-            render={<button type="button" disabled={edition.visible.length === 0} />}
-            onClick={openRandomRecord}
-          >
-            <span className="guide-action-heading">
-              <Shuffle className="size-4" aria-hidden="true" />
-              随机记录
-              <ArrowRight className="guide-action-arrow size-4" aria-hidden="true" />
-            </span>
-          </Item>
-          <aside className="guide-tip">
-            <GuideInfo icon={Lightbulb} title="小提示">
-              <span className="block min-h-10" aria-live="polite">
-                {tips[tipIndex]}
+              <span className="guide-action-description">在全部记录中以 *** 替代粗俗用语</span>
+            </Item>
+            <Item
+              className={`${actionClassName} guide-random`}
+              data-guide-panel="interactive"
+              render={<button type="button" disabled={edition.visible.length === 0} />}
+              onClick={openRandomRecord}
+            >
+              <span className="guide-action-heading">
+                <Shuffle className="size-4" aria-hidden="true" />
+                随机记录
+                <ArrowRight className="guide-action-arrow size-4" aria-hidden="true" />
               </span>
-            </GuideInfo>
-          </aside>
+            </Item>
+            <aside className="guide-tip">
+              <GuideInfo icon={Lightbulb} title="小提示">
+                <span className="block min-h-10" aria-live="polite">
+                  {tips[tipIndex]}
+                </span>
+              </GuideInfo>
+            </aside>
+          </div>
+          <footer className="guide-privacy" data-guide-info>
+            <h2 id="guide-privacy-title">
+              <ShieldAlert className="size-4" aria-hidden="true" />
+              仅供班级内部查看
+            </h2>
+            <p>请尊重个人信息与共同记忆，不要外传。</p>
+          </footer>
         </div>
-        <footer className="guide-privacy" data-guide-info>
-          <h2 id="guide-privacy-title">
-            <ShieldAlert className="size-4" aria-hidden="true" />
-            仅供班级内部查看
-          </h2>
-          <p>请尊重个人信息与共同记忆，不要外传。</p>
-        </footer>
-      </div>
+      )}
     </div>
   )
 }
