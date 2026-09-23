@@ -28,7 +28,7 @@ export function LatexRenderer({ source }: { source: string }) {
   return (
     <span className="record-latex" title={failed ? '公式格式错误' : undefined}>
       <span ref={ref} />
-      {failed && <span className="record-latex-error">{source}</span>}
+      {failed && <span className="record-latex-error">公式格式错误</span>}
     </span>
   )
 }

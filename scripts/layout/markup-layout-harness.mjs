@@ -43,10 +43,10 @@ export const markupLayoutHarness = String.raw`<!doctype html>
         window.__loadingRender = content => root.render(e(MemoryRouter, null, e(ContentPreferenceProvider, null, e(MarkupContent, { content }))))
         window.__loadingCleanup = () => { root.unmount(); host.remove() }
       }
-      const extremeSixColumns = '[[table:2x6|超长中文内容需要在窄屏内自然换行并保持全部可见|SUPERCALIFRAGILISTICEXPIALIDOCIOUSWITHOUTBREAKS|1234567890123456789012345678901234567890|https://example.invalid/a/very/long/path/without/a/natural/break|[[red:混合标记]][[frac:长分子文本|denominator-without-breaks]]|短|甲|B|3|[[under:嵌套标记]]|普通内容|末列]]'
+      const extremeSixColumns = '[[table:2x6|超长中文内容需要在窄屏内自然换行并保持全部可见|SUPERCALIFRAGILISTICEXPIALIDOCIOUSWITHOUTBREAKS|1234567890123456789012345678901234567890|https://example.invalid/a/very/long/path/without/a/natural/break|[[red:混合标记]][[latex:\\frac{a}{b}]]|短|甲|B|3|[[under:嵌套标记]]|普通内容|末列]]'
       const manyColumns = '[[table:3x12|一|two|333333333333333333333333|四列较长中文文本用于测试换行|five-with-an-extremely-long-token|6|七|https://example.invalid/really/long/url|[[red:九]]|10|十一|12|第二行中文超长内容在很多列时仍然需要完整显示|b|c|d|e|f|g|h|i|j|k|l|甲|乙|丙|丁|戊|己|庚|辛|壬|癸|子|丑]]'
-      const stackContent = '正文甲 [[frac:中英文Mixed numerator 123|较长的中文分母文本]] 正文乙 [[arrow:reaction condition 温度 120°C|催化剂与补充条件]] 正文丙'
-      const annotationContent = '[[anno:短注|短注触发]]　[[anno:这是一段会自动限制最大宽度并自然换行的长注释，包含 [[person:p01|人物标记]]、[[frac:分子文字|denominator]] 和连续英文 SUPERCALIFRAGILISTICEXPIALIDOCIOUSWITHOUTBREAKS。|长注触发]]'
+      const formulaContent = '正文甲 [[latex:\\frac{123}{456}]] 正文乙 [[latex:\\xrightarrow[\\text{催化剂}]{120^\\circ\\mathrm{C}}]] 正文丙'
+      const annotationContent = '[[anno:短注|短注触发]]　[[anno:这是一段会自动限制最大宽度并自然换行的长注释，包含 [[person:p01|人物标记]]、[[latex:\\frac{a}{b}]] 和连续英文 SUPERCALIFRAGILISTICEXPIALIDOCIOUSWITHOUTBREAKS。|长注触发]]'
       const annotationEdgeContent = '[[anno:靠近视口边缘时仍需保持完整可见的注释内容。|边缘注释]]'
       const illustrationContent = '插图位置测试：[[illu:position-test.png]]。'
       const illustrationEdgeContent = '[[illu:position-edge.png]]'
@@ -352,7 +352,7 @@ export const markupLayoutHarness = String.raw`<!doctype html>
                 e(Case, { id: 'profanity', width: '52rem', content: '过滤：傻逼；[[person:sb|傻逼]]；普通：cocktail' }),
                 e(Case, { id: 'six', width: '52rem', content: extremeSixColumns }),
                 e(Case, { id: 'many', width: '52rem', content: manyColumns }),
-                e(Case, { id: 'stack', width: '52rem', content: stackContent }),
+                e(Case, { id: 'formula', width: '52rem', content: formulaContent }),
                 e(Case, { id: 'annotation', width: '52rem', content: annotationContent }),
                 e(Case, { id: 'annotation-edge', width: '52rem', content: annotationEdgeContent, align: 'right' }),
                 e(Case, { id: 'nested-redaction', width: '52rem', content: '黑幕嵌套：[[hide:前 [[person:p01|人物标记]] [[under:[[quote:q01|嵌套名言]]]] 后]]' }),

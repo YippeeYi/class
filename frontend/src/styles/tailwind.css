@@ -887,10 +887,13 @@ body .app-interactive-media:not(:disabled):active {
 
   .record-media-image {
     display: inline-block;
-    max-width: min(100%, 360px);
-    min-width: 5rem;
+    max-width: calc(100% - 0.7em);
     vertical-align: middle;
-    margin: 0.25em 0.35em;
+    margin: 0.2em 0.35em;
+  }
+
+  .record-media-image--measured {
+    height: 2lh;
   }
 
   .record-media-image-trigger {
@@ -1074,63 +1077,6 @@ body .app-interactive-media:not(:disabled):active {
     position: relative;
     z-index: 1;
   }
-  .record-stack {
-    display: inline-grid;
-    grid-template-columns: max-content;
-    grid-template-rows: max-content 0.5em max-content;
-    align-items: center;
-    justify-items: stretch;
-    width: max-content;
-    min-width: 0;
-    vertical-align: middle;
-    margin-inline: 0.4em;
-    padding-block: 0.04em;
-    text-align: center;
-    line-height: 1;
-  }
-  .record-stack--frac {
-    grid-template-rows: max-content 0.42em max-content;
-    margin-inline: 0.44em;
-  }
-  .record-stack--arrow {
-    margin-inline: 0.52em 0.68em;
-  }
-  .record-stack-text {
-    display: block;
-    min-width: 0;
-    padding-inline: 0;
-    font-size: 0.82em;
-    line-height: 1.08;
-    white-space: nowrap;
-  }
-  .record-stack-line {
-    position: relative;
-    display: block;
-    width: 100%;
-    height: 2px;
-    align-self: center;
-  }
-  .record-stack-line::before {
-    position: absolute;
-    inset: 0 -0.34em;
-    border-radius: var(--radius-sm);
-    background: currentColor;
-    content: "";
-  }
-  .record-stack--frac .record-stack-line::before {
-    opacity: 0.86;
-  }
-  .record-stack--arrow .record-stack-line::after {
-    position: absolute;
-    top: 50%;
-    right: -0.38em;
-    width: 0.46em;
-    height: 0.46em;
-    border-top: 2px solid currentColor;
-    border-right: 2px solid currentColor;
-    content: "";
-    transform: translateY(-50%) rotate(45deg);
-  }
   .record-table-scroll {
     container-type: inline-size;
     display: block;
@@ -1171,14 +1117,6 @@ body .app-interactive-media:not(:disabled):active {
     overflow-wrap: anywhere;
     hyphens: auto;
     line-break: strict;
-  }
-  .record-table-scroll .record-stack {
-    grid-template-columns: minmax(0, max-content);
-    max-width: calc(100% - 1.4em);
-  }
-  .record-table-scroll .record-stack-text {
-    overflow-wrap: anywhere;
-    white-space: normal;
   }
   @container (max-width: 20rem) {
     .record-table-scroll:is([data-columns="10"], [data-columns="11"], [data-columns="12"]) col {

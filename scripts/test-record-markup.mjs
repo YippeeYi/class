@@ -21,14 +21,12 @@ assert.equal(normalizedMinimumTable.type, 'table')
 assert.equal(normalizedMinimumTable.rows.length, 1)
 assert.equal(normalizedMinimumTable.rows[0].length, 1)
 const extremeTable = markup.parseMarkup(
-  '[[table:2x6|超长中文内容需要在窄屏内自然换行并保持完整|SUPERCALIFRAGILISTICEXPIALIDOCIOUSWITHOUTBREAKS|1234567890123456789012345678901234567890|https://example.invalid/a/very/long/path?with=query|[[red:混合]][[frac:长分子文本|denominator-without-breaks]]|短|甲|B|3|[[under:嵌套标记]]|普通内容|末列]]',
+  '[[table:2x6|超长中文内容需要在窄屏内自然换行并保持完整|SUPERCALIFRAGILISTICEXPIALIDOCIOUSWITHOUTBREAKS|1234567890123456789012345678901234567890|https://example.invalid/a/very/long/path?with=query|[[red:混合]][[latex:\\frac{a}{b}]]|短|甲|B|3|[[under:嵌套标记]]|普通内容|末列]]',
 )[0]
 assert.equal(extremeTable.type, 'table')
 assert.equal(extremeTable.rows.length, 2)
 assert.equal(extremeTable.rows[0].length, 6)
 assert.equal(extremeTable.rows[0][4][0].type, 'style')
-assert.equal(markup.parseMarkup('[[frac:分子|分母]]')[0].kind, 'frac')
-assert.equal(markup.parseMarkup('[[arrow:上方|下方]]')[0].kind, 'arrow')
 const quizTree = markup.parseQuizMarkup(
   '[[center:[[red:居中题干]]]] [[person:p-secret|人物标签]] [[anno:标准答案|注释标签]] [[illu:answer.png]] [[hide:黑幕答案]] [[record:answer-record|来源标签]]',
 )
@@ -52,7 +50,6 @@ const quizVisibleText = (nodes) =>
       if (node.type === 'text') return node.value
       if (node.type === 'blank') return '＿'
       if (node.type === 'style') return quizVisibleText(node.children)
-      if (node.type === 'stack') return `${quizVisibleText(node.top)}${quizVisibleText(node.bottom)}`
       return node.rows.flat().map(quizVisibleText).join('')
     })
     .join('')
@@ -60,7 +57,6 @@ const blankAnswers = (nodes) =>
   nodes.flatMap((node) => {
     if (node.type === 'blank') return [node.answer]
     if (node.type === 'style') return blankAnswers(node.children)
-    if (node.type === 'stack') return [...blankAnswers(node.top), ...blankAnswers(node.bottom)]
     if (node.type === 'table') return node.rows.flat().flatMap(blankAnswers)
     return []
   })
@@ -98,8 +94,6 @@ assert.doesNotMatch(markupContent, /\.split\(/, 'quiz blanks must never use glob
 assert.match(markupContent, /node\.type === 'blank'/, 'quiz blanks must render from entity-aware safe AST nodes')
 assert.match(markupContent, /<TableBody>/, 'markup tables must use the shadcn Table composition')
 assert.doesNotMatch(markupContent, /<table>/, 'markup rendering must not maintain a parallel native table')
-assert.match(markupContent, /record-stack--\$\{node\.kind\}/, 'arrow and fraction rendering must not share an indistinguishable class')
-assert.match(markupContent, /record-stack-line/, 'arrow and fraction rendering must include a dedicated measured rule')
 assert.doesNotMatch(markupContent, /record-table-min-width/, 'markup tables must never request a width larger than their content lane')
 assert.deepEqual(markup.parseMarkup('<script>alert(1)</script>'), [{ type: 'text', value: '<script>alert(1)</script>' }])
 const nestedDelete = markup.parseMarkup('[[del:前 [[person:p01|同学乙]] 后]]')

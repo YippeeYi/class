@@ -160,8 +160,6 @@ function markupNodesText(nodes: readonly GeometryMarkupNode[]): string {
       if (node.type === 'style' || node.type === 'reference' || node.type === 'annotation')
         return markupNodesText(node.children)
       if (node.type === 'media' || node.type === 'latex') return ''
-      if (node.type === 'stack')
-        return `${markupNodesText(node.top)} ${markupNodesText(node.bottom)}`
       return node.rows.flat().map(markupNodesText).join(' ')
     })
     .join('')
@@ -377,8 +375,6 @@ export function MarkupContent({
               {children}
             </del>
           )
-        if (node.style === 'sup') return <sup key={key}>{children}</sup>
-        if (node.style === 'sub') return <sub key={key}>{children}</sub>
         return (
           <span
             key={key}
@@ -440,24 +436,9 @@ export function MarkupContent({
       if (node.type === 'media') return <MediaRenderer key={`${key}:${node.src}`} node={node} />
       if (node.type === 'latex')
         return (
-          <Suspense
-            key={`${key}:${node.source}`}
-            fallback={<span className="record-latex">{node.source}</span>}
-          >
+          <Suspense key={`${key}:${node.source}`} fallback={<span className="record-latex" />}>
             <LatexRenderer source={node.source} />
           </Suspense>
-        )
-      if (node.type === 'stack')
-        return (
-          <span key={key} className={`record-stack record-stack--${node.kind}`}>
-            <span className="record-stack-text record-stack-top">
-              {renderNodes(node.top, `${key}-top`)}
-            </span>
-            <span className="record-stack-line" aria-hidden="true" />
-            <span className="record-stack-text record-stack-bottom">
-              {renderNodes(node.bottom, `${key}-bottom`)}
-            </span>
-          </span>
         )
       const geometry = tableGeometry(node.rows)
       return (
@@ -624,26 +605,12 @@ export function QuizMarkupContent({
               {children}
             </del>
           )
-        if (node.style === 'sup') return <sup key={key}>{children}</sup>
-        if (node.style === 'sub') return <sub key={key}>{children}</sub>
         return (
           <span key={key} className={`record-${node.style === 'under' ? 'underline' : node.style}`}>
             {children}
           </span>
         )
       }
-      if (node.type === 'stack')
-        return (
-          <span key={key} className={`record-stack record-stack--${node.kind}`}>
-            <span className="record-stack-text record-stack-top">
-              {renderNodes(node.top, `${key}-top`)}
-            </span>
-            <span className="record-stack-line" aria-hidden="true" />
-            <span className="record-stack-text record-stack-bottom">
-              {renderNodes(node.bottom, `${key}-bottom`)}
-            </span>
-          </span>
-        )
       const geometry = tableGeometry(node.rows)
       return (
         <div

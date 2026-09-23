@@ -6,7 +6,7 @@ export type MarkupNode =
   | { type: 'text'; value: string }
   | {
       type: 'style'
-      style: 'del' | 'under' | 'red' | 'hide' | 'sup' | 'sub' | 'center' | 'right'
+      style: 'del' | 'under' | 'red' | 'hide' | 'center' | 'right'
       children: MarkupNode[]
     }
   | {
@@ -19,7 +19,6 @@ export type MarkupNode =
   | { type: 'annotation'; note: string; children: MarkupNode[] }
   | { type: 'media'; mediaType: 'image' | 'video'; src: string }
   | { type: 'latex'; source: string }
-  | { type: 'stack'; kind: 'frac' | 'arrow'; top: MarkupNode[]; bottom: MarkupNode[] }
   | { type: 'table'; rows: MarkupNode[][][] }
 
 export type QuizMarkupNode =
@@ -30,7 +29,6 @@ export type QuizMarkupNode =
       children: QuizMarkupNode[]
     }
   | { type: 'blank'; answer: string }
-  | { type: 'stack'; kind: 'frac' | 'arrow'; top: QuizMarkupNode[]; bottom: QuizMarkupNode[] }
   | { type: 'table'; rows: QuizMarkupNode[][][] }
 
 export type MarkupReferences = {
@@ -147,7 +145,7 @@ function parseSquare(body: string, raw: string, depth: number): MarkupNode {
     const src = mediaPath(payload, mediaType)
     return src ? { type: 'media', mediaType, src } : textNode(raw)
   }
-  const styles = new Set(['del', 'under', 'red', 'hide', 'sup', 'sub', 'center', 'right'])
+  const styles = new Set(['del', 'under', 'red', 'hide', 'center', 'right'])
   if (styles.has(kind) && payload) {
     return {
       type: 'style',
@@ -185,13 +183,6 @@ function parseSquare(body: string, raw: string, depth: number): MarkupNode {
   }
   if (kind === 'anno')
     return { type: 'annotation', note: first, children: parseNodes(second, depth + 1) }
-  if (kind === 'frac' || kind === 'arrow')
-    return {
-      type: 'stack',
-      kind,
-      top: parseNodes(first, depth + 1),
-      bottom: parseNodes(second, depth + 1),
-    }
   return textNode(raw)
 }
 
@@ -244,8 +235,6 @@ const quizSafeStyles = new Set<Extract<MarkupNode, { type: 'style' }>['style']>(
   'del',
   'under',
   'red',
-  'sup',
-  'sub',
   'center',
   'right',
 ])
@@ -286,14 +275,6 @@ function quizSafeNodes(
     }
     if (node.type === 'annotation') return quizSafeNodes(node.children, redaction)
     if (node.type === 'media' || node.type === 'latex') return []
-    if (node.type === 'stack')
-      return [
-        {
-          ...node,
-          top: quizSafeNodes(node.top, redaction),
-          bottom: quizSafeNodes(node.bottom, redaction),
-        },
-      ]
     return [
       {
         ...node,
@@ -326,7 +307,6 @@ function nodesToText(nodes: MarkupNode[]): string {
       if (node.type === 'style' || node.type === 'reference' || node.type === 'annotation')
         return nodesToText(node.children)
       if (node.type === 'media' || node.type === 'latex') return ''
-      if (node.type === 'stack') return `${nodesToText(node.top)} ${nodesToText(node.bottom)}`
       return node.rows.flat().map(nodesToText).join(' ')
     })
     .join('')
@@ -364,10 +344,7 @@ export function extractMarkupReferences(value: unknown) {
       } else if (node.type === 'media') {
         if (node.mediaType === 'image') illustrations.add(node.src)
       } else if (node.type === 'style' || node.type === 'annotation') visit(node.children)
-      else if (node.type === 'stack') {
-        visit(node.top)
-        visit(node.bottom)
-      } else if (node.type === 'table') node.rows.flat().forEach(visit)
+      else if (node.type === 'table') node.rows.flat().forEach(visit)
     }
   }
   visit(parseMarkup(source))

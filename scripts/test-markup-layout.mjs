@@ -2278,34 +2278,8 @@ try {
     await page.screenshot({ path: process.env.CLASS_RECORD_LAYOUT_SCREENSHOT, fullPage: true })
   }
 
-  const stacks = await page.evaluate(() =>
-    [...document.querySelectorAll('[data-case="stack"] .record-stack')].map((stack) => {
-      const top = stack.querySelector('.record-stack-top')
-      const bottom = stack.querySelector('.record-stack-bottom')
-      const line = stack.querySelector('.record-stack-line')
-      const before = line ? getComputedStyle(line, '::before') : null
-      const topBounds = top?.getBoundingClientRect()
-      const bottomBounds = bottom?.getBoundingClientRect()
-      const lineBounds = line?.getBoundingClientRect()
-      return {
-        line: line?.getBoundingClientRect().width || 0,
-        label: Math.max(top?.getBoundingClientRect().width || 0, bottom?.getBoundingClientRect().width || 0),
-        extension: Math.abs(Number.parseFloat(before?.left || '0')) + Math.abs(Number.parseFloat(before?.right || '0')),
-        marginLeft: Number.parseFloat(getComputedStyle(stack).marginLeft),
-        marginRight: Number.parseFloat(getComputedStyle(stack).marginRight),
-        fontSize: Number.parseFloat(getComputedStyle(stack).fontSize),
-        topGap: topBounds && lineBounds ? lineBounds.top - topBounds.bottom : 0,
-        bottomGap: bottomBounds && lineBounds ? bottomBounds.top - lineBounds.bottom : 0,
-      }
-    }),
-  )
-  assert.ok(stacks.length === 2)
-  stacks.forEach((stack) => {
-    assert.ok(stack.line >= stack.label - 1, 'stack rule must derive from the widest rendered label')
-    assert.ok(stack.extension >= stack.fontSize * 0.6, 'stack rule must visibly extend beyond the widest label')
-    assert.ok(stack.marginLeft >= stack.fontSize * 0.4 && stack.marginRight >= stack.fontSize * 0.4, 'stack rules must keep a clear gap from adjacent text')
-    assert.ok(stack.topGap >= 1.5 && stack.bottomGap >= 1.5, 'stack labels must not touch or overlap their rule')
-  })
+  assert.equal(await page.locator('[data-case="formula"] .record-latex .katex').count(), 2)
+  assert.doesNotMatch(await page.locator('[data-case="formula"]').innerText(), /\\frac|\\xrightarrow/)
 
   const shortTrigger = page.getByRole('button', { name: '短注触发' })
   await shortTrigger.scrollIntoViewIfNeeded()
@@ -2494,6 +2468,7 @@ try {
   videoWaiters.splice(0).forEach((resolve) => resolve())
   await page.locator('[data-case="formula-error"] .record-latex-error').waitFor()
   assert.match(await page.locator('[data-case="formula-error"]').innerText(), /前.*后/u)
+  assert.doesNotMatch(await page.locator('[data-case="formula-error"]').innerText(), /\\notARealCommand/u)
 
   const guardedDirectHash = await page.evaluate(() => {
     history.replaceState(history.state, '', '/class/records#record-r2')

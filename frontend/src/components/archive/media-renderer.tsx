@@ -54,29 +54,17 @@ function ImageMediaRenderer({ src }: { src: string }) {
       active = false
     }
   }, [visible, dimensions, src])
-  const frame = dimensions
-    ? {
-        width: Math.round(
-          dimensions.width * Math.min(1, 360 / dimensions.width, 280 / dimensions.height),
-        ),
-        height: Math.round(
-          dimensions.height * Math.min(1, 360 / dimensions.width, 280 / dimensions.height),
-        ),
-      }
-    : null
   return (
     <span
       ref={ref}
-      className="record-media-image"
-      style={
-        frame ? { width: frame.width, aspectRatio: `${frame.width} / ${frame.height}` } : undefined
-      }
+      className={`record-media-image${dimensions ? ' record-media-image--measured' : ''}`}
+      style={dimensions ? { aspectRatio: `${dimensions.width} / ${dimensions.height}` } : undefined}
     >
       {failed || asset.error ? (
         <span className="record-media-failure" role="status">
           图片加载失败
         </span>
-      ) : (frame || metadataFailed) && asset.src ? (
+      ) : (dimensions || metadataFailed) && asset.src ? (
         <ImageViewer
           path={src}
           alt="记录插图"
@@ -86,15 +74,15 @@ function ImageMediaRenderer({ src }: { src: string }) {
             <Button
               type="button"
               variant="ghost"
-              className="record-media-image-trigger"
+              className="record-media-image-trigger border-0 focus-visible:border-0"
               style={{ width: '100%', height: '100%', padding: 0 }}
               aria-label="查看大图"
             >
               <img
                 src={asset.src}
                 alt="记录插图"
-                width={frame?.width}
-                height={frame?.height}
+                width={dimensions?.width}
+                height={dimensions?.height}
                 loading="lazy"
                 decoding="async"
                 className="record-media-image-content"
