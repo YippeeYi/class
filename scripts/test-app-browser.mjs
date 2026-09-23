@@ -350,11 +350,15 @@ try {
       await home.waitForLoadState('networkidle')
       await home.waitForTimeout(300)
       const excerpt = home.locator('.guide-history-excerpt')
+      await excerpt.waitFor()
       if (hasHistory) {
-        await excerpt.waitFor()
         assert.equal(await excerpt.innerText(), '历史摘录 标记文字 *** 摘录名言')
+      } else {
+        assert.equal(await home.getByText('今日留白', { exact: true }).count(), 1)
+        assert.equal(await excerpt.innerText(), '今天的篇章，留给正在发生的故事。')
+        assert.equal(await home.locator('.guide-history [data-guide-panel="static"]').count(), 1, 'empty-date panel is reading content, not a button')
       }
-      assert.equal(await home.locator('.guide-history').count(), Number(hasHistory), 'hidden records cannot create a history module')
+      assert.equal(await home.locator('.guide-history').count(), 1, 'the date panel remains present without a matching record')
       assert.equal(await home.locator('.guide-home a').count(), Number(hasHistory), 'only history navigation remains')
       for (const preset of ['paper', 'midnight']) {
         for (const width of [320, 390, 768, 1024, 1920]) {
@@ -418,7 +422,15 @@ try {
         const privacy = await home.locator('.guide-privacy').boundingBox()
         assert.ok(privacy.y + privacy.height <= viewport.height, 'privacy footer stays visible')
         assert.ok(privacy.y + privacy.height > viewport.height * 0.75, 'guide sections use the available screen height')
-        if (viewport.width === 1366) await home.screenshot({ path: `/tmp/class-guide-roomy-${hasHistory}.png` })
+        if (viewport.width === 1366) {
+          const history = await home.locator('.guide-history').boundingBox()
+          const setting = await home.locator('.guide-setting').boundingBox()
+          const random = await home.locator('.guide-random').boundingBox()
+          assert.ok(Math.abs(history.y - setting.y) <= 1, 'date and setting panels share a top edge')
+          assert.ok(Math.abs(history.y + history.height - random.y - random.height) <= 1, 'date and random panels share a bottom edge')
+          assert.ok(random.y - setting.y - setting.height >= 14 && random.y - setting.y - setting.height <= 25, 'right-side panel gap stays balanced')
+          await home.screenshot({ path: `/tmp/class-guide-roomy-${hasHistory}.png` })
+        }
       }
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }, { width: 390, height: 667 }]) {
         await home.setViewportSize(viewport)
@@ -463,6 +475,14 @@ try {
       await home.waitForFunction(() => document.querySelector('.guide-cover')?.dataset.state === 'leaving')
       await home.mouse.wheel(0, 600)
       await home.mouse.wheel(0, -300)
+      await home.waitForTimeout(250)
+      const liveExit = await home.locator('.guide-cover').evaluate(element => {
+        const logo = element.querySelector('.guide-masthead')
+        const style = getComputedStyle(logo)
+        return { connected: logo.isConnected, opacity: Number(style.opacity), brightness: style.filter, y: logo.getBoundingClientRect().y }
+      })
+      assert.ok(liveExit.connected && liveExit.opacity > 0 && liveExit.opacity < 1, 'logo stays mounted and visibly fades during real time')
+      assert.ok(Number(liveExit.brightness.match(/brightness\(([^)]+)\)/)?.[1]) < 1, 'logo darkens during real time')
       assert.equal(await home.locator('.guide-cover').evaluate(e => e.getAnimations().filter(item => item.id === 'guide-cover-exit').length), 1, 'inertia cannot start a second exit animation')
       const exitState = await home.locator('.guide-cover').evaluate(element => {
         const animation = element.getAnimations().find(item => item.id === 'guide-cover-exit')
@@ -487,7 +507,7 @@ try {
         darkening.play()
         return result
       })
-      assert.ok(exitState.duration >= 1600 && exitState.duration <= 2000, 'cover departure is deliberately slower')
+      assert.ok(exitState.duration >= 1000 && exitState.duration <= 1200, 'cover departure is deliberately slower')
       const brightness = Number(exitState.brightness.match(/brightness\(([^)]+)\)/)?.[1])
       assert.ok(brightness > 0.5 && brightness < 1, 'logo dims gradually without turning black')
       assert.ok(exitState.opacity > 0.6 && exitState.opacity < 1 && exitState.logoBottom > 0, 'logo remains visible halfway through departure')
@@ -554,6 +574,20 @@ try {
       await touch('touchEnd')
       assert.equal(await touchPage.locator('.guide-cover').count(), 0, 'touch pullback cannot reopen the cover')
       assert.equal(await touchPage.locator('#root').evaluate(e => e.inert), false)
+      await touchPage.emulateMedia({ reducedMotion: 'no-preference' })
+      await touchPage.reload()
+      await touchPage.locator('.guide-cover').waitFor()
+      const mobileLogoStart = await touchPage.locator('.guide-masthead').boundingBox()
+      await touch('touchStart', 550)
+      await touch('touchMove', 460)
+      await touch('touchEnd')
+      await touchPage.waitForTimeout(300)
+      const mobileLogoExit = await touchPage.locator('.guide-masthead').evaluate(element => ({
+        opacity: Number(getComputedStyle(element).opacity),
+        y: element.getBoundingClientRect().y,
+      }))
+      assert.ok(mobileLogoExit.opacity > 0 && mobileLogoExit.opacity < 1 && mobileLogoExit.y < mobileLogoStart.y, 'mobile logo visibly moves and fades before unmount')
+      await touchPage.locator('.guide-cover').waitFor({ state: 'detached' })
       await touchPage.reload()
       await touchPage.locator('.guide-cover').waitFor()
       await touchPage.evaluate(url => {

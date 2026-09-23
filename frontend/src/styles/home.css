@@ -24,7 +24,6 @@ body:has(.guide-home)::-webkit-scrollbar {
   background: color-mix(in oklch, var(--card) 90%, transparent);
 }
 .guide-cover {
-  --guide-cover-exit-duration: 1800ms;
   position: fixed;
   inset: 0;
   z-index: 60;
@@ -307,13 +306,15 @@ body:has(.guide-home)::-webkit-scrollbar {
 }
 @container (min-width: 36rem) {
   .guide-content {
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    align-content: center;
+    gap: clamp(0.875rem, 2vh, 1.5rem);
   }
-  .guide-content[data-has-history="true"] .guide-history {
+  .guide-history {
     grid-row: span 2;
   }
-  .guide-content[data-has-history="true"] .guide-setting,
-  .guide-content[data-has-history="true"] .guide-random {
+  .guide-setting,
+  .guide-random {
     grid-column: 2;
   }
   .guide-tip {

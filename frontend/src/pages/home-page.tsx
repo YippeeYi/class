@@ -84,10 +84,7 @@ export function HomePage() {
       leaving = true
       cover.dataset.state = 'leaving'
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      const style = getComputedStyle(cover)
-      const duration = reducedMotion
-        ? 240
-        : Number.parseFloat(style.getPropertyValue('--guide-cover-exit-duration')) || 1800
+      const duration = reducedMotion ? 240 : 1100
       mastheadAnimation = cover.querySelector('.guide-masthead')?.animate(
         [
           { translate: '0 0', filter: 'brightness(1)', opacity: 1 },
@@ -269,7 +266,7 @@ export function HomePage() {
           document.body,
         )}
       <div className="guide-body" ref={contentRef} tabIndex={-1}>
-        <div className="guide-content" data-has-history={edition.matches.length > 0}>
+        <div className="guide-content">
           {edition.matches.length > 0 && (
             <section className="guide-history" aria-labelledby="guide-history-title">
               <Item
@@ -293,6 +290,22 @@ export function HomePage() {
                 </span>
               </Item>
               {resource.error && <ErrorState title="记录加载失败" onRetry={resource.retry} />}
+            </section>
+          )}
+          {archiveData && !resource.error && edition.matches.length === 0 && (
+            <section className="guide-history" aria-labelledby="guide-history-empty-title">
+              <Item className="guide-action guide-history-note" data-guide-panel="static">
+                <span className="guide-action-heading" id="guide-history-empty-title">
+                  <CalendarDays className="size-4" aria-hidden="true" />
+                  今日留白
+                </span>
+                <span className="guide-calendar font-heading tabular-nums">
+                  {edition.month}
+                  <span> / </span>
+                  {edition.day}
+                </span>
+                <span className="guide-history-excerpt">今天的篇章，留给正在发生的故事。</span>
+              </Item>
             </section>
           )}
           <Item
