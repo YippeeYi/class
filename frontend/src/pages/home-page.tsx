@@ -40,7 +40,7 @@ export function HomePage() {
   const [coverOpen, setCoverOpen] = useState(true)
   const coverRef = useRef<HTMLElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const enterCoverRef = useRef(() => {})
+  const enterCoverRef = useRef(() => { })
   const { hideProfanity, setHideProfanity } = useContentPreferences()
 
   useEffect(() => {
@@ -84,7 +84,7 @@ export function HomePage() {
       leaving = true
       cover.dataset.state = 'leaving'
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      const duration = reducedMotion ? 240 : 1100
+      const duration = reducedMotion ? 240 : 800
       mastheadAnimation = cover.querySelector('.guide-masthead')?.animate(
         [
           { translate: '0 0', filter: 'brightness(1)', opacity: 1 },
@@ -166,7 +166,7 @@ export function HomePage() {
     return () => {
       animation?.cancel()
       mastheadAnimation?.cancel()
-      enterCoverRef.current = () => {}
+      enterCoverRef.current = () => { }
       cover.removeEventListener('wheel', onWheel)
       cover.removeEventListener('touchstart', onTouchStart)
       cover.removeEventListener('touchmove', onTouchMove)
