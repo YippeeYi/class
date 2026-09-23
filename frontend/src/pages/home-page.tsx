@@ -84,7 +84,7 @@ export function HomePage() {
       leaving = true
       cover.dataset.state = 'leaving'
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      const duration = reducedMotion ? 240 : 800
+      const duration = reducedMotion ? 240 : 1100
       mastheadAnimation = cover.querySelector('.guide-masthead')?.animate(
         [
           { translate: '0 0', filter: 'brightness(1)', opacity: 1 },
