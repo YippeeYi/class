@@ -40,7 +40,7 @@ export function HomePage() {
   const [coverOpen, setCoverOpen] = useState(true)
   const coverRef = useRef<HTMLElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const enterCoverRef = useRef(() => { })
+  const enterCoverRef = useRef(() => {})
   const { hideProfanity, setHideProfanity } = useContentPreferences()
 
   useEffect(() => {
@@ -166,7 +166,7 @@ export function HomePage() {
     return () => {
       animation?.cancel()
       mastheadAnimation?.cancel()
-      enterCoverRef.current = () => { }
+      enterCoverRef.current = () => {}
       cover.removeEventListener('wheel', onWheel)
       cover.removeEventListener('touchstart', onTouchStart)
       cover.removeEventListener('touchmove', onTouchMove)
