@@ -17,7 +17,7 @@ const waitQbContent = async (page) => {
   })
 }
 
-const annotation = '普通注解 [[person:p1|人物一]] [[author:p2|额外记录人]] [[record:r2|跳转记录]] [[material:m1|查看资料]] [[anno:嵌套 [[red:说明]]|注解提示]] [[illu:test.png|注解插图]] [[frac:[[sup:2]]|3]] [[arrow:加热|催化]] [[table:2x2|甲|乙|[[under:丙]]|[[del:丁]]]] [[hide:黑幕]] [[center:居中]] [[right:右对齐]]'
+const annotation = '普通注解 [[person:p1|人物一]] [[author:p2|额外记录人]] [[record:r2|跳转记录]] [[material:m1|查看资料]] [[anno:嵌套 [[red:说明]]|注解提示]] [[illu:test.png]] [[latex:\\ce{H2O}]] [[frac:[[sup:2]]|3]] [[arrow:加热|催化]] [[table:2x2|甲|乙|[[under:丙]]|[[del:丁]]]] [[hide:黑幕]] [[center:居中]] [[right:右对齐]]'
 const row = (id, hidden, annotation = null) => ({ record_id: id, file_name: `${id}.json`, record_index: Number(id.slice(1)), record_date: '2025-01-01', record_time: '', author: 'p1', content: `正文 ${id} [[person:p1|人物一]] [[quote:q${id}|原话${id}]]`, hidden, attachments: [], importance: 'normal', annotation })
 const records = [row('r1', false, annotation), row('r2', false), row('r3', true, '   ')]
 const people = ['p1', 'p2', 'p3', 'p4'].map((id) => ({ id, name: id === 'p1' ? '人物一' : `人物${id}`, aliases: [], alias: '', role: 'student', subject: '', main: false, bio: '人物简介', avatar_url: '' }))
@@ -142,6 +142,7 @@ try {
   await dialog.waitFor()
   assert.equal(await dialog.locator('.record-table-scroll').count(), 1)
   assert.equal(await dialog.locator('.person-link').count(), 1)
+  await dialog.locator('.record-latex .katex').waitFor()
   await dialog.getByRole('button', { name: '注解提示', exact: true }).hover()
   await page.getByText('嵌套 说明', { exact: true }).waitFor()
   await dialog.getByRole('button', { name: '关闭注解' }).click()
@@ -153,7 +154,7 @@ try {
   await page.keyboard.press('Escape')
   await dialog.waitFor({ state: 'hidden' })
   await button.click()
-  await dialog.getByRole('button', { name: '注解插图' }).click()
+  await dialog.getByRole('button', { name: '查看大图' }).click()
   await page.locator('[data-image-viewer-dialog]').waitFor()
   await page.getByRole('button', { name: '关闭大图' }).click()
   await page.locator('[data-image-viewer-dialog]').waitFor({ state: 'hidden' })
@@ -624,7 +625,7 @@ try {
       }
     })
     const originalContent = records[0].content
-    records[0].content += ' [[illu:offscreen-proof.jpg|尚未展开的插图]]'
+    records[0].content += ' [[illu:offscreen-proof.jpg]]'
     const since = networkEvents.length
     versionDelay = 300
     await cachedPage.goto(origin + 'records')

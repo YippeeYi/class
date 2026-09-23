@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFrontend } from './test-react-helpers.mjs'
 
 const markupComponent = await readFrontend('src/components/archive/markup-content.tsx')
+const mediaRenderer = await readFrontend('src/components/archive/media-renderer.tsx')
 const mapPage = await readFrontend('src/pages/meal-map-page.tsx')
 const recordsPage = await readFrontend('src/pages/records-page.tsx')
 const writtenRecordPages = await readFrontend('src/features/records/written-record-pages.tsx')
@@ -11,8 +12,9 @@ const signedAssetHook = await readFrontend('src/hooks/use-signed-asset.ts')
 const imageViewer = await readFrontend('src/components/archive/image-viewer.tsx')
 const imageMetadata = await readFrontend('src/services/image-metadata.ts')
 const boundedRetryHook = await readFrontend('src/hooks/use-bounded-image-retry.ts')
-assert.match(markupComponent, /useSignedAsset\(requested && dimensions \? path : ''/, 'record illustrations must be signed only on demand')
-assert.match(markupComponent, /preview\.loading/, 'illustrations need an explicit loading state')
+assert.match(markupComponent, /MediaRenderer/, 'record content must use the shared media renderer')
+assert.match(mediaRenderer, /useSignedAsset\(visible \? src : ''/, 'record media must be signed only near the viewport')
+assert.match(mediaRenderer, /record-media-loading/, 'illustrations need an explicit loading state')
 assert.match(
   signedAssetHook,
   /signAssetUrl\(path, \{ forceRefresh, variant, width, quality \}\)/,

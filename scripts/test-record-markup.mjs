@@ -30,7 +30,7 @@ assert.equal(extremeTable.rows[0][4][0].type, 'style')
 assert.equal(markup.parseMarkup('[[frac:分子|分母]]')[0].kind, 'frac')
 assert.equal(markup.parseMarkup('[[arrow:上方|下方]]')[0].kind, 'arrow')
 const quizTree = markup.parseQuizMarkup(
-  '[[center:[[red:居中题干]]]] [[person:p-secret|人物标签]] [[anno:标准答案|注释标签]] [[illu:answer.png|插图标签]] [[hide:黑幕答案]] [[record:answer-record|来源标签]]',
+  '[[center:[[red:居中题干]]]] [[person:p-secret|人物标签]] [[anno:标准答案|注释标签]] [[illu:answer.png]] [[hide:黑幕答案]] [[record:answer-record|来源标签]]',
 )
 const serializedQuizTree = JSON.stringify(quizTree)
 assert.equal(quizTree[0].type, 'style')
@@ -38,7 +38,7 @@ assert.equal(quizTree[0].style, 'center')
 assert.match(serializedQuizTree, /居中题干/)
 assert.match(serializedQuizTree, /人物标签/)
 assert.match(serializedQuizTree, /注释标签/)
-assert.match(serializedQuizTree, /插图标签/)
+assert.doesNotMatch(serializedQuizTree, /插图标签/)
 assert.match(serializedQuizTree, /来源标签/)
 assert.match(serializedQuizTree, /隐藏内容已省略/)
 assert.doesNotMatch(serializedQuizTree, /p-secret|标准答案|answer\.png|黑幕答案|answer-record/)
@@ -140,3 +140,44 @@ assert.doesNotMatch(
   'nested redaction styling must not special-case one marker type',
 )
 console.log('React record markup parser checks passed.')
+
+const layout = await loadTypescriptModule('src/lib/markup-layout.ts')
+const image = (name) => ({ type: 'media', mediaType: 'image', src: `data/attachments/${name}` })
+const video = (name) => ({ type: 'media', mediaType: 'video', src: `data/attachments/${name}` })
+assert.deepEqual(markup.parseMarkup('纯文字'), [{ type: 'text', value: '纯文字' }])
+assert.deepEqual(markup.parseMarkup('[[illu:a.png]]'), [image('a.png')])
+assert.deepEqual(markup.parseMarkup('甲[[illu:a.png]]乙[[illu:b.webp]]'), [
+  { type: 'text', value: '甲' }, image('a.png'), { type: 'text', value: '乙' }, image('b.webp'),
+])
+assert.deepEqual(markup.parseMarkup('[[video:a.mp4]]'), [video('a.mp4')])
+assert.deepEqual(markup.parseMarkup('甲[[video:a.mp4]]乙[[video:b.webm]]丙'), [
+  { type: 'text', value: '甲' }, video('a.mp4'), { type: 'text', value: '乙' }, video('b.webm'), { type: 'text', value: '丙' },
+])
+assert.deepEqual(markup.parseMarkup('[[illu:a.png]][[video:a.mp4]][[illu:b.png]]'), [image('a.png'), video('a.mp4'), image('b.png')])
+assert.deepEqual(markup.parseMarkup('[[illu:a.png|旧字段]]'), [{ type: 'text', value: '[[illu:a.png|旧字段]]' }])
+for (const source of ['x^2+y^2', '\\frac{a+b}{c}', '\\sum_{i=1}^{n}i', '\\lim_{x\\to0}\\frac{\\sin x}{x}=1', '\\begin{matrix}a&b\\\\c&d\\end{matrix}', '\\ce{H2O}', '\\ce{2H2 + O2 -> 2H2O}', '\\ce{Fe^{3+}}', '\\ce{CH3COOH <=> CH3COO^- + H^+}', '\\badcommand{']) {
+  assert.deepEqual(markup.parseMarkup(`[[latex:${source}]]`), [{ type: 'latex', source }])
+}
+assert.deepEqual(markup.parseMarkup('甲[[latex:E=mc^2]]乙[[latex:x+y]]'), [
+  { type: 'text', value: '甲' }, { type: 'latex', source: 'E=mc^2' }, { type: 'text', value: '乙' }, { type: 'latex', source: 'x+y' },
+])
+assert.equal(markup.parseMarkup('[[latex:]]')[0].type, 'text')
+for (const marker of ['[[illu:]]', '[[video:]]', '[[illu:../bad.png]]', '[[video:javascript:bad.mp4]]', '[[video:evil.png]]']) {
+  assert.equal(markup.parseMarkup(marker)[0].type, 'text')
+}
+const mixed = markup.parseMarkup('[[red:甲]][[person:p1|乙]][[under:公式[[latex:\\ce{H2O}]]]][[video:c.mp4]][[table:1x1|丙]]')
+assert.deepEqual(mixed.map((node) => node.type), ['style', 'reference', 'style', 'media', 'table'])
+const split = layout.normalizeMarkup(markup.parseMarkup('前[[video:a.mp4]]中[[video:b.webm]]后'))
+assert.deepEqual(split.map((part) => part.type), ['inline', 'block', 'inline', 'block', 'inline'])
+assert.deepEqual(split.filter((part) => part.type === 'block').map((part) => part.node.mediaType), ['video', 'video'])
+assert.deepEqual(layout.normalizeMarkup(markup.parseMarkup('[[red:前[[video:a.mp4]]后]]')).map((part) => part.type), ['inline', 'block', 'inline'])
+assert.doesNotMatch(JSON.stringify(markup.parseQuizMarkup('[[video:a.mp4]][[illu:a.png]][[latex:x]]')), /a\\.mp4|a\\.png|x/)
+console.log('Media, LaTeX and block layout AST checks passed.')
+const serializedFormula = JSON.parse('{"content":"[[latex:\\\\frac{a+b}{c}]]"}').content
+assert.deepEqual(markup.parseMarkup(serializedFormula), [{ type: 'latex', source: '\\frac{a+b}{c}' }])
+assert.deepEqual(markup.parseMarkup('[[latex:a]]b]]'), [{ type: 'latex', source: 'a' }, { type: 'text', value: 'b]]' }])
+const katex = (await import('katex')).default
+await import('katex/contrib/mhchem')
+assert.match(katex.renderToString('\\ce{2H2 + O2 -> 2H2O}', { throwOnError: true, trust: false }), /katex/)
+assert.doesNotMatch(katex.renderToString('\\href{javascript:alert(1)}{x}', { throwOnError: true, trust: false }), /href="javascript:/)
+assert.throws(() => katex.renderToString('\\notARealCommand{', { throwOnError: true, trust: false }))

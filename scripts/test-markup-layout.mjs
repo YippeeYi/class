@@ -90,6 +90,8 @@ try {
   const consoleProblems = []
   const imageRequests = []
   const storageRequests = []
+  let videoReleased = false
+  const videoWaiters = []
   let releaseProgressiveOriginal
   const progressiveOriginalReady = new Promise((resolve) => { releaseProgressiveOriginal = resolve })
   let expectedHarnessNetworkFailures = 0
@@ -159,6 +161,11 @@ try {
       },
       body: svg,
     })
+  })
+  await page.route('**/sample.mp4*', async (route) => {
+    if (route.request().method() === 'GET' && !videoReleased)
+      await new Promise((resolve) => videoWaiters.push(resolve))
+    await route.fallback()
   })
   const apiHeaders = {
     'access-control-allow-origin': '*',
@@ -2422,10 +2429,13 @@ try {
   await page.waitForFunction(() => document.activeElement?.matches('a.person-link'))
   await nestedPerson.press('Enter')
   await page.waitForFunction(() => window.__memoryLocation === '/person?id=p01')
+  await page.evaluate(() => window.__memoryNavigate('/'))
+  await page.waitForFunction(() => window.__memoryLocation === '/')
 
   await page.setViewportSize({ width: 320, height: 1000 })
   await page.mouse.move(4, 4)
-  await longTrigger.hover()
+  await longTrigger.focus()
+  await page.keyboard.press('Enter')
   await annotationPopup.waitFor({ state: 'visible' })
   const mobileAnnotation = await annotationPopup.evaluate((element) => ({
     width: element.getBoundingClientRect().width,
@@ -2433,8 +2443,8 @@ try {
     right: element.getBoundingClientRect().right,
     overflow: element.scrollWidth - element.clientWidth,
   }))
-  assert.ok(mobileAnnotation.width <= 312.5, 'mobile annotations must respect viewport padding')
-  assert.ok(mobileAnnotation.left >= 0 && mobileAnnotation.right <= 320, 'mobile annotation collision handling must keep the popup visible')
+  assert.ok(mobileAnnotation.width <= 312.5, `mobile annotations must respect viewport padding: ${JSON.stringify(mobileAnnotation)}`)
+  assert.ok(mobileAnnotation.left >= 0 && mobileAnnotation.right <= 320, `mobile annotation collision handling must keep the popup visible: ${JSON.stringify(mobileAnnotation)}`)
   assert.ok(mobileAnnotation.overflow <= 1, 'mobile annotation content must wrap without clipping')
 
   await page.setViewportSize({ width: 1280, height: 1000 })
@@ -2449,107 +2459,41 @@ try {
   assert.ok(edgeAnnotationPopup)
   assert.ok(edgeAnnotationPopup.x >= 4 && edgeAnnotationPopup.x + edgeAnnotationPopup.width <= 1276, 'annotation collision handling must keep edge-anchored popups fully visible')
 
-  const illustration = page.getByRole('button', { name: '从这里查看插图' })
+  const illustration = page.locator('[data-case="illustration"] .record-media-image img')
   await illustration.scrollIntoViewIfNeeded()
-  const triggerBox = await illustration.boundingBox()
-  assert.ok(triggerBox)
-  const pointerOffsetX = Math.min(12, triggerBox.width / 3)
-  const initialPointerX = triggerBox.x + pointerOffsetX
-  await illustration.hover({
-    position: { x: pointerOffsetX, y: triggerBox.height / 2 },
+  await illustration.waitFor({ state: 'visible' })
+  await illustration.evaluate(image => image.decode())
+  await page.waitForFunction(() => {
+    const image = document.querySelector('[data-case="illustration"] .record-media-image img')
+    return image && Math.abs(image.getBoundingClientRect().width / image.getBoundingClientRect().height - image.naturalWidth / image.naturalHeight) < 0.02
   })
-  const illustrationPopup = page.locator('.record-illustration-popup[data-open]')
-  await illustrationPopup.waitFor({ state: 'visible', timeout: 300 })
-  const readIllustrationPosition = () =>
-    illustrationPopup.evaluate((element) => {
-      const bounds = element.parentElement?.getBoundingClientRect()
-      return bounds
-        ? { x: bounds.x, width: bounds.width }
-        : null
-    })
-  const firstPopup = await readIllustrationPosition()
-  assert.ok(firstPopup)
-  assert.ok(
-    Math.abs(firstPopup.x + firstPopup.width / 2 - initialPointerX) <= 2,
-    `illustration popup must initially center on pointer clientX: ${JSON.stringify({ firstPopup, initialPointerX })}`,
-  )
-  await page.mouse.move(triggerBox.x + triggerBox.width - 3, triggerBox.y + triggerBox.height / 2)
-  await page.waitForTimeout(80)
-  const movedPopup = await readIllustrationPosition()
-  assert.ok(movedPopup)
-  assert.ok(
-    Math.abs(movedPopup.x + movedPopup.width / 2 - initialPointerX) <= 2,
-    'an open illustration popup must remain anchored to the pointer position that opened it',
-  )
-  await page.locator('.record-illustration-popup').evaluate((element) => {
-    window.__illustrationScrollCloseCount = 0
-    const observer = new MutationObserver(() => {
-      if (element.hasAttribute('data-closed')) window.__illustrationScrollCloseCount += 1
-    })
-    observer.observe(element, { attributes: true, attributeFilter: ['data-closed'] })
-    window.setTimeout(() => observer.disconnect(), 800)
-  })
-  await page.evaluate(() => window.scrollBy(0, 2))
-  await page.locator('.record-illustration-popup[data-closed]').waitFor({ state: 'visible' })
-  await illustrationPopup.waitFor({ state: 'hidden' })
-  await page.waitForTimeout(180)
-  assert.equal(
-    await page.evaluate(() => window.__illustrationScrollCloseCount),
-    1,
-    'one vertical scroll must start exactly one illustration exit lifecycle',
-  )
-  assert.equal(
-    await page.locator('.record-illustration-popup[data-open]').count(),
-    0,
-    'a stationary pointer must not reopen an illustration after scrolling',
-  )
-  await page.mouse.move(4, 4)
-  await illustration.hover()
-  await illustrationPopup.waitFor({ state: 'visible' })
-  const illustrationExitOrigin = await illustrationPopup.evaluate((element) => {
-    const bounds = element.parentElement?.getBoundingClientRect()
-    return { left: bounds?.left || 0, top: bounds?.top || 0 }
-  })
-  await illustrationPopup.evaluate((element) => {
-    const samples = []
-    window.__illustrationExitSamples = samples
-    const started = performance.now()
-    const capture = () => {
-      if (element.isConnected) {
-        const bounds = element.parentElement?.getBoundingClientRect()
-        samples.push({
-          closed: element.hasAttribute('data-closed'),
-          left: bounds?.left || 0,
-          top: bounds?.top || 0,
-        })
-      }
-      if (element.isConnected && performance.now() - started < 2000) requestAnimationFrame(capture)
-    }
-    requestAnimationFrame(capture)
-  })
-  await page.mouse.move(4, 4)
-  await illustrationPopup.waitFor({ state: 'hidden' })
-  const illustrationExitSamples = await page.evaluate(() => window.__illustrationExitSamples || [])
-  const closedIllustrationSamples = illustrationExitSamples.filter((sample) => sample.closed)
-  assert.ok(closedIllustrationSamples.length > 0, 'illustration popup must retain a real exit-animation phase')
-  assert.ok(
-    closedIllustrationSamples.every(
-      (sample) =>
-        Math.abs(sample.left - illustrationExitOrigin.left) <= 1 &&
-        Math.abs(sample.top - illustrationExitOrigin.top) <= 1,
-    ),
-    `illustration exit position jumped: ${JSON.stringify(closedIllustrationSamples)}`,
-  )
-
-  const edgeIllustration = page.getByRole('button', { name: '边界插图测试' })
-  const edgeTriggerBox = await edgeIllustration.boundingBox()
-  assert.ok(edgeTriggerBox)
-  await page.mouse.move(edgeTriggerBox.x + edgeTriggerBox.width - 2, edgeTriggerBox.y + edgeTriggerBox.height / 2)
-  await illustrationPopup.waitFor({ state: 'visible' })
-  await page.waitForTimeout(50)
-  const edgePopup = await illustrationPopup.boundingBox()
-  assert.ok(edgePopup)
-  assert.ok(edgePopup.x >= 4 && edgePopup.x + edgePopup.width <= 1276, 'viewport collision handling must keep edge-anchored illustration popups fully visible')
+  await page.locator('[data-case="illustration"] [aria-label="查看大图"]').click()
+  await page.locator('.image-viewer-dialog').waitFor({ state: 'visible' })
+  await page.keyboard.press('Escape')
+  await page.locator('.image-viewer-dialog').waitFor({ state: 'hidden' })
+  const edgeIllustration = page.locator('[data-case="illustration-edge"] .record-media-image')
+  const edgeBounds = await edgeIllustration.boundingBox()
+  assert.ok(edgeBounds && edgeBounds.x >= 0 && edgeBounds.x + edgeBounds.width <= 1280)
+  const mediaFormula = page.locator('[data-case="media-formula"]')
+  await mediaFormula.scrollIntoViewIfNeeded()
+  assert.equal(await mediaFormula.locator('.record-markup-run').count(), 2)
+  assert.equal(await mediaFormula.locator('.record-markup-block video').count(), 1)
+  assert.equal(await mediaFormula.locator('.record-latex .katex').count(), 2)
+  const videoProperties = await mediaFormula.locator('video').evaluate(video => ({
+    controls: video.controls,
+    autoplay: video.autoplay,
+    preload: video.preload,
+    width: video.getBoundingClientRect().width,
+    parentWidth: video.parentElement.getBoundingClientRect().width,
+  }))
+  assert.equal(videoProperties.controls, true)
+  assert.equal(videoProperties.autoplay, false)
+  assert.equal(videoProperties.preload, 'metadata')
+  assert.ok(videoProperties.width <= videoProperties.parentWidth)
+  videoReleased = true
+  videoWaiters.splice(0).forEach((resolve) => resolve())
+  await page.locator('[data-case="formula-error"] .record-latex-error').waitFor()
+  assert.match(await page.locator('[data-case="formula-error"]').innerText(), /前.*后/u)
 
   const guardedDirectHash = await page.evaluate(() => {
     history.replaceState(history.state, '', '/class/records#record-r2')

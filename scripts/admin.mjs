@@ -269,11 +269,11 @@ const registerStorageAsset = (value, { hidden = false, fallbackRoot = '', localP
 };
 
 const rewriteMarkupAssets = (value, { hidden = false } = {}) => {
-    return String(value || '').replace(/\[\[illu:([^|\]\r\n]+)\|/g, (match, markerPath) => {
+    return String(value || '').replace(/\[\[(illu|video):([^|\]\r\n]+)\]\]/g, (match, marker, markerPath) => {
         const rawMarker = String(markerPath || '').trim().replace(/^hidden\//, '');
         if (!rawMarker || rawMarker.includes('/') || rawMarker.includes('\\')) return match;
         registerStorageAsset(rawMarker, { hidden, fallbackRoot: 'data/attachments/' });
-        return `[[illu:${hidden ? 'hidden/' : ''}${rawMarker}|`;
+        return `[[${marker}:${hidden ? 'hidden/' : ''}${rawMarker}]]`;
     });
 };
 

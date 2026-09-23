@@ -17,7 +17,8 @@ export type MarkupNode =
       children: MarkupNode[]
     }
   | { type: 'annotation'; note: string; children: MarkupNode[] }
-  | { type: 'illustration'; path: string; children: MarkupNode[] }
+  | { type: 'media'; mediaType: 'image' | 'video'; src: string }
+  | { type: 'latex'; source: string }
   | { type: 'stack'; kind: 'frac' | 'arrow'; top: MarkupNode[]; bottom: MarkupNode[] }
   | { type: 'table'; rows: MarkupNode[][][] }
 
@@ -53,9 +54,19 @@ function escapedAt(source: string, index: number) {
 }
 
 function balancedEnd(source: string, start: number) {
+  if (/^\[\[(?:illu|video|latex):/.test(source.slice(start, start + 9))) {
+    const end = source.indexOf(']]', start + 2)
+    return end < 0 ? -1 : end + 2
+  }
   let depth = 1
   for (let index = start + 2; index < source.length - 1; index += 1) {
     if (!escapedAt(source, index) && source.startsWith('[[', index)) {
+      if (/^\[\[(?:illu|video|latex):/.test(source.slice(index, index + 9))) {
+        const end = source.indexOf(']]', index + 2)
+        if (end < 0) return -1
+        index = end + 1
+        continue
+      }
       depth += 1
       index += 1
     } else if (!escapedAt(source, index) && source.startsWith(']]', index)) {
@@ -100,17 +111,24 @@ function splitAll(source: string) {
   return result
 }
 
-function illustrationPath(value: string) {
+function mediaPath(value: string, mediaType: 'image' | 'video') {
   const raw = value.trim()
   const hasControlCharacter = Array.from(raw).some((character) => {
     const code = character.charCodeAt(0)
     return code < 32 || code === 127
   })
-  if (!raw || /[\\?#%]/.test(raw) || hasControlCharacter || /^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(raw))
+  if (
+    !raw ||
+    /[\\?#%|]/.test(raw) ||
+    hasControlCharacter ||
+    /^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(raw)
+  )
     return ''
   const hidden = raw.startsWith('hidden/')
   const file = hidden ? raw.slice(7) : raw
-  if (!file || file.includes('/') || !/\.(?:png|jpe?g|gif|webp|svg)$/i.test(file)) return ''
+  const extension =
+    mediaType === 'image' ? /\.(?:png|jpe?g|gif|webp|svg)$/i : /\.(?:mp4|webm|ogg)$/i
+  if (!file || file.includes('/') || !extension.test(file)) return ''
   return `${hidden ? 'hidden/' : ''}data/attachments/${file}`
 }
 
@@ -123,6 +141,12 @@ function parseSquare(body: string, raw: string, depth: number): MarkupNode {
   if (colon < 1) return textNode(raw)
   const kind = body.slice(0, colon)
   const payload = body.slice(colon + 1)
+  if (kind === 'latex') return payload.trim() ? { type: 'latex', source: payload } : textNode(raw)
+  if (kind === 'illu' || kind === 'video') {
+    const mediaType = kind === 'illu' ? 'image' : 'video'
+    const src = mediaPath(payload, mediaType)
+    return src ? { type: 'media', mediaType, src } : textNode(raw)
+  }
   const styles = new Set(['del', 'under', 'red', 'hide', 'sup', 'sub', 'center', 'right'])
   if (styles.has(kind) && payload) {
     return {
@@ -161,12 +185,6 @@ function parseSquare(body: string, raw: string, depth: number): MarkupNode {
   }
   if (kind === 'anno')
     return { type: 'annotation', note: first, children: parseNodes(second, depth + 1) }
-  if (kind === 'illu') {
-    const path = illustrationPath(first)
-    return path
-      ? { type: 'illustration', path, children: parseNodes(second, depth + 1) }
-      : textNode(raw)
-  }
   if (kind === 'frac' || kind === 'arrow')
     return {
       type: 'stack',
@@ -234,7 +252,7 @@ const quizSafeStyles = new Set<Extract<MarkupNode, { type: 'style' }>['style']>(
 
 /**
  * Reduce the shared record AST to the non-interactive subset that is safe in a quiz prompt.
- * Sensitive identifiers, annotation notes and illustration paths never enter the returned tree,
+ * Sensitive identifiers, annotation notes and media paths never enter the returned tree,
  * so they cannot leak through links, attributes, portals, copied hidden nodes or accessibility text.
  */
 export type QuizMarkupRedaction = {
@@ -266,8 +284,8 @@ function quizSafeNodes(
         return [{ type: 'blank', answer: redaction.label }]
       return quizSafeNodes(node.children, redaction)
     }
-    if (node.type === 'annotation' || node.type === 'illustration')
-      return quizSafeNodes(node.children, redaction)
+    if (node.type === 'annotation') return quizSafeNodes(node.children, redaction)
+    if (node.type === 'media' || node.type === 'latex') return []
     if (node.type === 'stack')
       return [
         {
@@ -305,13 +323,9 @@ function nodesToText(nodes: MarkupNode[]): string {
   return nodes
     .map((node) => {
       if (node.type === 'text') return node.value
-      if (
-        node.type === 'style' ||
-        node.type === 'reference' ||
-        node.type === 'annotation' ||
-        node.type === 'illustration'
-      )
+      if (node.type === 'style' || node.type === 'reference' || node.type === 'annotation')
         return nodesToText(node.children)
+      if (node.type === 'media' || node.type === 'latex') return ''
       if (node.type === 'stack') return `${nodesToText(node.top)} ${nodesToText(node.bottom)}`
       return node.rows.flat().map(nodesToText).join(' ')
     })
@@ -347,9 +361,8 @@ export function extractMarkupReferences(value: unknown) {
         }
         if (node.kind === 'material') materials.add(node.id)
         visit(node.children)
-      } else if (node.type === 'illustration') {
-        illustrations.add(node.path)
-        visit(node.children)
+      } else if (node.type === 'media') {
+        if (node.mediaType === 'image') illustrations.add(node.src)
       } else if (node.type === 'style' || node.type === 'annotation') visit(node.children)
       else if (node.type === 'stack') {
         visit(node.top)

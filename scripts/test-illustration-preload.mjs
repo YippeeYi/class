@@ -11,8 +11,8 @@ const app = await readFrontend('src/app.tsx')
 const recordsPage = await readFrontend('src/pages/records-page.tsx')
 const writtenRecordPages = await readFrontend('src/features/records/written-record-pages.tsx')
 const mapPage = await readFrontend('src/pages/meal-map-page.tsx')
-const valid = markup.extractMarkupReferences('查看 [[illu:photo.webp|这张图片]]。')
-const invalid = markup.extractMarkupReferences('拒绝 [[illu:../secret.png|越界图片]]。')
+const valid = markup.extractMarkupReferences('查看 [[illu:photo.webp]]。')
+const invalid = markup.extractMarkupReferences('拒绝 [[illu:../secret.png]]。')
 assert.deepEqual(valid.illustrationPaths, ['data/attachments/photo.webp'])
 assert.deepEqual(invalid.illustrationPaths, [])
 
@@ -59,53 +59,14 @@ assert.deepEqual(imageMetadata.parseImageDimensions(svg, 'image/svg+xml'), {
   height: 768,
 })
 
-assert.match(component, /IllustrationReference/, 'illustrations need an isolated interactive component')
-assert.match(component, /ImageViewer/, 'illustrations must be opened with the shared image viewer')
-assert.match(component, /requested && dimensions \? path : ''/, 'illustration previews must load only after interaction')
-assert.match(
-  component,
-  /onPointerEnter=\{\(event\) => \{[\s\S]*requestPreview\(\)[\s\S]*rememberPointerPosition\(event\)/,
-  'pointer hover must start image loading and capture its exact horizontal anchor',
-)
-assert.match(
-  component,
-  /pointerClientX\.current = event\.clientX/,
-  'pointer anchoring must preserve the exact viewport clientX without rendering on pointer movement',
-)
-assert.match(
-  component,
-  /openRef\.current\) return[\s\S]*pointerClientX\.current = event\.clientX/,
-  'pointer movement must stop changing the anchor as soon as the preview opens',
-)
-const illustrationSource = component.slice(component.indexOf('function IllustrationReference'))
-const pointerCaptureSource = illustrationSource.slice(
-  illustrationSource.indexOf('const rememberPointerPosition'),
-  illustrationSource.indexOf('const showAtLockedPointer'),
-)
-assert.doesNotMatch(pointerCaptureSource, /set[A-Z]/, 'pointer movement must not issue React state updates')
-assert.match(component, /onFocus=\{\(event\) => \{[\s\S]*requestPreview\(\)/, 'keyboard focus must start image loading early')
-assert.match(component, /useImageDimensions\(path, requested, 720\)/, 'decoded preview geometry must be reused only after interaction')
-assert.match(component, /lockedDimensions/, 'an open tooltip must keep one immutable frame size')
-assert.match(
-  component,
-  /setLockedAlignOffset\([\s\S]*pointerX - \(bounds\.left \+ bounds\.width \/ 2\)/,
-  'the first popup center must be offset from the trigger center to the captured pointer clientX',
-)
-assert.match(component, /preloadImageDimensions\(path, 720\)/, 'preview metadata must be ready before opening')
-assert.match(component, /<HoverCard open={open}/, 'metadata-gated hover cards must be controlled')
-assert.match(
-  component,
-  /alignOffset={lockedAlignOffset}/,
-  'the pointer-derived horizontal offset must remain immutable for one open cycle',
-)
-assert.doesNotMatch(
-  component,
-  /transition-\[width,height\]/,
-  'loading and decoded tooltip frames must never animate between sizes',
-)
-assert.match(component, /Math\.min\(360, window\.innerWidth/, 'preview width must follow the baseline limit')
-assert.match(component, /Math\.min\(280, window\.innerHeight/, 'preview height must follow the baseline limit')
-assert.doesNotMatch(component, /<img[^>]+data-secure-src/, 'signed paths must not be persisted in markup')
+assert.match(component, /normalizeMarkup\(parseMarkup\(content\)\)/, 'records use the shared parse/layout pipeline')
+const mediaRenderer = await readFrontend('src/components/archive/media-renderer.tsx')
+assert.match(mediaRenderer, /ImageViewer/, 'images reuse the shared full-size viewer')
+assert.match(mediaRenderer, /useImageDimensions\(src, visible, 720\)/, 'visible thumbnails share the metadata cache')
+assert.match(mediaRenderer, /variant: 'preview'/, 'thumbnails use transformed assets')
+assert.match(mediaRenderer, /IntersectionObserver/, 'offscreen media loading is deferred')
+assert.match(mediaRenderer, /preload="metadata"/, 'video only preloads metadata')
+assert.match(mediaRenderer, /controls/, 'video uses native controls')
 assert.match(service, /Range: `bytes=0-\$\{METADATA_RANGE_BYTES - 1\}`/, 'metadata should use a bounded Range request')
 assert.match(service, /image-dimensions:/, 'intrinsic geometry needs an access-scoped persistent cache')
 assert.match(service, /30 \* 24 \* 60 \* 60 \* 1000/, 'dimension metadata should remain fresh for 30 days')

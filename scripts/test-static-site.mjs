@@ -213,8 +213,8 @@ assert.doesNotMatch(
 )
 assert.match(
   markupContent,
-  /<HoverCardTrigger\s+delay=\{0\}/,
-  'illustration references must opt out of the hover-card opening delay',
+  /<MediaRenderer/,
+  'record media must render through the shared media component',
 )
 assert.match(shell, /viewportLockedPaths/, 'workspace routes must share one viewport-lock contract')
 for (const route of ['/materials', '/quiz', '/map']) {
@@ -567,17 +567,16 @@ assert.doesNotMatch(scrollLock, /scrollbarGutter\s*=\s*'stable'/, 'fullscreen ov
 assert.doesNotMatch(writtenRecordPages, /PrivacyMask|privacyMasks/, 'written pages must not render the retired mask system')
 assert.doesNotMatch(imageViewer, /PrivacyMask|privacyMasks/, 'large images must not render the retired mask system')
 assert.match(markupContent, /className="record-stack-line"/, 'stack rules must be rendered independently from their labels')
-assert.match(markupContent, /align="center"[\s\S]*alignOffset=\{lockedAlignOffset\}/, 'illustration previews must center on one locked pointer anchor')
-assert.match(markupContent, /pointerX - \(bounds\.left \+ bounds\.width \/ 2\)/, 'illustration pointer alignment must use the trigger center delta')
+assert.match(markupContent, /align="center"[\s\S]*alignOffset=\{lockedAlignOffset\}/, 'annotations retain one locked pointer anchor')
+assert.match(markupContent, /pointerX - \(bounds\.left \+ bounds\.width \/ 2\)/, 'annotation pointer alignment uses the trigger center delta')
 assert.match(markupContent, /decoration-dotted/, 'annotation text must remain visibly discoverable')
 assert.match(markupContent, /record-annotation-popup/, 'annotation content needs an isolated collision-aware popup surface')
 assert.match(markupContent, /function Annotation[\s\S]*alignOffset=\{lockedAlignOffset\}/, 'annotations must lock one pointer-centered horizontal anchor per open lifecycle')
 assert.doesNotMatch(markupContent, /setLockedAlignOffset\(0\)/, 'closing a hover card must not reset its position before the exit animation finishes')
-assert.doesNotMatch(markupContent, /setLockedDimensions\(null\)/, 'illustration exit animation must retain its measured frame')
 assert.equal(
   (markupContent.match(/useDismissOnVerticalScroll\(open, triggerRef/g) || []).length,
-  2,
-  'annotation and illustration surfaces must share the vertical-scroll dismissal contract',
+  1,
+  'annotation popups dismiss on vertical scroll',
 )
 assert.match(
   dismissOnScroll,

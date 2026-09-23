@@ -48,8 +48,8 @@ export const markupLayoutHarness = String.raw`<!doctype html>
       const stackContent = '正文甲 [[frac:中英文Mixed numerator 123|较长的中文分母文本]] 正文乙 [[arrow:reaction condition 温度 120°C|催化剂与补充条件]] 正文丙'
       const annotationContent = '[[anno:短注|短注触发]]　[[anno:这是一段会自动限制最大宽度并自然换行的长注释，包含 [[person:p01|人物标记]]、[[frac:分子文字|denominator]] 和连续英文 SUPERCALIFRAGILISTICEXPIALIDOCIOUSWITHOUTBREAKS。|长注触发]]'
       const annotationEdgeContent = '[[anno:靠近视口边缘时仍需保持完整可见的注释内容。|边缘注释]]'
-      const illustrationContent = '插图位置测试：[[illu:position-test.png|从这里查看插图]]。'
-      const illustrationEdgeContent = '[[illu:position-edge.png|边界插图测试]]'
+      const illustrationContent = '插图位置测试：[[illu:position-test.png]]。'
+      const illustrationEdgeContent = '[[illu:position-edge.png]]'
 
       const access = { type: 'invite', token: 'layout-test-token', authorizedAt: 'layout-test' }
       localStorage.setItem('classRecord:inviteAccess', JSON.stringify(access))
@@ -358,6 +358,8 @@ export const markupLayoutHarness = String.raw`<!doctype html>
                 e(Case, { id: 'nested-redaction', width: '52rem', content: '黑幕嵌套：[[hide:前 [[person:p01|人物标记]] [[under:[[quote:q01|嵌套名言]]]] 后]]' }),
                 e(Case, { id: 'illustration', width: '52rem', content: illustrationContent }),
                 e(Case, { id: 'illustration-edge', width: '52rem', content: illustrationEdgeContent, align: 'right' }),
+                e(Case, { id: 'media-formula', width: '52rem', content: '前[[latex:E=mc^2]]中[[illu:position-test.png]]后[[video:sample.mp4]]继续[[latex:\\ce{H2O}]]' }),
+                e(Case, { id: 'formula-error', width: '52rem', content: '前[[latex:\\notARealCommand{]]后' }),
                 e(DailyGrid, { id: 'narrow', width: '18rem', columns: 4 }),
                 e(DailyGrid, { id: 'medium', width: '38rem', columns: 7 }),
                 e(DailyGrid, { id: 'wide', width: '52rem', columns: 10 }),

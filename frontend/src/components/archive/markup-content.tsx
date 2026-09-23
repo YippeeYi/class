@@ -1,24 +1,22 @@
 import {
   type CSSProperties,
   Fragment,
+  lazy,
   type ReactNode,
   type PointerEvent as ReactPointerEvent,
-  useEffect,
+  Suspense,
   useMemo,
   useRef,
   useState,
 } from 'react'
 import { Link, useNavigate } from 'react-router'
 
-import { ImageViewer } from '@/components/archive/image-viewer'
+import { MediaRenderer } from '@/components/archive/media-renderer'
 import { Button } from '@/components/ui/button'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
-import { Spinner } from '@/components/ui/spinner'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { useContentPreferences } from '@/features/preferences/content-preferences'
 import { useDismissOnVerticalScroll } from '@/hooks/use-dismiss-on-vertical-scroll'
-import { useSignedAsset } from '@/hooks/use-signed-asset'
-import type { ImageDimensions } from '@/lib/image-metadata'
 import {
   type MarkupNode,
   parseMarkup,
@@ -26,26 +24,15 @@ import {
   type QuizMarkupNode,
   recordAnchor,
 } from '@/lib/markup'
+import { normalizeMarkup } from '@/lib/markup-layout'
 import { filterProfanity } from '@/lib/profanity'
 import { isModifiedRecordClick, prepareRecordJump, recordClientHref } from '@/lib/record-navigation'
-import {
-  getImageDimensions,
-  preloadImageDimensions,
-  rememberImageDimensions,
-  useImageDimensions,
-} from '@/services/image-metadata'
 
-function previewFrame(dimensions: ImageDimensions | null) {
-  const maxWidth = Math.max(1, Math.min(360, window.innerWidth - 40))
-  const maxHeight = Math.max(1, Math.min(280, window.innerHeight - 40))
-  if (!dimensions) return null
-
-  const scale = Math.min(1, maxWidth / dimensions.width, maxHeight / dimensions.height)
-  return {
-    width: Math.max(1, Math.round(dimensions.width * scale)),
-    height: Math.max(1, Math.round(dimensions.height * scale)),
-  }
-}
+const LatexRenderer = lazy(() =>
+  import('@/components/archive/latex-renderer').then(({ LatexRenderer }) => ({
+    default: LatexRenderer,
+  })),
+)
 
 function pointerMoved(
   previous: { x: number; y: number } | null,
@@ -154,222 +141,10 @@ function Annotation({ note, children }: { note: string; children: ReactNode }) {
         align="center"
         alignOffset={lockedAlignOffset}
         sideOffset={6}
-        className="record-annotation-popup block w-max max-w-[min(22rem,calc(100vw-1rem))] px-3 py-2 text-left text-sm leading-6"
+        className="record-annotation-popup block w-max px-3 py-2 text-left text-sm leading-6"
+        style={{ maxWidth: 'min(22rem, calc(100vw - 3rem))', minWidth: 0 }}
       >
         <MarkupContent content={note} className="annotation-content" interactionMode="references" />
-      </HoverCardContent>
-    </HoverCard>
-  )
-}
-
-function IllustrationReference({ path, children }: { path: string; children: ReactNode }) {
-  const [requested, setRequested] = useState(false)
-  const dimensions = useImageDimensions(path, requested, 720)
-  const [lockedDimensions, setLockedDimensions] = useState<ImageDimensions | null>(null)
-  const [open, setOpen] = useState(false)
-  const [ready, setReady] = useState(false)
-  const [decodeFailed, setDecodeFailed] = useState(false)
-  const [decodeAttempt, setDecodeAttempt] = useState(0)
-  const [dimensionsFailed, setDimensionsFailed] = useState(false)
-  const [lockedAlignOffset, setLockedAlignOffset] = useState(0)
-  const triggerRef = useRef<HTMLButtonElement | null>(null)
-  const pointerClientX = useRef<number | null>(null)
-  const lastPointerPosition = useRef<{ x: number; y: number } | null>(null)
-  const openRef = useRef(false)
-  const openRequest = useRef(0)
-  const dismissedByScroll = useRef(false)
-  const preview = useSignedAsset(requested && dimensions ? path : '', {
-    variant: 'preview',
-    width: 720,
-  })
-  const frame = previewFrame(lockedDimensions || dimensions)
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: An explicit retry must decode again even when the cached signed URL is unchanged.
-  useEffect(() => {
-    if (!preview.src) return
-    let active = true
-    setReady(false)
-    setDecodeFailed(false)
-    const image = new Image()
-    image.decoding = 'async'
-    image.fetchPriority = 'high'
-    const timer = window.setTimeout(() => {
-      image.onload = image.onerror = null
-      if (active) setDecodeFailed(true)
-    }, 12000)
-    image.onload = () => {
-      if (!active || !image.naturalWidth || !image.naturalHeight) return
-      window.clearTimeout(timer)
-      const next = { width: image.naturalWidth, height: image.naturalHeight }
-      rememberImageDimensions(path, next)
-      setReady(true)
-    }
-    image.onerror = () => {
-      window.clearTimeout(timer)
-      if (active) setDecodeFailed(true)
-    }
-    image.src = preview.src
-    return () => {
-      active = false
-      window.clearTimeout(timer)
-      image.onload = image.onerror = null
-    }
-  }, [path, preview.src, decodeAttempt])
-
-  useEffect(
-    () => () => {
-      openRequest.current += 1
-      openRef.current = false
-    },
-    [],
-  )
-
-  const requestPreview = () => {
-    setRequested(true)
-    void preloadImageDimensions(path, 720)
-  }
-  const rememberPointerPosition = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const previousPointer = lastPointerPosition.current
-    const moved = pointerMoved(previousPointer, event)
-    const resumedAfterScroll = dismissedByScroll.current && moved
-    if (moved) dismissedByScroll.current = false
-    lastPointerPosition.current = { x: event.clientX, y: event.clientY }
-    if (event.pointerType === 'touch' || openRef.current) return
-    pointerClientX.current = event.clientX
-    if (resumedAfterScroll) changeOpen(true)
-  }
-  const showAtLockedPointer = (nextDimensions: ImageDimensions | null) => {
-    const bounds = triggerRef.current?.getBoundingClientRect()
-    const pointerX = pointerClientX.current
-    setLockedAlignOffset(
-      bounds && pointerX !== null ? pointerX - (bounds.left + bounds.width / 2) : 0,
-    )
-    setLockedDimensions(nextDimensions)
-    openRef.current = true
-    setOpen(true)
-  }
-  const changeOpen = (nextOpen: boolean) => {
-    if (!nextOpen) {
-      openRequest.current += 1
-      openRef.current = false
-      setOpen(false)
-      return
-    }
-    if (dismissedByScroll.current) return
-    requestPreview()
-    const request = ++openRequest.current
-    const known = getImageDimensions(path) || dimensions
-    setDimensionsFailed(false)
-    showAtLockedPointer(known)
-    if (known) return
-    void preloadImageDimensions(path, 720).then((loaded) => {
-      if (request !== openRequest.current || !openRef.current) return
-      setDimensionsFailed(!loaded)
-      setLockedDimensions(loaded)
-    })
-  }
-
-  useDismissOnVerticalScroll(open, triggerRef, () => {
-    dismissedByScroll.current = true
-    changeOpen(false)
-  })
-  return (
-    <HoverCard open={open} onOpenChange={changeOpen}>
-      <HoverCardTrigger
-        delay={0}
-        render={
-          <span className="inline">
-            <ImageViewer
-              path={path}
-              alt="记录插图"
-              initialUrl={preview.src}
-              initialDimensions={lockedDimensions || dimensions}
-              trigger={
-                <Button
-                  ref={triggerRef}
-                  type="button"
-                  variant="link"
-                  size="xs"
-                  className="markup-link illustration-link inline h-auto min-h-0 whitespace-normal rounded-none border-0 px-0 py-0 align-baseline text-[1em] leading-[inherit] font-[inherit] select-text focus-visible:border-transparent"
-                  onPointerEnter={(event) => {
-                    requestPreview()
-                    rememberPointerPosition(event)
-                  }}
-                  onPointerMove={rememberPointerPosition}
-                  onPointerDown={(event) => {
-                    dismissedByScroll.current = false
-                    if (event.pointerType === 'touch') pointerClientX.current = null
-                  }}
-                  onFocus={(event) => {
-                    if (event.currentTarget.matches(':focus-visible')) {
-                      dismissedByScroll.current = false
-                      pointerClientX.current = null
-                    }
-                    requestPreview()
-                  }}
-                  onTouchStart={requestPreview}
-                >
-                  {children}
-                </Button>
-              }
-            />
-          </span>
-        }
-      />
-      <HoverCardContent
-        side="top"
-        align="center"
-        alignOffset={lockedAlignOffset}
-        className="record-illustration-popup w-auto max-w-[calc(100vw-1rem)] p-2"
-      >
-        {!frame ? (
-          <span
-            className="flex items-center gap-2 px-1 text-xs text-muted-foreground"
-            role="status"
-          >
-            {dimensionsFailed ? (
-              '无法获取图片尺寸，请稍后重试'
-            ) : (
-              <>
-                <Spinner className="size-4" aria-hidden="true" />
-                图片加载中
-              </>
-            )}
-          </span>
-        ) : (
-          <div
-            data-illustration-frame
-            className="grid place-items-center overflow-hidden rounded-md bg-muted/55"
-            style={{ width: frame.width, height: frame.height }}
-          >
-            {(preview.loading || (preview.src && !ready && !decodeFailed)) && (
-              <Spinner className="size-6" />
-            )}
-            {(preview.error || decodeFailed) && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setDecodeFailed(false)
-                  setDecodeAttempt((attempt) => attempt + 1)
-                  void preview.retry()
-                }}
-              >
-                图片加载失败，重试
-              </Button>
-            )}
-            {preview.src && ready && (
-              <img
-                src={preview.src}
-                alt="记录插图预览"
-                width={lockedDimensions?.width || dimensions?.width}
-                height={lockedDimensions?.height || dimensions?.height}
-                decoding="async"
-                className="size-full object-contain motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow)"
-              />
-            )}
-          </div>
-        )}
       </HoverCardContent>
     </HoverCard>
   )
@@ -382,13 +157,9 @@ function markupNodesText(nodes: readonly GeometryMarkupNode[]): string {
     .map((node) => {
       if (node.type === 'text') return node.value
       if (node.type === 'blank') return node.answer
-      if (
-        node.type === 'style' ||
-        node.type === 'reference' ||
-        node.type === 'annotation' ||
-        node.type === 'illustration'
-      )
+      if (node.type === 'style' || node.type === 'reference' || node.type === 'annotation')
         return markupNodesText(node.children)
+      if (node.type === 'media' || node.type === 'latex') return ''
       if (node.type === 'stack')
         return `${markupNodesText(node.top)} ${markupNodesText(node.bottom)}`
       return node.rows.flat().map(markupNodesText).join(' ')
@@ -589,7 +360,7 @@ export function MarkupContent({
   onRecordReference?: (recordId: string, source: HTMLElement) => void
   interactionMode?: 'full' | 'references' | 'plain'
 }) {
-  const tree = useMemo(() => parseMarkup(content), [content])
+  const layout = useMemo(() => normalizeMarkup(parseMarkup(content)), [content])
   const navigate = useNavigate()
   const { hideProfanity } = useContentPreferences()
 
@@ -666,16 +437,16 @@ export function MarkupContent({
             </Annotation>
           )
         }
-      if (node.type === 'illustration')
-        if (interactionMode !== 'full') {
-          return <Fragment key={key}>{renderNodes(node.children, key)}</Fragment>
-        } else {
-          return (
-            <IllustrationReference key={`${key}:${node.path}`} path={node.path}>
-              {renderNodes(node.children, key)}
-            </IllustrationReference>
-          )
-        }
+      if (node.type === 'media') return <MediaRenderer key={`${key}:${node.src}`} node={node} />
+      if (node.type === 'latex')
+        return (
+          <Suspense
+            key={`${key}:${node.source}`}
+            fallback={<span className="record-latex">{node.source}</span>}
+          >
+            <LatexRenderer source={node.source} />
+          </Suspense>
+        )
       if (node.type === 'stack')
         return (
           <span key={key} className={`record-stack record-stack--${node.kind}`}>
@@ -733,7 +504,24 @@ export function MarkupContent({
       )
     })
 
-  return <div className={`record-markup ${className}`}>{renderNodes(tree, 'root')}</div>
+  return (
+    <div className={`record-markup ${className}`}>
+      {layout.map((part) =>
+        part.type === 'inline' ? (
+          <span className="record-markup-run" key={part.key}>
+            {renderNodes(part.nodes, part.key)}
+          </span>
+        ) : (
+          <div
+            className={`record-markup-block ${part.styles?.map((style) => `record-${style === 'hide' ? 'redacted' : style === 'under' ? 'underline' : style}`).join(' ') || ''}`}
+            key={part.key}
+          >
+            {renderNodes([part.node], part.key)}
+          </div>
+        ),
+      )}
+    </div>
+  )
 }
 
 type QuizCorrection = { wrongText: string; correctText: string }
