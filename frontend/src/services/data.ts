@@ -85,36 +85,32 @@ export function loadRecords({ hidden = false, force = false } = {}) {
     loader: async () => {
       let query = currentClient()
         .from(supabaseConfig.tables.records)
-        .select('*')
+        .select(
+          'record_id,file_name,record_index,record_date,record_time,author,content,importance,hidden,attachments,image_path,annotation:raw->annotation',
+        )
         .order('record_index', { ascending: true })
       query = query.eq('hidden', hidden)
       const { data, error } = await query
       if (error) throw error
       return ((data || []) as Row[])
         .map((row, index) => {
-          const raw = objectValue(row.raw)
-          const fileName = text(row.file_name || raw.fileName || raw.id || `record-${index + 1}`)
-          const content = text(row.content || raw.text || raw.content)
-          const attachments = Array.isArray(row.attachments)
-            ? row.attachments
-            : Array.isArray(raw.attachments)
-              ? raw.attachments
-              : []
+          const fileName = text(row.file_name || `record-${index + 1}`)
+          const attachments = Array.isArray(row.attachments) ? row.attachments : []
           return {
-            id: text(row.record_id || raw.id || fileName),
+            id: text(row.record_id || fileName),
             fileName,
-            recordIndex: Number(row.record_index ?? raw.recordIndex ?? index + 1),
-            date: text(row.record_date || raw.date),
-            time: text(row.record_time || raw.time),
-            author: text(row.author || raw.author || raw.recorder),
-            content,
-            annotation: recordAnnotation(raw.annotation),
-            importance: text(row.importance || raw.importance),
+            recordIndex: Number(row.record_index ?? index + 1),
+            date: text(row.record_date),
+            time: text(row.record_time),
+            author: text(row.author),
+            content: text(row.content),
+            annotation: recordAnnotation(row.annotation),
+            importance: text(row.importance),
             attachments: attachments.filter((item): item is { file: string; name?: string } => {
               return Boolean(item && typeof item === 'object' && text((item as Row).file))
             }),
-            hidden: bool(row.hidden ?? raw.hidden),
-            imagePath: text(row.image_path || raw.imagePath || raw.image || raw.pageImage),
+            hidden: bool(row.hidden),
+            imagePath: text(row.image_path),
           } satisfies RecordItem
         })
         .filter((item) => item.hidden === hidden)
@@ -128,23 +124,20 @@ export function loadPeople(force = false) {
     async () => {
       const { data, error } = await currentClient()
         .from(supabaseConfig.tables.people)
-        .select('*')
+        .select('id,name,aliases,alias,role,subject,main,bio,avatar_url')
         .order('id', { ascending: true })
       if (error) throw error
-      return ((data || []) as Row[]).map((row, index) => {
-        const raw = objectValue(row.raw)
-        return {
-          id: text(row.person_id || raw.id || raw.name || `person-${index + 1}`),
-          name: text(row.name || raw.name || raw.displayName || raw.display_name),
-          aliases: stringList(row.aliases || raw.aliases),
-          alias: text(row.alias || raw.alias),
-          role: text(row.role || raw.role || 'student'),
-          subject: text(row.subject ?? raw.subject),
-          main: row.main === true || raw.main === true,
-          bio: text(row.bio || raw.bio),
-          avatarUrl: text(row.avatar_url || raw.avatarUrl || raw.avatar),
-        }
-      }) as Person[]
+      return ((data || []) as Row[]).map((row, index) => ({
+        id: text(row.id || `person-${index + 1}`),
+        name: text(row.name),
+        aliases: stringList(row.aliases),
+        alias: text(row.alias),
+        role: text(row.role || 'student'),
+        subject: text(row.subject),
+        main: row.main === true,
+        bio: text(row.bio),
+        avatarUrl: text(row.avatar_url),
+      })) as Person[]
     },
     force,
   )
@@ -177,18 +170,18 @@ export function loadMaterials(force = false) {
     async () => {
       const { data, error } = await currentClient()
         .from(supabaseConfig.tables.materials)
-        .select('*')
+        .select('material_id,title,content')
         .order('sort_order', { ascending: true })
       if (error) throw error
       return ((data || []) as Row[])
-        .map((row, index) => {
-          const raw = objectValue(row.raw)
-          return {
-            id: text(row.material_id || raw.id || `material-${index + 1}`),
-            title: text(row.title || raw.title || raw.name),
-            content: text(row.content || raw.content || raw.description),
-          } as Material
-        })
+        .map(
+          (row, index) =>
+            ({
+              id: text(row.material_id || `material-${index + 1}`),
+              title: text(row.title),
+              content: text(row.content),
+            }) as Material,
+        )
         .filter((item) => item.id && item.title)
     },
     force,
@@ -204,7 +197,9 @@ export function loadQuizQuestions(force = false) {
     loader: async () => {
       const { data, error } = await currentClient()
         .from(supabaseConfig.tables.quizQuestions)
-        .select('*')
+        .select(
+          'id,content_key,question_group,question_type,prompt,choices,answer,explanation,image_path,raw',
+        )
         .order('sort_order', { ascending: true })
       if (error) throw error
       return ((data || []) as Row[]).map((row, index) => {
@@ -243,17 +238,16 @@ export function loadRecordPages() {
     loader: async () => {
       const { data, error } = await currentClient()
         .from(supabaseConfig.tables.recordPages)
-        .select('*')
+        .select('page,start_file,end_file,image_path,hidden')
         .order('sort_order', { ascending: true })
       if (error) throw error
       return ((data || []) as Row[]).map((row, index) => {
-        const raw = objectValue(row.raw)
         return {
-          page: text(row.page ?? raw.page ?? index + 1),
-          startFile: text(row.start_file || raw.startFile || raw.start),
-          endFile: text(row.end_file || raw.endFile || raw.end),
-          imagePath: normalizePrivatePath(row.image_path || raw.imagePath || raw.image),
-          hidden: bool(row.hidden ?? raw.hidden),
+          page: text(row.page ?? index + 1),
+          startFile: text(row.start_file),
+          endFile: text(row.end_file),
+          imagePath: normalizePrivatePath(row.image_path),
+          hidden: bool(row.hidden),
         } as RecordPage
       })
     },
@@ -269,21 +263,21 @@ export function loadPageMessages({ force = false, hidden = false } = {}) {
     loader: async () => {
       const { data, error } = await currentClient()
         .from(supabaseConfig.tables.pageMessages)
-        .select('*')
+        .select('page,hidden,content,author,annotation:raw->annotation')
         .eq('hidden', hidden)
         .order('page', { ascending: true })
       if (error) throw error
       return ((data || []) as Row[])
-        .map((row) => {
-          const raw = objectValue(row.raw)
-          return {
-            page: text(row.page),
-            hidden: bool(row.hidden),
-            content: text(row.content || raw.content || raw.text),
-            author: text(row.author || raw.author || raw.recorder),
-            annotation: recordAnnotation(raw.annotation),
-          } as PageMessage
-        })
+        .map(
+          (row) =>
+            ({
+              page: text(row.page),
+              hidden: bool(row.hidden),
+              content: text(row.content),
+              author: text(row.author),
+              annotation: recordAnnotation(row.annotation),
+            }) as PageMessage,
+        )
         .filter((item) => item.page && item.content)
     },
   })
@@ -298,7 +292,7 @@ export function loadPageSupplements({ force = false, hidden = false } = {}) {
     loader: async () => {
       const { data, error } = await currentClient()
         .from(supabaseConfig.tables.pageSupplements)
-        .select('*')
+        .select('file_name,page,supplement_index,author,content,hidden,raw')
         .eq('hidden', hidden)
         .order('sort_order', { ascending: true })
       if (error) throw error
@@ -381,7 +375,7 @@ export function loadCredits(force = false) {
     async () => {
       const { data, error } = await currentClient()
         .from(supabaseConfig.tables.creditsPage)
-        .select('*')
+        .select('id,title,sections,thanks,original_images,updated_at,raw')
         .eq('id', 'main')
         .limit(1)
         .maybeSingle()

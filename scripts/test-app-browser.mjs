@@ -18,12 +18,12 @@ const waitQbContent = async (page) => {
 }
 
 const annotation = '普通注解 [[person:p1|人物一]] [[author:p2|额外记录人]] [[record:r2|跳转记录]] [[material:m1|查看资料]] [[anno:嵌套 [[red:说明]]|注解提示]] [[illu:test.png|注解插图]] [[frac:[[sup:2]]|3]] [[arrow:加热|催化]] [[table:2x2|甲|乙|[[under:丙]]|[[del:丁]]]] [[hide:黑幕]] [[center:居中]] [[right:右对齐]]'
-const row = (id, hidden, raw = {}) => ({ record_id: id, file_name: `${id}.json`, record_index: Number(id.slice(1)), record_date: '2025-01-01', record_time: '', author: 'p1', content: `正文 ${id} [[person:p1|人物一]] [[quote:q${id}|原话${id}]]`, hidden, attachments: [], importance: 'normal', raw })
-const records = [row('r1', false, { annotation }), row('r2', false), row('r3', true, { annotation: '   ' })]
-const people = ['p1', 'p2', 'p3', 'p4'].map((id) => ({ id, person_id: id, name: id === 'p1' ? '人物一' : `人物${id}`, aliases: [], alias: '', role: 'student', subject: '', main: false, bio: '人物简介', avatar_url: '', raw: {} }))
+const row = (id, hidden, annotation = null) => ({ record_id: id, file_name: `${id}.json`, record_index: Number(id.slice(1)), record_date: '2025-01-01', record_time: '', author: 'p1', content: `正文 ${id} [[person:p1|人物一]] [[quote:q${id}|原话${id}]]`, hidden, attachments: [], importance: 'normal', annotation })
+const records = [row('r1', false, annotation), row('r2', false), row('r3', true, '   ')]
+const people = ['p1', 'p2', 'p3', 'p4'].map((id) => ({ id, name: id === 'p1' ? '人物一' : `人物${id}`, aliases: [], alias: '', role: 'student', subject: '', main: false, bio: '人物简介', avatar_url: '' }))
 const tables = {
   class_people: people,
-  class_page_messages: [{ page: '01', hidden: false, content: '箴言正文', author: 'p1', raw: { annotation: '箴言注解 [[red:[[under:嵌套文字]]]]' } }],
+  class_page_messages: [{ page: '01', hidden: false, content: '箴言正文', author: 'p1', annotation: '箴言注解 [[red:[[under:嵌套文字]]]]' }],
   class_page_supplements: [{ page: '01', hidden: false, file_name: '01-01.json', supplement_index: 1, content: '补充正文', author: 'p1', raw: { annotation: `补充注解 ${'长注解。'.repeat(800)}` } }],
   class_materials: [{ id: 'm1', material_id: 'm1', title: '测试资料', content: '资料正文 [[record:r1|来源记录]]', raw: {} }],
   class_record_pages: [{ page: '01', start_file: 'r1.json', end_file: 'r3.json', image_path: 'images/record-pages/01.jpeg', hidden: false, sort_order: 0, raw: {} }],
@@ -31,7 +31,7 @@ const tables = {
   class_credits_page: { id: 'main', title: '致谢', sections: [], thanks: ['感谢记录者'], original_images: [], raw: {} },
   class_private_assets: { width: 800, height: 600 },
 }
-tables.class_page_messages.push({ page: '02', hidden: true, content: '隐藏箴言', author: 'p1', raw: { annotation: '隐藏箴言注解' } })
+tables.class_page_messages.push({ page: '02', hidden: true, content: '隐藏箴言', author: 'p1', annotation: '隐藏箴言注解' })
 tables.class_page_supplements.push({ page: '02', hidden: true, file_name: '02-01.json', supplement_index: 1, content: '隐藏补充', author: 'p1', raw: { annotation: '隐藏补充注解' } })
 const config = { configFile: path.join(frontend, 'vite.config.ts'), root: frontend, server: { port: 0, host: '127.0.0.1' }, preview: { port: 0, host: '127.0.0.1' }, logLevel: 'error' }
 const vite = process.env.CLASS_RECORD_PREVIEW ? await preview(config) : await createServer(config)
@@ -79,6 +79,10 @@ async function contextFor({ admin = false, mobile = false, authenticated = true 
       return route.fulfill({ status: 200, headers: { ...headers, 'content-type': 'image/svg+xml' }, body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="#779999"/></svg>' })
     }
     const table = url.pathname.split('/').at(-1)
+    if (['class_records', 'class_people', 'class_materials', 'class_record_pages', 'class_page_messages'].includes(table)) {
+      const selected = url.searchParams.get('select') || ''
+      assert.ok(selected && selected !== '*' && !selected.split(',').includes('raw'), `${table} must request only rendered fields`)
+    }
     if (businessDelay && table?.startsWith('class_')) await new Promise((resolve) => setTimeout(resolve, businessDelay))
     if (table === 'class_records') return respond(records.filter((r) => r.hidden === (url.searchParams.get('hidden') === 'eq.true') && (!r.hidden || admin)))
     if ((table === 'class_record_pages' || table === 'class_quiz_questions') && !admin) return respond([])
