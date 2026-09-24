@@ -81,7 +81,7 @@ function openDatabase(): Promise<IDBDatabase | null> {
       if (database) database.onversionchange = () => database.close()
       resolve(database)
     }
-    const timeout = setTimeout(() => finish(null), 1500)
+    const timeout = setTimeout(() => finish(null), 5000)
     try {
       const request = indexedDB.open(DATABASE_NAME, 1)
       request.onupgradeneeded = () => {

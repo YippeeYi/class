@@ -723,12 +723,16 @@ try {
       })
       if (!database) return false
       const stored = await new Promise((resolve) => {
-        const request = database.transaction('entries', 'readonly').objectStore('entries').getAllKeys()
-        request.onsuccess = () => resolve(new Set(request.result))
-        request.onerror = () => resolve(new Set())
+        const request = database.transaction('entries', 'readonly').objectStore('entries').getAll()
+        request.onsuccess = () => resolve(new Map(request.result.map((entry) => [entry.key, entry])))
+        request.onerror = () => resolve(new Map())
       })
       database.close()
-      return keys.every((key) => stored.has(key))
+      return keys.every((key) => {
+        const session = JSON.parse(sessionStorage.getItem(prefix + key))
+        const entry = stored.get(key)
+        return entry && entry.time === session.time && entry.version === session.version
+      })
     })
     await cachedPage.evaluate(() => sessionStorage.clear())
     const reopenedStart = networkEvents.length
