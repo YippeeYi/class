@@ -1422,6 +1422,14 @@ body .app-interactive-media:not(:disabled):active {
   white-space: normal;
 }
 
+.record-latex:not(.record-latex--block) {
+  margin-inline: 0.12em;
+}
+
+.record-latex .katex .mfrac {
+  font-size: 1.1em;
+}
+
 .markup-link {
   color: var(--record-markup-accent, var(--primary));
 }

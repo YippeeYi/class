@@ -711,11 +711,31 @@ try {
     const warm = networkEvents.slice(warmStart)
     assert.equal(versions(warm).length, 1, 'full reload checks the version once')
     assert.equal(business(warm).length, 0, 'unchanged reload uses cached business data exclusively')
+    // Persistence writes are asynchronous; verify they have landed before simulating a reopened tab.
+    await cachedPage.waitForFunction(async () => {
+      const prefix = 'classRecord:dataCache:v6:'
+      const keys = Object.keys(sessionStorage).filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length))
+      if (!keys.length) return false
+      const database = await new Promise((resolve) => {
+        const request = indexedDB.open('classRecord-data-cache-v2', 1)
+        request.onsuccess = () => resolve(request.result)
+        request.onerror = request.onblocked = () => resolve(null)
+      })
+      if (!database) return false
+      const stored = await new Promise((resolve) => {
+        const request = database.transaction('entries', 'readonly').objectStore('entries').getAllKeys()
+        request.onsuccess = () => resolve(new Set(request.result))
+        request.onerror = () => resolve(new Set())
+      })
+      database.close()
+      return keys.every((key) => stored.has(key))
+    })
     await cachedPage.evaluate(() => sessionStorage.clear())
     const reopenedStart = networkEvents.length
     await cachedPage.reload()
     await waitCards(cachedPage, 4)
-    assert.equal(business(networkEvents.slice(reopenedStart)).length, 0, 'reopened site reuses IndexedDB when session cache is absent')
+    const reopenedBusiness = business(networkEvents.slice(reopenedStart))
+    assert.equal(reopenedBusiness.length, 0, `reopened site reuses IndexedDB when session cache is absent: ${JSON.stringify(reopenedBusiness)}`)
     businessVersion = '2'
     records[0].content += ' 再次进入前已更新'
     const updatedStart = networkEvents.length
