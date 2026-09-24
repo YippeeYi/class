@@ -16,13 +16,17 @@ export async function assertIllustrationLoading(page) {
   })
   await page.evaluate(() => window.__setupLoadingTest())
   const render = content => page.evaluate(content => window.__loadingRender(content), content)
+  const waitForImages = (name, count) => page.waitForFunction(({ name, count }) => {
+    const images = [...document.querySelectorAll('#illustration-loading-tests .record-media-image img')]
+    return images.length === count && images.every(img =>
+      img.currentSrc && new URL(img.currentSrc).pathname.endsWith(`/${name}`) && img.complete && img.naturalWidth > 0)
+  }, { name, count })
   for (const width of [320, 390, 768, 1280]) {
     await page.setViewportSize({ width, height: 1000 })
     const name = `loading-cold-${width}.svg`
     await render(`前[[illu:${name}]][[illu:${name}]]后`)
     const images = page.locator('#illustration-loading-tests .record-media-image img')
-    await images.first().waitFor()
-    await page.waitForFunction(() => [...document.querySelectorAll('#illustration-loading-tests .record-media-image img')].every(img => img.complete && img.naturalWidth > 0))
+    await waitForImages(name, 2)
     assert.equal(await images.count(), 2)
     const geometry = await images.first().evaluate(img => ({
       width: img.getBoundingClientRect().width,
@@ -34,10 +38,10 @@ export async function assertIllustrationLoading(page) {
     assert.equal(ranges.get(name), 1, 'repeated source shares one metadata request')
     assert.ok(geometry.width <= width - 24, 'thumbnail fits the viewport')
     for (const shape of ['wide', 'thin']) {
-      await render(`前[[illu:loading-${shape}-${width}.svg]]后`)
+      const name = `loading-${shape}-${width}.svg`
+      await render(`前[[illu:${name}]]后`)
       const image = page.locator('#illustration-loading-tests .record-media-image img')
-      await image.waitFor()
-      await image.evaluate(img => img.decode())
+      await waitForImages(name, 1)
       const bounds = await image.evaluate(img => {
         const imageBounds = img.getBoundingClientRect()
         const frame = img.closest('.record-media-image')
@@ -74,8 +78,7 @@ export async function assertIllustrationLoading(page) {
   }
   await render('[[illu:loading-font.svg]]')
   const fontImage = page.locator('#illustration-loading-tests .record-media-image img')
-  await fontImage.waitFor()
-  await fontImage.evaluate(img => img.decode())
+  await waitForImages('loading-font.svg', 1)
   const resized = await fontImage.evaluate(img => {
     const text = img.closest('.record-markup')
     text.style.fontSize = '22px'
