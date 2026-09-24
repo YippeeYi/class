@@ -1561,6 +1561,9 @@ body .app-interactive-media:not(:disabled):active {
 }
 /* Reserve the typical alert title and description before an answer is submitted. */
 .quiz-feedback-slot {
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
   block-size: 5rem;
   overflow-x: hidden;
   overflow-y: auto;
@@ -1575,7 +1578,8 @@ body .app-interactive-media:not(:disabled):active {
 .quiz-result-feedback {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
+  flex: none;
+  align-items: center;
   gap: 0.75rem;
   border-color: color-mix(in oklch, var(--quiz-type-accent) 30%, var(--border));
   background: color-mix(in oklch, var(--quiz-type-surface) 62%, var(--card));

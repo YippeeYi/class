@@ -354,6 +354,29 @@ try {
     assert.equal(await quiz.locator('[data-secret-image-dimensions-pending]').count(), 0, 'the hidden image starts with its reserved ratio')
     assert.equal(await imageFrame.evaluate((element) => getComputedStyle(element.closest('button') ?? element).aspectRatio), '800 / 600')
     assert.equal(rangeReads, 1, 'showing a prepared hidden image does not repeat its metadata request')
+    await quiz.waitForFunction(() => document.querySelector('[data-secret-image-frame]')?.getAttribute('data-image-ready') === 'true')
+    for (const [width, height, viewportWidth] of [[1600, 400, 1280], [400, 1600, 390], [2000, 100, 390]]) {
+      await quiz.setViewportSize({ width: viewportWidth, height: 844 })
+      await imageFrame.locator('img').evaluate((image, size) => {
+        image.src = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="${size[0]}" height="${size[1]}"/>`
+      }, [width, height])
+      await quiz.waitForFunction(([expectedWidth, expectedHeight]) => {
+        const image = document.querySelector('[data-secret-image-frame] img')
+        return image?.complete && image.naturalWidth === expectedWidth && image.naturalHeight === expectedHeight &&
+          getComputedStyle(image.closest('button')).aspectRatio === `${expectedWidth} / ${expectedHeight}`
+      }, [width, height])
+      const geometry = await imageFrame.evaluate((frame) => {
+        const bounds = frame.getBoundingClientRect()
+        const image = frame.querySelector('img')
+        const badge = frame.parentElement.querySelector('.app-media-affordance').getBoundingClientRect()
+        return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, badgeY: badge.y, viewportWidth: innerWidth, documentWidth: document.documentElement.scrollWidth, fit: getComputedStyle(image).objectFit }
+      })
+      assert.ok(geometry.width > 0 && geometry.height > 0, 'hidden image frame must have usable dimensions')
+      assert.ok(geometry.x >= 0 && geometry.x + geometry.width <= viewportWidth, 'hidden image frame must fit the viewport')
+      assert.ok(geometry.badgeY >= geometry.y + geometry.height, 'large-image control must not cover the image')
+      assert.equal(geometry.fit, 'contain', 'hidden images preserve their full extent')
+      assert.ok(geometry.documentWidth <= viewportWidth, 'hidden images must not add horizontal page overflow')
+    }
     await quizContext.close()
     const ordinaryContext = await contextFor()
     const ordinaryQuiz = await ordinaryContext.newPage()
@@ -365,6 +388,48 @@ try {
     await ordinaryQuiz.keyboard.type('lamian')
     assert.equal(await ordinaryQuiz.getByRole('button', { name: '???', exact: true }).count(), 0, 'ordinary visitors cannot unlock hidden questions')
     assert.equal(networkEvents.filter((event) => event.path.endsWith('/class_quiz_questions')).length, hiddenReadsBefore, 'ordinary visitors do not request hidden questions')
+    await ordinaryQuiz.getByRole('button', { name: '填空题' }).click()
+    await ordinaryQuiz.getByRole('button', { name: '判断题' }).click()
+    await ordinaryQuiz.evaluate(() => document.activeElement?.blur())
+    await ordinaryQuiz.keyboard.press('Enter')
+    assert.equal(await ordinaryQuiz.locator('.quiz-question-card').getAttribute('data-answer-result'), 'pending', 'Enter does nothing before an answer')
+    for (let index = 0; index < 3; index++) {
+      await ordinaryQuiz.locator('.quiz-option').first().click()
+      assert.notEqual(await ordinaryQuiz.locator('.quiz-question-card').getAttribute('data-answer-result'), 'pending')
+      const spacing = await ordinaryQuiz.locator('.quiz-feedback-slot').evaluate((slot) => {
+        const feedback = slot.querySelector('.quiz-result-feedback').getBoundingClientRect()
+        const icon = slot.querySelector('.quiz-result-icon').getBoundingClientRect()
+        const bounds = slot.getBoundingClientRect()
+        const button = slot.parentElement.querySelector('button').getBoundingClientRect()
+        return {
+          top: feedback.top - bounds.top,
+          bottom: bounds.bottom - feedback.bottom,
+          iconCenters: Math.abs((icon.top + icon.bottom) / 2 - (feedback.top + feedback.bottom) / 2),
+          buttonCenters: Math.abs((button.top + button.bottom) / 2 - (bounds.top + bounds.bottom) / 2),
+        }
+      })
+      assert.ok(Math.abs(spacing.top - spacing.bottom) <= 1, 'answer feedback has balanced vertical space')
+      assert.ok(spacing.iconCenters <= 1, 'answer icon is vertically centered in its feedback box')
+      assert.ok(spacing.buttonCenters <= 1, 'next button aligns with the feedback slot')
+      if (index === 0) {
+        await ordinaryQuiz.evaluate(() => {
+          const input = document.createElement('input')
+          input.id = 'quiz-keyboard-proof'
+          document.body.append(input)
+          input.focus()
+        })
+        await ordinaryQuiz.keyboard.press('Enter')
+        assert.notEqual(await ordinaryQuiz.locator('.quiz-question-card').getAttribute('data-answer-result'), 'pending', 'focused input retains Enter')
+        await ordinaryQuiz.evaluate(() => document.getElementById('quiz-keyboard-proof').remove())
+      }
+      if (index === 1) {
+        await ordinaryQuiz.getByRole('button', { name: '下一题' }).focus()
+      } else {
+        await ordinaryQuiz.evaluate(() => document.activeElement?.blur())
+      }
+      await ordinaryQuiz.keyboard.press('Enter')
+      assert.equal(await ordinaryQuiz.locator('.quiz-question-card').getAttribute('data-answer-result'), 'pending', 'Enter advances exactly one question')
+    }
     await ordinaryContext.close()
   }
   const mobile = await contextFor({ mobile: true })

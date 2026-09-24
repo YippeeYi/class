@@ -201,7 +201,7 @@ export function SecretImage({ path }: { path: string }) {
 
   const frame = (
     <div
-      className={`relative grid place-items-center overflow-hidden rounded-xl bg-muted/60 text-sm text-muted-foreground ${hasViewerTrigger ? 'size-full' : 'mx-auto max-w-full'}`}
+      className={`grid place-items-center overflow-hidden rounded-xl bg-muted/60 text-sm text-muted-foreground ${hasViewerTrigger ? 'absolute inset-0' : 'relative mx-auto max-w-full'}`}
       data-secret-image-frame=""
       data-image-ready={ready ? 'true' : 'false'}
       style={hasViewerTrigger ? undefined : sizingStyle}
@@ -259,31 +259,33 @@ export function SecretImage({ path }: { path: string }) {
       )}
     </div>
   )
-  if (!resource.src || decodeFailed) return frame
+  if (!resource.src || decodeFailed) return <div className="pb-12">{frame}</div>
   return (
-    <ImageViewer
-      path={path}
-      initialUrl={resource.src}
-      initialDimensions={frameDimensions}
-      alt="题目插图"
-      trigger={
-        <Button
-          type="button"
-          variant="ghost"
-          style={sizingStyle}
-          className={`${interactiveSurfaceVariants({ kind: 'media' })} relative mx-auto flex h-auto max-w-full overflow-hidden rounded-xl p-0`}
-          aria-label="查看题目插图大图"
-        >
-          {frame}
-          <span
-            className={`${mediaAffordanceClassName} absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/90 px-3 py-2 text-xs font-medium text-foreground shadow-sm backdrop-blur`}
+    <div className="pb-12">
+      <ImageViewer
+        path={path}
+        initialUrl={resource.src}
+        initialDimensions={frameDimensions}
+        alt="题目插图"
+        trigger={
+          <Button
+            type="button"
+            variant="ghost"
+            style={sizingStyle}
+            className={`${interactiveSurfaceVariants({ kind: 'media' })} relative mx-auto flex h-auto max-w-full rounded-xl p-0`}
+            aria-label="查看题目插图大图"
           >
-            <Expand className="size-3.5" />
-            查看大图
-          </span>
-        </Button>
-      }
-    />
+            {frame}
+            <span
+              className={`${mediaAffordanceClassName} absolute right-0 top-full mt-2 inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/90 px-3 py-2 text-xs font-medium text-foreground shadow-sm backdrop-blur`}
+            >
+              <Expand className="size-3.5" />
+              查看大图
+            </span>
+          </Button>
+        }
+      />
+    </div>
   )
 }
 
@@ -322,6 +324,7 @@ export function QuizPage() {
   const pendingQuestionTop = useRef<number | null>(null)
   const secretUnlocking = useRef(false)
   const answerLocked = useRef(false)
+  const keyboardNextLocked = useRef(false)
   const questions = useMemo(
     () =>
       resource.data
@@ -368,6 +371,34 @@ export function QuizPage() {
   useEffect(() => {
     if (!current && candidates.length) next()
   }, [candidates, current, next])
+  useEffect(() => {
+    if (result) keyboardNextLocked.current = false
+  }, [result])
+  useEffect(() => {
+    if (!result || !current || quizInteractionLocked || secretUnlocking.current) return
+    const listener = (event: KeyboardEvent) => {
+      if (
+        event.key !== 'Enter' ||
+        event.repeat ||
+        event.isComposing ||
+        event.defaultPrevented ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.metaKey ||
+        keyboardNextLocked.current ||
+        (event.target instanceof Element &&
+          event.target.closest(
+            'input, textarea, select, button, a, [contenteditable], [role="button"], [role="textbox"], [role="combobox"], [role="dialog"]',
+          ))
+      )
+        return
+      event.preventDefault()
+      keyboardNextLocked.current = true
+      next()
+    }
+    window.addEventListener('keydown', listener)
+    return () => window.removeEventListener('keydown', listener)
+  }, [current, next, quizInteractionLocked, result])
   useEffect(() => {
     let buffer = ''
     let active = true
