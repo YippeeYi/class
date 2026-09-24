@@ -384,13 +384,13 @@ export function MarkupContent({
   const navigate = useNavigate()
   const { hideProfanity } = useContentPreferences()
 
-  const renderNodes = (nodes: MarkupNode[], path: string): ReactNode =>
+  const renderNodes = (nodes: MarkupNode[], path: string, mathContent?: ReactNode): ReactNode =>
     nodes.map((node, position) => {
       const key = `${path}-${node.type}-${position}`
       if (node.type === 'text')
         return <Fragment key={key}>{filterProfanity(node.value, hideProfanity)}</Fragment>
       if (node.type === 'style') {
-        const children = renderNodes(node.children, key)
+        const children = mathContent === undefined ? renderNodes(node.children, key) : mathContent
         if (node.style === 'del')
           return (
             <del key={key} className="record-delete">
@@ -408,7 +408,11 @@ export function MarkupContent({
       }
       if (node.type === 'reference') {
         if (interactionMode === 'plain')
-          return <Fragment key={key}>{renderNodes(node.children, key)}</Fragment>
+          return (
+            <Fragment key={key}>
+              {mathContent === undefined ? renderNodes(node.children, key) : mathContent}
+            </Fragment>
+          )
         const recordTarget = node.kind === 'record' ? recordAnchor({ fileName: node.id }) : ''
         const target =
           node.kind === 'person' || node.kind === 'author'
@@ -441,17 +445,21 @@ export function MarkupContent({
               navigate(recordClientHref(target))
             }}
           >
-            {renderNodes(node.children, key)}
+            {mathContent === undefined ? renderNodes(node.children, key) : mathContent}
           </Button>
         )
       }
       if (node.type === 'annotation')
         if (interactionMode !== 'full') {
-          return <Fragment key={key}>{renderNodes(node.children, key)}</Fragment>
+          return (
+            <Fragment key={key}>
+              {mathContent === undefined ? renderNodes(node.children, key) : mathContent}
+            </Fragment>
+          )
         } else {
           return (
             <Annotation key={key} note={node.note}>
-              {renderNodes(node.children, key)}
+              {mathContent === undefined ? renderNodes(node.children, key) : mathContent}
             </Annotation>
           )
         }
@@ -459,7 +467,13 @@ export function MarkupContent({
       if (node.type === 'latex')
         return (
           <Suspense key={`${key}:${node.source}`} fallback={<span className="record-latex" />}>
-            <LatexRenderer source={node.source} displayMode={node.displayMode === 'block'} />
+            <LatexRenderer
+              source={node.source}
+              mathSource={node.mathSource}
+              markers={node.markers}
+              displayMode={node.displayMode === 'block'}
+              renderMarker={(marker, content) => renderNodes([marker], `${key}-math`, content)}
+            />
           </Suspense>
         )
       const geometry = tableGeometry(node.rows)

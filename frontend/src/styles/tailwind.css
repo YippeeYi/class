@@ -1429,6 +1429,12 @@ body .app-interactive-media:not(:disabled):active {
   white-space: normal;
 }
 
+.record-latex .katex-html :is(.markup-link, .record-annotation) {
+  position: relative;
+  z-index: 1;
+  white-space: nowrap;
+}
+
 .record-latex:not(.record-latex--block) {
   margin-inline: 0.12em;
 }

@@ -181,6 +181,25 @@ assert.equal(blockLayout[0].type, 'block')
 assert.equal(blockLayout[0].node.type, 'reference')
 assert.equal(blockLayout[0].node.children[0].type, 'style')
 assert.deepEqual(markup.parseMarkup('[[latex:[[under:x_i]]]]')[0].children[0], { type: 'latex', source: 'x_i' })
+const internalFormula = markup.parseMarkup('[[latex:\\frac{[[person:p01|\\text{张三}]]}{[[red:[[under:\\text{中文}]]]]}]]')[0]
+assert.equal(internalFormula.type, 'latex')
+assert.equal(internalFormula.markers.length, 3)
+assert.match(internalFormula.mathSource, /\\htmlClass\{classrecordmathmarker/u)
+assert.doesNotMatch(internalFormula.mathSource, /\[\[|\]\]/u)
+assert.deepEqual(markup.extractMarkupReferences('[[latex:x+[[red:[[person:p01|a]]]]]]').participantIds, ['p01'])
+const outerAndInner = markup.parseMarkup('[[latex:[[red:\\frac{[[person:p01|a]]}{b}]]]]')[0]
+assert.equal(outerAndInner.type, 'latex')
+assert.equal(outerAndInner.markers.length, 2)
+assert.deepEqual(markup.extractMarkupReferences('[[latex:[[red:\\frac{[[person:p01|a]]}{b}]]]]').participantIds, ['p01'])
+const equationWithMarker = markup.parseMarkup('[[latex-block:\\begin{aligned}x_i^2&=\\text{中文}+[[person:p01|a]]\\\\y&=b\\end{aligned}]]')[0]
+assert.equal(equationWithMarker.type, 'latex')
+assert.match(equationWithMarker.mathSource, /x_i\^2&=\\text\{中文\}/u)
+assert.match(equationWithMarker.mathSource, /\\\\y&=b\\end\{aligned\}/u)
+for (const unsupported of ['[[illu:a.png]]', '[[video:a.mp4]]', '[[table:1x1|a]]', '[[center:a]]', '[[latex:x]]']) {
+  const formula = markup.parseMarkup(`[[latex:x+${unsupported}]]`)[0]
+  assert.equal(formula.mathSource, undefined, `unsupported math marker stays uncompiled: ${unsupported}`)
+}
+assert.equal(markup.parseMarkup('[[latex:x+[[person:p01|a]')[0].type, 'text')
 assert.equal(markup.parseMarkup('[[latex:]]')[0].type, 'text')
 for (const marker of ['[[illu:]]', '[[video:]]', '[[illu:../bad.png]]', '[[video:javascript:bad.mp4]]', '[[video:evil.png]]']) {
   assert.equal(markup.parseMarkup(marker)[0].type, 'text')

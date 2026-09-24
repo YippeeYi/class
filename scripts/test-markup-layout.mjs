@@ -2403,6 +2403,81 @@ try {
   assert.ok(narrowNestedFormula.blockWidths.every(width => width <= narrowNestedFormula.contentWidth), 'decorated block formulas must stay within the mobile content lane')
   await page.setViewportSize({ width: 1280, height: 1000 })
 
+  const internalFormula = page.locator('[data-case="formula-internal"]')
+  await page.waitForFunction(() => document.querySelectorAll('[data-case="formula-internal"] .record-latex .katex').length === 7)
+  const internalState = await internalFormula.evaluate(element => {
+    const formulas = [...element.querySelectorAll('.record-latex .katex')]
+    const fontSize = node => Number.parseFloat(getComputedStyle(node).fontSize)
+    const textSize = (formula, value) => {
+      const text = [...formula.querySelectorAll('.katex-html .mord')]
+        .find(node => node.children.length === 0 && node.textContent === value)
+      return text ? fontSize(text) : null
+    }
+    return {
+      baseSize: fontSize(formulas[0]),
+      textSizes: [
+        textSize(formulas[0], '中文'), textSize(formulas[0], 'English'),
+        textSize(formulas[1], '中文'), textSize(formulas[1], '张三'),
+        textSize(formulas[1], 'denominator'), textSize(formulas[2], '记录'),
+        textSize(formulas[2], '资料'),
+        textSize(formulas[3], 'B'),
+      ],
+      scriptSize: fontSize(formulas[6].querySelector('.person-link')),
+      errors: element.querySelectorAll('.record-latex-error').length,
+      blockCount: element.querySelectorAll('.record-latex--block').length,
+      personLinks: element.querySelectorAll('.katex-html .person-link').length,
+      recordLinks: element.querySelectorAll('.katex-html .record-link').length,
+      materialLinks: element.querySelectorAll('.katex-html .material-link').length,
+      annotations: element.querySelectorAll('.katex-html .record-annotation').length,
+      singleLineMarkers: [...element.querySelectorAll('.katex-html .markup-link, .katex-html .record-annotation')]
+        .every(marker => getComputedStyle(marker).whiteSpace === 'nowrap' && marker.getClientRects().length === 1),
+      styledCombo: Boolean(element.querySelector('.katex-html .record-red .record-underline .record-delete .person-link')),
+      accessibleHtml: [...element.querySelectorAll('.record-latex .katex-html')].every(html =>
+        !html.hasAttribute('aria-hidden') || !html.querySelector('.markup-link, .record-annotation')),
+    }
+  })
+  assert.equal(internalState.errors, 0, 'inline markers must not break KaTeX parsing')
+  assert.equal(internalState.blockCount, 1)
+  assert.equal(internalState.personLinks, 3)
+  assert.equal(internalState.recordLinks, 1)
+  assert.equal(internalState.materialLinks, 1)
+  assert.equal(internalState.annotations, 1)
+  assert.equal(internalState.singleLineMarkers, true, 'math labels must stay inside their KaTeX boxes')
+  assert.equal(internalState.styledCombo, true)
+  assert.equal(internalState.accessibleHtml, true)
+  assert.ok(internalState.textSizes.every(size => size !== null && Math.abs(size - internalState.baseSize) < 1), `ordinary LaTeX text shares one font size: ${JSON.stringify(internalState)}`)
+  assert.ok(internalState.scriptSize < internalState.baseSize && internalState.scriptSize > internalState.baseSize * 0.6, 'superscript markers retain KaTeX script sizing')
+  await page.locator('[data-case="formula-security"] .katex').first().waitFor()
+  assert.equal(await page.locator('[data-case="formula-security"] img').count(), 0, 'LaTeX marker text must not inject HTML elements')
+  assert.equal(await page.locator('[data-case="formula-security"] a[href^="javascript:"]').count(), 0, 'untrusted KaTeX links must not become active')
+  assert.equal(await internalFormula.locator('.person-link').first().getAttribute('href'), '/person?id=p01')
+  await internalFormula.locator('.person-link').first().click()
+  await page.waitForFunction(() => window.__memoryLocation === '/person?id=p01')
+  await page.evaluate(() => window.__memoryNavigate('/'))
+  await internalFormula.locator('.record-link').click()
+  await page.waitForFunction(() => window.__memoryLocation === '/records')
+  await page.getByRole('alertdialog').waitFor({ state: 'visible' })
+  await page.getByRole('button', { name: '留在此处' }).click()
+  await page.getByRole('alertdialog').waitFor({ state: 'hidden' })
+  await page.evaluate(() => window.__memoryNavigate('/'))
+  await internalFormula.locator('.material-link').click()
+  await page.waitForFunction(() => window.__memoryLocation === '/materials?id=m1')
+  await page.evaluate(() => window.__memoryNavigate('/'))
+  await internalFormula.locator('.record-annotation').click()
+  await page.locator('.record-annotation-popup[data-open]').waitFor()
+  await page.keyboard.press('Escape')
+  await page.locator('.record-annotation-popup[data-open]').waitFor({ state: 'hidden' })
+  await page.setViewportSize({ width: 320, height: 800 })
+  const narrowInternalFormula = await internalFormula.evaluate(element => ({
+    pageWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.innerWidth,
+    blockWidth: element.querySelector('.record-latex--block').getBoundingClientRect().width,
+    contentWidth: element.querySelector('.record-markup').getBoundingClientRect().width,
+  }))
+  assert.ok(narrowInternalFormula.pageWidth <= narrowInternalFormula.viewportWidth, `nested math stays inside the mobile page: ${JSON.stringify(narrowInternalFormula)}`)
+  assert.ok(narrowInternalFormula.blockWidth <= narrowInternalFormula.contentWidth)
+  await page.setViewportSize({ width: 1280, height: 1000 })
+
   const shortTrigger = page.getByRole('button', { name: '短注触发' })
   await shortTrigger.scrollIntoViewIfNeeded()
   const shortTriggerBox = await shortTrigger.boundingBox()

@@ -18,8 +18,19 @@ export type MarkupNode =
     }
   | { type: 'annotation'; note: string; children: MarkupNode[] }
   | { type: 'media'; mediaType: 'image' | 'video'; src: string }
-  | { type: 'latex'; source: string; displayMode?: 'block' }
+  | {
+      type: 'latex'
+      source: string
+      displayMode?: 'block'
+      mathSource?: string
+      markers?: LatexMarker[]
+    }
   | { type: 'table'; rows: MarkupNode[][][] }
+
+export type LatexMarker = {
+  className: string
+  node: Extract<MarkupNode, { type: 'style' | 'reference' | 'annotation' }>
+}
 
 export type QuizMarkupNode =
   | { type: 'text'; value: string }
@@ -134,8 +145,35 @@ function textNode(value: string): MarkupNode {
   return { type: 'text', value }
 }
 
-function latexNode(source: string, displayMode: boolean): MarkupNode {
-  return displayMode ? { type: 'latex', source, displayMode: 'block' } : { type: 'latex', source }
+function latexNode(source: string, displayMode: boolean, depth = 0): MarkupNode {
+  const base: Extract<MarkupNode, { type: 'latex' }> = displayMode
+    ? { type: 'latex', source, displayMode: 'block' }
+    : { type: 'latex', source }
+  if (!source.includes('[[')) return base
+  const nodes = parseNodes(source, depth + 1, true)
+  const markers: LatexMarker[] = []
+  let prefix = 'classrecordmathmarker'
+  while (source.includes(prefix)) prefix += 'x'
+  const compile = (children: MarkupNode[]): string | null => {
+    let result = ''
+    for (const node of children) {
+      if (node.type === 'text') {
+        result += node.value
+        continue
+      }
+      if (node.type !== 'style' && node.type !== 'reference' && node.type !== 'annotation')
+        return null
+      if (node.type === 'style' && (node.style === 'center' || node.style === 'right')) return null
+      const inner = compile(node.children)
+      if (inner === null) return null
+      const className = `${prefix}${markers.length}`
+      markers.push({ className, node })
+      result += `\\htmlClass{${className}}{${inner}}`
+    }
+    return result
+  }
+  const mathSource = compile(nodes)
+  return mathSource && markers.length ? { ...base, mathSource, markers } : base
 }
 
 function decorateLatex(node: MarkupNode, displayMode: boolean): MarkupNode | null {
@@ -164,9 +202,12 @@ function parseSquare(
     const nestedEnd = trimmed.startsWith('[[') ? balancedEnd(trimmed, 0) : -1
     if (nestedEnd === trimmed.length) {
       const nested = parseSquare(trimmed.slice(2, -2), trimmed, depth + 1, true)
-      return decorateLatex(nested, kind === 'latex-block') || textNode(raw)
+      const decorated = decorateLatex(nested, kind === 'latex-block')
+      if (decorated) return decorated
+      const inline = latexNode(payload, kind === 'latex-block', depth)
+      return inline.type === 'latex' && inline.markers?.length ? inline : textNode(raw)
     }
-    return latexNode(payload, kind === 'latex-block')
+    return latexNode(payload, kind === 'latex-block', depth)
   }
   if (kind === 'illu' || kind === 'video') {
     const mediaType = kind === 'illu' ? 'image' : 'video'
@@ -237,7 +278,7 @@ function parseNodes(source: string, depth = 0, preserveEscapes = false): MarkupN
       index += 2
       continue
     }
-    if (source.startsWith('[[', index)) {
+    if (source.startsWith('[[', index) && (!preserveEscapes || !escapedAt(source, index))) {
       const end = balancedEnd(source, index)
       if (end > 0) {
         flush()
@@ -360,8 +401,11 @@ export function extractMarkupReferences(value: unknown) {
   const illustrations = new Set<string>()
   const personMarkers: MarkupReferences['personMarkers'] = []
   const quoteMarkers: MarkupReferences['quoteMarkers'] = []
+  const visited = new Set<MarkupNode>()
   const visit = (nodes: MarkupNode[]) => {
     for (const node of nodes) {
+      if (visited.has(node)) continue
+      visited.add(node)
       if (node.type === 'reference') {
         if (node.kind === 'person') {
           participants.add(node.id)
@@ -377,7 +421,9 @@ export function extractMarkupReferences(value: unknown) {
       } else if (node.type === 'media') {
         if (node.mediaType === 'image') illustrations.add(node.src)
       } else if (node.type === 'style' || node.type === 'annotation') visit(node.children)
-      else if (node.type === 'table') node.rows.flat().forEach(visit)
+      else if (node.type === 'latex') {
+        for (const marker of node.markers || []) visit([marker.node])
+      } else if (node.type === 'table') node.rows.flat().forEach(visit)
     }
   }
   visit(parseMarkup(source))

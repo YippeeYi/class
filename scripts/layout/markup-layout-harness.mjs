@@ -49,6 +49,7 @@ export const markupLayoutHarness = String.raw`<!doctype html>
       const formulaContent = '正文甲 [[latex:\\frac{123}{456}]] 正文乙 [[latex:\\xrightarrow[\\text{催化剂}]{120^\\circ\\mathrm{C}}]] 正文丙'
       const formulaTypes = '中文[[latex:x]]英文 [[latex:x^{2}]]、[[latex:x_{i}]]、[[latex:\\frac{a}{b}]]、[[latex:\\sqrt{5}]]；化学 [[latex:\\mathrm{H}_{2}\\mathrm{O}]]、[[latex:\\mathrm{Ni}^{2+}]]、[[latex:2\\mathrm{H}_{2}+\\mathrm{O}_{2}\\rightarrow2\\mathrm{H}_{2}\\mathrm{O}]]、[[latex:\\mathrm{A}\\rightleftharpoons\\mathrm{B}]]。长式 [[latex:\\frac{\\sum_{i=1}^{n}i^{2}+\\sqrt{x^{2}+y^{2}}}{\\lim_{x\\to0}\\frac{\\sin x}{x}}=1]]'
       const formulaNesting = '纯[[latex:\\frac{a}{b}]]；人物[[person:p01|[[latex:\\frac{a}{b}]]]]；复合[[red:[[person:p01|[[under:[[latex:\\frac{a}{b}]]]]]]]]；反向[[latex:[[red:[[person:p01|\\frac{a}{b}]]]]]]；记录[[record:r1|[[latex:E=mc^{2}]]]]；资料[[material:m1|[[latex:x_{i}]]]]；注释[[anno:反应条件|[[latex:\\xrightarrow[\\text{催化剂}]{\\text{加热}}]]]]；化学[[latex:\\ce{A ->[\\text{加热}][\\text{催化剂}] B}]]；块级[[latex-block:\\begin{matrix}a&b\\\\c&d\\end{matrix}]][[red:[[person:p01|[[latex-block:\\begin{matrix}a&b\\\\c&d\\end{matrix}]]]]]][[latex-block:[[red:\\begin{matrix}a&b\\\\c&d\\end{matrix}]]]]'
+      const formulaInternal = '文字[[latex:\\text{中文}+\\text{English}]]；分式[[latex:\\frac{\\text{中文}+[[person:p01|\\text{张三}]]}{\\text{denominator}+[[under:\\text{下划线}]]}]]；方程[[latex-block:\\begin{aligned}E&=mc^2+[[record:r1|\\text{记录}]]\\\\F&=ma+[[material:m1|\\text{资料}]]\\end{aligned}]]；化学[[latex:\\ce{A + [[red:B]] -> C}]]；注释[[latex:x+\\text{[[anno:公式注释|提示]]}]]；组合[[latex:a+[[red:[[under:[[del:[[person:p01|x^2]]]]]]]]]]；上标[[latex:x^{[[person:p01|i]]}]]'
       const annotationContent = '[[anno:短注|短注触发]]　[[anno:这是一段会自动限制最大宽度并自然换行的长注释，包含 [[person:p01|人物标记]]、[[latex:\\frac{a}{b}]] 和连续英文 SUPERCALIFRAGILISTICEXPIALIDOCIOUSWITHOUTBREAKS。|长注触发]]'
       const annotationEdgeContent = '[[anno:靠近视口边缘时仍需保持完整可见的注释内容。|边缘注释]]'
       const illustrationContent = '插图位置测试：[[illu:position-test.png]]。'
@@ -358,6 +359,8 @@ export const markupLayoutHarness = String.raw`<!doctype html>
                 e(Case, { id: 'formula', width: '52rem', content: formulaContent }),
                 e(Case, { id: 'formula-types', width: '18rem', content: formulaTypes }),
                 e(Case, { id: 'formula-nesting', width: '52rem', content: formulaNesting }),
+                e(Case, { id: 'formula-internal', width: '52rem', content: formulaInternal }),
+                e(Case, { id: 'formula-security', width: '52rem', content: '[[latex:x+[[person:p01|\\text{<img src=x onerror=alert(1)>}]]]] [[latex:\\href{javascript:alert(1)}{bad}]]' }),
                 e(Case, { id: 'annotation', width: '52rem', content: annotationContent }),
                 e(Case, { id: 'annotation-edge', width: '52rem', content: annotationEdgeContent, align: 'right' }),
                 e(Case, { id: 'nested-redaction', width: '52rem', content: '黑幕嵌套：[[hide:前 [[person:p01|人物标记]] [[under:[[quote:q01|嵌套名言]]]] 后]]' }),
