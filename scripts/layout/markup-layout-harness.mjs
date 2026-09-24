@@ -35,6 +35,7 @@ export const markupLayoutHarness = String.raw`<!doctype html>
 
       const e = React.createElement
       window.__rememberLoadingDimensions = rememberImageDimensions
+      rememberImageDimensions('data/attachments/sample.mp4', { width: 1600, height: 900 })
       window.__setupLoadingTest = () => {
         const host = document.createElement('div')
         host.id = 'illustration-loading-tests'
