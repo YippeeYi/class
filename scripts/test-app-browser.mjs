@@ -185,7 +185,10 @@ try {
   await page.waitForFunction(() => document.documentElement.dataset.themePreset === 'ink')
   await jumpPanel.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)))
   assert.notEqual(await jumpPanel.evaluate((element) => getComputedStyle(element).backgroundColor), lightJumpSurface, 'jump actions follow the dark theme surface')
-  assert.equal(await jumpPanel.evaluate((element) => getComputedStyle(element).color), await page.evaluate(() => getComputedStyle(document.body).color), 'jump actions keep readable dark theme text')
+  await page.waitForFunction(() =>
+    getComputedStyle(document.querySelector('[data-record-jump-actions]')).color ===
+    getComputedStyle(document.body).color,
+  )
   await page.screenshot({ path: '/tmp/class-record-jump-dark.png' })
   await page.evaluate(async (base) => {
     const { setThemePreset } = await import(base + 'src/components/layout/background-root.tsx')
@@ -723,6 +726,87 @@ try {
       await home.waitForURL('**/records*')
       await home.locator('#record-r1, #record-r2').first().waitFor()
       await homeContext.close()
+    }
+    {
+      const historyContext = await contextFor({ admin: true })
+      await historyContext.addInitScript(() => {
+        if (location.protocol !== 'http:' || location.hostname !== '127.0.0.1') return
+        window.__homeDraw = Number(sessionStorage.getItem('__homeDraw') ?? '0.01')
+        Math.random = () => window.__homeDraw
+      })
+      const historyPage = await historyContext.newPage()
+      const today = await historyPage.evaluate(() => {
+        const now = new Date()
+        return `2025-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      })
+      const firstExcerpt = `第一条历史 ${'中文内容'.repeat(40)} ${'LongEnglishContent'.repeat(20)} ${'1234567890'.repeat(20)}`
+      const secondExcerpt = `第二条历史 ${'混合内容ABC123'.repeat(40)}`
+      records[0].record_date = today
+      records[0].content = firstExcerpt
+      records[1].record_date = today
+      records[1].content = secondExcerpt
+      records[2].record_date = today
+      records[2].content = '隐藏记录绝不展示'
+      await historyPage.goto(origin)
+      await historyPage.locator('.guide-cover').waitFor()
+      await historyPage.keyboard.press('Enter')
+      await historyPage.locator('.guide-cover').waitFor({ state: 'detached' })
+      const historyExcerpt = historyPage.locator('.guide-history-excerpt')
+      await historyExcerpt.waitFor()
+      assert.equal(await historyExcerpt.innerText(), secondExcerpt, 'the first eligible record can be drawn')
+      for (const width of [320, 390, 1280]) {
+        await historyPage.setViewportSize({ width, height: 900 })
+        const clipping = await historyExcerpt.evaluate(element => {
+          const style = getComputedStyle(element)
+          return {
+            whiteSpace: style.whiteSpace,
+            overflow: style.overflow,
+            ellipsis: style.textOverflow,
+            clipped: element.scrollWidth > element.clientWidth,
+            height: element.getBoundingClientRect().height,
+            lineHeight: Number.parseFloat(style.lineHeight),
+            pageOverflow: document.documentElement.scrollWidth > innerWidth,
+          }
+        })
+        assert.equal(clipping.whiteSpace, 'nowrap')
+        assert.equal(clipping.overflow, 'hidden')
+        assert.equal(clipping.ellipsis, 'ellipsis')
+        assert.equal(clipping.clipped, true, `${width}px long mixed excerpt must show an ellipsis`)
+        assert.ok(clipping.height <= clipping.lineHeight + 1, `${width}px excerpt stays one line`)
+        assert.equal(clipping.pageOverflow, false, `${width}px excerpt does not expand the page`)
+        assert.equal(await historyExcerpt.innerText(), secondExcerpt, 'resizing does not reroll the history record')
+      }
+      await historyPage.getByRole('switch', { name: '隐藏所有记录中的脏话' }).click()
+      assert.equal(await historyExcerpt.innerText(), secondExcerpt, 'preference updates do not reroll the history record')
+      await historyPage.emulateMedia({ reducedMotion: 'no-preference' })
+      const tip = historyPage.locator('.guide-tip-text')
+      const firstTip = await tip.innerText()
+      const tipBounds = await historyPage.locator('.guide-tip').boundingBox()
+      await historyPage.waitForFunction(() => document.querySelector('.guide-tip-text')?.dataset.switching === 'true', undefined, { polling: 'raf', timeout: 8000 })
+      assert.equal(await tip.innerText(), firstTip, 'old tip remains while it fades out')
+      await historyPage.waitForTimeout(50)
+      const fading = await tip.evaluate(element => ({ opacity: Number(getComputedStyle(element).opacity), transform: getComputedStyle(element).transform }))
+      assert.ok(fading.opacity < 1 && fading.opacity > 0, 'the old tip fades out continuously')
+      assert.notEqual(fading.transform, 'none', 'the old tip moves slightly during the fade')
+      await historyPage.waitForFunction(previous => {
+        const element = document.querySelector('.guide-tip-text')
+        return element?.dataset.switching !== 'true' && element?.textContent !== previous
+      }, firstTip)
+      await historyPage.waitForFunction(() => Number(getComputedStyle(document.querySelector('.guide-tip-text')).opacity) === 1)
+      assert.equal(await historyPage.locator('.guide-tip-text').count(), 1, 'tip transitions use one text node')
+      const nextBounds = await historyPage.locator('.guide-tip').boundingBox()
+      assert.ok(Math.abs(nextBounds.height - tipBounds.height) <= 1 && Math.abs(nextBounds.y - tipBounds.y) <= 1, 'tip switching keeps the module position and height')
+      assert.equal(await historyExcerpt.innerText(), secondExcerpt, 'automatic tip changes do not reroll history')
+      await historyPage.evaluate(() => { sessionStorage.setItem('__homeDraw', '0.99') })
+      await historyPage.getByRole('link', { name: '历史上的今天' }).click()
+      await historyPage.waitForURL('**/records?month=*')
+      await historyPage.goto(origin)
+      await historyPage.locator('.guide-cover').waitFor()
+      await historyPage.keyboard.press('Enter')
+      await historyPage.locator('.guide-cover').waitFor({ state: 'detached' })
+      assert.equal(await historyExcerpt.innerText(), firstExcerpt, 're-entering the guide draws another eligible record')
+      assert.notEqual(await historyExcerpt.innerText(), records[2].content, 'hidden records never enter the draw')
+      await historyContext.close()
     }
     if (engine === chromium) {
       const touchContext = await contextFor({ admin: true, mobile: true })

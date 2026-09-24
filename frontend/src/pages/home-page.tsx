@@ -39,6 +39,9 @@ export function HomePage() {
   const resource = useArchive()
   const navigate = useNavigate()
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * tips.length))
+  const [tipSwitching, setTipSwitching] = useState(false)
+  const [historyDraw] = useState(() => Math.random())
+  const [historyRecordId, setHistoryRecordId] = useState<string | null>(null)
   const [phase, setPhase] = useState<HomePhase>('cover')
   const coverOpen = phase !== 'guide'
   const coverRef = useRef<HTMLElement>(null)
@@ -185,14 +188,28 @@ export function HomePage() {
   }, [coverOpen])
 
   useEffect(() => {
+    let switchTimer: number | undefined
     const timer = window.setInterval(() => {
-      setTipIndex((current) => {
-        let next = current
-        while (next === current) next = Math.floor(Math.random() * tips.length)
-        return next
-      })
+      if (switchTimer !== undefined) return
+      const changeTip = () => {
+        setTipIndex((current) => {
+          const next = Math.floor(Math.random() * (tips.length - 1))
+          return next >= current ? next + 1 : next
+        })
+        setTipSwitching(false)
+        switchTimer = undefined
+      }
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        changeTip()
+        return
+      }
+      setTipSwitching(true)
+      switchTimer = window.setTimeout(changeTip, 120)
     }, 3600)
-    return () => window.clearInterval(timer)
+    return () => {
+      window.clearInterval(timer)
+      window.clearTimeout(switchTimer)
+    }
   }, [])
 
   const archiveData = resource.data
@@ -217,6 +234,12 @@ export function HomePage() {
       visible,
     }
   }, [archiveData])
+  const historyRecord =
+    edition.matches.find((record) => recordAnchorId(record) === historyRecordId) ||
+    edition.matches[Math.floor(historyDraw * edition.matches.length)]
+  useEffect(() => {
+    if (historyRecord) setHistoryRecordId(recordAnchorId(historyRecord))
+  }, [historyRecord])
   const preview = (value: string) =>
     filterProfanity(stripMarkup(value), hideProfanity).replace(/\s+/g, ' ').trim()
 
@@ -291,7 +314,7 @@ export function HomePage() {
                     {edition.day}
                   </span>
                   <span className="guide-history-excerpt">
-                    {preview(edition.matches[0]?.content || '') || '这一天留下了记录。'}
+                    {preview(historyRecord?.content || '') || '这一天留下了记录。'}
                   </span>
                 </Item>
                 {resource.error && <ErrorState title="记录加载失败" onRetry={resource.retry} />}
@@ -350,7 +373,11 @@ export function HomePage() {
             </Item>
             <aside className="guide-tip">
               <GuideInfo icon={Lightbulb} title="小提示">
-                <span className="block min-h-10" aria-live="polite">
+                <span
+                  className="guide-tip-text block min-h-10"
+                  data-switching={tipSwitching || undefined}
+                  aria-live="polite"
+                >
                   {tips[tipIndex]}
                 </span>
               </GuideInfo>

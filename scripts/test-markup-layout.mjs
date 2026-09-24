@@ -784,6 +784,8 @@ try {
       `record positioning must not undershoot and rebound: ${JSON.stringify(recordScrollTrajectory)}`,
     )
   }
+  const stayAtTarget = page.getByRole('button', { name: '留在此处' })
+  await stayAtTarget.scrollIntoViewIfNeeded()
   const scrollBeforePanelClose = await page.evaluate(() => window.scrollY)
   await recordsFixture.locator('#record-r3').evaluate((target) => {
     const transitions = []
@@ -808,7 +810,7 @@ try {
     window.__recordJumpFadeTransitions = transitions
     capture()
   })
-  await page.getByRole('button', { name: '留在此处' }).click()
+  await stayAtTarget.click()
   await page.locator('[data-record-jump-actions]').waitFor({ state: 'detached' })
   const panelCloseState = await page.evaluate(() => ({
     scrollY: window.scrollY,
@@ -2240,7 +2242,7 @@ try {
           columns: getComputedStyle(element.querySelector('.guide-content')).gridTemplateColumns.split(' ').length,
         }
       })
-      assert.equal(geometry.overflow, false)
+      assert.equal(geometry.overflow, false, `guide overflow at ${preset} ${width}px: ${JSON.stringify(geometry)}`)
       assert.ok(geometry.privacy.y > Math.max(geometry.tip.bottom, geometry.history.bottom, geometry.setting.bottom))
       for (const control of await guide.locator('[data-guide-panel]').all()) {
         assert.ok((await control.boundingBox()).height >= 44)
