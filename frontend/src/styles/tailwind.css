@@ -1559,9 +1559,9 @@ body .app-interactive-media:not(:disabled):active {
   color: var(--quiz-error-emphasis-foreground);
   opacity: 1;
 }
-/* Reserve the alert title and three text lines before an answer is submitted. */
+/* Reserve the typical alert title and description before an answer is submitted. */
 .quiz-feedback-slot {
-  block-size: 6.5rem;
+  block-size: 5rem;
   overflow-x: hidden;
   overflow-y: auto;
   overflow-wrap: anywhere;
@@ -1569,7 +1569,7 @@ body .app-interactive-media:not(:disabled):active {
 }
 @media (min-width: 40rem) {
   .quiz-feedback-slot {
-    block-size: 6rem;
+    block-size: 4.5rem;
   }
 }
 .quiz-result-feedback {

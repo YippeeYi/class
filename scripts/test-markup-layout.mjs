@@ -275,6 +275,7 @@ try {
       footerHeight: footer.getBoundingClientRect().height,
       feedbackHeight: feedback.getBoundingClientRect().height,
       feedbackOverflow: feedback.scrollWidth > feedback.clientWidth + 1,
+      feedbackClipped: feedback.scrollHeight > feedback.clientHeight + 1,
       pageOverflow: document.documentElement.scrollWidth > innerWidth + 1,
     }
   })

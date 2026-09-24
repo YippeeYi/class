@@ -391,7 +391,19 @@ export function QuizPage() {
         const rows = await loadQuizQuestions(true)
         const extra = rows.filter((item) => item.answer).map(normalizeSecretQuestion)
         if (!extra.length) throw new Error('题库为空')
+        const imagePaths = [
+          ...new Set(
+            extra.map((item) => item.image).filter((path): path is string => Boolean(path)),
+          ),
+        ]
+        const imageSizes = await Promise.all(
+          imagePaths.map((path) => preloadImageDimensions(path, 960)),
+        )
         if (!active) return
+        if (imageSizes.some((size) => !size)) {
+          setSecretError('隐藏题目图片尺寸读取失败，请稍后重新解锁。')
+          return
+        }
         setSecret(extra)
         setSecretError('')
       } catch {
@@ -545,7 +557,7 @@ export function QuizPage() {
               aria-live="polite"
             >
               <Spinner aria-hidden="true" />
-              <AlertTitle>正在读取隐藏题库</AlertTitle>
+              <AlertTitle>正在准备隐藏题库与图片尺寸</AlertTitle>
             </Alert>
           )}
           <Card

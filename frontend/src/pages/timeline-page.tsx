@@ -289,7 +289,7 @@ export function TimelinePage() {
       {resource.data && !records.length && <EmptyState title="暂无可统计的记录" />}
       {resource.data && records.length > 0 && (
         <div className="min-w-0 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow)">
-          <section className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+          <section className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {summaryStats.map(({ label, value, icon: Icon }) => (
               <Card key={label} className="gap-0 bg-card/78 py-0">
                 <CardContent className="flex items-center gap-3 px-4 py-3">

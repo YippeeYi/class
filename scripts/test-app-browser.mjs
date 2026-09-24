@@ -282,6 +282,19 @@ try {
     await page.waitForFunction(() => !document.body.innerText.includes('正在打开档案') && !document.body.innerText.includes('正在准备页面插图') && !document.body.innerText.includes('正在验证访问权限'))
     assert.equal(await page.getByText('页面发生意外错误', { exact: true }).count(), 0, route)
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, route)
+    if (route === 'timeline') {
+      const summary = page.locator('main section.mb-4.grid.gap-3').first()
+      const cards = summary.locator(':scope > [data-slot="card"]')
+      await cards.first().waitFor()
+      assert.equal(await cards.count(), 5)
+      for (const width of [1280, 1440, 1024, 390]) {
+        await page.setViewportSize({ width, height: 900 })
+        const rows = await cards.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().top))
+        assert.equal(rows.slice(0, width >= 1280 ? 5 : width >= 1024 ? 3 : 1).every((top) => Math.abs(top - rows[0]) <= 1), true, `${width}px summary cards use the expected first row`)
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, `${width}px timeline has no horizontal overflow`)
+      }
+      await page.setViewportSize({ width: 1280, height: 900 })
+    }
   }
   await page.goto(origin + 'search?q=正文')
   await page.locator('#search-record').locator('..').getByRole('link').first().click()
@@ -291,6 +304,69 @@ try {
   await page.waitForURL(/search\?q=/)
   await page.getByRole('textbox', { name: '搜索档案' }).waitFor()
   await context.close()
+  {
+    const quizContext = await contextFor({ admin: true })
+    let releaseDimensions
+    const dimensionsGate = new Promise((resolve) => { releaseDimensions = resolve })
+    let dimensionRequestStarted
+    const dimensionRequest = new Promise((resolve) => { dimensionRequestStarted = resolve })
+    let rangeReads = 0
+    await quizContext.route('**/storage/v1/object/sign/**', async (route) => {
+      const request = route.request()
+      if (request.method() !== 'GET' || !request.url().includes('images/quiz/test.png') || !request.headers().range) {
+        await route.fallback()
+        return
+      }
+      rangeReads++
+      dimensionRequestStarted()
+      await dimensionsGate
+      await route.fulfill({
+        status: 200,
+        headers: { 'access-control-allow-origin': '*', 'content-type': 'image/svg+xml' },
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"/>',
+      })
+    })
+    const quiz = await quizContext.newPage()
+    const adminCheck = quiz.waitForResponse((response) => response.url().includes('/rpc/has_class_record_admin_access'))
+    await quiz.goto(origin + 'quiz')
+    await adminCheck
+    await quiz.locator('.quiz-question-card').waitFor()
+    await quiz.keyboard.type('lamian')
+    await dimensionRequest
+    await quiz.getByText('正在准备隐藏题库与图片尺寸').waitFor()
+    const secretFilter = quiz.getByRole('button', { name: '???', exact: true })
+    assert.equal(await secretFilter.isDisabled(), true, 'hidden questions stay unavailable while dimensions load')
+    assert.equal(await quiz.getByRole('button', { name: '换一题' }).isDisabled(), true, 'question changes stay locked during preparation')
+    assert.equal(await quiz.locator('[data-secret-image-frame]').count(), 0, 'hidden images do not render before dimensions exist')
+    releaseDimensions()
+    await quiz.waitForFunction(() => !document.body.innerText.includes('正在准备隐藏题库与图片尺寸'))
+    assert.equal(await secretFilter.isDisabled(), false, 'hidden questions unlock after dimensions are ready')
+    assert.deepEqual(await quiz.evaluate(async (base) => {
+      const { getImageDimensions } = await import(base + 'src/services/image-metadata.ts')
+      return getImageDimensions('images/quiz/test.png')
+    }, origin), { width: 800, height: 600 })
+    await secretFilter.click()
+    for (const label of ['记录人', '记录时间', '人名', '名言']) {
+      await quiz.getByRole('button', { name: label, exact: true }).click()
+    }
+    const imageFrame = quiz.locator('[data-secret-image-frame]')
+    await imageFrame.waitFor()
+    assert.equal(await quiz.locator('[data-secret-image-dimensions-pending]').count(), 0, 'the hidden image starts with its reserved ratio')
+    assert.equal(await imageFrame.evaluate((element) => getComputedStyle(element.closest('button') ?? element).aspectRatio), '800 / 600')
+    assert.equal(rangeReads, 1, 'showing a prepared hidden image does not repeat its metadata request')
+    await quizContext.close()
+    const ordinaryContext = await contextFor()
+    const ordinaryQuiz = await ordinaryContext.newPage()
+    const ordinaryCheck = ordinaryQuiz.waitForResponse((response) => response.url().includes('/rpc/has_class_record_admin_access'))
+    const hiddenReadsBefore = networkEvents.filter((event) => event.path.endsWith('/class_quiz_questions')).length
+    await ordinaryQuiz.goto(origin + 'quiz')
+    await ordinaryCheck
+    await ordinaryQuiz.locator('.quiz-question-card').waitFor()
+    await ordinaryQuiz.keyboard.type('lamian')
+    assert.equal(await ordinaryQuiz.getByRole('button', { name: '???', exact: true }).count(), 0, 'ordinary visitors cannot unlock hidden questions')
+    assert.equal(networkEvents.filter((event) => event.path.endsWith('/class_quiz_questions')).length, hiddenReadsBefore, 'ordinary visitors do not request hidden questions')
+    await ordinaryContext.close()
+  }
   const mobile = await contextFor({ mobile: true })
   const touch = await mobile.newPage()
   await touch.goto(origin + 'records')
