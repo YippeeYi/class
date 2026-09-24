@@ -716,6 +716,9 @@ try {
       const prefix = 'classRecord:dataCache:v6:'
       const keys = Object.keys(sessionStorage).filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length))
       if (!keys.length) return false
+      const access = JSON.parse(localStorage.getItem('classRecord:inviteAccess'))
+      const scope = `v6:access-${access.authorizedAt}:`
+      const required = ['records:false', 'page-messages', 'page-supplements', 'record-page-positions:false'].map((key) => scope + key)
       const database = await new Promise((resolve) => {
         const request = indexedDB.open('classRecord-data-cache-v2', 1)
         request.onsuccess = () => resolve(request.result)
@@ -728,7 +731,7 @@ try {
         request.onerror = () => resolve(new Map())
       })
       database.close()
-      return keys.every((key) => {
+      return required.every((key) => stored.has(key)) && keys.every((key) => {
         const session = JSON.parse(sessionStorage.getItem(prefix + key))
         const entry = stored.get(key)
         return entry && entry.time === session.time && entry.version === session.version
