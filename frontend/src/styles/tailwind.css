@@ -869,9 +869,7 @@ body .app-interactive-media:not(:disabled):active {
   }
 
   .record-markup {
-    --record-math-scale: 1;
-    --record-math-block-scale: 1.08;
-    --record-math-fraction-scale: 1.14;
+    --record-math-font-size: 1em;
     contain: inline-size;
     width: 100%;
     min-width: 0;
@@ -1009,7 +1007,6 @@ body .app-interactive-media:not(:disabled):active {
   }
 
   .record-latex--block {
-    --record-math-scale: var(--record-math-block-scale);
     display: block;
     width: fit-content;
     max-width: 100%;
@@ -1427,17 +1424,13 @@ body .app-interactive-media:not(:disabled):active {
 
 /* KaTeX ships unlayered CSS, so its default 1.21em rule needs an unlayered override. */
 .record-latex .katex {
-  font-size: calc(1em * var(--record-math-scale, 1));
+  font-size: var(--record-math-font-size, 1em);
   line-height: inherit;
   white-space: normal;
 }
 
 .record-latex:not(.record-latex--block) {
   margin-inline: 0.12em;
-}
-
-.record-latex .katex .mfrac {
-  font-size: calc(1em * var(--record-math-fraction-scale, 1.14));
 }
 
 .markup-link {

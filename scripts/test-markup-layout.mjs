@@ -2291,6 +2291,7 @@ try {
     const formulas = [...caseElement.querySelectorAll('.record-latex')]
     return {
       fontSize: Number.parseFloat(getComputedStyle(text).fontSize),
+      mathFontSize: getComputedStyle(text).getPropertyValue('--record-math-font-size').trim(),
       pageWidth: document.documentElement.scrollWidth,
       viewportWidth: window.innerWidth,
       formulas: formulas.map(formula => ({
@@ -2305,6 +2306,7 @@ try {
     }
   })
   assert.equal(formulaStyles.formulas.length, 10)
+  assert.equal(formulaStyles.mathFontSize, '1em')
   formulaStyles.formulas.forEach(formula => {
     assert.equal(formula.display, 'inline')
     assert.equal(formula.overflowX, 'visible')
@@ -2312,8 +2314,7 @@ try {
     assert.ok(formula.marginInlineStart > 0 && formula.marginInlineEnd > 0)
     assert.ok(Math.abs(formula.katexSize - formulaStyles.fontSize) < 1)
   })
-  assert.ok(formulaStyles.fractionSize > formulaStyles.fontSize, 'inline fractions should be modestly larger than surrounding text')
-  assert.ok(formulaStyles.fractionSize < formulaStyles.fontSize * 1.2, 'inline fractions should retain text scale')
+  assert.ok(Math.abs(formulaStyles.fractionSize - formulaStyles.fontSize) < 1, 'fractions must not receive an extra project font scale')
   assert.ok(formulaStyles.pageWidth <= formulaStyles.viewportWidth, 'inline formulas must not overflow the page')
   const largerFormula = await page.locator('[data-case="formula-types"]').evaluate(caseElement => {
     const text = caseElement.querySelector('.record-markup')
@@ -2342,7 +2343,6 @@ try {
     const underFormula = under?.querySelector('.record-latex')
     const blocks = [...element.querySelectorAll('.record-latex--block')]
     return {
-      blockScale: Number.parseFloat(getComputedStyle(element.querySelector('.record-markup')).getPropertyValue('--record-math-block-scale')),
       formulaMarkup: formulas.slice(0, 4).map(formula => formula.innerHTML),
       formulaFonts: formulas.slice(0, 4).map(formula => getComputedStyle(formula).fontFamily),
       inlineFormulaSizes: formulas.filter(formula => !formula.closest('.record-latex--block')).map(formula => Number.parseFloat(getComputedStyle(formula).fontSize)),
@@ -2364,7 +2364,7 @@ try {
   assert.ok(nestedFormulaState.formulaMarkup.every(markup => markup === nestedFormulaState.formulaMarkup[0]), 'nested markers must leave KaTeX output untouched')
   assert.ok(nestedFormulaState.formulaFonts.every(font => font === nestedFormulaState.formulaFonts[0]), 'nested markers must preserve KaTeX fonts')
   assert.ok(nestedFormulaState.inlineFormulaSizes.every(size => Math.abs(size - nestedFormulaState.inlineFormulaSizes[0]) < 1), 'inline LaTeX follows one surrounding-text size')
-  assert.ok(nestedFormulaState.blockFormulaSizes.every(size => Math.abs(size / nestedFormulaState.inlineFormulaSizes[0] - nestedFormulaState.blockScale) < 0.02), 'block LaTeX follows the shared text scale')
+  assert.ok(nestedFormulaState.blockFormulaSizes.every(size => Math.abs(size - nestedFormulaState.inlineFormulaSizes[0]) < 1), 'block and inline LaTeX share one base font size')
   assert.notEqual(nestedFormulaState.redLink, nestedFormulaState.plainFormulaColor, 'red decoration must change the formula color')
   assert.equal(nestedFormulaState.redLink, nestedFormulaState.redWrapper)
   assert.equal(nestedFormulaState.redLink, nestedFormulaState.redFormula, 'red and link effects must compose without recoloring KaTeX internally')
