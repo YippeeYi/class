@@ -147,14 +147,12 @@ assert.doesNotMatch(
   /scrollIntoView|scrollTargetIntoView\(target[^)]*\)[\s\S]*scrollTargetIntoView\(target/,
   'record locating must not stack native alignment or a second target correction',
 )
-assert.match(page, /waitForWindowScrollEnd[\s\S]*setJumpDialogOpen\(true\)/, 'the jump dialog must not lock scrolling until movement settles')
+assert.match(page, /waitForWindowScrollEnd[\s\S]*setJumpPanel\(\{/, 'the jump actions must mount only after movement settles')
 assert.equal((page.match(/scrollTargetIntoView\(target/g) || []).length, 1, 'the locator must contain exactly one target scroll call')
 assert.doesNotMatch(page, /target\.scrollIntoView/, 'near-bottom records must not rely on browser centre alignment')
-assert.match(
-  page,
-  /onOpenChangeComplete=\{\(open\) =>[\s\S]*focus\(\{ preventScroll: true \}\)[\s\S]*finalFocus=\{false\}/,
-  'closing the jump dialog must focus the visible target instead of the offscreen source control',
-)
+assert.doesNotMatch(page, /<AlertDialog/, 'record jump actions must not mount a modal overlay')
+assert.match(page, /jumpActions=\{[\s\S]*?jumpPanel\?\.targetAnchorId === recordAnchor\(record\)/, 'only the target card receives jump actions')
+assert.match(page, /userOnly: true/, 'programmatic location scroll must not dismiss jump actions')
 assert.doesNotMatch(page, /<Card className="bg-muted\/45">/, 'proverbs must not keep a separate heavy card treatment')
 assert.match(
   writtenPages,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 
 import { EmptyState } from '@/components/archive/async-state'
 import { ImageViewer } from '@/components/archive/image-viewer'
@@ -15,6 +15,7 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { useBoundedImageRetry } from '@/hooks/use-bounded-image-retry'
 import { useSignedAsset } from '@/hooks/use-signed-asset'
+import { recordAnchor } from '@/lib/markup'
 import { recordStableKey } from '@/lib/record-identity'
 import { type RecordStreamPage, recordPageKey } from '@/lib/record-stream'
 import { rememberImageDimensions, useImageDimensions } from '@/services/image-metadata'
@@ -28,6 +29,8 @@ export function WrittenRecordPages({
   pageIndex,
   onPageChange,
   onRecordReference,
+  jumpActionTarget,
+  jumpActions,
 }: {
   pages: RecordPage[]
   stream: RecordStreamPage[]
@@ -36,6 +39,8 @@ export function WrittenRecordPages({
   pageIndex: number
   onPageChange: (next: number) => void
   onRecordReference: (recordId: string, source: HTMLElement) => void
+  jumpActionTarget?: string
+  jumpActions?: ReactNode
 }) {
   const visiblePages = pages.filter((page) => {
     if (!activeFilter) return true
@@ -117,6 +122,7 @@ export function WrittenRecordPages({
                 record={record}
                 onRecordReference={onRecordReference}
                 showSourceAction={false}
+                jumpActions={jumpActionTarget === recordAnchor(record) ? jumpActions : undefined}
               />
             ))}
             {!pageRecords.length && <EmptyState title="这张书面页没有对应的文字记录" />}

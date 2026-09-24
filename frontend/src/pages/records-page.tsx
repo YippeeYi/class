@@ -14,23 +14,15 @@ import {
 import { type RecordOrder, RecordOrderToggle } from '@/components/archive/record-order-toggle'
 import { SegmentedTabsList } from '@/components/archive/segmented-tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { Tabs } from '@/components/ui/tabs'
 import { useContentPreferences } from '@/features/preferences/content-preferences'
 import { useRecordJumpHighlight } from '@/features/records/use-record-jump-highlight'
 import { loadWrittenRecordData } from '@/features/records/written-record-data'
 import { WrittenRecordPages } from '@/features/records/written-record-pages'
 import { useAsyncData } from '@/hooks/use-async-data'
+import { useDismissOnVerticalScroll } from '@/hooks/use-dismiss-on-vertical-scroll'
 import { normalizeRecordKey } from '@/lib/archive'
 import { recordAnchor } from '@/lib/markup'
 import { recordStableKey } from '@/lib/record-identity'
@@ -61,6 +53,56 @@ const recordViewItems = [
   { value: 'list', label: '按条记录', icon: List },
   { value: 'written', label: '书面记录', icon: FileImage },
 ] as const
+
+function RecordJumpActions({
+  sequence,
+  hasOrigin,
+  closing,
+  onStay,
+  onReturn,
+  onExited,
+}: {
+  sequence: number
+  hasOrigin: boolean
+  closing: boolean
+  onStay: () => void
+  onReturn: () => void
+  onExited: () => void
+}) {
+  return (
+    <Card
+      data-record-jump-actions="true"
+      data-jump-sequence={sequence}
+      data-closing={closing || undefined}
+      role="group"
+      aria-label="记录跳转操作"
+      aria-hidden={closing || undefined}
+      inert={closing || undefined}
+      className="record-jump-actions min-w-0 gap-2 border border-border/70 bg-popover p-3 shadow-md"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') onStay()
+      }}
+      onAnimationEnd={(event) => {
+        if (event.target === event.currentTarget && closing) onExited()
+      }}
+    >
+      <CardTitle className="text-sm">已定位到来源记录</CardTitle>
+      <CardDescription>
+        {hasOrigin
+          ? '你可以留在目标记录，或恢复跳转前的视图、筛选、书面页和滚动位置。'
+          : '你可以留在书面记录中继续浏览，或返回刚才的页面。'}
+      </CardDescription>
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button size="sm" variant="outline" onClick={onStay}>
+          留在此处
+        </Button>
+        <Button size="sm" onClick={onReturn}>
+          返回
+        </Button>
+      </div>
+    </Card>
+  )
+}
 
 function RecordViewControls({
   view,
@@ -199,7 +241,11 @@ export function RecordsPage() {
   const observedLocationKey = useRef(location.key)
   const observedHash = useRef(location.hash)
   const [jumpRevision, setJumpRevision] = useState(0)
-  const [jumpDialogOpen, setJumpDialogOpen] = useState(false)
+  const [jumpPanel, setJumpPanel] = useState<{
+    targetAnchorId: string
+    sequence: number
+    closing: boolean
+  } | null>(null)
   const [jumpOriginHref, setJumpOriginHref] = useState('')
   const [jumpOrigin, setJumpOrigin] = useState<PendingRecordJump['origin']>()
   const [jumpError, setJumpError] = useState('')
@@ -211,6 +257,29 @@ export function RecordsPage() {
     beginHighlight: beginJumpHighlight,
     fadeHighlight: fadeJumpHighlight,
   } = useRecordJumpHighlight()
+  const dismissJumpPanel = useCallback(
+    (targetAnchorId: string, focusTarget = false) => {
+      const target = jumpFocusTarget.current
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (target?.id === targetAnchorId) {
+        fadeJumpHighlight(target)
+        if (focusTarget) target.focus({ preventScroll: true })
+      }
+      setJumpPanel((current) => {
+        if (current?.targetAnchorId !== targetAnchorId) return current
+        return reducedMotion ? null : { ...current, closing: true }
+      })
+    },
+    [fadeJumpHighlight, jumpFocusTarget],
+  )
+  useDismissOnVerticalScroll(
+    Boolean(jumpPanel && !jumpPanel.closing),
+    jumpFocusTarget,
+    () => {
+      if (jumpPanel) dismissJumpPanel(jumpPanel.targetAnchorId)
+    },
+    { userOnly: true },
+  )
   const written = useAsyncData(async () => {
     if (!hidden || view !== 'written') return null
     return loadWrittenRecordData()
@@ -224,6 +293,7 @@ export function RecordsPage() {
       consumeRecordJump() ||
       (targetAnchorId ? { targetAnchorId, originHref: '', createdAt: Date.now() } : null)
     if (!next) return
+    setJumpPanel(null)
     pendingJump.current = next
     setJumpRevision((value) => value + 1)
   }, [location.hash])
@@ -256,6 +326,7 @@ export function RecordsPage() {
       consumeRecordJump() ||
       (targetAnchorId ? { targetAnchorId, originHref: '', createdAt: Date.now() } : null)
     if (!next) return
+    setJumpPanel(null)
     pendingJump.current = next
     setJumpRevision((value) => value + 1)
   }, [location.hash, location.key])
@@ -361,6 +432,7 @@ export function RecordsPage() {
 
       const anchor = recordAnchor(target)
       beginRecordJump()
+      setJumpPanel(null)
       const sourceRecord = source.closest<HTMLElement>('[id^="record-"]')
       pendingJump.current = {
         targetAnchorId: anchor,
@@ -396,6 +468,7 @@ export function RecordsPage() {
       const state = recordNavigation.current
       const anchor = recordAnchor(target)
       beginRecordJump()
+      setJumpPanel(null)
       const sourceRecord = source.closest<HTMLElement>('[id^="record-"]')
       const visiblePages = state.pages
       const knownPageIndex = visiblePages.findIndex((page) =>
@@ -481,11 +554,15 @@ export function RecordsPage() {
     void waitForWindowScrollEnd(destination, scrollCompletion.signal).then((reachedDestination) => {
       if (!scrollCompletion.signal.aborted) {
         completeRecordJump()
-        const willOpenDialog = reachedDestination && Boolean(pending.originHref || pending.origin)
-        // Modal scroll locking and focus containment must start only after the
-        // browser's one smooth movement has settled; otherwise they can cancel
-        // the animation and create the apparent overshoot/rebound sequence.
-        if (willOpenDialog) setJumpDialogOpen(true)
+        if (!reachedDestination) fadeJumpHighlight(target)
+        if (reachedDestination && (pending.originHref || pending.origin)) {
+          target.focus({ preventScroll: true })
+          setJumpPanel({
+            targetAnchorId: pending.targetAnchorId,
+            sequence: jumpRevision,
+            closing: false,
+          })
+        }
       }
     })
     return () => {
@@ -493,6 +570,7 @@ export function RecordsPage() {
     }
   }, [
     beginJumpHighlight,
+    fadeJumpHighlight,
     filtered,
     jumpRevision,
     loading,
@@ -521,6 +599,7 @@ export function RecordsPage() {
 
   const returnToOrigin = () => {
     clearJumpHighlight(jumpFocusTarget.current)
+    setJumpPanel(null)
     if (jumpOrigin) {
       jumpFocusTarget.current = null
       pendingReturn.current = {
@@ -530,7 +609,6 @@ export function RecordsPage() {
       setCriteria(jumpOrigin.criteria)
       setView(jumpOrigin.view)
       setPageIndex(jumpOrigin.pageIndex)
-      setJumpDialogOpen(false)
       setJumpOrigin(undefined)
       setJumpOriginHref('')
       suppressNextLocationJump.current = true
@@ -552,6 +630,21 @@ export function RecordsPage() {
       // Ignore malformed session data.
     }
   }
+  const jumpActions = jumpPanel ? (
+    <RecordJumpActions
+      key={jumpPanel.sequence}
+      sequence={jumpPanel.sequence}
+      hasOrigin={Boolean(jumpOrigin)}
+      closing={jumpPanel.closing}
+      onStay={() => dismissJumpPanel(jumpPanel.targetAnchorId, true)}
+      onReturn={returnToOrigin}
+      onExited={() =>
+        setJumpPanel((current) =>
+          current?.sequence === jumpPanel.sequence && current.closing ? null : current,
+        )
+      }
+    />
+  ) : undefined
   return (
     <div>
       <PageHeading
@@ -630,6 +723,9 @@ export function RecordsPage() {
                 onRecordReference={navigateToRecord}
                 onSourceAction={hidden ? navigateToWrittenSource : undefined}
                 showSourceAction={hidden}
+                jumpActions={
+                  jumpPanel?.targetAnchorId === recordAnchor(record) ? jumpActions : undefined
+                }
               />
             ))
           ) : (
@@ -653,35 +749,10 @@ export function RecordsPage() {
             pageIndex={pageIndex}
             onPageChange={setPageIndex}
             onRecordReference={navigateToRecord}
+            jumpActionTarget={jumpPanel?.targetAnchorId}
+            jumpActions={jumpActions}
           />
         ))}
-      <AlertDialog
-        open={jumpDialogOpen}
-        onOpenChange={setJumpDialogOpen}
-        onOpenChangeComplete={(open) => {
-          if (!open && jumpFocusTarget.current?.isConnected)
-            jumpFocusTarget.current.focus({ preventScroll: true })
-        }}
-      >
-        <AlertDialogContent finalFocus={false}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>已定位到来源记录</AlertDialogTitle>
-            <AlertDialogDescription>
-              {jumpOrigin
-                ? '你可以留在目标记录，或恢复跳转前的视图、筛选、书面页和滚动位置。'
-                : '你可以留在书面记录中继续浏览，或返回刚才的页面。'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => fadeJumpHighlight(jumpFocusTarget.current)}>
-              留在此处
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={returnToOrigin}>
-              {jumpOrigin ? '返回' : '返回'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }

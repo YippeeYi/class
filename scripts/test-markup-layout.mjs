@@ -679,7 +679,7 @@ try {
     sourceJumpBounds.y + sourceJumpBounds.height / 2,
   )
   await recordsFixture.locator('#record-r3').waitFor({ state: 'visible' })
-  await page.getByRole('alertdialog').waitFor({ state: 'visible' })
+  await page.locator('[data-record-jump-actions]').waitFor({ state: 'visible' })
   const recordJumpLocation = await page.evaluate(() => window.__memoryLocation)
   assert.equal(
     recordJumpLocation,
@@ -784,7 +784,7 @@ try {
       `record positioning must not undershoot and rebound: ${JSON.stringify(recordScrollTrajectory)}`,
     )
   }
-  const scrollBeforeDialogClose = await page.evaluate(() => window.scrollY)
+  const scrollBeforePanelClose = await page.evaluate(() => window.scrollY)
   await recordsFixture.locator('#record-r3').evaluate((target) => {
     const transitions = []
     const capture = () => {
@@ -809,8 +809,8 @@ try {
     capture()
   })
   await page.getByRole('button', { name: '留在此处' }).click()
-  await page.getByRole('alertdialog').waitFor({ state: 'hidden' })
-  const dialogCloseState = await page.evaluate(() => ({
+  await page.locator('[data-record-jump-actions]').waitFor({ state: 'detached' })
+  const panelCloseState = await page.evaluate(() => ({
     scrollY: window.scrollY,
     focusedId: document.activeElement?.id || '',
     highlight: document.querySelector('#record-r3')?.getAttribute('data-record-jump-highlight'),
@@ -822,18 +822,18 @@ try {
       : '',
   }))
   assert.ok(
-    Math.abs(dialogCloseState.scrollY - scrollBeforeDialogClose) <= 1,
-    `closing the jump dialog must not return-scroll to its old trigger: ${JSON.stringify({ scrollBeforeDialogClose, dialogCloseState })}`,
+    Math.abs(panelCloseState.scrollY - scrollBeforePanelClose) <= 1,
+    `closing the jump actions must preserve target scroll: ${JSON.stringify({ scrollBeforePanelClose, panelCloseState })}`,
   )
   assert.equal(
-    dialogCloseState.focusedId,
+    panelCloseState.focusedId,
     'record-r3',
-    'closing the jump dialog must leave focus on the visible record',
+    'closing the jump actions must leave focus on the visible record',
   )
   assert.equal(
-    dialogCloseState.highlight,
+    panelCloseState.highlight,
     'true',
-    'closing the jump dialog must expose a fresh visible target highlight',
+    'closing the jump actions must expose a fresh visible target highlight',
   )
   await page.waitForFunction(
     () =>
@@ -856,7 +856,7 @@ try {
     fadingTransition && fadingTransition.at - pendingTransition.at >= 500,
     `the visible record highlight must hold before its fade begins: ${JSON.stringify(highlightTransitions)}`,
   )
-  const postJumpScroll = dialogCloseState.scrollY
+  const postJumpScroll = panelCloseState.scrollY
   const postJumpAnnotation = recordsFixture
     .locator('#record-r3')
     .getByRole('button', { name: '跳转后注释' })
@@ -908,7 +908,7 @@ try {
       repeatLinkBounds.y + repeatLinkBounds.height / 2,
     )
     await recordsFixture.locator(`#${targetId}`).waitFor({ state: 'visible' })
-    await page.getByRole('alertdialog').waitFor({ state: 'visible' })
+    await page.locator('[data-record-jump-actions]').waitFor({ state: 'visible' })
     const repeatTrajectory = await page.evaluate(() => {
       window.removeEventListener('scroll', window.__recordRepeatListener)
       const samples = window.__recordRepeatSamples || []
@@ -939,9 +939,11 @@ try {
         `repeated jump to ${targetId} must move upward without rebound: ${JSON.stringify(repeatTrajectory)}`,
       )
     }
+    const stayButton = page.getByRole('button', { name: '留在此处' })
+    await stayButton.scrollIntoViewIfNeeded()
     const beforeClose = await page.evaluate(() => window.scrollY)
-    await page.getByRole('button', { name: '留在此处' }).click()
-    await page.getByRole('alertdialog').waitFor({ state: 'hidden' })
+    await stayButton.click()
+    await page.locator('[data-record-jump-actions]').waitFor({ state: 'detached' })
     const afterClose = await page.evaluate(() => ({
       scrollY: window.scrollY,
       focusedId: document.activeElement?.id || '',
@@ -953,7 +955,7 @@ try {
     }))
     assert.ok(
       Math.abs(afterClose.scrollY - beforeClose) <= 1,
-      `repeated record jump dialog close must preserve scroll: ${JSON.stringify({ sourceId, targetId, beforeClose, afterClose })}`,
+      `repeated record jump action close must preserve scroll: ${JSON.stringify({ sourceId, targetId, beforeClose, afterClose })}`,
     )
     assert.equal(afterClose.focusedId, targetId, `repeated record jump must focus ${targetId}`)
     assert.ok(
@@ -2456,9 +2458,9 @@ try {
   await page.evaluate(() => window.__memoryNavigate('/'))
   await internalFormula.locator('.record-link').click()
   await page.waitForFunction(() => window.__memoryLocation === '/records')
-  await page.getByRole('alertdialog').waitFor({ state: 'visible' })
+  await page.locator('[data-record-jump-actions]').waitFor({ state: 'visible' })
   await page.getByRole('button', { name: '留在此处' }).click()
-  await page.getByRole('alertdialog').waitFor({ state: 'hidden' })
+  await page.locator('[data-record-jump-actions]').waitFor({ state: 'detached' })
   await page.evaluate(() => window.__memoryNavigate('/'))
   await internalFormula.locator('.material-link').click()
   await page.waitForFunction(() => window.__memoryLocation === '/materials?id=m1')

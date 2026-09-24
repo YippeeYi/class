@@ -354,7 +354,7 @@ assert.match(
   /scrollTargetIntoView\(target, 'smooth'\)/,
   'record jumps must use one natural shared clamped viewport locator',
 )
-assert.match(records, /waitForWindowScrollEnd\(destination, scrollCompletion\.signal\)/, 'record dialogs must wait for the one browser-owned scroll to settle')
+assert.match(records, /waitForWindowScrollEnd\(destination, scrollCompletion\.signal\)/, 'record actions must wait for the one browser-owned scroll to settle')
 assert.equal((records.match(/scrollTargetIntoView\(target/g) || []).length, 1, 'record location must issue exactly one target scroll')
 assert.match(
   records,
@@ -371,7 +371,8 @@ assert.match(records, /beginJumpHighlight\(target\)[\s\S]*scrollTargetIntoView/,
 assert.doesNotMatch(recordJumpHighlight, /target\.classList\.add\('ring-2'/, 'record highlights must not rely on a box-shadow ring')
 assert.match(styles, /\.record-surface \{[\s\S]*--record-rest-border: var\(--border\)[\s\S]*border: 1px solid var\(--record-rest-border\)/, 'written records need one stable box-model boundary in every palette')
 assert.match(styles, /data-record-jump-highlight="true"[\s\S]*border-color:[\s\S]*background-color:[\s\S]*box-shadow: none;/, 'record jump feedback must use an in-box border and surface tint that cannot be clipped by a scrolling ancestor')
-assert.match(records, /<AlertDialogCancel onClick=\{\(\) => fadeJumpHighlight\(jumpFocusTarget\.current\)\}>[\s\S]*留在此处/, 'record highlight fade must begin only when the user chooses to stay')
+assert.match(records, /const dismissJumpPanel[\s\S]*fadeJumpHighlight\(target\)/, 'dismissing record jump actions must fade the target highlight')
+assert.match(records, /onStay=\{\(\) => dismissJumpPanel\(jumpPanel\.targetAnchorId, true\)\}/, 'staying at the target must dismiss the attached actions')
 assert.match(recordJumpHighlight, /JUMP_HIGHLIGHT_HOLD_MS = 520[\s\S]*recordJumpPendingFade[\s\S]*JUMP_HIGHLIGHT_FADE_MS/, 'staying at a record must preserve the highlight briefly before its paint-only fade')
 assert.match(styles, /data-record-jump-fading="true"[\s\S]*record-jump-highlight-fade/, 'record highlight dismissal needs a paint-only fade state')
 assert.match(imageViewer, /image-viewer-dialog/, 'the image viewer must use the business-level full-viewport dialog contract')

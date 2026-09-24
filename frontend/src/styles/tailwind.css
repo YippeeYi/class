@@ -1974,6 +1974,45 @@ body [data-slot="switch-thumb"] {
   transition-property: background-color, border-color;
 }
 
+.record-jump-actions {
+  animation: record-jump-actions-in var(--interaction-duration-standard)
+    var(--interaction-ease-standard) both;
+}
+
+.record-jump-actions[data-closing="true"] {
+  animation: record-jump-actions-out var(--interaction-duration-standard)
+    var(--interaction-ease-standard) both;
+  pointer-events: none;
+}
+
+@keyframes record-jump-actions-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes record-jump-actions-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .record-jump-actions {
+    animation: none;
+  }
+}
+
 #root .record-surface[data-record-jump-highlight="true"] {
   z-index: 1;
   border-color: color-mix(in oklch, var(--primary) 76%, var(--record-rest-border));

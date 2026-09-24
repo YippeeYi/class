@@ -1,5 +1,5 @@
 import { BookOpenText, CalendarDays, Clock, Paperclip, UserRound } from 'lucide-react'
-import { memo, useState } from 'react'
+import { memo, type ReactNode, useState } from 'react'
 import { Link } from 'react-router'
 import { textLinkClassName } from '@/components/archive/interaction'
 import { MarkupContent } from '@/components/archive/markup-content'
@@ -58,18 +58,20 @@ export const RecordCard = memo(function RecordCard({
   onRecordReference,
   onSourceAction,
   showSourceAction = false,
+  jumpActions,
 }: {
   record: RecordItem
   onRecordReference?: (recordId: string, source: HTMLElement) => void
   onSourceAction?: (record: RecordItem, source: HTMLElement) => void
   showSourceAction?: boolean
+  jumpActions?: ReactNode
 }) {
   const typeLabel = record.recordType ? recordTypeLabel(record) : ''
   const anchor = recordAnchor(record)
   const annotation = recordAnnotation(record.annotation)
 
   return (
-    <Collapsible>
+    <Collapsible className={jumpActions ? 'grid min-w-0 gap-2' : 'min-w-0'}>
       <Card
         id={anchor}
         tabIndex={-1}
@@ -155,6 +157,7 @@ export const RecordCard = memo(function RecordCard({
           </CollapsibleContent>
         </CardContent>
       </Card>
+      {jumpActions}
     </Collapsible>
   )
 })
