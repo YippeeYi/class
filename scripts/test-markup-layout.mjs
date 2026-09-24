@@ -259,6 +259,68 @@ try {
     '选择答案或填写完整内容后提交。',
     'the complete quiz page must render its initial feedback without a runtime error',
   )
+  for (const label of ['选择题', '判断题', '记录人', '记录时间', '人名']) {
+    await quizPage.getByRole('button', { name: label, exact: true }).click()
+  }
+  const quizCard = quizPage.locator('.quiz-question-card')
+  await quizCard.locator('#quiz-answer').waitFor()
+  const quizGeometry = () => quizCard.evaluate(card => {
+    const footer = card.querySelector('[data-slot="card-footer"]')
+    const feedback = card.querySelector('#quiz-answer-feedback')
+    return {
+      cardHeight: card.getBoundingClientRect().height,
+      parentHeight: card.parentElement.getBoundingClientRect().height,
+      headerHeight: card.querySelector('[data-slot="card-header"]').getBoundingClientRect().height,
+      contentHeight: card.querySelector('[data-slot="card-content"]').getBoundingClientRect().height,
+      footerHeight: footer.getBoundingClientRect().height,
+      feedbackHeight: feedback.getBoundingClientRect().height,
+      feedbackOverflow: feedback.scrollWidth > feedback.clientWidth + 1,
+      pageOverflow: document.documentElement.scrollWidth > innerWidth + 1,
+    }
+  })
+  for (const width of [1280, 390, 320]) {
+    await page.setViewportSize({ width, height: width === 1280 ? 1000 : 800 })
+    const before = await quizGeometry()
+    assert.equal(await quizPage.locator('[data-slot="card-footer"] button').isVisible(), false)
+    await quizPage.getByRole('textbox', { name: '填入完整答案（需完全相同）' }).fill('错误答案')
+    await quizPage.getByRole('button', { name: '提交', exact: true }).click()
+    await quizPage.getByText('回答错误', { exact: true }).waitFor()
+    assert.match(
+      await quizPage.locator('.quiz-result-feedback').evaluate(element => getComputedStyle(element).animationName),
+      /quiz-result-feedback-in/,
+      'answer feedback keeps the existing light entrance animation',
+    )
+    const wrong = await quizGeometry()
+    assert.deepEqual(wrong, before, `${width}px wrong-answer feedback must not resize the card or footer`)
+    if (width === 390) await quizPage.screenshot({ path: '/tmp/class-quiz-feedback-mobile.png' })
+    assert.equal(await quizPage.getByRole('button', { name: '下一题' }).isVisible(), true)
+    await quizPage.locator('.quiz-result-answer strong').evaluate(element => {
+      element.textContent = '超长中文English1234567890'.repeat(30)
+    })
+    const longFeedback = await quizGeometry()
+    assert.equal(longFeedback.cardHeight, before.cardHeight, `${width}px long feedback stays inside the card`)
+    assert.equal(longFeedback.footerHeight, before.footerHeight, `${width}px long feedback stays inside the footer`)
+    assert.equal(longFeedback.feedbackOverflow, false, `${width}px long feedback wraps inside its slot`)
+    assert.equal(longFeedback.pageOverflow, false, `${width}px long feedback does not overflow the page`)
+    assert.equal(
+      await quizPage.locator('#quiz-answer-feedback').evaluate(element => {
+        element.scrollTop = element.scrollHeight
+        return element.scrollTop > 0
+      }),
+      true,
+      `${width}px long feedback remains readable within its reserved slot`,
+    )
+    await quizPage.getByRole('button', { name: '下一题' }).click()
+    await quizPage.locator('#quiz-answer').waitFor()
+    assert.deepEqual(await quizGeometry(), before, `${width}px changing questions keeps the reserved feedback geometry`)
+    await quizPage.getByRole('textbox', { name: '填入完整答案（需完全相同）' }).fill('一句话')
+    await quizPage.getByRole('button', { name: '提交', exact: true }).click()
+    await quizPage.getByText('回答正确', { exact: true }).waitFor()
+    assert.deepEqual(await quizGeometry(), before, `${width}px correct-answer feedback must not resize the card or footer`)
+    await quizPage.getByRole('button', { name: '下一题' }).click()
+    await quizPage.locator('#quiz-answer').waitFor()
+  }
+  await page.setViewportSize({ width: 1280, height: 1000 })
 
   await page.waitForFunction(() =>
     [...document.querySelectorAll('[data-secret-image-case] img[alt="题目插图"]')].every(

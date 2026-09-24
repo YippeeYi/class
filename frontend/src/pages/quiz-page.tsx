@@ -771,11 +771,12 @@ export function QuizPage() {
                 <div
                   id="quiz-answer-feedback"
                   className={cn(
-                    'min-w-0 flex-1 text-sm leading-6',
+                    'quiz-feedback-slot w-full min-w-0 shrink-0 text-sm leading-6 sm:w-auto sm:flex-1',
                     !result && secretHint && 'quiz-result-progress',
                     result === 'correct' && 'quiz-result-correct',
                     result === 'wrong' && 'quiz-result-wrong',
                   )}
+                  tabIndex={result || secretHint ? 0 : -1}
                 >
                   <QuizAnswerFeedback
                     answer={visibleAnswer}
@@ -784,15 +785,15 @@ export function QuizPage() {
                     secretHint={visibleSecretHint}
                   />
                 </div>
-                {result && (
-                  <Button
-                    className="self-end sm:self-auto"
-                    onClick={next}
-                    disabled={quizInteractionLocked}
-                  >
-                    下一题
-                  </Button>
-                )}
+                <Button
+                  className={cn('self-end sm:self-auto', !result && 'invisible')}
+                  onClick={next}
+                  disabled={!result || quizInteractionLocked}
+                  aria-hidden={!result || undefined}
+                  inert={!result || undefined}
+                >
+                  下一题
+                </Button>
               </CardFooter>
             )}
           </Card>

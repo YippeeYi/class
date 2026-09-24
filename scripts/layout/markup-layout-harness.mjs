@@ -396,7 +396,7 @@ export const markupLayoutHarness = String.raw`<!doctype html>
                 e(ArchiveProvider, null,
                   e('section', { 'data-case': 'guide', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(HomePage)),
                   e('section', { 'data-case': 'people', style: { width: '68rem', maxWidth: '100%', margin: '24px auto' } }, e(PeoplePage)),
-                  e('section', { 'data-case': 'quiz-page', style: { width: '68rem', maxWidth: '100%', minHeight: '42rem', margin: '24px auto' } }, e(QuizPage)),
+                  e('section', { 'data-case': 'quiz-page', style: { width: '68rem', maxWidth: '100%', height: '42rem', margin: '24px auto' } }, e(QuizPage)),
                   e(PersonRouteFixture),
                 ),
                 ),
