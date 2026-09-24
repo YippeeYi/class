@@ -843,6 +843,12 @@ try {
   }
   assert.deepEqual(problems, [], 'browser console and page errors')
   console.log(`Application browser regression passed (${engine === webkit ? 'WebKit' : 'Chromium'}): routes, stream order, permissions, annotations, nested images, keyboard and mobile; API requests=${requests.length}.`)
+} catch (error) {
+  if (process.env.GITHUB_ACTIONS) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(`::error title=Application browser regression::${message.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')}`)
+  }
+  throw error
 } finally {
   await browser.close()
   if ('close' in vite) await vite.close()

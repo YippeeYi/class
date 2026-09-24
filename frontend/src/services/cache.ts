@@ -103,28 +103,31 @@ async function readPersistent<T>(
   staleTtl: number,
   version: string,
 ) {
-  const database = await openDatabase()
-  if (!database) return null
-  try {
-    const result = await new Promise<CacheEntry<T> | null>((resolve) => {
-      const transaction = database.transaction(STORE_NAME, 'readonly')
-      const request = transaction.objectStore(STORE_NAME).get(scoped)
-      request.onsuccess = () => resolve((request.result as CacheEntry<T> | undefined) || null)
-      request.onerror = transaction.onabort = () => resolve(null)
-    })
-    if (
-      !result ||
-      (result.version || '') !== version ||
-      !Number.isFinite(result.time) ||
-      Date.now() - result.time >= staleTtl
-    )
-      return null
-    return { ...result, stale: Date.now() - result.time >= freshTtl }
-  } catch {
-    return null
-  } finally {
-    database.close()
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const database = await openDatabase()
+    if (!database) continue
+    try {
+      const result = await new Promise<CacheEntry<T> | null>((resolve, reject) => {
+        const transaction = database.transaction(STORE_NAME, 'readonly')
+        const request = transaction.objectStore(STORE_NAME).get(scoped)
+        request.onsuccess = () => resolve((request.result as CacheEntry<T> | undefined) || null)
+        request.onerror = transaction.onabort = () => reject(new Error('IndexedDB read failed'))
+      })
+      if (
+        !result ||
+        (result.version || '') !== version ||
+        !Number.isFinite(result.time) ||
+        Date.now() - result.time >= staleTtl
+      )
+        return null
+      return { ...result, stale: Date.now() - result.time >= freshTtl }
+    } catch {
+      // Retry a transient storage failure before falling back to the network.
+    } finally {
+      database.close()
+    }
   }
+  return null
 }
 
 async function writePersistent<T>(

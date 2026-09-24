@@ -97,6 +97,23 @@ try {
   await new Promise(setImmediate)
   failTransaction = false
   clearRuntimeCache()
+  sessionStorage.clear()
+  stored.set('v6:access-second:transient-read', { time: Date.now(), version: '1', data: ['persisted'] })
+  const regularOpen = indexedDB.open
+  let failNextOpen = true
+  indexedDB.open = (...args) => {
+    if (!failNextOpen) return regularOpen(...args)
+    failNextOpen = false
+    const request = {}
+    setImmediate(() => request.onerror?.())
+    return request
+  }
+  try {
+    assert.deepEqual(await loadCached({ key: 'transient-read', loader: () => assert.fail('transient IndexedDB failure must not refetch') }), ['persisted'])
+  } finally {
+    indexedDB.open = regularOpen
+  }
+  clearRuntimeCache()
   const timestamp = Date.now() - 2000
   stored.set('v6:access-second:stale', { time: timestamp, version: '1', data: ['offline'] })
   assert.deepEqual(await loadCached({ key: 'stale', freshTtl: 1000, staleTtl: 5000, loader: () => Promise.reject(new Error('offline')) }), ['offline'])
