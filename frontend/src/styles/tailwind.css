@@ -869,6 +869,9 @@ body .app-interactive-media:not(:disabled):active {
   }
 
   .record-markup {
+    --record-math-scale: 1;
+    --record-math-block-scale: 1.08;
+    --record-math-fraction-scale: 1.14;
     contain: inline-size;
     width: 100%;
     min-width: 0;
@@ -888,17 +891,15 @@ body .app-interactive-media:not(:disabled):active {
   .record-media-image {
     position: relative;
     display: inline-block;
-    width: 2lh;
-    height: 2lh;
-    max-width: calc(100% - 0.7em);
+    box-sizing: content-box;
+    width: min(calc(2lh * var(--record-media-ratio, 1)), calc(100% - 0.7em - 2px));
+    height: auto;
+    aspect-ratio: var(--record-media-ratio, 1);
     vertical-align: middle;
     margin: 0.2em 0.35em;
+    overflow: hidden;
+    border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    box-shadow: 0 0 0 1px var(--border);
-  }
-
-  .record-media-image--measured {
-    width: auto;
   }
 
   .record-media-image--pending {
@@ -914,13 +915,13 @@ body .app-interactive-media:not(:disabled):active {
   }
 
   .record-media-image-trigger {
+    position: absolute;
+    inset: 0;
     display: block;
     width: 100%;
     height: 100%;
     min-height: 0;
     padding: 0;
-    overflow: hidden;
-    border-radius: var(--radius-md);
   }
 
   .record-media-image-content {
@@ -957,10 +958,14 @@ body .app-interactive-media:not(:disabled):active {
     width: 100%;
     height: 100%;
     padding: 0.35rem 0.55rem;
-    border-radius: var(--radius-md);
     color: var(--muted-foreground);
     background: var(--muted);
     font-size: 0.75em;
+  }
+
+  .record-media-image--measured .record-media-failure {
+    position: absolute;
+    inset: 0;
   }
 
   .record-media-video {
@@ -968,6 +973,10 @@ body .app-interactive-media:not(:disabled):active {
     width: 100%;
     max-width: 760px;
     margin-inline: auto;
+  }
+
+  .record-media-video .record-media-failure {
+    border-radius: var(--radius-md);
   }
 
   .record-media-video--pending {
@@ -1000,6 +1009,7 @@ body .app-interactive-media:not(:disabled):active {
   }
 
   .record-latex--block {
+    --record-math-scale: var(--record-math-block-scale);
     display: block;
     width: fit-content;
     max-width: 100%;
@@ -1417,7 +1427,7 @@ body .app-interactive-media:not(:disabled):active {
 
 /* KaTeX ships unlayered CSS, so its default 1.21em rule needs an unlayered override. */
 .record-latex .katex {
-  font-size: 1em;
+  font-size: calc(1em * var(--record-math-scale, 1));
   line-height: inherit;
   white-space: normal;
 }
@@ -1427,7 +1437,7 @@ body .app-interactive-media:not(:disabled):active {
 }
 
 .record-latex .katex .mfrac {
-  font-size: 1.1em;
+  font-size: calc(1em * var(--record-math-fraction-scale, 1.14));
 }
 
 .markup-link {

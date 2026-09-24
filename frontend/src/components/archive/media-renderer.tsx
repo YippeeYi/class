@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { type CSSProperties, useEffect, useRef, useState } from 'react'
 
 import { ImageViewer } from '@/components/archive/image-viewer'
 import { Button } from '@/components/ui/button'
@@ -72,7 +72,11 @@ function ImageMediaRenderer({ src }: { src: string }) {
     <span
       ref={ref}
       className={`record-media-image${dimensions ? ' record-media-image--measured' : failed || asset.error ? ' record-media-image--failed' : ' record-media-image--pending'}`}
-      style={dimensions ? { aspectRatio: `${dimensions.width} / ${dimensions.height}` } : undefined}
+      style={
+        dimensions
+          ? ({ '--record-media-ratio': dimensions.width / dimensions.height } as CSSProperties)
+          : undefined
+      }
     >
       {failed || asset.error ? (
         <span className="record-media-failure" role="status">
@@ -90,7 +94,7 @@ function ImageMediaRenderer({ src }: { src: string }) {
                 <Button
                   type="button"
                   variant="ghost"
-                  className="record-media-image-trigger border-0 focus-visible:border-0"
+                  className="record-media-image-trigger rounded-none border-0 focus-visible:border-0"
                   style={{ width: '100%', height: '100%', padding: 0 }}
                   aria-label="查看大图"
                 >

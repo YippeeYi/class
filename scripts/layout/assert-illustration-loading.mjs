@@ -12,7 +12,7 @@ export async function assertIllustrationLoading(page) {
     if (request.method() === 'POST') return route.fulfill({ headers, json: { signedURL: url.pathname.replace('/storage/v1', '') + '?token=test' } })
     if (request.headers().range) ranges.set(name, (ranges.get(name) || 0) + 1)
     const dimensions = name?.includes('wide') ? [2000, 100] : name?.includes('thin') ? [100, 2000] : [300, 600]
-    return route.fulfill({ headers, contentType: 'image/svg+xml', body: name === 'loading-fail.svg' ? 'invalid image' : svg(...dimensions) })
+    return route.fulfill({ headers, contentType: 'image/svg+xml', body: name?.startsWith('loading-fail') ? 'invalid image' : svg(...dimensions) })
   })
   await page.evaluate(() => window.__setupLoadingTest())
   const render = content => page.evaluate(content => window.__loadingRender(content), content)
@@ -40,6 +40,8 @@ export async function assertIllustrationLoading(page) {
       await image.evaluate(img => img.decode())
       const bounds = await image.evaluate(img => {
         const imageBounds = img.getBoundingClientRect()
+        const frame = img.closest('.record-media-image')
+        const frameBounds = frame.getBoundingClientRect()
         const parentBounds = img.closest('.record-markup').getBoundingClientRect()
         return {
           width: imageBounds.width,
@@ -48,6 +50,15 @@ export async function assertIllustrationLoading(page) {
           naturalRatio: img.naturalWidth / img.naturalHeight,
           lineHeight: Number.parseFloat(getComputedStyle(img.closest('.record-markup')).lineHeight),
           objectFit: getComputedStyle(img).objectFit,
+          edgeGap: Math.max(
+            Math.abs(imageBounds.left - frameBounds.left - 1),
+            Math.abs(imageBounds.top - frameBounds.top - 1),
+            Math.abs(frameBounds.right - imageBounds.right - 1),
+            Math.abs(frameBounds.bottom - imageBounds.bottom - 1),
+          ),
+          frameOverflow: getComputedStyle(frame).overflow,
+          imageRadius: getComputedStyle(img).borderRadius,
+          triggerRadius: getComputedStyle(img.parentElement).borderRadius,
         }
       })
       assert.ok(bounds.width <= bounds.parentWidth, `${shape} image stays inside text container: ${JSON.stringify(bounds)}`)
@@ -55,6 +66,10 @@ export async function assertIllustrationLoading(page) {
       const expectedHeight = Math.min(2 * bounds.lineHeight, bounds.parentWidth / bounds.naturalRatio)
       assert.ok(Math.abs(visibleHeight - expectedHeight) < 2, `${shape} image is as tall as its aspect ratio and available width permit: ${JSON.stringify(bounds)}`)
       assert.equal(bounds.objectFit, 'contain', `${shape} image remains uncropped`)
+      assert.ok(bounds.edgeGap < 1, `${shape} image touches the frame's inner border: ${JSON.stringify(bounds)}`)
+      assert.equal(bounds.frameOverflow, 'hidden')
+      assert.equal(bounds.imageRadius, '0px')
+      assert.equal(bounds.triggerRadius, '0px')
     }
   }
   await render('[[illu:loading-font.svg]]')
@@ -87,21 +102,27 @@ export async function assertIllustrationLoading(page) {
     columnWidth: table.querySelector('td[data-media]').getBoundingClientRect().width,
     frameHeight: table.querySelector('.record-media-image').getBoundingClientRect().height,
     tableWidth: table.querySelector('table').getBoundingClientRect().width,
-    border: getComputedStyle(table.querySelector('.record-media-image')).boxShadow,
+    border: getComputedStyle(table.querySelector('.record-media-image')).border,
+    radius: getComputedStyle(table.querySelector('.record-media-image')).borderRadius,
+    overflow: getComputedStyle(table.querySelector('.record-media-image')).overflow,
   }))
   assert.ok(tableBefore.columnWidth >= 130, `single-column media gets readable width: ${JSON.stringify(tableBefore)}`)
   assert.notEqual(tableBefore.border, 'none', 'thumbnail border remains visible while loading')
+  assert.equal(tableBefore.overflow, 'hidden', 'the outer thumbnail frame clips all loading states')
   releaseImage()
   await page.locator('#illustration-loading-tests .record-media-image-content.is-loaded').waitFor()
   const tableAfter = await page.locator('#illustration-loading-tests .record-table-scroll--media').evaluate(table => ({
     columnWidth: table.querySelector('td[data-media]').getBoundingClientRect().width,
     frameHeight: table.querySelector('.record-media-image').getBoundingClientRect().height,
     tableWidth: table.querySelector('table').getBoundingClientRect().width,
-    border: getComputedStyle(table.querySelector('.record-media-image')).boxShadow,
+    border: getComputedStyle(table.querySelector('.record-media-image')).border,
+    radius: getComputedStyle(table.querySelector('.record-media-image')).borderRadius,
+    overflow: getComputedStyle(table.querySelector('.record-media-image')).overflow,
   }))
   for (const key of ['columnWidth', 'frameHeight', 'tableWidth'])
     assert.ok(Math.abs(tableBefore[key] - tableAfter[key]) < 1, `table ${key} stays fixed while preview loads`)
   assert.equal(tableAfter.border, tableBefore.border, 'thumbnail border persists after loading')
+  assert.equal(tableAfter.radius, tableBefore.radius, 'thumbnail radius remains fixed while loading')
   await page.setViewportSize({ width: 320, height: 800 })
   await render('[[table:2x3|标题|[[illu:table-slow.svg]]|这是一段很长的文字用于验证文字列仍能换行|第二行|[[illu:table-other.svg]]|结尾]]')
   await page.locator('#illustration-loading-tests .record-table-scroll--media td[data-media]').first().waitFor()
@@ -120,6 +141,26 @@ export async function assertIllustrationLoading(page) {
   await page.unroute('**/table-slow.svg*')
   await render('[[illu:loading-fail.svg]]')
   await page.locator('#illustration-loading-tests .record-media-failure').waitFor()
+  const failure = await page.locator('#illustration-loading-tests .record-media-image').evaluate(frame => ({
+    width: frame.getBoundingClientRect().width,
+    height: frame.getBoundingClientRect().height,
+    overflow: getComputedStyle(frame).overflow,
+    radius: getComputedStyle(frame).borderRadius,
+  }))
+  assert.ok(failure.width > 60 && failure.height > 20, `failed illustration remains readable: ${JSON.stringify(failure)}`)
+  assert.equal(failure.overflow, 'hidden')
+  assert.equal(failure.radius, tableAfter.radius)
+  await page.evaluate(() => window.__rememberLoadingDimensions('data/attachments/loading-fail-measured.svg', { width: 300, height: 600 }))
+  await render('[[illu:loading-fail-measured.svg]]')
+  await page.locator('#illustration-loading-tests .record-media-image--measured .record-media-failure').waitFor()
+  const measuredFailure = await page.locator('#illustration-loading-tests .record-media-image--measured').evaluate(frame => {
+    const bounds = frame.getBoundingClientRect()
+    const content = frame.querySelector('.record-media-failure').getBoundingClientRect()
+    const lineHeight = Number.parseFloat(getComputedStyle(frame.closest('.record-markup')).lineHeight)
+    return { height: bounds.height, contentHeight: content.height, lineHeight }
+  })
+  assert.ok(Math.abs(measuredFailure.height - (2 * measuredFailure.lineHeight + 2)) < 1, `measured frame keeps its height on failure: ${JSON.stringify(measuredFailure)}`)
+  assert.ok(Math.abs(measuredFailure.contentHeight - (measuredFailure.height - 2)) < 1)
   await render('页面已切换')
   assert.equal(await page.locator('#illustration-loading-tests').innerText(), '页面已切换')
   await page.evaluate(() => window.__loadingCleanup())

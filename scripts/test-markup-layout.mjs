@@ -2342,9 +2342,11 @@ try {
     const underFormula = under?.querySelector('.record-latex')
     const blocks = [...element.querySelectorAll('.record-latex--block')]
     return {
+      blockScale: Number.parseFloat(getComputedStyle(element.querySelector('.record-markup')).getPropertyValue('--record-math-block-scale')),
       formulaMarkup: formulas.slice(0, 4).map(formula => formula.innerHTML),
       formulaFonts: formulas.slice(0, 4).map(formula => getComputedStyle(formula).fontFamily),
-      formulaSizes: formulas.map(formula => Number.parseFloat(getComputedStyle(formula).fontSize)),
+      inlineFormulaSizes: formulas.filter(formula => !formula.closest('.record-latex--block')).map(formula => Number.parseFloat(getComputedStyle(formula).fontSize)),
+      blockFormulaSizes: formulas.filter(formula => formula.closest('.record-latex--block')).map(formula => Number.parseFloat(getComputedStyle(formula).fontSize)),
       blockMarkup: blocks.map(block => block.querySelector('.katex')?.innerHTML),
       plainFormulaColor: getComputedStyle(formulas[0]).color,
       redWrapper: red?.closest('.record-red') && getComputedStyle(red.closest('.record-red')).color,
@@ -2361,7 +2363,8 @@ try {
   assert.equal(nestedFormulaState.formulaMarkup.length, 4)
   assert.ok(nestedFormulaState.formulaMarkup.every(markup => markup === nestedFormulaState.formulaMarkup[0]), 'nested markers must leave KaTeX output untouched')
   assert.ok(nestedFormulaState.formulaFonts.every(font => font === nestedFormulaState.formulaFonts[0]), 'nested markers must preserve KaTeX fonts')
-  assert.ok(nestedFormulaState.formulaSizes.every(size => Math.abs(size - nestedFormulaState.formulaSizes[0]) < 1), 'inline and block LaTeX share one surrounding-text size')
+  assert.ok(nestedFormulaState.inlineFormulaSizes.every(size => Math.abs(size - nestedFormulaState.inlineFormulaSizes[0]) < 1), 'inline LaTeX follows one surrounding-text size')
+  assert.ok(nestedFormulaState.blockFormulaSizes.every(size => Math.abs(size / nestedFormulaState.inlineFormulaSizes[0] - nestedFormulaState.blockScale) < 0.02), 'block LaTeX follows the shared text scale')
   assert.notEqual(nestedFormulaState.redLink, nestedFormulaState.plainFormulaColor, 'red decoration must change the formula color')
   assert.equal(nestedFormulaState.redLink, nestedFormulaState.redWrapper)
   assert.equal(nestedFormulaState.redLink, nestedFormulaState.redFormula, 'red and link effects must compose without recoloring KaTeX internally')
