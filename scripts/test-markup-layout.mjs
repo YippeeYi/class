@@ -1002,6 +1002,11 @@ try {
   }
 
   await page.setViewportSize({ width: 1280, height: 1000 })
+  const videoFixture = page.locator('[data-case="media-formula"] .record-media-video')
+  await videoFixture.scrollIntoViewIfNeeded()
+  await page
+    .locator('[data-case="media-formula"] .record-media-video:not(.record-media-video--pending)')
+    .waitFor()
   await assertFullscreenImageViewer(page, 'default 1280px')
   const privateViewerPath = '/storage/v1/object/sign/classrecord-private/fixtures/progressive-original.svg'
   assert.equal(
