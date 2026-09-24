@@ -2280,6 +2280,46 @@ try {
 
   assert.equal(await page.locator('[data-case="formula"] .record-latex .katex').count(), 2)
   assert.doesNotMatch(await page.locator('[data-case="formula"]').innerText(), /\\frac|\\xrightarrow/)
+  await page.locator('[data-case="formula-types"] .record-latex .katex').last().waitFor()
+  const formulaStyles = await page.locator('[data-case="formula-types"]').evaluate(caseElement => {
+    const text = caseElement.querySelector('.record-markup')
+    const formulas = [...caseElement.querySelectorAll('.record-latex')]
+    return {
+      fontSize: Number.parseFloat(getComputedStyle(text).fontSize),
+      pageWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+      formulas: formulas.map(formula => ({
+        display: getComputedStyle(formula).display,
+        overflowX: getComputedStyle(formula).overflowX,
+        verticalAlign: getComputedStyle(formula).verticalAlign,
+        katexSize: Number.parseFloat(getComputedStyle(formula.querySelector('.katex')).fontSize),
+      })),
+    }
+  })
+  assert.equal(formulaStyles.formulas.length, 10)
+  formulaStyles.formulas.forEach(formula => {
+    assert.equal(formula.display, 'inline')
+    assert.equal(formula.overflowX, 'visible')
+    assert.equal(formula.verticalAlign, 'baseline')
+    assert.ok(Math.abs(formula.katexSize - formulaStyles.fontSize) < 1)
+  })
+  assert.ok(formulaStyles.pageWidth <= formulaStyles.viewportWidth, 'inline formulas must not overflow the page')
+  const largerFormula = await page.locator('[data-case="formula-types"]').evaluate(caseElement => {
+    const text = caseElement.querySelector('.record-markup')
+    text.style.fontSize = '20px'
+    const result = Number.parseFloat(getComputedStyle(caseElement.querySelector('.record-latex .katex')).fontSize)
+    text.style.fontSize = ''
+    return result
+  })
+  assert.ok(Math.abs(largerFormula - 20) < 1, 'KaTeX must follow the actual surrounding text size')
+  await page.setViewportSize({ width: 320, height: 800 })
+  const mobileFormula = await page.locator('[data-case="formula-types"]').evaluate(caseElement => ({
+    pageWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.innerWidth,
+    formulaWidth: caseElement.getBoundingClientRect().width,
+  }))
+  assert.ok(mobileFormula.pageWidth <= mobileFormula.viewportWidth, `mobile formulas stay within the page: ${JSON.stringify(mobileFormula)}`)
+  await page.setViewportSize({ width: 1280, height: 1000 })
 
   const shortTrigger = page.getByRole('button', { name: '短注触发' })
   await shortTrigger.scrollIntoViewIfNeeded()
@@ -2405,6 +2445,8 @@ try {
   await page.waitForFunction(() => window.__memoryLocation === '/person?id=p01')
   await page.evaluate(() => window.__memoryNavigate('/'))
   await page.waitForFunction(() => window.__memoryLocation === '/')
+  await page.keyboard.press('Escape')
+  await annotationPopup.waitFor({ state: 'hidden' })
 
   await page.setViewportSize({ width: 320, height: 1000 })
   await page.mouse.move(4, 4)

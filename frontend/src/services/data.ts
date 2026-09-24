@@ -20,6 +20,7 @@ import type {
 type Row = Record<string, unknown>
 type SignedUrlEntry = { promise: Promise<string>; refreshAt: number; value: string }
 const signedUrls = new Map<string, SignedUrlEntry>()
+const warmedRecordSets = new WeakSet<object>()
 const runSignatureRequest = createRequestQueue(4)
 export const DEFAULT_ASSET_PREVIEW_WIDTH = 1280
 export const DEFAULT_ASSET_PREVIEW_QUALITY = 72
@@ -34,6 +35,27 @@ export type AssetSignOptions = {
 
 function cached<T>(key: string, loader: () => Promise<T>, force = false): Promise<T> {
   return loadCached({ key, loader, force })
+}
+
+function warmRecordMedia<T extends { content: string; annotation?: string | null }>(
+  rows: Promise<T[]>,
+  hidden = false,
+) {
+  const metadata = import('@/services/image-metadata')
+  void metadata.then(({ preloadMediaManifest }) => preloadMediaManifest(hidden)).catch(() => {})
+  void rows
+    .then((items) => {
+      if (warmedRecordSets.has(items)) return
+      warmedRecordSets.add(items)
+      return metadata.then(({ preloadRecordMediaDimensions }) =>
+        preloadRecordMediaDimensions(
+          items.flatMap((item) => [item.content, item.annotation || '']),
+          hidden,
+        ),
+      )
+    })
+    .catch(() => {})
+  return rows
 }
 
 function objectValue(value: unknown): Row {
@@ -77,45 +99,48 @@ if (typeof window !== 'undefined') {
 }
 
 export function loadRecords({ hidden = false, force = false } = {}) {
-  return loadCached<RecordItem[]>({
-    key: `records:${hidden}`,
-    force,
-    persistent: !hidden,
-    sessionTtl: hidden ? 0 : undefined,
-    loader: async () => {
-      let query = currentClient()
-        .from(supabaseConfig.tables.records)
-        .select(
-          'record_id,file_name,record_index,record_date,record_time,author,content,importance,hidden,attachments,image_path,annotation:raw->annotation',
-        )
-        .order('record_index', { ascending: true })
-      query = query.eq('hidden', hidden)
-      const { data, error } = await query
-      if (error) throw error
-      return ((data || []) as Row[])
-        .map((row, index) => {
-          const fileName = text(row.file_name || `record-${index + 1}`)
-          const attachments = Array.isArray(row.attachments) ? row.attachments : []
-          return {
-            id: text(row.record_id || fileName),
-            fileName,
-            recordIndex: Number(row.record_index ?? index + 1),
-            date: text(row.record_date),
-            time: text(row.record_time),
-            author: text(row.author),
-            content: text(row.content),
-            annotation: recordAnnotation(row.annotation),
-            importance: text(row.importance),
-            attachments: attachments.filter((item): item is { file: string; name?: string } => {
-              return Boolean(item && typeof item === 'object' && text((item as Row).file))
-            }),
-            hidden: bool(row.hidden),
-            imagePath: text(row.image_path),
-          } satisfies RecordItem
-        })
-        .filter((item) => item.hidden === hidden)
-    },
-  })
+  return warmRecordMedia(
+    loadCached<RecordItem[]>({
+      key: `records:${hidden}`,
+      force,
+      persistent: !hidden,
+      sessionTtl: hidden ? 0 : undefined,
+      loader: async () => {
+        let query = currentClient()
+          .from(supabaseConfig.tables.records)
+          .select(
+            'record_id,file_name,record_index,record_date,record_time,author,content,importance,hidden,attachments,image_path,annotation:raw->annotation',
+          )
+          .order('record_index', { ascending: true })
+        query = query.eq('hidden', hidden)
+        const { data, error } = await query
+        if (error) throw error
+        return ((data || []) as Row[])
+          .map((row, index) => {
+            const fileName = text(row.file_name || `record-${index + 1}`)
+            const attachments = Array.isArray(row.attachments) ? row.attachments : []
+            return {
+              id: text(row.record_id || fileName),
+              fileName,
+              recordIndex: Number(row.record_index ?? index + 1),
+              date: text(row.record_date),
+              time: text(row.record_time),
+              author: text(row.author),
+              content: text(row.content),
+              annotation: recordAnnotation(row.annotation),
+              importance: text(row.importance),
+              attachments: attachments.filter((item): item is { file: string; name?: string } => {
+                return Boolean(item && typeof item === 'object' && text((item as Row).file))
+              }),
+              hidden: bool(row.hidden),
+              imagePath: text(row.image_path),
+            } satisfies RecordItem
+          })
+          .filter((item) => item.hidden === hidden)
+      },
+    }),
+    hidden,
+  )
 }
 
 export function loadPeople(force = false) {
@@ -165,26 +190,28 @@ export async function loadQuotes(records?: RecordItem[]) {
 }
 
 export function loadMaterials(force = false) {
-  return cached<Material[]>(
-    'materials',
-    async () => {
-      const { data, error } = await currentClient()
-        .from(supabaseConfig.tables.materials)
-        .select('material_id,title,content')
-        .order('sort_order', { ascending: true })
-      if (error) throw error
-      return ((data || []) as Row[])
-        .map(
-          (row, index) =>
-            ({
-              id: text(row.material_id || `material-${index + 1}`),
-              title: text(row.title),
-              content: text(row.content),
-            }) as Material,
-        )
-        .filter((item) => item.id && item.title)
-    },
-    force,
+  return warmRecordMedia(
+    cached<Material[]>(
+      'materials',
+      async () => {
+        const { data, error } = await currentClient()
+          .from(supabaseConfig.tables.materials)
+          .select('material_id,title,content')
+          .order('sort_order', { ascending: true })
+        if (error) throw error
+        return ((data || []) as Row[])
+          .map(
+            (row, index) =>
+              ({
+                id: text(row.material_id || `material-${index + 1}`),
+                title: text(row.title),
+                content: text(row.content),
+              }) as Material,
+          )
+          .filter((item) => item.id && item.title)
+      },
+      force,
+    ),
   )
 }
 
@@ -255,69 +282,75 @@ export function loadRecordPages() {
 }
 
 export function loadPageMessages({ force = false, hidden = false } = {}) {
-  return loadCached<PageMessage[]>({
-    key: hidden ? 'page-messages:hidden' : 'page-messages',
-    persistent: !hidden,
-    sessionTtl: hidden ? 0 : undefined,
-    force,
-    loader: async () => {
-      const { data, error } = await currentClient()
-        .from(supabaseConfig.tables.pageMessages)
-        .select('page,hidden,content,author,annotation:raw->annotation')
-        .eq('hidden', hidden)
-        .order('page', { ascending: true })
-      if (error) throw error
-      return ((data || []) as Row[])
-        .map(
-          (row) =>
-            ({
-              page: text(row.page),
-              hidden: bool(row.hidden),
-              content: text(row.content),
-              author: text(row.author),
-              annotation: recordAnnotation(row.annotation),
-            }) as PageMessage,
-        )
-        .filter((item) => item.page && item.content)
-    },
-  })
+  return warmRecordMedia(
+    loadCached<PageMessage[]>({
+      key: hidden ? 'page-messages:hidden' : 'page-messages',
+      persistent: !hidden,
+      sessionTtl: hidden ? 0 : undefined,
+      force,
+      loader: async () => {
+        const { data, error } = await currentClient()
+          .from(supabaseConfig.tables.pageMessages)
+          .select('page,hidden,content,author,annotation:raw->annotation')
+          .eq('hidden', hidden)
+          .order('page', { ascending: true })
+        if (error) throw error
+        return ((data || []) as Row[])
+          .map(
+            (row) =>
+              ({
+                page: text(row.page),
+                hidden: bool(row.hidden),
+                content: text(row.content),
+                author: text(row.author),
+                annotation: recordAnnotation(row.annotation),
+              }) as PageMessage,
+          )
+          .filter((item) => item.page && item.content)
+      },
+    }),
+    hidden,
+  )
 }
 
 export function loadPageSupplements({ force = false, hidden = false } = {}) {
-  return loadCached<PageSupplement[]>({
-    key: hidden ? 'page-supplements:hidden' : 'page-supplements',
-    persistent: !hidden,
-    sessionTtl: hidden ? 0 : undefined,
-    force,
-    loader: async () => {
-      const { data, error } = await currentClient()
-        .from(supabaseConfig.tables.pageSupplements)
-        .select('file_name,page,supplement_index,author,content,hidden,raw')
-        .eq('hidden', hidden)
-        .order('sort_order', { ascending: true })
-      if (error) throw error
-      return ((data || []) as Row[])
-        .map((row, index) => {
-          const raw = objectValue(row.raw)
-          const page = text(row.page)
-          const supplementIndex = Number(row.supplement_index ?? raw.supplementIndex ?? index + 1)
-          return {
-            id: text(row.file_name || raw.id || `supplement-${page}-${supplementIndex}`),
-            fileName: text(row.file_name || raw.fileName),
-            page,
-            supplementIndex,
-            hidden: bool(row.hidden),
-            annotation: recordAnnotation(raw.annotation),
-            author: text(row.author || raw.author || raw.recorder),
-            content: text(row.content || raw.content || raw.text),
-            importance: text(raw.importance || 'normal'),
-            date: text(raw.date),
-            time: text(raw.time),
-          } as PageSupplement
-        })
-        .filter((item) => item.page && item.content)
-    },
-  })
+  return warmRecordMedia(
+    loadCached<PageSupplement[]>({
+      key: hidden ? 'page-supplements:hidden' : 'page-supplements',
+      persistent: !hidden,
+      sessionTtl: hidden ? 0 : undefined,
+      force,
+      loader: async () => {
+        const { data, error } = await currentClient()
+          .from(supabaseConfig.tables.pageSupplements)
+          .select('file_name,page,supplement_index,author,content,hidden,raw')
+          .eq('hidden', hidden)
+          .order('sort_order', { ascending: true })
+        if (error) throw error
+        return ((data || []) as Row[])
+          .map((row, index) => {
+            const raw = objectValue(row.raw)
+            const page = text(row.page)
+            const supplementIndex = Number(row.supplement_index ?? raw.supplementIndex ?? index + 1)
+            return {
+              id: text(row.file_name || raw.id || `supplement-${page}-${supplementIndex}`),
+              fileName: text(row.file_name || raw.fileName),
+              page,
+              supplementIndex,
+              hidden: bool(row.hidden),
+              annotation: recordAnnotation(raw.annotation),
+              author: text(row.author || raw.author || raw.recorder),
+              content: text(row.content || raw.content || raw.text),
+              importance: text(raw.importance || 'normal'),
+              date: text(raw.date),
+              time: text(raw.time),
+            } as PageSupplement
+          })
+          .filter((item) => item.page && item.content)
+      },
+    }),
+    hidden,
+  )
 }
 
 export async function loadSupplementalRecords({ force = false, hidden = false } = {}) {

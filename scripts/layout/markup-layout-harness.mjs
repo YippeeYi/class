@@ -46,6 +46,7 @@ export const markupLayoutHarness = String.raw`<!doctype html>
       const extremeSixColumns = '[[table:2x6|超长中文内容需要在窄屏内自然换行并保持全部可见|SUPERCALIFRAGILISTICEXPIALIDOCIOUSWITHOUTBREAKS|1234567890123456789012345678901234567890|https://example.invalid/a/very/long/path/without/a/natural/break|[[red:混合标记]][[latex:\\frac{a}{b}]]|短|甲|B|3|[[under:嵌套标记]]|普通内容|末列]]'
       const manyColumns = '[[table:3x12|一|two|333333333333333333333333|四列较长中文文本用于测试换行|five-with-an-extremely-long-token|6|七|https://example.invalid/really/long/url|[[red:九]]|10|十一|12|第二行中文超长内容在很多列时仍然需要完整显示|b|c|d|e|f|g|h|i|j|k|l|甲|乙|丙|丁|戊|己|庚|辛|壬|癸|子|丑]]'
       const formulaContent = '正文甲 [[latex:\\frac{123}{456}]] 正文乙 [[latex:\\xrightarrow[\\text{催化剂}]{120^\\circ\\mathrm{C}}]] 正文丙'
+      const formulaTypes = '中文[[latex:x]]英文 [[latex:x^{2}]]、[[latex:x_{i}]]、[[latex:\\frac{a}{b}]]、[[latex:\\sqrt{5}]]；化学 [[latex:\\mathrm{H}_{2}\\mathrm{O}]]、[[latex:\\mathrm{Ni}^{2+}]]、[[latex:2\\mathrm{H}_{2}+\\mathrm{O}_{2}\\rightarrow2\\mathrm{H}_{2}\\mathrm{O}]]、[[latex:\\mathrm{A}\\rightleftharpoons\\mathrm{B}]]。长式 [[latex:\\frac{\\sum_{i=1}^{n}i^{2}+\\sqrt{x^{2}+y^{2}}}{\\lim_{x\\to0}\\frac{\\sin x}{x}}=1]]'
       const annotationContent = '[[anno:短注|短注触发]]　[[anno:这是一段会自动限制最大宽度并自然换行的长注释，包含 [[person:p01|人物标记]]、[[latex:\\frac{a}{b}]] 和连续英文 SUPERCALIFRAGILISTICEXPIALIDOCIOUSWITHOUTBREAKS。|长注触发]]'
       const annotationEdgeContent = '[[anno:靠近视口边缘时仍需保持完整可见的注释内容。|边缘注释]]'
       const illustrationContent = '插图位置测试：[[illu:position-test.png]]。'
@@ -353,6 +354,7 @@ export const markupLayoutHarness = String.raw`<!doctype html>
                 e(Case, { id: 'six', width: '52rem', content: extremeSixColumns }),
                 e(Case, { id: 'many', width: '52rem', content: manyColumns }),
                 e(Case, { id: 'formula', width: '52rem', content: formulaContent }),
+                e(Case, { id: 'formula-types', width: '18rem', content: formulaTypes }),
                 e(Case, { id: 'annotation', width: '52rem', content: annotationContent }),
                 e(Case, { id: 'annotation-edge', width: '52rem', content: annotationEdgeContent, align: 'right' }),
                 e(Case, { id: 'nested-redaction', width: '52rem', content: '黑幕嵌套：[[hide:前 [[person:p01|人物标记]] [[under:[[quote:q01|嵌套名言]]]] 后]]' }),

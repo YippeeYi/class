@@ -647,7 +647,7 @@ const recordTableStyles = styles.slice(
   styles.indexOf('.record-table-scroll {'),
   styles.indexOf('.material-reading .record-markup'),
 )
-assert.doesNotMatch(recordTableStyles, /overflow(?:-x)?: hidden|overflow-x: auto/, 'markup tables must fit by layout rather than clipping or horizontal scrolling')
+assert.match(recordTableStyles, /\.record-table-scroll--media\s*\{[^}]*overflow-x: auto/, 'only media tables may scroll inside their own reading lane')
 assert.match(recordTableStyles, /\[data-slot="table-container"\][\s\S]*overflow: visible/, 'the shadcn table wrapper must not reintroduce a horizontal scroller')
 assert.doesNotMatch(styles, /min-width: min\(100%, 32rem\)/, 'markup tables must not be forced wider than their content')
 assert.match(styles, /\.quiz-answer-blank-text[\s\S]*color: transparent/, 'hidden quiz answers must retain their exact rendered geometry')

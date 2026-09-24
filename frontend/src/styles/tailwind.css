@@ -886,14 +886,29 @@ body .app-interactive-media:not(:disabled):active {
   }
 
   .record-media-image {
+    position: relative;
     display: inline-block;
+    width: 2lh;
+    height: 2lh;
     max-width: calc(100% - 0.7em);
     vertical-align: middle;
     margin: 0.2em 0.35em;
   }
 
   .record-media-image--measured {
-    height: 2lh;
+    width: auto;
+  }
+
+  .record-media-image--pending {
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    visibility: hidden;
+  }
+
+  .record-media-image--failed {
+    width: auto;
+    height: auto;
   }
 
   .record-media-image-trigger {
@@ -911,11 +926,34 @@ body .app-interactive-media:not(:disabled):active {
     width: 100%;
     height: 100%;
     object-fit: contain;
+    opacity: 0;
   }
 
-  .record-media-loading,
+  .record-media-image-content.is-loaded {
+    opacity: 1;
+  }
+
+  .record-media-spinner {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--muted-foreground);
+    pointer-events: none;
+    user-select: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .record-media-spinner [data-slot="spinner"] {
+      animation: none;
+    }
+  }
+
   .record-media-failure {
-    display: inline-block;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
     padding: 0.35rem 0.55rem;
     border-radius: var(--radius-md);
     color: var(--muted-foreground);
@@ -924,27 +962,38 @@ body .app-interactive-media:not(:disabled):active {
   }
 
   .record-media-video {
+    position: relative;
     width: 100%;
     max-width: 760px;
     margin-inline: auto;
   }
 
+  .record-media-video--pending {
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    visibility: hidden;
+  }
+
+  .record-media-video--failed {
+    min-height: 2.5rem;
+  }
+
   .record-media-video video {
     display: block;
     width: 100%;
-    height: auto;
-    max-height: min(65vh, 520px);
+    height: 100%;
     object-fit: contain;
     background: black;
     border-radius: var(--radius-md);
   }
 
   .record-latex {
-    display: inline-block;
-    max-width: 100%;
-    overflow-x: auto;
-    vertical-align: -0.18em;
-    white-space: nowrap;
+    display: inline;
+    font-size: 1em;
+    line-height: inherit;
+    vertical-align: baseline;
+    white-space: normal;
     color: inherit;
   }
 
@@ -1086,6 +1135,9 @@ body .app-interactive-media:not(:disabled):active {
     overflow: visible;
     margin-block: 0.7em;
   }
+  .record-table-scroll--media {
+    overflow-x: auto;
+  }
   .record-table-scroll [data-slot="table-container"] {
     width: 100%;
     min-width: 0;
@@ -1117,6 +1169,15 @@ body .app-interactive-media:not(:disabled):active {
     overflow-wrap: anywhere;
     hyphens: auto;
     line-break: strict;
+  }
+  .record-table-scroll--media table {
+    width: var(--record-table-preferred-width);
+    min-width: var(--record-table-preferred-width);
+    max-width: none;
+  }
+  .record-table-scroll--media td[data-media] {
+    min-width: 10em;
+    padding-inline: 0.3em;
   }
   @container (max-width: 20rem) {
     .record-table-scroll:is([data-columns="10"], [data-columns="11"], [data-columns="12"]) col {
@@ -1341,6 +1402,13 @@ body .app-interactive-media:not(:disabled):active {
   .quiz-result-progress {
     color: var(--quiz-type-ink);
   }
+}
+
+/* KaTeX ships unlayered CSS, so its default 1.21em rule needs an unlayered override. */
+.record-latex .katex {
+  font-size: 1em;
+  line-height: inherit;
+  white-space: normal;
 }
 
 /* Nested marker nodes may include Tailwind utility colors emitted after the

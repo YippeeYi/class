@@ -8,7 +8,6 @@ const imageMetadata = await loadTypescriptModule('src/lib/image-metadata.ts')
 const component = await readFrontend('src/components/archive/markup-content.tsx')
 const service = await readFrontend('src/services/image-metadata.ts')
 const app = await readFrontend('src/app.tsx')
-const recordsPage = await readFrontend('src/pages/records-page.tsx')
 const writtenRecordPages = await readFrontend('src/features/records/written-record-pages.tsx')
 const mapPage = await readFrontend('src/pages/meal-map-page.tsx')
 const valid = markup.extractMarkupReferences('查看 [[illu:photo.webp]]。')
@@ -62,13 +61,13 @@ assert.deepEqual(imageMetadata.parseImageDimensions(svg, 'image/svg+xml'), {
 assert.match(component, /normalizeMarkup\(parseMarkup\(content\)\)/, 'records use the shared parse/layout pipeline')
 const mediaRenderer = await readFrontend('src/components/archive/media-renderer.tsx')
 assert.match(mediaRenderer, /ImageViewer/, 'images reuse the shared full-size viewer')
-assert.match(mediaRenderer, /useImageDimensions\(src, visible, 720\)/, 'visible thumbnails share the metadata cache')
+assert.match(mediaRenderer, /useImageDimensions\(src, visible, 720\)/, 'visible thumbnails share the metadata cache while record data prefetches all dimensions')
 assert.match(mediaRenderer, /variant: 'preview'/, 'thumbnails use transformed assets')
 assert.match(mediaRenderer, /IntersectionObserver/, 'offscreen media loading is deferred')
 assert.match(mediaRenderer, /preload="metadata"/, 'video only preloads metadata')
 assert.match(mediaRenderer, /controls/, 'video uses native controls')
 assert.match(service, /Range: `bytes=0-\$\{METADATA_RANGE_BYTES - 1\}`/, 'metadata should use a bounded Range request')
-assert.match(service, /image-dimensions:/, 'intrinsic geometry needs an access-scoped persistent cache')
+assert.match(service, /key: `\$\{isVideo\(normalized\)/, 'image and video geometry share access-scoped persistent caching')
 assert.match(service, /30 \* 24 \* 60 \* 60 \* 1000/, 'dimension metadata should remain fresh for 30 days')
 assert.match(service, /controller.abort\(\)/, 'metadata requests must time out')
 assert.match(service, /createRequestQueue\(4\)/, 'metadata network work must be bounded globally')
@@ -77,10 +76,10 @@ assert.doesNotMatch(
   /ImageMetadataPreloader/,
   'protected routes must not start an unrelated cross-page metadata crawl',
 )
-assert.doesNotMatch(
-  recordsPage,
-  /warmVisibleIllustrations|preloadImageDimensionList/,
-  'opening records must not speculatively request illustrations that are still hidden in text',
+assert.match(
+  await readFrontend('src/services/data.ts'),
+  /preloadRecordMediaDimensions/,
+  'record data loading must schedule media dimensions for every parsed record',
 )
 assert.match(
   writtenRecordPages,

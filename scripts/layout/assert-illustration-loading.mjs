@@ -71,6 +71,49 @@ export async function assertIllustrationLoading(page) {
     }
   })
   assert.ok(Math.abs(resized.imageHeight - 2 * resized.lineHeight) < 1, `thumbnail follows actual text metrics: ${JSON.stringify(resized)}`)
+  await page.evaluate(() => {
+    window.__rememberLoadingDimensions('data/attachments/table-slow.svg', { width: 1600, height: 1200 })
+    window.__rememberLoadingDimensions('data/attachments/table-other.svg', { width: 1600, height: 1200 })
+  })
+  let releaseImage
+  const imageReady = new Promise(resolve => { releaseImage = resolve })
+  await page.route('**/table-slow.svg*', async route => {
+    if (route.request().method() === 'GET' && !route.request().headers().range) await imageReady
+    await route.fallback()
+  })
+  await render('[[table:1x1|[[illu:table-slow.svg]]]]')
+  await page.locator('#illustration-loading-tests .record-table-scroll--media .record-media-spinner').waitFor()
+  const tableBefore = await page.locator('#illustration-loading-tests .record-table-scroll--media').evaluate(table => ({
+    columnWidth: table.querySelector('td[data-media]').getBoundingClientRect().width,
+    frameHeight: table.querySelector('.record-media-image').getBoundingClientRect().height,
+    tableWidth: table.querySelector('table').getBoundingClientRect().width,
+  }))
+  assert.ok(tableBefore.columnWidth >= 130, `single-column media gets readable width: ${JSON.stringify(tableBefore)}`)
+  releaseImage()
+  await page.locator('#illustration-loading-tests .record-media-image-content.is-loaded').waitFor()
+  const tableAfter = await page.locator('#illustration-loading-tests .record-table-scroll--media').evaluate(table => ({
+    columnWidth: table.querySelector('td[data-media]').getBoundingClientRect().width,
+    frameHeight: table.querySelector('.record-media-image').getBoundingClientRect().height,
+    tableWidth: table.querySelector('table').getBoundingClientRect().width,
+  }))
+  for (const key of Object.keys(tableBefore))
+    assert.ok(Math.abs(tableBefore[key] - tableAfter[key]) < 1, `table ${key} stays fixed while preview loads`)
+  await page.setViewportSize({ width: 320, height: 800 })
+  await render('[[table:2x3|标题|[[illu:table-slow.svg]]|这是一段很长的文字用于验证文字列仍能换行|第二行|[[illu:table-other.svg]]|结尾]]')
+  await page.locator('#illustration-loading-tests .record-table-scroll--media td[data-media]').first().waitFor()
+  const mobileTable = await page.locator('#illustration-loading-tests .record-table-scroll--media').evaluate(table => ({
+    columnWidth: table.querySelector('td[data-media]').getBoundingClientRect().width,
+    viewportWidth: window.innerWidth,
+    pageWidth: document.documentElement.scrollWidth,
+    scrollWidth: table.scrollWidth,
+    clientWidth: table.clientWidth,
+    images: table.querySelectorAll('td[data-media] .record-media-image').length,
+  }))
+  assert.equal(mobileTable.images, 2)
+  assert.ok(mobileTable.columnWidth >= 130, `multi-column image is not compressed: ${JSON.stringify(mobileTable)}`)
+  assert.ok(mobileTable.scrollWidth >= mobileTable.clientWidth, 'wide tables may scroll within their own region')
+  assert.ok(mobileTable.pageWidth <= mobileTable.viewportWidth, `table must not overflow the page: ${JSON.stringify(mobileTable)}`)
+  await page.unroute('**/table-slow.svg*')
   await render('[[illu:loading-fail.svg]]')
   await page.locator('#illustration-loading-tests .record-media-failure').waitFor()
   await render('页面已切换')

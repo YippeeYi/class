@@ -366,6 +366,22 @@ export function extractParticipantIds(value: unknown) {
   return extractMarkupReferences(value).participantIds
 }
 
+export function extractMarkupMedia(value: unknown) {
+  const media = new Map<string, Extract<MarkupNode, { type: 'media' }>>()
+  const visit = (nodes: MarkupNode[]) => {
+    for (const node of nodes) {
+      if (node.type === 'media') media.set(node.src, node)
+      else if (node.type === 'annotation') {
+        visit(parseMarkup(node.note))
+        visit(node.children)
+      } else if (node.type === 'style' || node.type === 'reference') visit(node.children)
+      else if (node.type === 'table') node.rows.flat().forEach(visit)
+    }
+  }
+  visit(parseMarkup(value))
+  return [...media.values()]
+}
+
 export function extractAuthorIds(record: { author?: string; content?: string }) {
   return [
     ...new Set([record.author || '', ...extractMarkupReferences(record.content).extraAuthorIds]),

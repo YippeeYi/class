@@ -141,7 +141,7 @@ function Annotation({ note, children }: { note: string; children: ReactNode }) {
         align="center"
         alignOffset={lockedAlignOffset}
         sideOffset={6}
-        className="record-annotation-popup block w-max px-3 py-2 text-left text-sm leading-6"
+        className="record-annotation-popup block w-max px-3 py-2 text-left text-sm leading-6 transition-[opacity,transform,filter]"
         style={{ maxWidth: 'min(22rem, calc(100vw - 3rem))', minWidth: 0 }}
       >
         <MarkupContent content={note} className="annotation-content" interactionMode="references" />
@@ -181,18 +181,29 @@ type TableGeometry = {
   columnCount: number
   columns: Array<{ id: string; width: string }>
   preferredWidth: string
+  hasMedia: boolean
 }
 
 const tableGeometryCache = new WeakMap<object, TableGeometry>()
 
-function tableCellClassName(columnCount: number) {
+function containsImage(nodes: readonly GeometryMarkupNode[]): boolean {
+  return nodes.some((node) => {
+    if (node.type === 'media') return node.mediaType === 'image'
+    if (node.type === 'style' || node.type === 'reference' || node.type === 'annotation')
+      return containsImage(node.children)
+    if (node.type === 'table') return node.rows.flat().some(containsImage)
+    return false
+  })
+}
+
+function tableCellClassName(columnCount: number, hasMedia: boolean) {
   const density =
     columnCount >= 10
       ? 'px-[0.06em] py-[0.34em] text-[0.88em] leading-[1.45]'
       : columnCount >= 7
         ? 'px-[0.3em] py-[0.34em]'
         : 'px-[0.62em] py-[0.34em]'
-  return `${density} align-top whitespace-normal break-words [overflow-wrap:anywhere]`
+  return `${hasMedia ? 'px-[0.3em] py-[0.34em]' : density} align-top whitespace-normal break-words [overflow-wrap:anywhere]`
 }
 
 function tableGeometry(rows: MarkupNode[][][] | QuizMarkupNode[][][]): TableGeometry {
@@ -208,6 +219,7 @@ function tableGeometry(rows: MarkupNode[][][] | QuizMarkupNode[][][]): TableGeom
     longCount: 0,
     total: 0,
     count: 0,
+    media: false,
   }))
   const cellMetrics: Array<{ column: number; units: number }> = []
 
@@ -218,6 +230,7 @@ function tableGeometry(rows: MarkupNode[][][] | QuizMarkupNode[][][]): TableGeom
       const han = visibleHanCount(cell)
       const stat = stats[column]
       if (!stat) continue
+      stat.media ||= containsImage(cell)
       cellMetrics.push({ column, units })
       stat.max = Math.max(stat.max, units)
       stat.total += units
@@ -245,7 +258,10 @@ function tableGeometry(rows: MarkupNode[][][] | QuizMarkupNode[][][]): TableGeom
     const longFloor = stat.longMax
       ? Math.min(Math.max(11, Math.sqrt(stat.longMax) * 3.7), maxColumnWidth * 0.72)
       : 0
-    const floor = Math.min(Math.max(4.4, shortFloor, mediumFloor, longFloor), maxColumnWidth)
+    const floor = Math.min(
+      Math.max(4.4, shortFloor, mediumFloor, longFloor, stat.media ? 10 : 0),
+      maxColumnWidth,
+    )
     const longTarget = stat.longMax
       ? Math.min(
           Math.max(longAverage * 0.62, stat.longMax * 0.52, Math.sqrt(stat.longMax) * 5.7),
@@ -257,7 +273,12 @@ function tableGeometry(rows: MarkupNode[][][] | QuizMarkupNode[][][]): TableGeom
     return {
       floor,
       ideal: Math.min(
-        Math.max(floor, contentTarget, Math.min(average + 3.2, maxColumnWidth * 0.76)),
+        Math.max(
+          floor,
+          contentTarget,
+          Math.min(average + 3.2, maxColumnWidth * 0.76),
+          stat.media ? 13 : 0,
+        ),
         maxColumnWidth,
       ),
       max: stat.max,
@@ -335,6 +356,7 @@ function tableGeometry(rows: MarkupNode[][][] | QuizMarkupNode[][][]): TableGeom
   const flexibleShare = Math.max(0, 1 - minimumShare * columnCount)
   const geometry = {
     columnCount,
+    hasMedia: stats.some((stat) => stat.media),
     columns: widths.map((width, column) => ({
       id: `column-${column}`,
       width: shouldExpand
@@ -444,7 +466,7 @@ export function MarkupContent({
       return (
         <div
           key={key}
-          className="record-table-scroll"
+          className={`record-table-scroll${geometry.hasMedia ? ' record-table-scroll--media' : ''}`}
           data-columns={geometry.columnCount}
           style={{ '--record-table-preferred-width': geometry.preferredWidth } as CSSProperties}
         >
@@ -467,10 +489,12 @@ export function MarkupContent({
                   <TableRow key={rowKey}>
                     {row.map((cell, cellPosition) => {
                       const cellKey = `${rowKey}-cell-${cellPosition}`
+                      const hasMedia = containsImage(cell)
                       return (
                         <TableCell
                           key={cellKey}
-                          className={tableCellClassName(geometry.columnCount)}
+                          className={tableCellClassName(geometry.columnCount, hasMedia)}
+                          data-media={hasMedia || undefined}
                         >
                           {renderNodes(cell, cellKey)}
                         </TableCell>
@@ -641,7 +665,7 @@ export function QuizMarkupContent({
                       return (
                         <TableCell
                           key={cellKey}
-                          className={tableCellClassName(geometry.columnCount)}
+                          className={tableCellClassName(geometry.columnCount, false)}
                         >
                           {renderNodes(cell, cellKey)}
                         </TableCell>

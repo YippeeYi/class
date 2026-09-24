@@ -148,6 +148,10 @@ assert.deepEqual(markup.parseMarkup('甲[[video:a.mp4]]乙[[video:b.webm]]丙'),
   { type: 'text', value: '甲' }, video('a.mp4'), { type: 'text', value: '乙' }, video('b.webm'), { type: 'text', value: '丙' },
 ])
 assert.deepEqual(markup.parseMarkup('[[illu:a.png]][[video:a.mp4]][[illu:b.png]]'), [image('a.png'), video('a.mp4'), image('b.png')])
+assert.deepEqual(
+  markup.extractMarkupMedia('[[anno:注解 [[illu:a.png]]|[[table:1x2|[[video:a.mp4]]|[[illu:a.png]]]]]]'),
+  [image('a.png'), video('a.mp4')],
+)
 assert.deepEqual(markup.parseMarkup('[[illu:a.png|旧字段]]'), [{ type: 'text', value: '[[illu:a.png|旧字段]]' }])
 for (const source of ['x^2+y^2', '\\frac{a+b}{c}', '\\sum_{i=1}^{n}i', '\\lim_{x\\to0}\\frac{\\sin x}{x}=1', '\\begin{matrix}a&b\\\\c&d\\end{matrix}', '\\ce{H2O}', '\\ce{2H2 + O2 -> 2H2O}', '\\ce{Fe^{3+}}', '\\ce{CH3COOH <=> CH3COO^- + H^+}', '\\badcommand{']) {
   assert.deepEqual(markup.parseMarkup(`[[latex:${source}]]`), [{ type: 'latex', source }])

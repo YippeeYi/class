@@ -41,6 +41,7 @@ import {
 } from './archive-governance.mjs';
 import qbAsset from '../frontend/src/lib/qb-asset.json' with { type: 'json' };
 import { privateAssetCacheControl, repairStorageCache } from './storage-cache.mjs';
+import { buildMediaDimensionManifests } from './media-manifest.mjs';
 import { createAccessAdmin } from './admin-access.mjs';
 import {
     createAdminRequest,
@@ -69,6 +70,10 @@ const {
 const hiddenStoragePrefix = 'hidden/';
 const allowedStorageRoots = ['data/attachments/', 'images/record-pages/', 'images/quiz/'];
 const mealMapStoragePath = 'images/private/meal-map.png';
+const mediaManifestPaths = {
+    public: 'data/attachments/record-media-dimensions.txt',
+    hidden: 'hidden/data/attachments/record-media-dimensions.txt'
+};
 const protectedStorageObjects = new Set([mealMapStoragePath]);
 const publicationTables = new Map();
 const publicationPruneKeys = new Map();
@@ -839,16 +844,19 @@ const uploadPrivateFiles = async () => {
     const summary = { uploaded: 0, skipped: 0, failed: [] };
     let nextIndex = 0;
     const uploadOne = async (item) => {
-        const absoluteSource = path.resolve(root, item.localPath);
-        const relativeSource = normalizeSlash(path.relative(root, absoluteSource));
-        if (!item.external && (relativeSource.startsWith('../') || path.isAbsolute(relativeSource))) {
-            throw new Error(`Storage source escaped the project root: ${item.localPath}`);
+        let body = item.body;
+        if (!body) {
+            const absoluteSource = path.resolve(root, item.localPath);
+            const relativeSource = normalizeSlash(path.relative(root, absoluteSource));
+            if (!item.external && (relativeSource.startsWith('../') || path.isAbsolute(relativeSource))) {
+                throw new Error(`Storage source escaped the project root: ${item.localPath}`);
+            }
+            const info = await fs.stat(absoluteSource).catch(() => null);
+            if (!info?.isFile()) {
+                throw new Error(`Referenced Storage asset is missing: ${item.localPath}`);
+            }
+            body = await fs.readFile(absoluteSource);
         }
-        const info = await fs.stat(absoluteSource).catch(() => null);
-        if (!info?.isFile()) {
-            throw new Error(`Referenced Storage asset is missing: ${item.localPath}`);
-        }
-        const body = await fs.readFile(absoluteSource);
 
         if (validateOnly) {
             summary.skipped += 1;
@@ -945,6 +953,15 @@ const buildPublication = async () => {
         await importQuiz();
         await importCreditsPage();
         if (qbAsset.ready) registerStorageAsset(qbAsset.path);
+        const manifests = await buildMediaDimensionManifests(root, storageUploadManifest);
+        for (const [scope, remotePath] of Object.entries(mediaManifestPaths)) {
+            if (storageUploadManifest.has(remotePath)) throw new Error(`Media manifest path collides with an attachment: ${remotePath}`);
+            storageUploadManifest.set(remotePath, {
+                localPath: remotePath,
+                remotePath,
+                body: Buffer.from(JSON.stringify({ version: 1, dimensions: manifests[scope] }))
+            });
+        }
     } finally {
         collectingPublication = false;
     }
@@ -953,6 +970,7 @@ const buildPublication = async () => {
 const validatePublicationAssets = async () => {
     const missingAssets = [];
     for (const item of storageUploadManifest.values()) {
+        if (item.body) continue;
         const absoluteSource = path.resolve(root, item.localPath);
         const relativeSource = normalizeSlash(path.relative(root, absoluteSource));
         if (relativeSource.startsWith('../') || path.isAbsolute(relativeSource)) {

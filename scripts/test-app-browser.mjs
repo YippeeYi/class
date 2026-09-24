@@ -80,6 +80,8 @@ async function contextFor({ admin = false, mobile = false, authenticated = true 
     if (url.pathname.includes('/rpc/get_class_record_order')) return respond(records.filter((r) => !r.hidden || (admin && request.postDataJSON()?.include_hidden)).map((r) => ({ file_name: r.file_name, page: '01' })))
     if (url.pathname.includes('/storage/v1/object/sign/')) {
       if (request.method() === 'POST') return respond({ signedURL: url.pathname.replace('/storage/v1', '') + '?token=test' })
+      if (url.pathname.endsWith('record-media-dimensions.txt'))
+        return respond({ version: 1, dimensions: { 'data/attachments/offscreen-proof.jpg': [300, 600] } })
       return route.fulfill({ status: 200, headers: { ...headers, 'content-type': 'image/svg+xml' }, body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="#779999"/></svg>' })
     }
     const table = url.pathname.split('/').at(-1)
@@ -699,7 +701,8 @@ try {
     const business = (events) => events.filter((e) => /\/class_|get_class_record_order/.test(e.path))
     const versions = (events) => events.filter((e) => e.path.endsWith('get_class_data_version'))
     assert.equal(versions(cold).length, 1, 'cold concurrent readers share one initial version check')
-    assert.equal(cold.some((e) => e.path.includes('offscreen-proof')), false, 'closed illustrations must not be prefetched')
+    assert.equal(cold.some((e) => e.path.includes('offscreen-proof')), false, 'known dimensions must avoid offscreen image downloads')
+    assert.ok(cold.some((e) => e.path.endsWith('record-media-dimensions.txt')), 'record data loads the protected dimensions manifest')
     assert.equal(new Set(business(cold).map((e) => e.path)).size, business(cold).length, 'cold business loads are deduplicated')
     const grant = await cachedPage.evaluate(() => JSON.parse(localStorage.getItem('classRecord:inviteAccess')))
     const warmStart = networkEvents.length
@@ -752,18 +755,23 @@ try {
     const grantBefore = await first.evaluate(() => JSON.parse(localStorage.getItem('classRecord:inviteAccess')))
     await first.evaluate(async (origin) => {
       const { signAssetUrl } = await import(origin + 'src/services/data.ts')
-      const { preloadImageDimensions } = await import(origin + 'src/services/image-metadata.ts')
+      const { preloadImageDimensions, preloadMediaManifest } = await import(origin + 'src/services/image-metadata.ts')
+      await preloadMediaManifest()
       await signAssetUrl('data/attachments/cache-proof.png')
       await preloadImageDimensions('data/attachments/cache-proof.png')
       await (await caches.open('static-proof')).put('/static-proof', new Response('preserved'))
       window.__recordNode = document.querySelector('#record-r1')
     }, origin)
-    const signCount = () => requests.filter((path) => path.includes('/storage/v1/object/sign/')).length
+    await second.evaluate(async (origin) => {
+      const { preloadMediaManifest } = await import(origin + 'src/services/image-metadata.ts')
+      await preloadMediaManifest()
+    }, origin)
+    const imageSignCount = () => requests.filter((path) => path.includes('/storage/v1/object/sign/') && !path.endsWith('record-media-dimensions.txt')).length
     const businessCount = () => requests.filter((path) => /\/class_|get_class_record_order/.test(path)).length
     const authCount = () => requests.filter((path) => path.endsWith('refresh_invite_access')).length
     const initialReads = businessCount()
     const initialAuth = authCount()
-    const initialSigns = signCount()
+    const initialSigns = imageSignCount()
     await first.clock.fastForward(60_000)
     await new Promise((resolve) => setTimeout(resolve, 250))
     assert.equal(businessCount(), initialReads, 'unchanged version must not reload any business data')
@@ -789,7 +797,7 @@ try {
       if (!getImageDimensions('data/attachments/cache-proof.png')) throw new Error('image dimensions were discarded')
       if (!(await caches.match('/static-proof'))) throw new Error('static cache was discarded')
     }, origin)
-    assert.equal(signCount(), initialSigns, 'database changes must not re-sign unchanged images')
+    assert.equal(imageSignCount(), initialSigns, 'database changes must not re-sign unchanged images')
     const grantAfter = await first.evaluate(() => JSON.parse(localStorage.getItem('classRecord:inviteAccess')))
     assert.equal(grantAfter.token, grantBefore.token)
     assert.equal(grantAfter.authorizedAt, grantBefore.authorizedAt)

@@ -14,7 +14,7 @@ const imageMetadata = await readFrontend('src/services/image-metadata.ts')
 const boundedRetryHook = await readFrontend('src/hooks/use-bounded-image-retry.ts')
 assert.match(markupComponent, /MediaRenderer/, 'record content must use the shared media renderer')
 assert.match(mediaRenderer, /useSignedAsset\(visible \? src : ''/, 'record media must be signed only near the viewport')
-assert.match(mediaRenderer, /record-media-loading/, 'illustrations need an explicit loading state')
+assert.match(mediaRenderer, /MediaLoadingSpinner/, 'illustrations and videos share a spinner loading state')
 assert.match(
   signedAssetHook,
   /signAssetUrl\(path, \{ forceRefresh, variant, width, quality \}\)/,
