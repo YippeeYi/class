@@ -893,6 +893,8 @@ body .app-interactive-media:not(:disabled):active {
     max-width: calc(100% - 0.7em);
     vertical-align: middle;
     margin: 0.2em 0.35em;
+    border-radius: var(--radius-md);
+    box-shadow: 0 0 0 1px var(--border);
   }
 
   .record-media-image--measured {
@@ -997,6 +999,17 @@ body .app-interactive-media:not(:disabled):active {
     color: inherit;
   }
 
+  .record-latex--block {
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+    margin-inline: auto;
+  }
+
+  .record-latex--block .katex-display {
+    margin: 0;
+  }
+
   .record-latex-error {
     color: var(--muted-foreground);
   }
@@ -1015,7 +1028,6 @@ body .app-interactive-media:not(:disabled):active {
     border: 0;
     border-radius: 0;
     background: transparent;
-    color: color-mix(in oklch, var(--primary) 82%, var(--foreground));
     padding: 0;
     font: inherit;
     font-weight: inherit;
@@ -1028,7 +1040,6 @@ body .app-interactive-media:not(:disabled):active {
   .markup-link:focus-visible {
     border-radius: var(--radius-sm);
     background: color-mix(in oklch, var(--primary) 8%, transparent);
-    color: var(--primary);
     text-decoration-style: solid;
     text-decoration-thickness: 0.1em;
     outline: 2px solid var(--ring);
@@ -1039,7 +1050,6 @@ body .app-interactive-media:not(:disabled):active {
   @media (hover: hover) and (pointer: fine) {
     .markup-link:hover {
       background: transparent;
-      color: var(--primary);
       text-decoration-style: solid;
       text-decoration-thickness: 0.1em;
     }
@@ -1055,7 +1065,8 @@ body .app-interactive-media:not(:disabled):active {
     text-underline-offset: 0.18em;
   }
   .record-red {
-    color: var(--destructive);
+    --record-markup-accent: var(--destructive);
+    color: var(--record-markup-accent);
   }
   .record-redacted {
     border-radius: 0;
@@ -1409,6 +1420,18 @@ body .app-interactive-media:not(:disabled):active {
   font-size: 1em;
   line-height: inherit;
   white-space: normal;
+}
+
+.markup-link {
+  color: var(--record-markup-accent, var(--primary));
+}
+
+.markup-link .record-latex {
+  border-bottom: 0.06em dotted currentColor;
+}
+
+.record-underline .record-latex {
+  border-bottom: 0.08em solid currentColor;
 }
 
 /* Nested marker nodes may include Tailwind utility colors emitted after the

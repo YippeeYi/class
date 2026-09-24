@@ -4,13 +4,18 @@ export type MarkupBlock =
   | { type: 'inline'; nodes: MarkupNode[]; key: string }
   | {
       type: 'block'
-      node: Extract<MarkupNode, { type: 'table' | 'media' }>
+      node: MarkupNode
       key: string
       styles?: Extract<MarkupNode, { type: 'style' }>['style'][]
+      decoratedLatex?: boolean
     }
 
-function isBlock(node: MarkupNode): node is Extract<MarkupNode, { type: 'table' | 'media' }> {
-  return node.type === 'table' || (node.type === 'media' && node.mediaType === 'video')
+function isBlock(node: MarkupNode) {
+  return (
+    node.type === 'table' ||
+    (node.type === 'media' && node.mediaType === 'video') ||
+    (node.type === 'latex' && node.displayMode === 'block')
+  )
 }
 
 /** Split block nodes out of inline wrappers before React creates DOM. */
@@ -37,10 +42,17 @@ export function normalizeMarkup(nodes: MarkupNode[]): MarkupBlock[] {
       for (const part of nested) {
         if (part.type === 'block') {
           flush()
+          const decoratedLatex = part.decoratedLatex || part.node.type === 'latex'
           output.push({
             ...part,
             key: `${key}/${part.key}`,
-            styles: node.type === 'style' ? [node.style, ...(part.styles || [])] : part.styles,
+            node: decoratedLatex ? { ...node, children: [part.node] } : part.node,
+            decoratedLatex,
+            styles: decoratedLatex
+              ? part.styles
+              : node.type === 'style'
+                ? [node.style, ...(part.styles || [])]
+                : part.styles,
           })
         } else if (part.nodes.length) {
           append({ ...node, children: part.nodes }, `${key}/${part.key}`)

@@ -18,7 +18,7 @@ export type MarkupNode =
     }
   | { type: 'annotation'; note: string; children: MarkupNode[] }
   | { type: 'media'; mediaType: 'image' | 'video'; src: string }
-  | { type: 'latex'; source: string }
+  | { type: 'latex'; source: string; displayMode?: 'block' }
   | { type: 'table'; rows: MarkupNode[][][] }
 
 export type QuizMarkupNode =
@@ -52,14 +52,14 @@ function escapedAt(source: string, index: number) {
 }
 
 function balancedEnd(source: string, start: number) {
-  if (/^\[\[(?:illu|video|latex):/.test(source.slice(start, start + 9))) {
+  if (/^\[\[(?:illu|video):/.test(source.slice(start, start + 9))) {
     const end = source.indexOf(']]', start + 2)
     return end < 0 ? -1 : end + 2
   }
   let depth = 1
   for (let index = start + 2; index < source.length - 1; index += 1) {
     if (!escapedAt(source, index) && source.startsWith('[[', index)) {
-      if (/^\[\[(?:illu|video|latex):/.test(source.slice(index, index + 9))) {
+      if (/^\[\[(?:illu|video):/.test(source.slice(index, index + 9))) {
         const end = source.indexOf(']]', index + 2)
         if (end < 0) return -1
         index = end + 1
@@ -134,12 +134,40 @@ function textNode(value: string): MarkupNode {
   return { type: 'text', value }
 }
 
-function parseSquare(body: string, raw: string, depth: number): MarkupNode {
+function latexNode(source: string, displayMode: boolean): MarkupNode {
+  return displayMode ? { type: 'latex', source, displayMode: 'block' } : { type: 'latex', source }
+}
+
+function decorateLatex(node: MarkupNode, displayMode: boolean): MarkupNode | null {
+  if (node.type === 'text') return node.value.trim() ? latexNode(node.value, displayMode) : null
+  if (node.type !== 'style' && node.type !== 'reference' && node.type !== 'annotation') return null
+  const onlyChild = node.children.length === 1 ? node.children[0] : null
+  if (!onlyChild) return null
+  const child = decorateLatex(onlyChild, displayMode)
+  return child ? { ...node, children: [child] } : null
+}
+
+function parseSquare(
+  body: string,
+  raw: string,
+  depth: number,
+  preserveEscapes = false,
+): MarkupNode {
+  if (depth > 24) return textNode(raw)
   const colon = body.indexOf(':')
   if (colon < 1) return textNode(raw)
   const kind = body.slice(0, colon)
   const payload = body.slice(colon + 1)
-  if (kind === 'latex') return payload.trim() ? { type: 'latex', source: payload } : textNode(raw)
+  if (kind === 'latex' || kind === 'latex-block') {
+    const trimmed = payload.trim()
+    if (!trimmed) return textNode(raw)
+    const nestedEnd = trimmed.startsWith('[[') ? balancedEnd(trimmed, 0) : -1
+    if (nestedEnd === trimmed.length) {
+      const nested = parseSquare(trimmed.slice(2, -2), trimmed, depth + 1, true)
+      return decorateLatex(nested, kind === 'latex-block') || textNode(raw)
+    }
+    return latexNode(payload, kind === 'latex-block')
+  }
   if (kind === 'illu' || kind === 'video') {
     const mediaType = kind === 'illu' ? 'image' : 'video'
     const src = mediaPath(payload, mediaType)
@@ -150,7 +178,7 @@ function parseSquare(body: string, raw: string, depth: number): MarkupNode {
     return {
       type: 'style',
       style: kind as Extract<MarkupNode, { type: 'style' }>['style'],
-      children: parseNodes(payload, depth + 1),
+      children: parseNodes(payload, depth + 1, preserveEscapes),
     }
   }
   if (kind === 'table') {
@@ -161,7 +189,7 @@ function parseSquare(body: string, raw: string, depth: number): MarkupNode {
     const columnCount = Math.max(1, Math.min(12, Number(dimensions[2])))
     const rows = Array.from({ length: rowCount }, (_, row) =>
       Array.from({ length: columnCount }, (_, column) =>
-        parseNodes(parts[row * columnCount + column] || '', depth + 1),
+        parseNodes(parts[row * columnCount + column] || '', depth + 1, preserveEscapes),
       ),
     )
     return { type: 'table', rows }
@@ -178,15 +206,19 @@ function parseSquare(body: string, raw: string, depth: number): MarkupNode {
       kind: kind as Extract<MarkupNode, { type: 'reference' }>['kind'],
       id: first.replace(kind === 'record' ? /\.json$/i : /$^/, ''),
       labelSource: second,
-      children: parseNodes(second, depth + 1),
+      children: parseNodes(second, depth + 1, preserveEscapes),
     }
   }
   if (kind === 'anno')
-    return { type: 'annotation', note: first, children: parseNodes(second, depth + 1) }
+    return {
+      type: 'annotation',
+      note: first,
+      children: parseNodes(second, depth + 1, preserveEscapes),
+    }
   return textNode(raw)
 }
 
-function parseNodes(source: string, depth = 0): MarkupNode[] {
+function parseNodes(source: string, depth = 0, preserveEscapes = false): MarkupNode[] {
   if (depth > 24) return [textNode(source)]
   const nodes: MarkupNode[] = []
   let plain = ''
@@ -196,6 +228,7 @@ function parseNodes(source: string, depth = 0): MarkupNode[] {
   }
   for (let index = 0; index < source.length; ) {
     if (
+      !preserveEscapes &&
       source[index] === '\\' &&
       index + 1 < source.length &&
       '\\|[]'.includes(source[index + 1] || '')
@@ -209,7 +242,7 @@ function parseNodes(source: string, depth = 0): MarkupNode[] {
       if (end > 0) {
         flush()
         const raw = source.slice(index, end)
-        nodes.push(parseSquare(raw.slice(2, -2), raw, depth))
+        nodes.push(parseSquare(raw.slice(2, -2), raw, depth, preserveEscapes))
         index = end
         continue
       }

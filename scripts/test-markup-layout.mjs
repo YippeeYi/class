@@ -2326,6 +2326,72 @@ try {
   assert.ok(mobileFormula.pageWidth <= mobileFormula.viewportWidth, `mobile formulas stay within the page: ${JSON.stringify(mobileFormula)}`)
   await page.setViewportSize({ width: 1280, height: 1000 })
 
+  const nestedFormula = page.locator('[data-case="formula-nesting"]')
+  await page.waitForFunction(() =>
+    document.querySelectorAll('[data-case="formula-nesting"] .record-latex--block .katex-display').length === 3)
+  const nestedFormulaState = await nestedFormula.evaluate(element => {
+    const formulas = [...element.querySelectorAll('.record-latex .katex')]
+    const red = element.querySelector('.record-red .person-link')
+    const under = element.querySelector('.record-underline')
+    const underFormula = under?.querySelector('.record-latex')
+    const blocks = [...element.querySelectorAll('.record-latex--block')]
+    return {
+      formulaMarkup: formulas.slice(0, 4).map(formula => formula.innerHTML),
+      formulaFonts: formulas.slice(0, 4).map(formula => getComputedStyle(formula).fontFamily),
+      blockMarkup: blocks.map(block => block.querySelector('.katex')?.innerHTML),
+      plainFormulaColor: getComputedStyle(formulas[0]).color,
+      redWrapper: red?.closest('.record-red') && getComputedStyle(red.closest('.record-red')).color,
+      redLink: red && getComputedStyle(red).color,
+      redFormula: red?.querySelector('.katex') && getComputedStyle(red.querySelector('.katex')).color,
+      underline: under && getComputedStyle(under).textDecorationLine,
+      underlineFormulaBorder: underFormula && getComputedStyle(underFormula).borderBottomStyle,
+      linkFormulaBorder: getComputedStyle(element.querySelector('.person-link .record-latex')).borderBottomStyle,
+      blockDisplays: blocks.map(block => getComputedStyle(block).display),
+      blockParents: blocks.every(block => block.closest('.record-markup-block') !== null),
+      formulaErrors: element.querySelectorAll('.record-latex-error').length,
+    }
+  })
+  assert.equal(nestedFormulaState.formulaMarkup.length, 4)
+  assert.ok(nestedFormulaState.formulaMarkup.every(markup => markup === nestedFormulaState.formulaMarkup[0]), 'nested markers must leave KaTeX output untouched')
+  assert.ok(nestedFormulaState.formulaFonts.every(font => font === nestedFormulaState.formulaFonts[0]), 'nested markers must preserve KaTeX fonts')
+  assert.notEqual(nestedFormulaState.redLink, nestedFormulaState.plainFormulaColor, 'red decoration must change the formula color')
+  assert.equal(nestedFormulaState.redLink, nestedFormulaState.redWrapper)
+  assert.equal(nestedFormulaState.redLink, nestedFormulaState.redFormula, 'red and link effects must compose without recoloring KaTeX internally')
+  assert.match(nestedFormulaState.underline, /underline/)
+  assert.equal(nestedFormulaState.underlineFormulaBorder, 'solid')
+  assert.equal(nestedFormulaState.linkFormulaBorder, 'dotted')
+  assert.equal(nestedFormulaState.blockMarkup.length, 3)
+  assert.ok(nestedFormulaState.blockMarkup.every(markup => markup === nestedFormulaState.blockMarkup[0]), 'decorated block formulas must preserve KaTeX output')
+  assert.deepEqual(nestedFormulaState.blockDisplays, ['block', 'block', 'block'])
+  assert.equal(nestedFormulaState.blockParents, true)
+  assert.equal(nestedFormulaState.formulaErrors, 0)
+  assert.equal(await nestedFormula.locator('.record-link').getAttribute('href'), '/records#record-r1')
+  assert.equal(await nestedFormula.locator('.material-link').getAttribute('href'), '/materials?id=m1')
+  const formulaPersonLink = nestedFormula.locator('.person-link').first()
+  assert.equal(await formulaPersonLink.getAttribute('href'), '/person?id=p01')
+  await formulaPersonLink.click()
+  await page.waitForFunction(() => window.__memoryLocation === '/person?id=p01')
+  await page.evaluate(() => window.__memoryNavigate('/'))
+  await page.waitForFunction(() => window.__memoryLocation === '/')
+  await nestedFormula.locator('.person-link').last().click()
+  await page.waitForFunction(() => window.__memoryLocation === '/person?id=p01')
+  await page.evaluate(() => window.__memoryNavigate('/'))
+  await page.waitForFunction(() => window.__memoryLocation === '/')
+  await nestedFormula.locator('.record-annotation').click()
+  await page.locator('.record-annotation-popup[data-open]').waitFor()
+  await page.keyboard.press('Escape')
+  await page.locator('.record-annotation-popup[data-open]').waitFor({ state: 'hidden' })
+  await page.setViewportSize({ width: 320, height: 800 })
+  const narrowNestedFormula = await nestedFormula.evaluate(element => ({
+    pageWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.innerWidth,
+    blockWidths: [...element.querySelectorAll('.record-latex--block')].map(block => block.getBoundingClientRect().width),
+    contentWidth: element.querySelector('.record-markup').getBoundingClientRect().width,
+  }))
+  assert.ok(narrowNestedFormula.pageWidth <= narrowNestedFormula.viewportWidth, `nested formulas must not overflow the mobile page: ${JSON.stringify(narrowNestedFormula)}`)
+  assert.ok(narrowNestedFormula.blockWidths.every(width => width <= narrowNestedFormula.contentWidth), 'decorated block formulas must stay within the mobile content lane')
+  await page.setViewportSize({ width: 1280, height: 1000 })
+
   const shortTrigger = page.getByRole('button', { name: '短注触发' })
   await shortTrigger.scrollIntoViewIfNeeded()
   const shortTriggerBox = await shortTrigger.boundingBox()

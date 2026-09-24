@@ -87,17 +87,21 @@ export async function assertIllustrationLoading(page) {
     columnWidth: table.querySelector('td[data-media]').getBoundingClientRect().width,
     frameHeight: table.querySelector('.record-media-image').getBoundingClientRect().height,
     tableWidth: table.querySelector('table').getBoundingClientRect().width,
+    border: getComputedStyle(table.querySelector('.record-media-image')).boxShadow,
   }))
   assert.ok(tableBefore.columnWidth >= 130, `single-column media gets readable width: ${JSON.stringify(tableBefore)}`)
+  assert.notEqual(tableBefore.border, 'none', 'thumbnail border remains visible while loading')
   releaseImage()
   await page.locator('#illustration-loading-tests .record-media-image-content.is-loaded').waitFor()
   const tableAfter = await page.locator('#illustration-loading-tests .record-table-scroll--media').evaluate(table => ({
     columnWidth: table.querySelector('td[data-media]').getBoundingClientRect().width,
     frameHeight: table.querySelector('.record-media-image').getBoundingClientRect().height,
     tableWidth: table.querySelector('table').getBoundingClientRect().width,
+    border: getComputedStyle(table.querySelector('.record-media-image')).boxShadow,
   }))
-  for (const key of Object.keys(tableBefore))
+  for (const key of ['columnWidth', 'frameHeight', 'tableWidth'])
     assert.ok(Math.abs(tableBefore[key] - tableAfter[key]) < 1, `table ${key} stays fixed while preview loads`)
+  assert.equal(tableAfter.border, tableBefore.border, 'thumbnail border persists after loading')
   await page.setViewportSize({ width: 320, height: 800 })
   await render('[[table:2x3|标题|[[illu:table-slow.svg]]|这是一段很长的文字用于验证文字列仍能换行|第二行|[[illu:table-other.svg]]|结尾]]')
   await page.locator('#illustration-loading-tests .record-table-scroll--media td[data-media]').first().waitFor()

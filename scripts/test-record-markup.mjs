@@ -159,6 +159,28 @@ for (const source of ['x^2+y^2', '\\frac{a+b}{c}', '\\sum_{i=1}^{n}i', '\\lim_{x
 assert.deepEqual(markup.parseMarkup('甲[[latex:E=mc^2]]乙[[latex:x+y]]'), [
   { type: 'text', value: '甲' }, { type: 'latex', source: 'E=mc^2' }, { type: 'text', value: '乙' }, { type: 'latex', source: 'x+y' },
 ])
+const decoratedFormula = markup.parseMarkup('[[red:[[person:p01|[[under:[[latex:x^{2}+y^{2}]]]]]]]]')
+assert.equal(decoratedFormula[0].type, 'style')
+assert.equal(decoratedFormula[0].children[0].type, 'reference')
+assert.equal(decoratedFormula[0].children[0].children[0].type, 'style')
+assert.deepEqual(decoratedFormula[0].children[0].children[0].children[0], { type: 'latex', source: 'x^{2}+y^{2}' })
+const latexOuter = markup.parseMarkup('[[latex:[[red:[[person:p01|\\frac{a}{b}]]]]]]')
+assert.equal(latexOuter[0].type, 'style')
+assert.equal(latexOuter[0].children[0].type, 'reference')
+assert.deepEqual(latexOuter[0].children[0].children[0], { type: 'latex', source: '\\frac{a}{b}' })
+const matrixSource = '\\begin{matrix}a&b\\\\c&d\\end{matrix}'
+assert.deepEqual(markup.parseMarkup(`[[latex:[[red:${matrixSource}]]]]`)[0].children[0], { type: 'latex', source: matrixSource })
+assert.deepEqual(markup.extractMarkupReferences('[[latex:[[person:p01|x^2]]]]').participantIds, ['p01'])
+assert.deepEqual(markup.parseMarkup('[[record:r1|[[latex:E=mc^2]]]]')[0].children[0], { type: 'latex', source: 'E=mc^2' })
+assert.deepEqual(markup.parseMarkup('[[material:m1|[[latex:x_i]]]]')[0].children[0], { type: 'latex', source: 'x_i' })
+assert.deepEqual(markup.parseMarkup('[[anno:反应条件|[[latex:\\xrightarrow[\\text{下方}]{\\text{上方}}]]]]')[0].children[0], { type: 'latex', source: '\\xrightarrow[\\text{下方}]{\\text{上方}}' })
+const blockFormula = markup.parseMarkup('[[person:p01|[[red:[[latex-block:\\frac{a}{b}]]]]]]')
+assert.deepEqual(blockFormula[0].children[0].children[0], { type: 'latex', source: '\\frac{a}{b}', displayMode: 'block' })
+const blockLayout = layout.normalizeMarkup(blockFormula)
+assert.equal(blockLayout[0].type, 'block')
+assert.equal(blockLayout[0].node.type, 'reference')
+assert.equal(blockLayout[0].node.children[0].type, 'style')
+assert.deepEqual(markup.parseMarkup('[[latex:[[under:x_i]]]]')[0].children[0], { type: 'latex', source: 'x_i' })
 assert.equal(markup.parseMarkup('[[latex:]]')[0].type, 'text')
 for (const marker of ['[[illu:]]', '[[video:]]', '[[illu:../bad.png]]', '[[video:javascript:bad.mp4]]', '[[video:evil.png]]']) {
   assert.equal(markup.parseMarkup(marker)[0].type, 'text')
@@ -177,5 +199,14 @@ assert.deepEqual(markup.parseMarkup('[[latex:a]]b]]'), [{ type: 'latex', source:
 const katex = (await import('katex')).default
 await import('katex/contrib/mhchem')
 assert.match(katex.renderToString('\\ce{2H2 + O2 -> 2H2O}', { throwOnError: true, trust: false }), /katex/)
+for (const source of [
+  '\\xrightarrow[\\text{催化剂}]{\\text{加热}}',
+  '\\ce{A ->[\\text{加热}][\\text{催化剂}] B}',
+  '\\ce{A <=>[\\text{加热}][\\text{催化剂}] B}',
+]) {
+  const html = katex.renderToString(source, { throwOnError: true, trust: false, strict: 'error' })
+  assert.match(html, /加热/u)
+  assert.match(html, /催化剂/u)
+}
 assert.doesNotMatch(katex.renderToString('\\href{javascript:alert(1)}{x}', { throwOnError: true, trust: false }), /href="javascript:/)
 assert.throws(() => katex.renderToString('\\notARealCommand{', { throwOnError: true, trust: false }))

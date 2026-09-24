@@ -3,7 +3,13 @@ import { useEffect, useRef, useState } from 'react'
 import 'katex/contrib/mhchem'
 import 'katex/dist/katex.min.css'
 
-export function LatexRenderer({ source }: { source: string }) {
+export function LatexRenderer({
+  source,
+  displayMode = false,
+}: {
+  source: string
+  displayMode?: boolean
+}) {
   const ref = useRef<HTMLSpanElement>(null)
   const [failed, setFailed] = useState(false)
   useEffect(() => {
@@ -11,7 +17,7 @@ export function LatexRenderer({ source }: { source: string }) {
     if (!element) return
     try {
       katex.render(source, element, {
-        displayMode: false,
+        displayMode,
         throwOnError: true,
         trust: false,
         strict: 'error',
@@ -24,9 +30,12 @@ export function LatexRenderer({ source }: { source: string }) {
       element.replaceChildren()
       setFailed(true)
     }
-  }, [source])
+  }, [displayMode, source])
   return (
-    <span className="record-latex" title={failed ? '公式格式错误' : undefined}>
+    <span
+      className={`record-latex${displayMode ? ' record-latex--block' : ''}`}
+      title={failed ? '公式格式错误' : undefined}
+    >
       <span ref={ref} />
       {failed && <span className="record-latex-error">公式格式错误</span>}
     </span>

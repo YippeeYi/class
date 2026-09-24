@@ -459,7 +459,7 @@ export function MarkupContent({
       if (node.type === 'latex')
         return (
           <Suspense key={`${key}:${node.source}`} fallback={<span className="record-latex" />}>
-            <LatexRenderer source={node.source} />
+            <LatexRenderer source={node.source} displayMode={node.displayMode === 'block'} />
           </Suspense>
         )
       const geometry = tableGeometry(node.rows)
