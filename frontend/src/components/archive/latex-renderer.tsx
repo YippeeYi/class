@@ -3,9 +3,9 @@ import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import 'katex/contrib/mhchem'
 import 'katex/dist/katex.min.css'
-import type { LatexMarker } from '@/lib/markup'
 
-type MathSlot = { marker: LatexMarker; element: Element; content: Node[] }
+type MathMarker = { className: string }
+type MathSlot = { marker: MathMarker; element: Element; content: Node[] }
 
 function MathContent({ content }: { content: Node[] }) {
   const ref = useRef<HTMLSpanElement>(null)
@@ -26,8 +26,8 @@ export function LatexRenderer({
   source: string
   displayMode?: boolean
   mathSource?: string
-  markers?: LatexMarker[]
-  renderMarker?: (marker: LatexMarker['node'], content: ReactNode) => ReactNode
+  markers?: MathMarker[]
+  renderMarker?: (className: string, content: ReactNode) => ReactNode
 }) {
   const ref = useRef<HTMLSpanElement>(null)
   const [failed, setFailed] = useState(false)
@@ -82,7 +82,7 @@ export function LatexRenderer({
       {renderMarker &&
         slots.map((slot) =>
           createPortal(
-            renderMarker(slot.marker.node, <MathContent content={slot.content} />),
+            renderMarker(slot.marker.className, <MathContent content={slot.content} />),
             slot.element,
             slot.marker.className,
           ),

@@ -396,6 +396,7 @@ try {
     for (let index = 0; index < 3; index++) {
       await ordinaryQuiz.locator('.quiz-option').first().click()
       assert.notEqual(await ordinaryQuiz.locator('.quiz-question-card').getAttribute('data-answer-result'), 'pending')
+      assert.equal(await ordinaryQuiz.locator('.quiz-feedback-slot [data-slot="alert"]').count(), 0, 'answer feedback must not mount a nested alert card')
       const spacing = await ordinaryQuiz.locator('.quiz-feedback-slot').evaluate((slot) => {
         const feedback = slot.querySelector('.quiz-result-feedback').getBoundingClientRect()
         const icon = slot.querySelector('.quiz-result-icon').getBoundingClientRect()

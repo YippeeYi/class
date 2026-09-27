@@ -472,7 +472,10 @@ export function MarkupContent({
               mathSource={node.mathSource}
               markers={node.markers}
               displayMode={node.displayMode === 'block'}
-              renderMarker={(marker, content) => renderNodes([marker], `${key}-math`, content)}
+              renderMarker={(className, content) => {
+                const marker = node.markers?.find((item) => item.className === className)
+                return marker ? renderNodes([marker.node], `${key}-math`, content) : content
+              }}
             />
           </Suspense>
         )
@@ -613,6 +616,17 @@ export function QuizMarkupContent({
 }) {
   const tree = useMemo(() => parseQuizMarkup(content, blankReference), [blankReference, content])
   const { hideProfanity } = useContentPreferences()
+  const renderMathMarker = (nodes: QuizMarkupNode[], content: ReactNode): ReactNode => {
+    const node = nodes.length === 1 ? nodes[0] : null
+    if (node?.type !== 'style') return content
+    const children = renderMathMarker(node.children, content)
+    if (node.style === 'del') return <del className="record-delete">{children}</del>
+    return (
+      <span className={`record-${node.style === 'under' ? 'underline' : node.style}`}>
+        {children}
+      </span>
+    )
+  }
   const renderNodes = (nodes: QuizMarkupNode[], path: string): ReactNode =>
     nodes.map((node, position) => {
       const key = `${path}-${node.type}-${position}`
@@ -649,6 +663,21 @@ export function QuizMarkupContent({
           </span>
         )
       }
+      if (node.type === 'latex')
+        return (
+          <Suspense key={`${key}:${node.source}`} fallback={<span className="record-latex" />}>
+            <LatexRenderer
+              source={node.source}
+              mathSource={node.mathSource}
+              markers={node.markers}
+              displayMode={node.displayMode === 'block'}
+              renderMarker={(className, content) => {
+                const marker = node.markers?.find((item) => item.className === className)
+                return marker ? renderMathMarker(marker.nodes, content) : content
+              }}
+            />
+          </Suspense>
+        )
       const geometry = tableGeometry(node.rows)
       return (
         <div

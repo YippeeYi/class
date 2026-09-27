@@ -252,6 +252,22 @@ try {
   await profanitySwitch.click()
   assert.match(await profanityCase.innerText(), /过滤：\*\*\*/)
 
+  const quizFormula = page.locator('[data-quiz-formula-fixture]')
+  await quizFormula.locator('.record-latex .katex').first().waitFor()
+  assert.equal(await quizFormula.locator('.record-latex .katex').count(), 4)
+  assert.equal(await quizFormula.locator('.record-latex--block .katex').count(), 1)
+  assert.doesNotMatch(await quizFormula.innerText(), /\[\[latex|person:p1/)
+  assert.equal(await quizFormula.locator('.quiz-answer-blank').count(), 0)
+  for (const width of [1280, 390, 320]) {
+    await page.setViewportSize({ width, height: 800 })
+    assert.equal(
+      await quizFormula.evaluate((element) => element.scrollWidth > element.clientWidth + 1),
+      false,
+      `${width}px quiz formulas must stay within the question source`,
+    )
+  }
+  await page.setViewportSize({ width: 1280, height: 1000 })
+
   const quizPage = page.locator('[data-case="quiz-page"]')
   await quizPage.locator('.quiz-question-card').waitFor({ state: 'visible' })
   assert.equal(

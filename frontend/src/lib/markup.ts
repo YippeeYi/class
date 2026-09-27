@@ -40,6 +40,13 @@ export type QuizMarkupNode =
       children: QuizMarkupNode[]
     }
   | { type: 'blank'; answer: string }
+  | {
+      type: 'latex'
+      source: string
+      displayMode?: 'block'
+      mathSource?: string
+      markers?: Array<{ className: string; nodes: QuizMarkupNode[] }>
+    }
   | { type: 'table'; rows: QuizMarkupNode[][][] }
 
 export type MarkupReferences = {
@@ -348,7 +355,35 @@ function quizSafeNodes(
       return quizSafeNodes(node.children, redaction)
     }
     if (node.type === 'annotation') return quizSafeNodes(node.children, redaction)
-    if (node.type === 'media' || node.type === 'latex') return []
+    if (node.type === 'media') return []
+    if (node.type === 'latex') {
+      if (!node.markers?.length)
+        return node.source.includes('[[')
+          ? []
+          : [{ type: 'latex', source: node.source, displayMode: node.displayMode }]
+      if (!node.mathSource) return []
+      const markers = node.markers.map((marker) => ({
+        className: marker.className,
+        nodes: quizSafeNodes([marker.node], redaction),
+      }))
+      const concealed = (nodes: QuizMarkupNode[]): boolean =>
+        nodes.some(
+          (item) =>
+            item.type === 'blank' ||
+            (item.type === 'text' && item.value === '〔隐藏内容已省略〕') ||
+            (item.type === 'style' && concealed(item.children)),
+        )
+      if (markers.some((marker) => concealed(marker.nodes))) return []
+      return [
+        {
+          type: 'latex',
+          source: node.mathSource,
+          displayMode: node.displayMode,
+          mathSource: node.mathSource,
+          markers,
+        },
+      ]
+    }
     return [
       {
         ...node,

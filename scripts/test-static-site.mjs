@@ -524,9 +524,10 @@ assert.match(
 )
 assert.match(
   quiz,
-  /<Alert className="quiz-result-feedback" data-state=\{state\} role="status" aria-live="polite">/,
-  'quiz feedback must compose the shared shadcn Alert status card',
+  /<div className="quiz-result-feedback" data-state=\{state\} role="status" aria-live="polite">/,
+  'quiz feedback must render directly in the persistent card footer',
 )
+assert.doesNotMatch(quiz, /<Alert className="quiz-result-feedback"/, 'quiz feedback must not add a nested result card')
 assert.doesNotMatch(quiz, /result === 'correct' && 'text-\[oklch/, 'quiz feedback must not hard-code a light-theme success color')
 assert.match(styles, /\.dark \.quiz-question-card[\s\S]*--quiz-type-ink:[\s\S]*--quiz-success-foreground:[\s\S]*--quiz-error-foreground:/, 'dark quiz surfaces and state text need dedicated semantic contrast tokens')
 assert.match(styles, /--quiz-option-surface:[\s\S]*--quiz-option-disabled-foreground:/, 'quiz options need shared readable surface and foreground tokens')

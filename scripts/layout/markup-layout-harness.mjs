@@ -190,6 +190,18 @@ export const markupLayoutHarness = String.raw`<!doctype html>
         )
       }
 
+      function QuizFormulaFixture() {
+        return e('section', {
+          'data-quiz-formula-fixture': '',
+          style: { width: '36rem', maxWidth: '100%', padding: '12px' },
+        }, e('blockquote', { className: 'quiz-question-source' },
+          e(QuizMarkupContent, {
+            content: '甲[[latex:E=mc^2]]乙[[latex-block:\\ce{H2O}]] [[under:丙[[latex:x+y]]]] [[latex:x+[[red:\\text{红}]]]] [[latex:x+[[person:p1|a]]]]',
+            blankReference: { kind: 'person', id: 'p1', label: 'a' },
+          }),
+        ))
+      }
+
       function ImageViewerFixture() {
         const image = 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221600%22 height=%221200%22 viewBox=%220 0 1600 1200%22%3E%3Crect width=%221600%22 height=%221200%22 fill=%22%23233a5b%22/%3E%3Ccircle cx=%22800%22 cy=%22600%22 r=%22320%22 fill=%22%237ac7c4%22/%3E%3C/svg%3E'
         return e('section', {
@@ -379,6 +391,7 @@ export const markupLayoutHarness = String.raw`<!doctype html>
                   e(QuizThemeFixture, { type: 'judge' }),
                 ),
                 e(QuizIdentityBlankFixture),
+                e(QuizFormulaFixture),
                 e(ScrollAreaFixture),
                 e(SegmentedMotionFixture),
                 e(SidebarFixture),

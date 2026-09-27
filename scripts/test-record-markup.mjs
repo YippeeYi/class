@@ -210,7 +210,22 @@ const split = layout.normalizeMarkup(markup.parseMarkup('前[[video:a.mp4]]中[[
 assert.deepEqual(split.map((part) => part.type), ['inline', 'block', 'inline', 'block', 'inline'])
 assert.deepEqual(split.filter((part) => part.type === 'block').map((part) => part.node.mediaType), ['video', 'video'])
 assert.deepEqual(layout.normalizeMarkup(markup.parseMarkup('[[red:前[[video:a.mp4]]后]]')).map((part) => part.type), ['inline', 'block', 'inline'])
-assert.doesNotMatch(JSON.stringify(markup.parseQuizMarkup('[[video:a.mp4]][[illu:a.png]][[latex:x]]')), /a\\.mp4|a\\.png|x/)
+const quizFormulaTree = markup.parseQuizMarkup('甲[[latex:E=mc^2]]乙[[latex-block:\\ce{H2O}]]；[[under:[[latex:x+y]]]]')
+assert.deepEqual(quizFormulaTree.map((node) => node.type), ['text', 'latex', 'text', 'latex', 'text', 'style'])
+assert.equal(quizFormulaTree[1].source, 'E=mc^2')
+assert.equal(quizFormulaTree[3].displayMode, 'block')
+assert.equal(quizFormulaTree[5].children[0].type, 'latex')
+const quizMarkedFormula = markup.parseQuizMarkup('[[latex:x+[[red:[[person:p01|a]]]]]]')
+assert.equal(quizMarkedFormula[0].type, 'latex')
+assert.doesNotMatch(JSON.stringify(quizMarkedFormula), /p01|\\[\\[|\\]\\]/)
+assert.ok(quizMarkedFormula[0].markers.some((marker) => marker.nodes[0]?.type === 'style'))
+assert.deepEqual(
+  markup.parseQuizMarkup('[[latex:x+[[person:p01|a]]]]', { kind: 'person', id: 'p01', label: 'a' }),
+  [],
+)
+assert.deepEqual(markup.parseQuizMarkup('[[latex:x+[[hide:私密内容]]]]'), [])
+assert.deepEqual(markup.parseQuizMarkup('[[latex:x+[[illu:a.png]]]]'), [])
+assert.doesNotMatch(JSON.stringify(markup.parseQuizMarkup('[[video:a.mp4]][[illu:a.png]]')), /a\\.mp4|a\\.png/)
 console.log('Media, LaTeX and block layout AST checks passed.')
 const serializedFormula = JSON.parse('{"content":"[[latex:\\\\frac{a+b}{c}]]"}').content
 assert.deepEqual(markup.parseMarkup(serializedFormula), [{ type: 'latex', source: '\\frac{a+b}{c}' }])

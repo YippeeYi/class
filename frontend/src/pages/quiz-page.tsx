@@ -131,13 +131,8 @@ function QuizAnswerFeedback({
   const title = state === 'correct' ? '回答正确' : state === 'wrong' ? '回答错误' : '继续作答'
 
   return (
-    <Alert className="quiz-result-feedback" data-state={state} role="status" aria-live="polite">
-      <span
-        className="quiz-result-icon grid size-8 shrink-0 place-items-center rounded-lg"
-        aria-hidden="true"
-      >
-        <Icon />
-      </span>
+    <div className="quiz-result-feedback" data-state={state} role="status" aria-live="polite">
+      <Icon className="quiz-result-icon size-5 shrink-0" aria-hidden="true" />
       <div className="min-w-0">
         <AlertTitle>{title}</AlertTitle>
         <AlertDescription>
@@ -153,7 +148,7 @@ function QuizAnswerFeedback({
           {state === 'hint' && secretHint}
         </AlertDescription>
       </div>
-    </Alert>
+    </div>
   )
 }
 
@@ -810,7 +805,7 @@ export function QuizPage() {
               )}
             </CardContent>
             {current && (
-              <CardFooter className="min-h-16 shrink-0 flex-col items-stretch gap-3 border-t bg-transparent px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5">
+              <CardFooter className="min-h-16 shrink-0 flex-col items-stretch gap-2 border-t bg-transparent px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5">
                 <div
                   id="quiz-answer-feedback"
                   className={cn(

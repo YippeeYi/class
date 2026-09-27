@@ -1559,12 +1559,12 @@ body .app-interactive-media:not(:disabled):active {
   color: var(--quiz-error-emphasis-foreground);
   opacity: 1;
 }
-/* Reserve the typical alert title and description before an answer is submitted. */
+/* Reserve feedback space before an answer is submitted. */
 .quiz-feedback-slot {
   display: flex;
   flex-direction: column;
   justify-content: safe center;
-  block-size: 5rem;
+  block-size: 4.5rem;
   overflow-x: hidden;
   overflow-y: auto;
   overflow-wrap: anywhere;
@@ -1572,7 +1572,7 @@ body .app-interactive-media:not(:disabled):active {
 }
 @media (min-width: 40rem) {
   .quiz-feedback-slot {
-    block-size: 4.5rem;
+    block-size: 4rem;
   }
 }
 .quiz-result-feedback {
@@ -1581,38 +1581,17 @@ body .app-interactive-media:not(:disabled):active {
   flex: none;
   align-items: center;
   gap: 0.75rem;
-  border-color: color-mix(in oklch, var(--quiz-type-accent) 30%, var(--border));
-  background: color-mix(in oklch, var(--quiz-type-surface) 62%, var(--card));
-  box-shadow: var(--elevation-subtle);
 }
 .quiz-result-feedback[data-state="correct"] {
-  border-color: color-mix(in oklch, var(--quiz-success-emphasis) 44%, var(--border));
-  background: color-mix(in oklch, var(--quiz-success-surface) 82%, var(--card));
   color: var(--quiz-success-foreground);
 }
 .quiz-result-feedback[data-state="wrong"] {
-  border-color: color-mix(in oklch, var(--quiz-error-emphasis) 40%, var(--border));
-  background: color-mix(in oklch, var(--quiz-error-surface) 82%, var(--card));
   color: var(--quiz-error-foreground);
 }
 .quiz-result-feedback[data-state="hint"] {
-  border-color: color-mix(in oklch, var(--quiz-hint-emphasis) 42%, var(--border));
-  background: color-mix(in oklch, var(--quiz-hint-surface) 82%, var(--card));
   color: var(--quiz-hint-foreground);
 }
 .quiz-result-icon {
-  transition:
-    background-color var(--interaction-duration-standard) var(--interaction-ease-standard),
-    border-color var(--interaction-duration-standard) var(--interaction-ease-standard),
-    color var(--interaction-duration-standard) var(--interaction-ease-standard);
-}
-.quiz-result-feedback .quiz-result-icon {
-  border: 1px solid currentColor;
-  background: color-mix(in oklch, currentColor 10%, transparent);
-}
-.quiz-result-feedback .quiz-result-icon > svg {
-  width: 1rem;
-  height: 1rem;
   stroke-width: 2.25;
 }
 .quiz-result-feedback [data-slot="alert-title"] {
