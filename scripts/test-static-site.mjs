@@ -93,6 +93,9 @@ const vercelCsp = JSON.parse(vercel)
   .headers.flatMap((rule) => rule.headers)
   .find((header) => header.key === 'Content-Security-Policy')?.value
 assert.ok(documentCsp && vercelCsp, 'both formal hosts need an explicit CSP')
+const mediaDirective = "media-src 'self' https://xyeftofxlxbpqctuuqup.supabase.co"
+assert.ok(documentCsp.split(';').map((value) => value.trim()).includes(mediaDirective), 'static hosts must permit signed video from the configured Supabase project')
+assert.ok(vercelCsp.split(';').map((value) => value.trim()).includes(mediaDirective), 'Vercel must permit signed video from the configured Supabase project')
 for (const directive of documentCsp.split(';').map((value) => value.trim()).filter(Boolean)) {
   assert.ok(vercelCsp.includes(directive), `Vercel CSP drifted from the static-host policy: ${directive}`)
 }
