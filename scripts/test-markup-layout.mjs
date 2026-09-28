@@ -1090,6 +1090,12 @@ try {
   await page
     .locator('[data-case="media-formula"] .record-media-video:not(.record-media-video--pending)')
     .waitFor()
+  await videoFixture.locator('video[src]').waitFor()
+  assert.equal(
+    await videoFixture.locator('.record-media-spinner').count(),
+    0,
+    'the native video loading indicator must not overlap a custom spinner',
+  )
   await assertFullscreenImageViewer(page, 'default 1280px')
   const privateViewerPath = '/storage/v1/object/sign/classrecord-private/fixtures/progressive-original.svg'
   assert.equal(

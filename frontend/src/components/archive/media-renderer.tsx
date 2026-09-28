@@ -131,7 +131,6 @@ function VideoMediaRenderer({ src }: { src: string }) {
   const dimensions = useImageDimensions(src, visible)
   const asset = useSignedAsset(visible ? src : '')
   const [failed, setFailed] = useState(false)
-  const [loaded, setLoaded] = useState(false)
   const [fallbackRatio, setFallbackRatio] = useState(false)
   useEffect(() => {
     if (!visible || dimensions) return
@@ -171,7 +170,6 @@ function VideoMediaRenderer({ src }: { src: string }) {
             controls
             playsInline
             preload="metadata"
-            onLoadedData={() => setLoaded(true)}
             onLoadedMetadata={(event) =>
               rememberImageDimensions(src, {
                 width: event.currentTarget.videoWidth,
@@ -183,7 +181,7 @@ function VideoMediaRenderer({ src }: { src: string }) {
           >
             <track kind="captions" />
           </video>
-          {!loaded && hasFrame && <MediaLoadingSpinner />}
+          {!asset.src && asset.loading && hasFrame && <MediaLoadingSpinner />}
         </>
       )}
     </div>
