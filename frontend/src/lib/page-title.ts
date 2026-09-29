@@ -9,6 +9,7 @@ export const NAVIGATION_PAGE_NAMES = {
   '/timeline': '统计',
   '/search': '搜索',
   '/quiz': '答题',
+  '/games': '游戏',
   '/materials': '资料',
   '/map': '地图',
   '/backgrounds': '风格',
@@ -20,6 +21,7 @@ export type PageName = (typeof NAVIGATION_PAGE_NAMES)[keyof typeof NAVIGATION_PA
 const ROUTE_PAGE_NAMES: Readonly<Record<string, PageName | '验证' | '错误' | 'QB'>> = {
   ...NAVIGATION_PAGE_NAMES,
   '/person': NAVIGATION_PAGE_NAMES['/people'],
+  '/games/merge-qb': NAVIGATION_PAGE_NAMES['/games'],
   '/auth': '验证',
   '/qb': 'QB',
   '/404': '错误',

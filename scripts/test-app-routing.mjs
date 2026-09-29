@@ -23,8 +23,11 @@ try {
   assert.equal(normalizeAppPathname('/records///'), '/records')
   assert.equal(normalizeAppPathname('/records/unknown'), '/records/unknown')
   assert.ok(protectedPaths.has('/qb'))
+  assert.ok(protectedPaths.has('/games'))
+  assert.ok(protectedPaths.has('/games/merge-qb'))
   assert.equal(protectedPaths.has('/qb/unknown'), false)
   assert.equal(pageNameForPath('/qb'), 'QB')
+  assert.equal(pageNameForPath('/games/merge-qb'), '游戏')
   assert.equal('/qb' in NAVIGATION_PAGE_NAMES, false, 'QB must not become a navigation page')
   const expectedTitles = {
     '/qb': '编日史',
@@ -36,6 +39,8 @@ try {
     '/timeline': '编日史',
     '/search': '编日史',
     '/quiz': '编日史',
+    '/games': '编日史',
+    '/games/merge-qb': '编日史',
     '/materials': '编日史',
     '/map': '编日史',
     '/backgrounds': '编日史',
@@ -51,7 +56,7 @@ try {
   }
   assert.deepEqual(
     Object.values(NAVIGATION_PAGE_NAMES),
-    ['编日史', '记录', '人物', '名言', '统计', '搜索', '答题', '资料', '地图', '风格', '致谢'],
+    ['编日史', '记录', '人物', '名言', '统计', '搜索', '答题', '游戏', '资料', '地图', '风格', '致谢'],
   )
   const app = await readFrontend('src/app.tsx')
   const shell = await readFrontend('src/components/layout/app-shell.tsx')

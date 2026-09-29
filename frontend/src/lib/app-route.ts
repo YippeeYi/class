@@ -12,6 +12,8 @@ export const protectedPaths = new Set([
   '/timeline',
   '/search',
   '/quiz',
+  '/games',
+  '/games/merge-qb',
   '/materials',
   '/map',
   '/qb',

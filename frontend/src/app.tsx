@@ -21,6 +21,12 @@ const BackgroundsPage = lazy(() =>
 const CreditsPage = lazy(() =>
   routeModuleLoaders.credits().then((module) => ({ default: module.CreditsPage })),
 )
+const GamesPage = lazy(() =>
+  routeModuleLoaders.games().then((module) => ({ default: module.GamesPage })),
+)
+const MergeQbPage = lazy(() =>
+  routeModuleLoaders.mergeQb().then((module) => ({ default: module.MergeQbPage })),
+)
 const MaterialsPage = lazy(() =>
   routeModuleLoaders.materials().then((module) => ({ default: module.MaterialsPage })),
 )
@@ -107,6 +113,8 @@ function ProtectedApp(): ReactElement {
               <Route path="timeline" element={<TimelinePage />} />
               <Route path="search" element={<SearchPage />} />
               <Route path="quiz" element={<QuizPage />} />
+              <Route path="games" element={<GamesPage />} />
+              <Route path="games/merge-qb" element={<MergeQbPage />} />
               <Route path="materials" element={<MaterialsPage />} />
               <Route path="map" element={<MealMapPage />} />
               <Route path="qb" element={<QbPage />} />
