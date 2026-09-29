@@ -7,10 +7,12 @@ import { type ColliderShape, type Point, QB_LEVEL_BY_ID, QB_LEVELS, type QbLevel
 export const GAME_WIDTH = 360
 export const GAME_HEIGHT = 560
 export const FAIL_LINE = 92
+export const DANGER_DISTANCE = 38
+export const DANGER_COUNTDOWN_MS = 3000
 const STEP_MS = 1000 / 60
 const DROP_DELAY_MS = 480
-const LOSS_GRACE_MS = 1900
-const LOSS_STILL_MS = 1300
+
+export type DangerState = 'normal' | 'near' | 'countdown' | 'game-over'
 
 export type GameSnapshot = {
   score: number
@@ -18,14 +20,15 @@ export type GameSnapshot = {
   next: QbLevel
   gameOver: boolean
   canDrop: boolean
+  danger: DangerState
+  countdown: number | null
 }
 
 export type GamePiece = {
   body: Body
   level: QbLevel
   imageOffset: Point
-  placedAt: number
-  overLineSince: number | null
+  inStack: boolean
 }
 
 function relativePoint(point: Point, level: QbLevel): Point {
@@ -63,7 +66,7 @@ function shapeBody(shape: ColliderShape, level: QbLevel, x: number, y: number): 
   return Bodies.fromVertices(centre.x, centre.y, [vertices], options)
 }
 
-export function makePiece(level: QbLevel, x: number, y: number, time: number): GamePiece {
+export function makePiece(level: QbLevel, x: number, y: number): GamePiece {
   const shapes = level.collider.shapes
   if (!shapes.length) throw new Error(`Missing collider for level ${level.id}`)
   const parts = shapes.map((shape) => shapeBody(shape, level, x, y))
@@ -74,19 +77,21 @@ export function makePiece(level: QbLevel, x: number, y: number, time: number): G
     body,
     level,
     imageOffset: { x: x - body.position.x, y: y - body.position.y },
-    placedAt: time,
-    overLineSince: null,
+    inStack: false,
   }
 }
 
 export class MergeQbGame {
   private engine = Engine.create({ enableSleeping: true })
+  private floorId = 0
   private pieces = new Map<number, GamePiece>()
   private pendingPairs = new Map<string, [number, number]>()
   private score = 0
   private current: QbLevel
   private next: QbLevel
-  private gameOver = false
+  private danger: DangerState = 'normal'
+  private dangerStartedAt: number | null = null
+  private countdown = 0
   private lastDropAt = -Infinity
   private aimX = GAME_WIDTH / 2
   private onChange: (snapshot: GameSnapshot) => void
@@ -113,6 +118,12 @@ export class MergeQbGame {
       const b = pair.bodyB.parent || pair.bodyB
       const first = this.pieces.get(a.id)
       const second = this.pieces.get(b.id)
+      if (a.id === this.floorId && second) second.inStack = true
+      if (b.id === this.floorId && first) first.inStack = true
+      if (first && second && (first.inStack || second.inStack)) {
+        first.inStack = true
+        second.inStack = true
+      }
       if (!first || !second || first.level.id !== second.level.id || !first.level.nextId) continue
       const ids: [number, number] = a.id < b.id ? [a.id, b.id] : [b.id, a.id]
       this.pendingPairs.set(`${ids[0]}:${ids[1]}`, ids)
@@ -123,14 +134,16 @@ export class MergeQbGame {
     this.engine.gravity.y = 1.25
     this.engine.positionIterations = 8
     this.engine.velocityIterations = 8
+    const floor = Bodies.rectangle(GAME_WIDTH / 2, GAME_HEIGHT + 18, GAME_WIDTH + 72, 36, {
+      isStatic: true,
+    })
+    this.floorId = floor.id
     Composite.add(this.engine.world, [
       Bodies.rectangle(-18, GAME_HEIGHT / 2, 36, GAME_HEIGHT * 2, { isStatic: true }),
       Bodies.rectangle(GAME_WIDTH + 18, GAME_HEIGHT / 2, 36, GAME_HEIGHT * 2, {
         isStatic: true,
       }),
-      Bodies.rectangle(GAME_WIDTH / 2, GAME_HEIGHT + 18, GAME_WIDTH + 72, 36, {
-        isStatic: true,
-      }),
+      floor,
     ])
     Events.on(this.engine, 'collisionStart', this.onCollision)
     Events.on(this.engine, 'collisionActive', this.onCollision)
@@ -145,8 +158,12 @@ export class MergeQbGame {
       score: this.score,
       current: this.current,
       next: this.next,
-      gameOver: this.gameOver,
-      canDrop: !this.gameOver && this.engine.timing.timestamp - this.lastDropAt >= DROP_DELAY_MS,
+      gameOver: this.danger === 'game-over',
+      canDrop:
+        this.danger !== 'game-over' &&
+        this.engine.timing.timestamp - this.lastDropAt >= DROP_DELAY_MS,
+      danger: this.danger,
+      countdown: this.danger === 'countdown' ? this.countdown : null,
     }
   }
 
@@ -167,7 +184,7 @@ export class MergeQbGame {
     if (!this.snapshot.canDrop) return false
     const level = this.current
     const y = Math.max(38, level.physicsSize.height / 2 + 3)
-    const piece = makePiece(level, this.aimX, y, this.engine.timing.timestamp)
+    const piece = makePiece(level, this.aimX, y)
     this.pieces.set(piece.body.id, piece)
     Composite.add(this.engine.world, piece.body)
     this.current = this.next
@@ -178,7 +195,7 @@ export class MergeQbGame {
     return true
   }
 
-  private mergePending(time: number) {
+  private mergePending() {
     const involved = new Set<number>()
     for (const [aId, bId] of this.pendingPairs.values()) {
       if (involved.has(aId) || involved.has(bId)) continue
@@ -198,7 +215,8 @@ export class MergeQbGame {
       Composite.remove(this.engine.world, [a.body, b.body])
       this.pieces.delete(aId)
       this.pieces.delete(bId)
-      const merged = makePiece(next, x, y, time)
+      const merged = makePiece(next, x, y)
+      merged.inStack = a.inStack || b.inStack
       MatterBody.setVelocity(merged.body, velocity)
       Composite.add(this.engine.world, merged.body)
       this.pieces.set(merged.body.id, merged)
@@ -208,30 +226,71 @@ export class MergeQbGame {
     if (involved.size) this.publish()
   }
 
-  private checkLoss(time: number) {
-    if (this.gameOver) return
+  private hasOverLinePiece() {
     for (const piece of this.pieces.values()) {
-      const settled =
-        time - piece.placedAt > LOSS_GRACE_MS && MatterBody.getSpeed(piece.body) < 0.65
-      if (piece.body.bounds.min.y < FAIL_LINE && settled) {
-        piece.overLineSince ??= time
-        if (time - piece.overLineSince >= LOSS_STILL_MS) {
-          this.gameOver = true
-          this.publish()
-          return
-        }
-      } else {
-        piece.overLineSince = null
+      if (piece.inStack && piece.body.bounds.min.y < FAIL_LINE) return true
+    }
+    return false
+  }
+
+  private checkDanger(time: number) {
+    let highest = Infinity
+    for (const piece of this.pieces.values()) {
+      if (piece.inStack) highest = Math.min(highest, piece.body.bounds.min.y)
+    }
+
+    if (highest >= FAIL_LINE) {
+      this.dangerStartedAt = null
+      this.countdown = 0
+      const next = highest < FAIL_LINE + DANGER_DISTANCE ? 'near' : 'normal'
+      if (this.danger !== next) {
+        this.danger = next
+        this.publish()
       }
+      return
+    }
+
+    if (this.danger !== 'countdown') {
+      this.danger = 'countdown'
+      this.dangerStartedAt = time
+      this.countdown = Math.ceil(DANGER_COUNTDOWN_MS / 1000)
+      this.publish()
+      return
+    }
+
+    if (time - (this.dangerStartedAt ?? time) >= DANGER_COUNTDOWN_MS) {
+      // Check current bodies again after this frame's collisions and merges.
+      if (this.hasOverLinePiece()) {
+        this.danger = 'game-over'
+        this.dangerStartedAt = null
+        this.countdown = 0
+        this.pendingPairs.clear()
+        this.publish()
+      } else {
+        this.danger = 'normal'
+        this.dangerStartedAt = null
+        this.countdown = 0
+        this.publish()
+      }
+      return
+    }
+
+    const remaining = Math.ceil(
+      (DANGER_COUNTDOWN_MS - (time - (this.dangerStartedAt ?? time))) / 1000,
+    )
+    if (remaining !== this.countdown) {
+      this.countdown = remaining
+      this.publish()
     }
   }
 
   step() {
-    if (this.gameOver) return
+    if (this.danger === 'game-over') return
     Engine.update(this.engine, STEP_MS)
     const time = this.engine.timing.timestamp
-    this.mergePending(time)
-    this.checkLoss(time)
+    this.mergePending()
+    this.checkDanger(time)
+    if (this.snapshot.gameOver) return
     if (time - this.lastDropAt >= DROP_DELAY_MS && time - this.lastDropAt < DROP_DELAY_MS + STEP_MS)
       this.publish()
   }
@@ -244,7 +303,9 @@ export class MergeQbGame {
     this.score = 0
     this.current = this.chooseStarter()
     this.next = this.chooseStarter()
-    this.gameOver = false
+    this.danger = 'normal'
+    this.dangerStartedAt = null
+    this.countdown = 0
     this.lastDropAt = -Infinity
     this.aimX = GAME_WIDTH / 2
     this.createWorld()

@@ -1,11 +1,22 @@
+import { AlertDialog as AlertDialogPrimitive } from '@base-ui/react/alert-dialog'
 import { ArrowLeft, Maximize2, Minimize2, RotateCcw } from 'lucide-react'
 import { type KeyboardEvent, type PointerEvent, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogOverlay,
+  AlertDialogPortal,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
-import { GAME_HEIGHT, GAME_WIDTH, type GameSnapshot, MergeQbGame } from './game'
+import { FAIL_LINE, GAME_HEIGHT, GAME_WIDTH, type GameSnapshot, MergeQbGame } from './game'
 import { levelImageUrl, QB_LEVELS } from './levels'
 import { createImageMap, drawGame } from './render'
 import './game.css'
@@ -15,6 +26,7 @@ const largestLevelSize = Math.max(
 )
 
 export function MergeQbBoard() {
+  const navigate = useNavigate()
   const stageRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameRef = useRef<MergeQbGame | null>(null)
@@ -109,6 +121,17 @@ export function MergeQbBoard() {
     }
   }
 
+  const exitGame = async () => {
+    if (document.fullscreenElement === stageRef.current) {
+      try {
+        await document.exitFullscreen()
+      } catch {
+        // Unmounting the fullscreen element also exits fullscreen.
+      }
+    }
+    navigate('/games')
+  }
+
   const aimAt = (event: PointerEvent<HTMLCanvasElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect()
     gameRef.current?.aim(((event.clientX - bounds.left) / bounds.width) * GAME_WIDTH)
@@ -144,123 +167,133 @@ export function MergeQbBoard() {
   return (
     <div ref={stageRef} className="merge-qb-stage">
       <div className="merge-qb-content">
-        <div className="merge-qb-toolbar">
-          <div className="flex min-w-0 items-center gap-2">
-            {!isFullscreen && (
-              <Button
-                variant="ghost"
-                size="icon"
-                nativeButton={false}
-                render={<Link to="/games" />}
-                aria-label="返回游戏库"
-                title="返回游戏库"
-              >
-                <ArrowLeft aria-hidden="true" />
-              </Button>
-            )}
-            <h1
-              className={
-                isFullscreen
-                  ? 'sr-only'
-                  : 'sr-only sm:not-sr-only sm:truncate sm:font-heading sm:text-base sm:font-semibold'
-              }
+        <button
+          type="button"
+          className="merge-qb-arena"
+          aria-label="合成大QB游戏区域，左右方向键移动，回车或空格放下QB"
+          onKeyDown={onBoardKeyDown}
+        >
+          <canvas
+            ref={canvasRef}
+            width={GAME_WIDTH}
+            height={GAME_HEIGHT}
+            onPointerMove={aimAt}
+            onPointerDown={onPointerDown}
+            onPointerUp={onPointerUp}
+            onPointerCancel={() => {
+              touchPointer.current = null
+            }}
+          />
+          {snapshot && (snapshot.danger === 'near' || snapshot.danger === 'countdown') && (
+            <span
+              className="merge-qb-warning-line"
+              style={{ top: `${(FAIL_LINE / GAME_HEIGHT) * 100}%` }}
+              aria-hidden="true"
+            />
+          )}
+          {snapshot?.countdown && (
+            <span
+              className="merge-qb-countdown"
+              role="status"
+              aria-label={`危险倒计时 ${snapshot.countdown}`}
             >
-              合成大QB
-            </h1>
+              {snapshot.countdown}
+            </span>
+          )}
+        </button>
+
+        <aside className="merge-qb-toolbar" aria-label="游戏状态与操作">
+          <div className="merge-qb-actions">
+            <div className="flex min-w-0 items-center gap-1">
+              {!isFullscreen && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  nativeButton={false}
+                  render={<Link to="/games" />}
+                  aria-label="返回游戏库"
+                  title="返回游戏库"
+                >
+                  <ArrowLeft aria-hidden="true" />
+                </Button>
+              )}
+              <h1
+                className={
+                  isFullscreen
+                    ? 'sr-only'
+                    : 'hidden truncate font-heading text-sm font-semibold sm:block'
+                }
+              >
+                合成大QB
+              </h1>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label="重新开始"
+                      onClick={() => gameRef.current?.reset()}
+                    />
+                  }
+                >
+                  <RotateCcw aria-hidden="true" />
+                </TooltipTrigger>
+                <TooltipContent>重新开始</TooltipContent>
+              </Tooltip>
+              {fullscreenSupported && (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        data-fullscreen-toggle
+                        variant="ghost"
+                        size="icon"
+                        disabled={fullscreenPending}
+                        aria-pressed={isFullscreen}
+                        aria-label={isFullscreen ? '退出全屏' : '全屏游玩'}
+                        onClick={() => void toggleFullscreen()}
+                      />
+                    }
+                  >
+                    {isFullscreen ? (
+                      <Minimize2 aria-hidden="true" />
+                    ) : (
+                      <Maximize2 aria-hidden="true" />
+                    )}
+                  </TooltipTrigger>
+                  <TooltipContent>{isFullscreen ? '退出全屏' : '全屏游玩'}</TooltipContent>
+                </Tooltip>
+              )}
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <div className="flex items-baseline gap-1">
+          <div className="merge-qb-status">
+            <div className="merge-qb-score">
               <span className="text-xs text-muted-foreground">得分</span>
               <strong
-                className="font-heading text-xl font-semibold tabular-nums"
+                className="font-heading text-3xl font-semibold tabular-nums"
                 aria-live="polite"
               >
                 {snapshot?.score ?? 0}
               </strong>
             </div>
             {snapshot && (
-              <div className="flex items-center gap-1 rounded-md bg-muted/60 px-2 py-1">
+              <div className="merge-qb-next">
                 <span className="text-xs text-muted-foreground">下一个</span>
                 <img
                   src={levelImageUrl(snapshot.next)}
                   alt={snapshot.next.name}
-                  className="size-7 object-contain"
+                  className="size-12 object-contain"
                 />
               </div>
             )}
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="重新开始"
-                    onClick={() => gameRef.current?.reset()}
-                  />
-                }
-              >
-                <RotateCcw aria-hidden="true" />
-              </TooltipTrigger>
-              <TooltipContent>重新开始</TooltipContent>
-            </Tooltip>
-            {fullscreenSupported && (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type="button"
-                      data-fullscreen-toggle
-                      variant="ghost"
-                      size="icon"
-                      disabled={fullscreenPending}
-                      aria-pressed={isFullscreen}
-                      aria-label={isFullscreen ? '退出全屏' : '全屏游玩'}
-                      onClick={() => void toggleFullscreen()}
-                    />
-                  }
-                >
-                  {isFullscreen ? (
-                    <Minimize2 aria-hidden="true" />
-                  ) : (
-                    <Maximize2 aria-hidden="true" />
-                  )}
-                </TooltipTrigger>
-                <TooltipContent>{isFullscreen ? '退出全屏' : '全屏游玩'}</TooltipContent>
-              </Tooltip>
-            )}
           </div>
-        </div>
-
-        <div className="merge-qb-play">
-          <button
-            type="button"
-            className="merge-qb-arena"
-            aria-label="合成大QB游戏区域，左右方向键移动，回车或空格放下QB"
-            onKeyDown={onBoardKeyDown}
-          >
-            <canvas
-              ref={canvasRef}
-              width={GAME_WIDTH}
-              height={GAME_HEIGHT}
-              onPointerMove={aimAt}
-              onPointerDown={onPointerDown}
-              onPointerUp={onPointerUp}
-              onPointerCancel={() => {
-                touchPointer.current = null
-              }}
-            />
-          </button>
-
           <section className="merge-qb-sequence" aria-label="QB大小顺序">
-            <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <span>QB大小顺序</span>
-              {snapshot?.gameOver && (
-                <span role="status" className="text-destructive">
-                  游戏结束
-                </span>
-              )}
-            </div>
+            <div className="mb-2 text-xs font-medium text-muted-foreground">QB大小顺序</div>
             <ol>
               {QB_LEVELS.map((level, index) => {
                 const maxDimension = Math.max(level.visualSize.width, level.visualSize.height)
@@ -290,8 +323,30 @@ export function MergeQbBoard() {
               })}
             </ol>
           </section>
-        </div>
+        </aside>
       </div>
+      <AlertDialog open={snapshot?.gameOver ?? false}>
+        <AlertDialogPortal container={stageRef.current}>
+          <AlertDialogOverlay />
+          <AlertDialogPrimitive.Popup
+            data-slot="alert-dialog-content"
+            className="merge-qb-game-over-dialog"
+          >
+            <AlertDialogHeader>
+              <AlertDialogTitle>游戏结束</AlertDialogTitle>
+              <AlertDialogDescription>得分 {snapshot?.score ?? 0}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <Button type="button" variant="outline" onClick={() => void exitGame()}>
+                退出
+              </Button>
+              <AlertDialogAction type="button" onClick={() => gameRef.current?.reset()}>
+                再来一局
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogPrimitive.Popup>
+        </AlertDialogPortal>
+      </AlertDialog>
     </div>
   )
 }

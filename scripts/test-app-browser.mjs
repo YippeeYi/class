@@ -509,6 +509,22 @@ try {
   await touch.getByRole('button', { name: '重新开始' }).tap()
   assert.equal(await touch.locator('.merge-qb-toolbar strong[aria-live="polite"]').innerText(), '0')
   await touch.setViewportSize({ width: 390, height: 844 })
+  if (await touch.evaluate(() => document.fullscreenEnabled)) {
+    await touch.getByRole('button', { name: '全屏游玩' }).tap()
+    await touch.waitForTimeout(100)
+    if (await touch.evaluate(() => document.fullscreenElement?.classList.contains('merge-qb-stage'))) {
+      await touch.waitForFunction(() => {
+        const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
+        const sidebar = document.querySelector('.merge-qb-toolbar').getBoundingClientRect()
+        return Math.max(arena.bottom, sidebar.bottom) <= innerHeight + 1 && document.documentElement.scrollWidth <= innerWidth + 1
+      })
+      await touch.screenshot({ path: '/tmp/class-merge-qb-mobile-fullscreen.png' })
+      await touch.locator('.merge-qb-stage').getByRole('button', { name: '退出全屏' }).tap()
+      await touch.waitForFunction(() => document.fullscreenElement === null)
+    } else {
+      assert.equal(await touchBoard.isVisible(), true, 'mobile game remains usable if fullscreen is unavailable')
+    }
+  }
   await touch.getByRole('button', { name: '返回游戏库' }).tap()
   await touch.waitForURL(/games\/?$/)
   await mobile.close()
@@ -530,10 +546,12 @@ try {
       const geometry = await gamePage.evaluate(() => {
         const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
         const sequence = document.querySelector('.merge-qb-sequence').getBoundingClientRect()
-        return { bottom: Math.max(arena.bottom, sequence.bottom), ratio: arena.width / arena.height, overflow: document.documentElement.scrollWidth > innerWidth + 1 }
+        const sidebar = document.querySelector('.merge-qb-toolbar').getBoundingClientRect()
+        return { bottom: Math.max(arena.bottom, sequence.bottom), ratio: arena.width / arena.height, sidebarRightOfArena: sidebar.left >= arena.right, overflow: document.documentElement.scrollWidth > innerWidth + 1 }
       })
       assert.ok(geometry.bottom <= height + 1, `game is fully visible at ${height}px viewport height: ${JSON.stringify(geometry)}`)
       assert.ok(Math.abs(geometry.ratio - 360 / 560) < 0.01, 'render scale keeps the physics aspect ratio')
+      assert.equal(geometry.sidebarRightOfArena, true, 'desktop status stays beside the game arena')
       assert.equal(geometry.overflow, false)
     }
     await fitGame(900)
@@ -550,6 +568,18 @@ try {
       )
     }
     await gamePage.screenshot({ path: '/tmp/class-merge-qb-desktop.png', fullPage: true })
+    const boardBox = await board.boundingBox()
+    await gamePage.mouse.move(boardBox.x + boardBox.width / 2, boardBox.y + boardBox.height / 2)
+    await gamePage.mouse.down()
+    await gamePage.waitForTimeout(150)
+    const pressedBox = await board.evaluate((arena) => {
+      const box = arena.getBoundingClientRect()
+      return { x: box.x, y: box.y, width: box.width, height: box.height }
+    })
+    for (const dimension of ['x', 'y', 'width', 'height'])
+      assert.ok(Math.abs(pressedBox[dimension] - boardBox[dimension]) < 0.5, `pressing the board keeps ${dimension} stable`)
+    await gamePage.mouse.up()
+    await gamePage.getByRole('button', { name: '重新开始' }).click()
     await board.click()
     await gamePage.waitForTimeout(600)
     await board.click()
@@ -559,12 +589,12 @@ try {
     await fitGame(768)
     assert.equal(await score.innerText(), '3', 'viewport resize retains the game state')
     if (await gamePage.evaluate(() => document.fullscreenEnabled)) {
-      const nextBeforeFullscreen = await gamePage.locator('.merge-qb-toolbar img').getAttribute('src')
+      const nextBeforeFullscreen = await gamePage.locator('.merge-qb-next img').getAttribute('src')
       await gamePage.evaluate(() => { window.__mergeCanvas = document.querySelector('.merge-qb-arena canvas') })
       await gamePage.getByRole('button', { name: '全屏游玩' }).click()
       await gamePage.waitForFunction(() => document.fullscreenElement?.classList.contains('merge-qb-stage'))
       assert.equal(await score.innerText(), '3', 'entering fullscreen retains the score')
-      assert.equal(await gamePage.locator('.merge-qb-toolbar img').getAttribute('src'), nextBeforeFullscreen)
+      assert.equal(await gamePage.locator('.merge-qb-next img').getAttribute('src'), nextBeforeFullscreen)
       assert.equal(await gamePage.evaluate(() => document.querySelector('.merge-qb-arena canvas') === window.__mergeCanvas), true, 'fullscreen keeps the same canvas')
       assert.equal(await gamePage.evaluate(() => document.fullscreenElement.querySelector('.app-sidebar, .app-topbar')), null)
       await gamePage.screenshot({ path: '/tmp/class-merge-qb-fullscreen.png' })

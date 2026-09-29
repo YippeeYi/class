@@ -1,6 +1,6 @@
 .merge-qb-stage {
   box-sizing: border-box;
-  width: min(100%, 54rem);
+  width: min(100%, calc((100dvh - 8rem) * 9 / 14 + 15rem), 54rem);
   min-width: 0;
   margin-inline: auto;
 }
@@ -9,27 +9,14 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 0.75rem;
-}
-
-.merge-qb-toolbar {
-  display: flex;
-  min-height: 3rem;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.merge-qb-play {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
   align-items: center;
   gap: 0.75rem;
 }
 
 .merge-qb-arena {
+  position: relative;
   box-sizing: border-box;
+  display: block;
   width: min(100%, max(15rem, calc((100dvh - 12rem) * 9 / 14)));
   aspect-ratio: 9 / 14;
   flex: none;
@@ -39,6 +26,14 @@
   background: color-mix(in oklch, var(--card) 78%, var(--background));
   padding: 0;
   cursor: crosshair;
+}
+
+/* The shared button press rule scales native buttons; the canvas must stay aligned with physics. */
+body button.merge-qb-arena:active {
+  translate: 0 0;
+  scale: 1;
+  transition: none;
+  will-change: auto;
 }
 
 .merge-qb-arena:focus-visible {
@@ -51,6 +46,78 @@
   width: 100%;
   height: 100%;
   touch-action: none;
+}
+
+.merge-qb-warning-line {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  left: 0;
+  border-top: 2px dashed var(--destructive);
+  pointer-events: none;
+  animation: merge-qb-warning-pulse 900ms ease-in-out infinite;
+}
+
+.merge-qb-countdown {
+  position: absolute;
+  z-index: 2;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--destructive);
+  color: white;
+  font-size: 1.25rem;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+@keyframes merge-qb-warning-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .merge-qb-warning-line {
+    animation: none;
+  }
+}
+
+.merge-qb-toolbar {
+  display: flex;
+  width: 100%;
+  max-width: 28rem;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.merge-qb-actions {
+  display: flex;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.merge-qb-status {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.merge-qb-score,
+.merge-qb-next {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.25rem;
 }
 
 .merge-qb-sequence {
@@ -74,27 +141,37 @@
   gap: 0.1rem;
 }
 
+.merge-qb-game-over-dialog {
+  position: fixed;
+  z-index: 50;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: min(calc(100% - 2rem), 24rem);
+  transform: translate(-50%, -50%);
+  gap: 1rem;
+  border-radius: var(--radius-xl);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  padding: 1rem;
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--foreground) 10%, transparent);
+}
+
 @media (min-width: 1024px) {
   .merge-qb-content {
-    height: clamp(28rem, calc(100dvh - 8rem), 48rem);
-  }
-
-  .merge-qb-play {
-    min-height: 0;
-    flex: 1;
-    flex-direction: row;
-    justify-content: center;
-    gap: 1.25rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 13.5rem;
+    align-items: start;
+    gap: 1rem;
   }
 
   .merge-qb-arena {
-    width: min(calc((100dvh - 12.5rem) * 9 / 14), calc(100% - 14rem));
-    max-height: 100%;
+    width: min(100%, max(15rem, calc((100dvh - 8rem) * 9 / 14)));
   }
 
-  .merge-qb-sequence {
-    width: 12.75rem;
-    flex: none;
+  .merge-qb-toolbar {
+    max-width: none;
+    padding-top: 0.25rem;
   }
 
   .merge-qb-sequence ol {
@@ -102,7 +179,7 @@
   }
 
   .merge-qb-sequence li {
-    height: 3.75rem;
+    height: 3.5rem;
   }
 }
 
@@ -113,55 +190,50 @@
   margin: 0;
   padding: clamp(0.75rem, 2vw, 1.5rem);
   overflow: hidden;
+  display: grid;
+  place-items: center;
   background: var(--background);
 }
 
 .merge-qb-stage:fullscreen .merge-qb-content {
-  width: min(100%, 70rem);
-  height: 100%;
-  margin-inline: auto;
-}
-
-.merge-qb-stage:fullscreen .merge-qb-play {
-  min-height: 0;
-  flex: 1;
-  justify-content: center;
+  width: min(100%, calc((100dvh - 3rem) * 9 / 14 + 15rem));
 }
 
 .merge-qb-stage:fullscreen .merge-qb-arena {
-  width: min(100%, max(15rem, calc((100dvh - 11rem) * 9 / 14)));
+  width: min(100%, max(8rem, calc((100dvh - 18rem) * 9 / 14)));
 }
 
 @media (min-width: 1024px) {
   .merge-qb-stage:fullscreen .merge-qb-arena {
-    width: min(calc((100dvh - 8rem) * 9 / 14), calc(100% - 16rem));
+    width: min(100%, calc((100dvh - 3rem) * 9 / 14));
+  }
+}
+
+@media (max-width: 1023px) and (max-height: 600px) {
+  .merge-qb-stage:fullscreen .merge-qb-next img {
+    width: 2rem;
+    height: 2rem;
   }
 
-  .merge-qb-stage:fullscreen .merge-qb-sequence {
-    width: 14rem;
+  .merge-qb-stage:fullscreen .merge-qb-sequence li {
+    height: 2rem;
   }
 }
 
 @media (min-width: 600px) and (max-height: 600px) {
-  .merge-qb-stage:fullscreen .merge-qb-play {
-    flex-direction: row;
+  .merge-qb-stage:fullscreen .merge-qb-content {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 12rem;
+    align-items: start;
     gap: 1rem;
+    width: min(100%, calc((100dvh - 2rem) * 9 / 14 + 13rem));
   }
 
   .merge-qb-stage:fullscreen .merge-qb-arena {
-    width: min(calc((100dvh - 7rem) * 9 / 14), calc(100% - 13rem));
-  }
-
-  .merge-qb-stage:fullscreen .merge-qb-sequence {
-    width: 12rem;
-    flex: none;
+    width: min(100%, calc((100dvh - 2rem) * 9 / 14));
   }
 
   .merge-qb-stage:fullscreen .merge-qb-sequence ol {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .merge-qb-stage:fullscreen .merge-qb-sequence li {
-    height: 2.5rem;
   }
 }
