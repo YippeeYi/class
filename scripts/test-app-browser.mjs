@@ -554,6 +554,10 @@ try {
     await gamePage.waitForTimeout(600)
     await board.click()
     await gamePage.waitForFunction(() => document.querySelector('.merge-qb-toolbar strong')?.textContent === '3')
+    // Chromium rejects window-bound changes while its window is fullscreen.
+    await gamePage.setViewportSize({ width: 1024, height: 768 })
+    await fitGame(768)
+    assert.equal(await score.innerText(), '3', 'viewport resize retains the game state')
     if (await gamePage.evaluate(() => document.fullscreenEnabled)) {
       const nextBeforeFullscreen = await gamePage.locator('.merge-qb-toolbar img').getAttribute('src')
       await gamePage.evaluate(() => { window.__mergeCanvas = document.querySelector('.merge-qb-arena canvas') })
@@ -564,17 +568,20 @@ try {
       assert.equal(await gamePage.evaluate(() => document.querySelector('.merge-qb-arena canvas') === window.__mergeCanvas), true, 'fullscreen keeps the same canvas')
       assert.equal(await gamePage.evaluate(() => document.fullscreenElement.querySelector('.app-sidebar, .app-topbar')), null)
       await gamePage.screenshot({ path: '/tmp/class-merge-qb-fullscreen.png' })
-      await gamePage.setViewportSize({ width: 1024, height: 768 })
       assert.ok(await gamePage.evaluate(() => {
         const rect = document.querySelector('.merge-qb-arena').getBoundingClientRect()
         return Math.abs(rect.width / rect.height - 360 / 560) < 0.01
-      }), 'fullscreen resize keeps canvas proportions')
+      }), 'fullscreen keeps canvas proportions')
       await gamePage.keyboard.press('Escape')
       await gamePage.waitForFunction(() => document.fullscreenElement === null)
       assert.equal(await score.innerText(), '3', 'Esc retains the game state')
-      await gamePage.setViewportSize({ width: 1280, height: 900 })
       await gamePage.getByRole('button', { name: '全屏游玩' }).click()
       await gamePage.waitForFunction(() => document.fullscreenElement?.classList.contains('merge-qb-stage'))
+      await gamePage.waitForFunction(() => {
+        const rect = document.querySelector('.merge-qb-arena').getBoundingClientRect()
+        return Math.abs(rect.width / rect.height - 360 / 560) < 0.01
+      })
+      assert.equal(await score.innerText(), '3', 'resized fullscreen retains the game state')
       await gamePage.locator('.merge-qb-stage').getByRole('button', { name: '退出全屏' }).click()
       await gamePage.waitForFunction(() => document.fullscreenElement === null)
       assert.equal(await score.innerText(), '3', 'the exit control retains the game state')
