@@ -1,4 +1,7 @@
 private-assets/
+frontend/src/features/games/merge-qb/*.png
+frontend/public/games/merge-qb/
+supabase/.temp/
 private-exports/
 .DS_Store
 .AppleDouble

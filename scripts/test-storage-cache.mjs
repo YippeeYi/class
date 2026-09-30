@@ -6,6 +6,7 @@ import path from 'node:path';
 import { privateAssetCacheControl, repairStorageCache } from './storage-cache.mjs';
 assert.equal(privateAssetCacheControl('images/record-pages/01.jpeg'), 'private, max-age=180');
 assert.equal(privateAssetCacheControl('images/quiz/a.jpg'), 'private, max-age=180');
+assert.equal(privateAssetCacheControl('images/games/merge-qb/01.png'), 'private, max-age=180');
 assert.equal(privateAssetCacheControl('hidden/a.jpg'), 'private, max-age=180');
 assert.equal(privateAssetCacheControl('data/attachments/a.jpg'), 'private, max-age=600');
 const root = await mkdtemp(path.join(os.tmpdir(), 'class-storage-cache-'));

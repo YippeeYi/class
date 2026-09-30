@@ -399,7 +399,12 @@ export function AppShell() {
               isMobileGamePage && 'max-md:h-dvh max-md:min-h-0 max-md:overflow-hidden',
             )}
           >
-            <header className="app-topbar sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b border-border/70 px-3 sm:px-4">
+            <header
+              className={cn(
+                'app-topbar sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b border-border/70 px-3 sm:px-4',
+                isMobileGamePage && 'max-md:hidden',
+              )}
+            >
               <SidebarTrigger />
               <Breadcrumb className="min-w-0">
                 <BreadcrumbList className="flex-nowrap gap-1.5 sm:gap-2">
@@ -473,7 +478,7 @@ export function AppShell() {
                   : 'min-h-[calc(100svh-4rem)] py-6 pb-12 sm:py-7 sm:pb-16 lg:py-8',
                 !isViewportLocked && (isWideContent ? 'max-w-[90rem]' : 'max-w-6xl'),
                 isMobileGamePage &&
-                  'max-md:h-[calc(100dvh-4rem)] max-md:min-h-0 max-md:overflow-hidden max-md:py-4 max-md:pb-4',
+                  'max-md:h-dvh max-md:min-h-0 max-md:overflow-hidden max-md:px-0 max-md:py-0',
               )}
             >
               <Suspense

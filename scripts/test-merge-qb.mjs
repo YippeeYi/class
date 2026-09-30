@@ -21,6 +21,24 @@ try {
   for (let index = 0; index < QB_LEVELS.length; index++) {
     const level = QB_LEVELS[index]
     assert.equal(level.nextId, QB_LEVELS[index + 1]?.id ?? null)
+    const engine = Matter.Engine.create({ enableSleeping: true })
+    engine.gravity.y = 1.25
+    const floor = Matter.Bodies.rectangle(180, 578, 432, 36, { isStatic: true })
+    const left = Matter.Bodies.rectangle(-18, 280, 36, 1120, { isStatic: true })
+    const right = Matter.Bodies.rectangle(378, 280, 36, 1120, { isStatic: true })
+    const first = makePiece(level, 180, 150)
+    assert.ok(Math.abs(first.body.mass - level.mass) < 0.0001, `level ${level.id} uses its configured mass`)
+    Matter.Composite.add(engine.world, [floor, left, right, first.body])
+    for (let step = 0; step < 480; step++) Matter.Engine.update(engine, 1000 / 60)
+    assert.ok(Math.abs(first.body.bounds.max.y - 560) < 3, `level ${level.id} settles on the floor`)
+    assert.ok(first.body.bounds.min.x >= -2 && first.body.bounds.max.x <= 362, `level ${level.id} stays inside the walls`)
+    const second = makePiece(level, 180, 80)
+    Matter.Composite.add(engine.world, second.body)
+    for (let step = 0; step < 480; step++) Matter.Engine.update(engine, 1000 / 60)
+    assert.ok(second.body.bounds.min.y < first.body.bounds.max.y, `level ${level.id} stacks without falling through`)
+    assert.ok(second.body.bounds.max.y <= 563, `level ${level.id} does not penetrate the floor`)
+    Matter.Composite.clear(engine.world, false)
+    Matter.Engine.clear(engine)
   }
 
   const base = QB_LEVELS[0]
@@ -151,9 +169,14 @@ try {
   assert.equal(game.snapshot.gameOver, true)
   assert.equal(game.snapshot.danger, 'game-over')
   assert.equal(game.drop(), false, 'game over blocks further drops')
+  const frozenPositions = [...game.objects].map((piece) => [piece.body.position.x, piece.body.position.y, piece.body.angle])
+  const frozenAim = game.targetX
+  game.aim(0)
+  assert.equal(game.targetX, frozenAim, 'game over blocks aiming inputs')
   const finalScore = game.snapshot.score
   for (let step = 0; step < 120; step++) game.step()
   assert.equal(game.snapshot.score, finalScore, 'the final score stays frozen')
+  assert.deepEqual([...game.objects].map((piece) => [piece.body.position.x, piece.body.position.y, piece.body.angle]), frozenPositions, 'game over freezes all body transforms')
   assert.equal(snapshots.filter((snapshot) => snapshot.gameOver).length, 1, 'game over emits once')
   game.reset()
   assert.equal(game.snapshot.gameOver, false)

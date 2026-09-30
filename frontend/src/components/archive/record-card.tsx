@@ -71,7 +71,7 @@ export const RecordCard = memo(function RecordCard({
   const annotation = recordAnnotation(record.annotation)
 
   return (
-    <Collapsible className={jumpActions ? 'grid min-w-0 gap-2' : 'min-w-0'}>
+    <Collapsible className="relative min-w-0">
       <Card
         id={anchor}
         tabIndex={-1}
@@ -157,7 +157,11 @@ export const RecordCard = memo(function RecordCard({
           </CollapsibleContent>
         </CardContent>
       </Card>
-      {jumpActions}
+      {jumpActions && (
+        <div className="pointer-events-none absolute top-full left-0 z-20 mt-2 w-full">
+          {jumpActions}
+        </div>
+      )}
     </Collapsible>
   )
 })

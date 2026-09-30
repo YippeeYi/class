@@ -1,9 +1,15 @@
 import { FAIL_LINE, GAME_HEIGHT, GAME_WIDTH, type MergeQbGame } from './game'
-import { QB_LEVELS, type QbLevel } from './levels'
+import { QB_LEVELS, QB_OUTLINE, type QbLevel } from './levels'
 
 export type QbImages = Map<string, HTMLImageElement>
+export type QbSprites = Map<string, { canvas: HTMLCanvasElement; padding: number; factor: number }>
 
-export function drawGame(context: CanvasRenderingContext2D, game: MergeQbGame, images: QbImages) {
+export function drawGame(
+  context: CanvasRenderingContext2D,
+  game: MergeQbGame,
+  images: QbImages,
+  sprites: QbSprites,
+) {
   context.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
 
   context.save()
@@ -25,6 +31,7 @@ export function drawGame(context: CanvasRenderingContext2D, game: MergeQbGame, i
       piece.imageOffset.x,
       piece.imageOffset.y,
       images,
+      sprites,
     )
   }
 
@@ -41,6 +48,7 @@ export function drawGame(context: CanvasRenderingContext2D, game: MergeQbGame, i
       0,
       0,
       images,
+      sprites,
     )
     context.restore()
   }
@@ -55,19 +63,31 @@ function drawPiece(
   offsetX: number,
   offsetY: number,
   images: QbImages,
+  sprites: QbSprites,
 ) {
   context.save()
   context.translate(x, y)
   context.rotate(angle)
   const image = images.get(level.id)
   if (image?.complete && image.naturalWidth > 0) {
-    context.drawImage(
-      image,
-      offsetX - level.visualSize.width / 2,
-      offsetY - level.visualSize.height / 2,
-      level.visualSize.width,
-      level.visualSize.height,
-    )
+    const sprite = sprites.get(level.id)
+    if (sprite) {
+      context.drawImage(
+        sprite.canvas,
+        offsetX - level.visualSize.width / 2 - sprite.padding / sprite.factor,
+        offsetY - level.visualSize.height / 2 - sprite.padding / sprite.factor,
+        sprite.canvas.width / sprite.factor,
+        sprite.canvas.height / sprite.factor,
+      )
+    } else {
+      context.drawImage(
+        image,
+        offsetX - level.visualSize.width / 2,
+        offsetY - level.visualSize.height / 2,
+        level.visualSize.width,
+        level.visualSize.height,
+      )
+    }
   } else {
     context.fillStyle = level.color
     context.beginPath()
@@ -89,4 +109,38 @@ export function createImageMap() {
   const images: QbImages = new Map()
   for (const level of QB_LEVELS) images.set(level.id, new Image())
   return images
+}
+
+export function makeOutlinedSprite(
+  level: QbLevel,
+  image: HTMLImageElement,
+  scale: number,
+  dpr: number,
+) {
+  const factor = scale * dpr
+  const padding = Math.ceil(QB_OUTLINE.widthCssPx * dpr) + 1
+  const width = Math.ceil(level.visualSize.width * factor)
+  const height = Math.ceil(level.visualSize.height * factor)
+  const mask = document.createElement('canvas')
+  mask.width = width
+  mask.height = height
+  const maskContext = mask.getContext('2d')
+  if (!maskContext) throw new Error('Canvas 2D is unavailable')
+  maskContext.drawImage(image, 0, 0, width, height)
+  maskContext.globalCompositeOperation = 'source-in'
+  maskContext.fillStyle = QB_OUTLINE.color
+  maskContext.fillRect(0, 0, width, height)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = width + padding * 2
+  canvas.height = height + padding * 2
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('Canvas 2D is unavailable')
+  const radius = QB_OUTLINE.widthCssPx * dpr
+  for (let index = 0; index < 16; index++) {
+    const angle = (index * Math.PI) / 8
+    context.drawImage(mask, padding + Math.cos(angle) * radius, padding + Math.sin(angle) * radius)
+  }
+  context.drawImage(image, padding, padding, width, height)
+  return { canvas, padding, factor }
 }

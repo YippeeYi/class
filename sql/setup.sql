@@ -884,6 +884,7 @@ using (
     and public.has_class_record_access()
     and (
         (name ~ '^data/attachments/.+\.(png|jpe?g|webp|gif|svg|pdf|txt|zip|mp3|wav|ogg|mp4|webm)$')
+        or name ~ '^images/games/merge-qb/(0[1-9]|1[01])\.png$'
         or (
             name ~ '^images/record-pages/.+\.(png|jpe?g|webp|gif|svg)$'
             and public.has_class_record_admin_access()

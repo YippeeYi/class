@@ -1,6 +1,6 @@
-import { AlertDialog as AlertDialogPrimitive } from '@base-ui/react/alert-dialog'
 import { ArrowDown, ArrowLeft, ArrowRight, Maximize2, Minimize2, RotateCcw } from 'lucide-react'
 import {
+  type CSSProperties,
   Fragment,
   type KeyboardEvent,
   type PointerEvent,
@@ -11,18 +11,10 @@ import {
 } from 'react'
 import { Link, useNavigate } from 'react-router'
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogOverlay,
-  AlertDialogPortal,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { signAssetUrl } from '@/services/data'
 
 import {
   FAIL_LINE,
@@ -32,8 +24,14 @@ import {
   MAX_DROP_LEVEL_COUNT,
   MergeQbGame,
 } from './game'
-import { levelImageUrl, QB_LEVELS } from './levels'
-import { createImageMap, drawGame } from './render'
+import { levelImagePath, QB_LEVELS } from './levels'
+import {
+  createImageMap,
+  drawGame,
+  makeOutlinedSprite,
+  type QbImages,
+  type QbSprites,
+} from './render'
 import './game.css'
 
 const largestDroppableSize = Math.max(
@@ -48,6 +46,7 @@ export function MergeQbBoard() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sequenceRef = useRef<HTMLOListElement>(null)
   const gameRef = useRef<MergeQbGame | null>(null)
+  const loadAssetsRef = useRef<(force?: boolean) => Promise<void>>(async () => {})
   const touchPointer = useRef<number | null>(null)
   const observedMaxMergeCount = useRef(0)
   const [snapshot, setSnapshot] = useState<GameSnapshot | null>(null)
@@ -56,6 +55,11 @@ export function MergeQbBoard() {
   const [fullscreenPending, setFullscreenPending] = useState(false)
   const [fullscreenSupported, setFullscreenSupported] = useState(false)
   const [arenaScale, setArenaScale] = useState(1)
+  const [assets, setAssets] = useState<{
+    urls: Record<string, string>
+    loading: boolean
+    error: boolean
+  }>({ urls: {}, loading: true, error: false })
   const [sequenceColumns, setSequenceColumns] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 6 : 3,
   )
@@ -117,22 +121,89 @@ export function MergeQbBoard() {
     if (!context) return
     const game = new MergeQbGame(setSnapshot)
     gameRef.current = game
-    const images = createImageMap()
-    for (const level of QB_LEVELS) {
-      const image = images.get(level.id)
-      if (image) image.src = levelImageUrl(level)
+    const images: QbImages = createImageMap()
+    const sprites: QbSprites = new Map()
+    const objectUrls = new Map<string, string>()
+    let disposed = false
+    let loadRevision = 0
+    let scale = 1
+    let pixelRatio = 1
+    const loadAssets = async (force = false) => {
+      const revision = ++loadRevision
+      setAssets((current) => ({ ...current, loading: true, error: false }))
+      const results = await Promise.allSettled(
+        QB_LEVELS.map(async (level) => {
+          const signedUrl = await signAssetUrl(levelImagePath(level), { forceRefresh: force })
+          if (disposed || revision !== loadRevision) return [level.id, ''] as const
+          const response = await fetch(signedUrl)
+          if (!response.ok) throw new Error(`QB image ${level.id} failed to load`)
+          const url = URL.createObjectURL(await response.blob())
+          if (disposed || revision !== loadRevision) {
+            URL.revokeObjectURL(url)
+            return [level.id, ''] as const
+          }
+          const image = images.get(level.id)
+          if (!image) throw new Error(`Missing QB image slot ${level.id}`)
+          try {
+            await new Promise<void>((resolve, reject) => {
+              image.onload = () => resolve()
+              image.onerror = () => reject(new Error(`QB image ${level.id} failed to load`))
+              image.src = url
+              if (image.complete && image.naturalWidth > 0) resolve()
+            })
+          } catch (error) {
+            URL.revokeObjectURL(url)
+            throw error
+          }
+          if (disposed || revision !== loadRevision) {
+            URL.revokeObjectURL(url)
+            return [level.id, ''] as const
+          }
+          if (!disposed && revision === loadRevision)
+            sprites.set(level.id, makeOutlinedSprite(level, image, scale, pixelRatio))
+          const previousUrl = objectUrls.get(level.id)
+          if (previousUrl) URL.revokeObjectURL(previousUrl)
+          objectUrls.set(level.id, url)
+          return [level.id, url] as const
+        }),
+      )
+      if (disposed || revision !== loadRevision) return
+      const urls: Record<string, string> = {}
+      for (const result of results)
+        if (result.status === 'fulfilled') urls[result.value[0]] = result.value[1]
+      setAssets({
+        urls,
+        loading: false,
+        error: results.some((result) => result.status === 'rejected'),
+      })
     }
+    loadAssetsRef.current = loadAssets
+    void loadAssets()
+    const clearAssets = () => {
+      loadRevision++
+      sprites.clear()
+      for (const image of images.values()) image.removeAttribute('src')
+      for (const url of objectUrls.values()) URL.revokeObjectURL(url)
+      objectUrls.clear()
+      setAssets({ urls: {}, loading: false, error: true })
+    }
+    window.addEventListener('classrecordcacheclearing', clearAssets)
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect()
       if (!rect.width || !rect.height) return
-      const scale = rect.width / GAME_WIDTH
+      scale = rect.width / GAME_WIDTH
       setArenaScale((current) => (Math.abs(current - scale) < 0.001 ? current : scale))
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
+      pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
       canvas.width = Math.round(rect.width * pixelRatio)
       canvas.height = Math.round(rect.height * pixelRatio)
       context.setTransform(canvas.width / GAME_WIDTH, 0, 0, canvas.height / GAME_HEIGHT, 0, 0)
-      drawGame(context, game, images)
+      for (const level of QB_LEVELS) {
+        const image = images.get(level.id)
+        if (image?.complete && image.naturalWidth > 0)
+          sprites.set(level.id, makeOutlinedSprite(level, image, scale, pixelRatio))
+      }
+      drawGame(context, game, images, sprites)
     }
     const observer = new ResizeObserver(resize)
     observer.observe(canvas)
@@ -150,13 +221,16 @@ export function MergeQbBoard() {
         accumulated -= 1000 / 60
         steps += 1
       }
-      drawGame(context, game, images)
+      drawGame(context, game, images, sprites)
       frame = requestAnimationFrame(animate)
     }
     frame = requestAnimationFrame(animate)
 
     return () => {
       cancelAnimationFrame(frame)
+      disposed = true
+      window.removeEventListener('classrecordcacheclearing', clearAssets)
+      for (const url of objectUrls.values()) URL.revokeObjectURL(url)
       observer.disconnect()
       game.dispose()
       gameRef.current = null
@@ -189,11 +263,13 @@ export function MergeQbBoard() {
   }
 
   const aimAt = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (gameRef.current?.snapshot.gameOver || assets.loading || assets.error) return
     const bounds = event.currentTarget.getBoundingClientRect()
     gameRef.current?.aim(((event.clientX - bounds.left) / bounds.width) * GAME_WIDTH)
   }
 
   const onPointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (gameRef.current?.snapshot.gameOver || assets.loading || assets.error) return
     aimAt(event)
     if (event.pointerType === 'touch') {
       touchPointer.current = event.pointerId
@@ -204,6 +280,10 @@ export function MergeQbBoard() {
   }
 
   const onPointerUp = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (gameRef.current?.snapshot.gameOver || assets.loading || assets.error) {
+      touchPointer.current = null
+      return
+    }
     if (touchPointer.current !== event.pointerId) return
     aimAt(event)
     gameRef.current?.drop()
@@ -211,6 +291,7 @@ export function MergeQbBoard() {
   }
 
   const onBoardKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (gameRef.current?.snapshot.gameOver || assets.loading || assets.error) return
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       event.preventDefault()
       gameRef.current?.aim(gameRef.current.targetX + (event.key === 'ArrowLeft' ? -20 : 20))
@@ -226,6 +307,7 @@ export function MergeQbBoard() {
         <button
           type="button"
           className="merge-qb-arena"
+          disabled={snapshot?.gameOver || assets.loading || assets.error}
           data-danger={snapshot?.danger ?? 'normal'}
           aria-label="合成大QB游戏区域，左右方向键移动，回车或空格放下QB"
           onKeyDown={onBoardKeyDown}
@@ -241,6 +323,18 @@ export function MergeQbBoard() {
               touchPointer.current = null
             }}
           />
+          {(assets.loading || assets.error) && (
+            <span className="merge-qb-asset-status" role="status">
+              {assets.loading ? (
+                <>
+                  <Spinner />
+                  正在加载 QB 图片…
+                </>
+              ) : (
+                'QB 图片加载失败，请重试'
+              )}
+            </span>
+          )}
           <span
             className="merge-qb-warning-line"
             style={{ top: `${(FAIL_LINE / GAME_HEIGHT) * 100}%` }}
@@ -299,6 +393,16 @@ export function MergeQbBoard() {
               </h1>
             </div>
             <div className="flex shrink-0 items-center gap-1">
+              {assets.error && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void loadAssetsRef.current(true)}
+                >
+                  重试
+                </Button>
+              )}
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -306,14 +410,13 @@ export function MergeQbBoard() {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="max-md:w-auto max-md:gap-1.5 max-md:px-2"
+                      className="max-md:hidden"
                       aria-label="重新开始"
                       onClick={() => gameRef.current?.reset()}
                     />
                   }
                 >
                   <RotateCcw aria-hidden="true" />
-                  <span className="hidden max-md:inline">再来一局</span>
                 </TooltipTrigger>
                 <TooltipContent>重新开始</TooltipContent>
               </Tooltip>
@@ -346,23 +449,41 @@ export function MergeQbBoard() {
             </div>
           </div>
           <div className="merge-qb-next">
-            <span className="text-xs text-muted-foreground">下一个</span>
-            <div
-              className="merge-qb-next-preview"
-              style={{ height: largestDroppableSize * arenaScale }}
-            >
-              {snapshot && (
-                <img
-                  src={levelImageUrl(snapshot.next)}
-                  alt={snapshot.next.name}
-                  className="object-contain"
-                  style={{
-                    width: snapshot.next.visualSize.width * arenaScale,
-                    height: snapshot.next.visualSize.height * arenaScale,
-                  }}
-                />
-              )}
-            </div>
+            {snapshot?.gameOver ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="merge-qb-game-over-label"
+                onClick={() => gameRef.current?.reset()}
+                aria-label="游戏结束，重新开始"
+                title="重新开始"
+              >
+                游戏结束
+              </Button>
+            ) : (
+              <span className="text-xs text-muted-foreground">下一个</span>
+            )}
+            {!snapshot?.gameOver && (
+              <div
+                className="merge-qb-next-preview"
+                style={
+                  { '--preview-height': `${largestDroppableSize * arenaScale}px` } as CSSProperties
+                }
+              >
+                {snapshot && assets.urls[snapshot.next.id] && (
+                  <img
+                    src={assets.urls[snapshot.next.id]}
+                    alt={snapshot.next.name}
+                    className="object-contain"
+                    style={{
+                      width: snapshot.next.visualSize.width * arenaScale,
+                      height: snapshot.next.visualSize.height * arenaScale,
+                    }}
+                  />
+                )}
+              </div>
+            )}
           </div>
           <div className="merge-qb-score">
             <span className="text-xs text-muted-foreground">分数</span>
@@ -400,7 +521,27 @@ export function MergeQbBoard() {
                             >
                               <span className="merge-qb-level-icon">
                                 {unlocked ? (
-                                  <img src={levelImageUrl(level)} alt="" />
+                                  <img
+                                    src={assets.urls[level.id]}
+                                    alt=""
+                                    style={(() => {
+                                      const { left, top, right, bottom } = level.visibleBounds
+                                      const scale =
+                                        32 /
+                                        Math.max(
+                                          (right - left) * level.sourceSize.width,
+                                          (bottom - top) * level.sourceSize.height,
+                                        )
+                                      const width = level.sourceSize.width * scale
+                                      const height = level.sourceSize.height * scale
+                                      return {
+                                        width,
+                                        height,
+                                        left: (36 - (right - left) * width) / 2 - left * width,
+                                        top: (36 - (bottom - top) * height) / 2 - top * height,
+                                      }
+                                    })()}
+                                  />
                                 ) : (
                                   <span className="merge-qb-locked" aria-hidden="true">
                                     ?
@@ -435,28 +576,6 @@ export function MergeQbBoard() {
           </section>
         </aside>
       </div>
-      <AlertDialog open={snapshot?.gameOver ?? false}>
-        <AlertDialogPortal container={stageRef.current}>
-          <AlertDialogOverlay className="duration-200" />
-          <AlertDialogPrimitive.Popup
-            data-slot="alert-dialog-content"
-            className="merge-qb-game-over-dialog duration-200 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
-          >
-            <AlertDialogHeader>
-              <AlertDialogTitle className="text-xl sm:text-2xl">游戏结束</AlertDialogTitle>
-              <AlertDialogDescription>得分 {snapshot?.score ?? 0}</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <Button type="button" variant="outline" onClick={() => void exitGame()}>
-                退出
-              </Button>
-              <AlertDialogAction type="button" onClick={() => gameRef.current?.reset()}>
-                再来一局
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogPrimitive.Popup>
-        </AlertDialogPortal>
-      </AlertDialog>
     </div>
   )
 }

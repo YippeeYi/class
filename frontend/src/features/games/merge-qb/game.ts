@@ -2,7 +2,14 @@ import Matter, { type Body, type IEventCollision, type Engine as MatterEngine } 
 
 const { Bodies, Body: MatterBody, Composite, Engine, Events, Sleeping, Vertices } = Matter
 
-import { type ColliderShape, type Point, QB_LEVEL_BY_ID, QB_LEVELS, type QbLevel } from './levels'
+import {
+  type ColliderShape,
+  type Point,
+  QB_LEVEL_BY_ID,
+  QB_LEVELS,
+  QB_PHYSICS,
+  type QbLevel,
+} from './levels'
 
 export const GAME_WIDTH = 360
 export const GAME_HEIGHT = 560
@@ -43,7 +50,7 @@ function relativePoint(point: Point, level: QbLevel): Point {
 }
 
 function shapeBody(shape: ColliderShape, level: QbLevel, x: number, y: number): Body {
-  const options = { friction: 0.58, frictionStatic: 0.8, restitution: 0.08, frictionAir: 0.002 }
+  const options = QB_PHYSICS.qb
   if (shape.type === 'circle') {
     const offset = relativePoint(shape, level)
     const radius = shape.radius * Math.min(level.physicsSize.width, level.physicsSize.height)
@@ -77,6 +84,7 @@ export function makePiece(level: QbLevel, x: number, y: number): GamePiece {
   const first = parts[0]
   if (!first) throw new Error(`Missing collider for level ${level.id}`)
   const body = parts.length === 1 ? first : MatterBody.create({ parts })
+  MatterBody.setMass(body, level.mass)
   return {
     body,
     level,
@@ -142,12 +150,17 @@ export class MergeQbGame {
     this.engine.positionIterations = 8
     this.engine.velocityIterations = 8
     const floor = Bodies.rectangle(GAME_WIDTH / 2, GAME_HEIGHT + 18, GAME_WIDTH + 72, 36, {
+      ...QB_PHYSICS.wall,
       isStatic: true,
     })
     this.floorId = floor.id
     Composite.add(this.engine.world, [
-      Bodies.rectangle(-18, GAME_HEIGHT / 2, 36, GAME_HEIGHT * 2, { isStatic: true }),
+      Bodies.rectangle(-18, GAME_HEIGHT / 2, 36, GAME_HEIGHT * 2, {
+        ...QB_PHYSICS.wall,
+        isStatic: true,
+      }),
       Bodies.rectangle(GAME_WIDTH + 18, GAME_HEIGHT / 2, 36, GAME_HEIGHT * 2, {
+        ...QB_PHYSICS.wall,
         isStatic: true,
       }),
       floor,
@@ -185,6 +198,7 @@ export class MergeQbGame {
   }
 
   aim(x: number) {
+    if (this.danger === 'game-over') return
     const half = this.current.physicsSize.width / 2
     this.aimX = Math.max(half, Math.min(GAME_WIDTH - half, x))
   }

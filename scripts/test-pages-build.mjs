@@ -50,10 +50,10 @@ try {
   }
   for (let level = 1; level <= 11; level++) {
     const asset = `/class/games/merge-qb/${String(level).padStart(2, '0')}.png`
-    assert.equal((await fetch(origin + asset)).status, 200, asset)
+    assert.equal((await fetch(origin + asset)).status, 404, `private game image must not ship: ${asset}`)
   }
   assert.equal((await fetch(`${origin}/class/unknown`)).status, 404)
-  console.log('Pages artifact passed: /class base, every route entry, game images, direct navigation/refresh, query-preserving directory redirects, public assets and 404 fallback.')
+  console.log('Pages artifact passed: /class base, every route entry, private game image exclusion, direct navigation/refresh, query-preserving directory redirects, public assets and 404 fallback.')
 } finally {
   await new Promise((resolve) => server.close(resolve))
 }

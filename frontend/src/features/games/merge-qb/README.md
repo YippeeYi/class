@@ -1,39 +1,7 @@
-# 合成大QB素材与碰撞体
+# 合成大QB素材与物理配置
 
-当前有 11 个等级。默认素材是本项目生成的透明 PNG 占位图，没有使用第三方游戏图片。按下表替换同名文件即可换图；等级顺序、分值和升级目标都在 [`levels.ts`](./levels.ts) 的 `QB_LEVELS` 中。
+11 张原始 PNG 位于本目录的 `01.png` 至 `11.png`，已由 `.gitignore` 排除；不要移入 `frontend/public` 或导入到前端包。`scripts/admin.mjs` 将它们列入现有内容发布清单，目标是私有 bucket `classrecord-private` 的 `images/games/merge-qb/01.png` 至 `11.png`。先应用 `20261001000000_private_merge_qb_images.sql`，再运行现有 `npm run content:audit`、`npm run content:plan` 和发布流程。前端通过现有邀请码鉴权、Storage RLS 和短时签名 URL 读取，并在每次进入游戏时预加载一次。
 
-| 等级 | 名称 | 素材文件 |
-| --- | --- | --- |
-| 01 | 一级 QB | `frontend/public/games/merge-qb/01.png` |
-| 02 | 二级 QB | `frontend/public/games/merge-qb/02.png` |
-| 03 | 三级 QB | `frontend/public/games/merge-qb/03.png` |
-| 04 | 四级 QB | `frontend/public/games/merge-qb/04.png` |
-| 05 | 五级 QB | `frontend/public/games/merge-qb/05.png` |
-| 06 | 六级 QB | `frontend/public/games/merge-qb/06.png` |
-| 07 | 七级 QB | `frontend/public/games/merge-qb/07.png` |
-| 08 | 八级 QB | `frontend/public/games/merge-qb/08.png` |
-| 09 | 九级 QB | `frontend/public/games/merge-qb/09.png` |
-| 10 | 十级 QB | `frontend/public/games/merge-qb/10.png` |
-| 11 | 大 QB | `frontend/public/games/merge-qb/11.png` |
+[`levels.ts`](./levels.ts) 的 `QB_LEVELS` 集中保存等级顺序、积分、原图尺寸、显示尺寸、碰撞轮廓和每级 `mass`。当前轮廓由这 11 张 PNG 的 alpha >= 64 区域提取，简化为最多 12 点的凸包；`visualSize`/`physicsSize` 依据可见主体的最大边确定，保持原图比例。轮廓坐标相对完整原图左上角归一化为 0 至 1。换图后要重新测量透明轮廓、更新配置并逐级验收；不要修改原图像素。
 
-建议每张图为 **256×256 px 的透明 PNG**，角色居中且可见边缘靠近画布边缘。WebP 也可以，但需同时改该等级的 `image` 文件名。游戏没有必需的背景图、音效或其他素材；棋盘背景直接使用站点主题色。
-
-每一级独立设置 `visualSize`（画面绘制宽高）、`physicsSize`（碰撞坐标的宽高）和 `collider.shapes`。碰撞形状坐标以原图左上角 `(0, 0)`、右下角 `(1, 1)` 归一化保存，不随浏览器尺寸变化。`circle` 的 `x/y` 是圆心、`radius` 是相对宽高较小边的半径；`rectangle` 的 `x/y` 是中心、`width/height` 是相对宽高；`polygon.vertices` 是轮廓顶点数组。可在 `shapes` 中放多个圆、矩形或凸多边形近似不规则轮廓。不要输入凹多边形、极尖或极薄的形状；应拆成几个有少量重叠的凸形状。游戏会拒绝凹多边形，而非悄悄改为外接凸包。
-
-示例（只展示碰撞相关字段）：
-
-```ts
-visualSize: { width: 85, height: 85 },
-physicsSize: { width: 79, height: 83 },
-collider: {
-  shapes: [
-    { type: 'polygon', vertices: [
-      { x: 0.22, y: 0.12 }, { x: 0.78, y: 0.12 },
-      { x: 0.91, y: 0.52 }, { x: 0.70, y: 0.91 },
-      { x: 0.28, y: 0.91 }, { x: 0.09, y: 0.52 },
-    ] },
-  ],
-},
-```
-
-换成最终 QB 图片后逐级检查：图片透明留白是否过大、碰撞边界是否贴近可见轮廓、堆叠是否稳定。优先调该级的 `collider` 和 `physicsSize`；无需修改 `game.ts` 或画布组件。
+`QB_PHYSICS.qb` 定义 QB 材质，`QB_PHYSICS.wall` 定义边缘材质。Matter.js 将接触双方的 `friction` 取较小值作为动摩擦，将 `frictionStatic` 取较大值作为静摩擦乘数；静摩擦力计算还受法向力影响，因此两类接触不能用两个完全独立的系数精确指定。`frictionAir` 是空气阻尼，`restitution` 是反弹系数。每级 `mass` 通过 `Body.setMass` 直接设置，显示尺寸改变不会自动改变最终质量。`QB_OUTLINE.widthCssPx` 是画布中所有实际 QB 共用的屏幕描边宽度；它只影响绘制，不扩大碰撞体。

@@ -1971,8 +1971,13 @@ body [data-slot="switch-thumb"] {
 }
 
 .record-jump-actions {
+  pointer-events: none;
   animation: record-jump-actions-in var(--interaction-duration-standard)
     var(--interaction-ease-standard) both;
+}
+
+.record-jump-actions button {
+  pointer-events: auto;
 }
 
 .record-jump-actions[data-closing="true"] {
