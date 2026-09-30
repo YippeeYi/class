@@ -53,17 +53,23 @@ try {
 
   const snapshots = []
   const game = new MergeQbGame((snapshot) => snapshots.push(snapshot), () => 0)
+  assert.equal(game.snapshot.unlockedCount, 1)
+  assert.equal(game.snapshot.current.id, QB_LEVELS[0].id)
+  assert.equal(game.snapshot.next.id, QB_LEVELS[0].id)
   for (let drop = 0; drop < 4; drop++) {
     assert.equal(game.drop(), true)
     assert.equal(game.drop(), false, 'drop cooldown prevents duplicate pointer events')
     for (let step = 0; step < 180; step++) game.step()
   }
   assert.equal(game.snapshot.score, QB_LEVELS[1].points * 2 + QB_LEVELS[2].points)
+  assert.equal(game.snapshot.unlockedCount, 3, 'successful merges unlock levels two and three')
   assert.deepEqual([...game.objects].map((piece) => piece.level.id), ['03'])
   for (let step = 0; step < 180; step++) game.step()
   assert.equal(game.snapshot.score, 12, 'a settled contact never scores twice')
   game.reset()
   assert.equal(game.snapshot.score, 0)
+  assert.equal(game.snapshot.unlockedCount, 1)
+  assert.equal(game.snapshot.maxMergeCount, 0)
   assert.equal([...game.objects].length, 0)
   for (let step = 0; step < 20; step++) game.step()
   assert.equal(game.snapshot.danger, 'normal', 'the aim preview does not trigger danger')
@@ -141,7 +147,49 @@ try {
   assert.equal(game.snapshot.danger, 'normal')
   assert.equal(game.snapshot.countdown, null)
   game.dispose()
-  console.log('Merge QB physics, scoring, cancellable danger countdown and reset passed.')
+
+  const selection = new MergeQbGame(() => {}, () => 0.999)
+  assert.equal(selection.snapshot.unlockedCount, 1)
+  assert.equal(selection.snapshot.current.id, QB_LEVELS[0].id, 'a new game starts with level one')
+  assert.equal(selection.snapshot.next.id, QB_LEVELS[0].id)
+  for (let index = 0; index < QB_LEVELS.length - 1; index++) {
+    const level = QB_LEVELS[index]
+    const first = makePiece(level, 140, 300)
+    const second = makePiece(level, 180, 300)
+    for (const piece of [first, second]) {
+      selection.pieces.set(piece.body.id, piece)
+      Matter.Composite.add(selection.engine.world, piece.body)
+    }
+    selection.pendingPairs.set(`${first.body.id}:${second.body.id}`, [first.body.id, second.body.id])
+    selection.mergePending()
+    assert.equal(selection.snapshot.unlockedCount, index + 2, `merging ${level.id} unlocks only its successor`)
+    assert.equal(selection.snapshot.maxMergeCount, index === QB_LEVELS.length - 2 ? 1 : 0)
+    const highestDroppable = QB_LEVELS[Math.min(index + 1, 4)]
+    assert.equal(selection.chooseStarter().id, highestDroppable.id, 'the drop pool follows unlocks but stops at five')
+    selection.lastDropAt = -Infinity
+    assert.equal(selection.drop(), true)
+    assert.equal(selection.snapshot.next.id, highestDroppable.id, 'the preview uses the same drop pool')
+    assert.equal(selection.snapshot.unlockedCount, index + 2, 'dropping does not unlock a level')
+  }
+  const levelBeforeMaximum = QB_LEVELS.at(-2)
+  const firstMaximumPair = makePiece(levelBeforeMaximum, 140, 300)
+  const secondMaximumPair = makePiece(levelBeforeMaximum, 180, 300)
+  for (const piece of [firstMaximumPair, secondMaximumPair]) {
+    selection.pieces.set(piece.body.id, piece)
+    Matter.Composite.add(selection.engine.world, piece.body)
+  }
+  selection.pendingPairs.set(`${firstMaximumPair.body.id}:${secondMaximumPair.body.id}`, [firstMaximumPair.body.id, secondMaximumPair.body.id])
+  selection.mergePending()
+  assert.equal(selection.snapshot.maxMergeCount, 2, 'each new maximum merge publishes one celebration event')
+  selection.mergePending()
+  assert.equal(selection.snapshot.maxMergeCount, 2, 'an already handled pair cannot repeat the celebration')
+  selection.reset()
+  assert.equal(selection.snapshot.unlockedCount, 1)
+  assert.equal(selection.snapshot.current.id, QB_LEVELS[0].id)
+  assert.equal(selection.snapshot.next.id, QB_LEVELS[0].id)
+  assert.equal(selection.snapshot.maxMergeCount, 0)
+  selection.dispose()
+  console.log('Merge QB physics, scoring, per-game unlocks, capped drops, maximum merge events, danger countdown and reset passed.')
 } finally {
   await vite.close()
 }

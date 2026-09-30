@@ -11,6 +11,7 @@ export const DANGER_DISTANCE = 38
 export const DANGER_COUNTDOWN_MS = 3000
 const STEP_MS = 1000 / 60
 const DROP_DELAY_MS = 480
+const MAX_DROP_LEVEL_COUNT = 5
 
 export type DangerState = 'normal' | 'near' | 'countdown' | 'game-over'
 
@@ -22,6 +23,8 @@ export type GameSnapshot = {
   canDrop: boolean
   danger: DangerState
   countdown: number | null
+  unlockedCount: number
+  maxMergeCount: number
 }
 
 export type GamePiece = {
@@ -87,6 +90,8 @@ export class MergeQbGame {
   private pieces = new Map<number, GamePiece>()
   private pendingPairs = new Map<string, [number, number]>()
   private score = 0
+  private unlockedCount = 1
+  private maxMergeCount = 0
   private current: QbLevel
   private next: QbLevel
   private danger: DangerState = 'normal'
@@ -107,7 +112,8 @@ export class MergeQbGame {
   }
 
   private chooseStarter() {
-    const level = QB_LEVELS[Math.min(4, Math.floor(this.random() * 5))]
+    const poolSize = Math.min(this.unlockedCount, MAX_DROP_LEVEL_COUNT)
+    const level = QB_LEVELS[Math.min(poolSize - 1, Math.floor(this.random() * poolSize))]
     if (!level) throw new Error('No QB levels configured')
     return level
   }
@@ -164,6 +170,8 @@ export class MergeQbGame {
         this.engine.timing.timestamp - this.lastDropAt >= DROP_DELAY_MS,
       danger: this.danger,
       countdown: this.danger === 'countdown' ? this.countdown : null,
+      unlockedCount: this.unlockedCount,
+      maxMergeCount: this.maxMergeCount,
     }
   }
 
@@ -221,6 +229,8 @@ export class MergeQbGame {
       Composite.add(this.engine.world, merged.body)
       this.pieces.set(merged.body.id, merged)
       this.score += next.points
+      this.unlockedCount = Math.max(this.unlockedCount, QB_LEVELS.indexOf(next) + 1)
+      if (!next.nextId) this.maxMergeCount += 1
     }
     this.pendingPairs.clear()
     if (involved.size) this.publish()
@@ -301,6 +311,8 @@ export class MergeQbGame {
     this.pieces.clear()
     this.pendingPairs.clear()
     this.score = 0
+    this.unlockedCount = 1
+    this.maxMergeCount = 0
     this.current = this.chooseStarter()
     this.next = this.chooseStarter()
     this.danger = 'normal'

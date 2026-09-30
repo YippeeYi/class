@@ -24,6 +24,7 @@ import './game.css'
 const largestLevelSize = Math.max(
   ...QB_LEVELS.map((level) => Math.max(level.visualSize.width, level.visualSize.height)),
 )
+const confettiPieces = Array.from({ length: 8 }, (_, index) => index)
 
 export function MergeQbBoard() {
   const navigate = useNavigate()
@@ -31,10 +32,24 @@ export function MergeQbBoard() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameRef = useRef<MergeQbGame | null>(null)
   const touchPointer = useRef<number | null>(null)
+  const observedMaxMergeCount = useRef(0)
   const [snapshot, setSnapshot] = useState<GameSnapshot | null>(null)
+  const [activeCelebrations, setActiveCelebrations] = useState<number[]>([])
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [fullscreenPending, setFullscreenPending] = useState(false)
   const [fullscreenSupported, setFullscreenSupported] = useState(false)
+
+  useEffect(() => {
+    const count = snapshot?.maxMergeCount ?? 0
+    const previous = observedMaxMergeCount.current
+    if (count < previous) setActiveCelebrations([])
+    else if (count > previous)
+      setActiveCelebrations((active) => [
+        ...active,
+        ...Array.from({ length: count - previous }, (_, index) => previous + index + 1),
+      ])
+    observedMaxMergeCount.current = count
+  }, [snapshot?.maxMergeCount])
 
   useEffect(() => {
     const stage = stageRef.current
@@ -199,6 +214,25 @@ export function MergeQbBoard() {
               {snapshot.countdown}
             </span>
           )}
+          {activeCelebrations.map((id) => (
+            <span
+              key={id}
+              className="merge-qb-celebration"
+              aria-hidden="true"
+              onAnimationEnd={(event) => {
+                if (event.target === event.currentTarget)
+                  setActiveCelebrations((active) => active.filter((item) => item !== id))
+              }}
+            >
+              {['left', 'right'].map((side) => (
+                <span key={side} className={`merge-qb-confetti merge-qb-confetti-${side}`}>
+                  {confettiPieces.map((index) => (
+                    <i key={index} />
+                  ))}
+                </span>
+              ))}
+            </span>
+          ))}
         </button>
 
         <aside className="merge-qb-toolbar" aria-label="游戏状态与操作">
@@ -294,20 +328,31 @@ export function MergeQbBoard() {
               {QB_LEVELS.map((level, index) => {
                 const maxDimension = Math.max(level.visualSize.width, level.visualSize.height)
                 const size = 16 + (20 * maxDimension) / largestLevelSize
+                const unlocked = index < (snapshot?.unlockedCount ?? 1)
                 return (
                   <li
                     key={level.id}
                     data-level-id={level.id}
-                    aria-label={`${index + 1}：${level.name}`}
+                    aria-label={unlocked ? `${index + 1}：${level.name}` : `${index + 1}：未解锁`}
                   >
-                    <img
-                      src={levelImageUrl(level)}
-                      alt=""
-                      style={{
-                        width: `${(size * level.visualSize.width) / maxDimension}px`,
-                        height: `${(size * level.visualSize.height) / maxDimension}px`,
-                      }}
-                    />
+                    {unlocked ? (
+                      <img
+                        src={levelImageUrl(level)}
+                        alt=""
+                        style={{
+                          width: `${(size * level.visualSize.width) / maxDimension}px`,
+                          height: `${(size * level.visualSize.height) / maxDimension}px`,
+                        }}
+                      />
+                    ) : (
+                      <span
+                        className="merge-qb-locked"
+                        style={{ width: `${size}px`, height: `${size}px` }}
+                        aria-hidden="true"
+                      >
+                        ?
+                      </span>
+                    )}
                     <span
                       aria-hidden="true"
                       className="text-[10px] leading-none text-muted-foreground/70"
@@ -323,13 +368,13 @@ export function MergeQbBoard() {
       </div>
       <AlertDialog open={snapshot?.gameOver ?? false}>
         <AlertDialogPortal container={stageRef.current}>
-          <AlertDialogOverlay />
+          <AlertDialogOverlay className="duration-200" />
           <AlertDialogPrimitive.Popup
             data-slot="alert-dialog-content"
-            className="merge-qb-game-over-dialog"
+            className="merge-qb-game-over-dialog duration-200 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
           >
             <AlertDialogHeader>
-              <AlertDialogTitle>游戏结束</AlertDialogTitle>
+              <AlertDialogTitle className="text-xl sm:text-2xl">游戏结束</AlertDialogTitle>
               <AlertDialogDescription>得分 {snapshot?.score ?? 0}</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

@@ -563,6 +563,11 @@ try {
     await gamePage.waitForURL(/games\/merge-qb\/?$/)
     const board = gamePage.getByRole('button', { name: /合成大QB游戏区域/ })
     await board.waitFor()
+    await gamePage.waitForFunction(() => document.querySelector('.merge-qb-sequence li:first-child img'))
+    assert.equal(await gamePage.locator('.merge-qb-sequence li img').count(), 1, 'only level one is revealed at the start')
+    assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-locked').count(), 10)
+    assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-locked').first().innerText(), '?')
+    assert.match(await gamePage.locator('.merge-qb-next img').getAttribute('src'), /01\.png$/)
     await gamePage.emulateMedia({ reducedMotion: 'no-preference' })
     const warningLine = board.locator('.merge-qb-warning-line')
     assert.equal(await warningLine.count(), 1, 'one warning line is always present')
@@ -621,6 +626,8 @@ try {
     await gamePage.waitForTimeout(600)
     await board.click()
     await gamePage.waitForFunction(() => document.querySelector('.merge-qb-toolbar strong')?.textContent === '3')
+    assert.equal(await gamePage.locator('.merge-qb-sequence li img').count(), 2, 'merging level one reveals level two')
+    assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-locked').count(), 9)
     // Chromium rejects window-bound changes while its window is fullscreen.
     await gamePage.setViewportSize({ width: 1024, height: 768 })
     await fitGame(768)
@@ -659,6 +666,9 @@ try {
     }
     await gamePage.getByRole('button', { name: '重新开始' }).click()
     assert.equal(await score.innerText(), '0')
+    assert.equal(await gamePage.locator('.merge-qb-sequence li img').count(), 1, 'restart resets this game’s discoveries')
+    assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-locked').count(), 10)
+    assert.match(await gamePage.locator('.merge-qb-next img').getAttribute('src'), /01\.png$/)
     await gamePage.reload()
     await board.waitFor()
     assert.equal(await gamePage.locator('.app-sidebar-navigation a[href$="/games"][data-active]').count(), 1)
@@ -666,6 +676,70 @@ try {
     await gamePage.getByRole('link', { name: '合成大QB', exact: true }).click()
     await board.waitFor()
     assert.equal(await score.innerText(), '0')
+    if (!process.env.CLASS_RECORD_PREVIEW) {
+      await gamePage.evaluate(async (origin) => {
+        const { MergeQbGame } = await import(origin + 'src/features/games/merge-qb/game.ts')
+        const step = MergeQbGame.prototype.step
+        window.__mergeQbTestGame = undefined
+        MergeQbGame.prototype.step = function () {
+          window.__mergeQbTestGame = this
+          step.call(this)
+        }
+      }, origin)
+      await gamePage.waitForFunction(() => window.__mergeQbTestGame)
+      await gamePage.emulateMedia({ reducedMotion: 'no-preference' })
+      assert.equal(await gamePage.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches), false)
+      const triggerMaximumMerge = () => gamePage.evaluate(async (origin) => {
+        const { makePiece } = await import(origin + 'src/features/games/merge-qb/game.ts')
+        const { QB_LEVELS } = await import(origin + 'src/features/games/merge-qb/levels.ts')
+        const game = window.__mergeQbTestGame
+        const level = QB_LEVELS.at(-2)
+        const first = makePiece(level, 140, 300)
+        const second = makePiece(level, 180, 300)
+        game.pieces.set(first.body.id, first)
+        game.pieces.set(second.body.id, second)
+        game.pendingPairs.set(`${first.body.id}:${second.body.id}`, [first.body.id, second.body.id])
+        game.mergePending()
+      }, origin)
+      const celebration = gamePage.locator('.merge-qb-celebration')
+      await triggerMaximumMerge()
+      assert.equal(await gamePage.evaluate(() => window.__mergeQbTestGame.snapshot.maxMergeCount), 1)
+      await gamePage.waitForFunction(() => document.querySelector('.merge-qb-sequence li:last-child img'))
+      await celebration.waitFor({ state: 'attached' })
+      assert.equal(await celebration.locator('.merge-qb-confetti').count(), 2, 'both arena sides celebrate a maximum merge')
+      await gamePage.waitForFunction(() =>
+        [...(document.querySelector('.merge-qb-celebration')?.getAnimations() ?? [])].some((animation) => animation.currentTime > 500),
+      )
+      await gamePage.screenshot({ path: '/tmp/class-merge-qb-celebration.png' })
+      await celebration.waitFor({ state: 'hidden', timeout: 5000 })
+      await gamePage.getByRole('button', { name: '全屏游玩' }).click()
+      await gamePage.waitForFunction(() => document.fullscreenElement?.classList.contains('merge-qb-stage'))
+      await triggerMaximumMerge()
+      await celebration.waitFor()
+      await gamePage.getByRole('button', { name: '重新开始' }).click()
+      await celebration.waitFor({ state: 'hidden' })
+      assert.equal(await gamePage.evaluate(() => window.__mergeQbTestGame.snapshot.maxMergeCount), 0, 'restart clears celebration state')
+      await triggerMaximumMerge()
+      await celebration.waitFor()
+      await celebration.waitFor({ state: 'hidden', timeout: 5000 })
+      await gamePage.evaluate(() => {
+        window.__mergeQbTestGame.danger = 'game-over'
+        window.__mergeQbTestGame.publish()
+      })
+      const gameOverDialog = gamePage.locator('.merge-qb-game-over-dialog')
+      await gameOverDialog.waitFor()
+      assert.ok(Number.parseFloat(await gameOverDialog.getByText('游戏结束').evaluate((title) => getComputedStyle(title).fontSize)) >= 20)
+      await gamePage.screenshot({ path: '/tmp/class-merge-qb-game-over-fullscreen.png' })
+      await gameOverDialog.getByRole('button', { name: '再来一局' }).click()
+      await gamePage.waitForFunction(() => {
+        const dialog = document.querySelector('.merge-qb-game-over-dialog')
+        return dialog?.hasAttribute('data-closed') && getComputedStyle(dialog).animationName !== 'none'
+      })
+      await gameOverDialog.waitFor({ state: 'hidden' })
+      assert.equal(await gamePage.evaluate(() => window.__mergeQbTestGame.snapshot.unlockedCount), 1)
+      await gamePage.locator('.merge-qb-stage').getByRole('button', { name: '退出全屏' }).click()
+      await gamePage.waitForFunction(() => document.fullscreenElement === null)
+    }
     await gameContext.close()
   }
   const anonymous = await contextFor({ authenticated: false })
