@@ -249,18 +249,17 @@ body button.merge-qb-arena:active {
 
 .merge-qb-status {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
 }
 
 .merge-qb-score,
 .merge-qb-next {
   display: flex;
   min-width: 0;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-start;
-  gap: 0.25rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .merge-qb-sequence {
@@ -403,6 +402,16 @@ body button.merge-qb-arena:active {
 @media (max-width: 1023px) {
   .merge-qb-stage:fullscreen .merge-qb-content {
     gap: 0.5rem;
+  }
+}
+
+@media (max-width: 599px) {
+  .merge-qb-stage:fullscreen .merge-qb-status {
+    gap: 0.5rem;
+  }
+
+  .merge-qb-stage:fullscreen .merge-qb-arena {
+    width: min(100%, max(8rem, calc((100dvh - 19.5rem) * 9 / 14)));
   }
 }
 

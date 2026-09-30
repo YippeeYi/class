@@ -498,6 +498,7 @@ try {
   await touch.waitForURL(/games\/merge-qb\/?$/)
   const touchBoard = touch.getByRole('button', { name: /合成大QB游戏区域/ })
   await touchBoard.waitFor()
+  assert.ok(await touch.evaluate(() => document.querySelector('.merge-qb-next').getBoundingClientRect().top > document.querySelector('.merge-qb-score').getBoundingClientRect().bottom), 'mobile score and next preview stack vertically')
   await touch.screenshot({ path: '/tmp/class-merge-qb-mobile.png', fullPage: true })
   assert.equal(await touch.getByRole('button', { name: '放下当前 QB' }).count(), 0)
   const beforeTouch = await touchBoard.locator('canvas').evaluate((canvas) => canvas.toDataURL())
@@ -592,8 +593,12 @@ try {
         const actions = document.querySelector('.merge-qb-actions').getBoundingClientRect()
         const status = document.querySelector('.merge-qb-status').getBoundingClientRect()
         const main = document.querySelector('main').getBoundingClientRect()
+        const scoreBox = document.querySelector('.merge-qb-score').getBoundingClientRect()
+        const nextBox = document.querySelector('.merge-qb-next').getBoundingClientRect()
         const scoreLabel = document.querySelector('.merge-qb-score span').getBoundingClientRect()
         const nextLabel = document.querySelector('.merge-qb-next span').getBoundingClientRect()
+        const scoreValue = document.querySelector('.merge-qb-score strong').getBoundingClientRect()
+        const nextPreview = document.querySelector('.merge-qb-next img').getBoundingClientRect()
         const controls = ['返回游戏库', '重新开始', '全屏游玩'].map((name) => document.querySelector(`[aria-label="${name}"]`)?.getBoundingClientRect()).filter(Boolean)
         return {
           bottom: Math.max(arena.bottom, sequence.bottom),
@@ -606,7 +611,9 @@ try {
           bottomOffset: Math.abs(sidebar.bottom - arena.bottom),
           sectionGapDifference: Math.abs((status.top - actions.bottom) - (sequence.top - status.bottom)),
           sectionOrder: actions.bottom < status.top && status.bottom < sequence.top,
-          statusLabelOffset: Math.abs(scoreLabel.top - nextLabel.top),
+          statusStackGap: nextBox.top - scoreBox.bottom,
+          statusLabelOffset: Math.abs(scoreLabel.left - nextLabel.left),
+          statusValueOffset: Math.abs(scoreValue.right - nextPreview.right),
           controlSizes: controls.map((rect) => rect && [rect.width, rect.height]),
         }
       })
@@ -618,7 +625,8 @@ try {
       assert.ok(geometry.gap >= 10 && geometry.gap <= 16, 'desktop arena and controls stay closely grouped')
       assert.ok(geometry.topOffset < 1 && geometry.bottomOffset < 1, `desktop controls fill the arena height: ${JSON.stringify(geometry)}`)
       assert.ok(geometry.sectionOrder && geometry.sectionGapDifference < 2, 'controls, live status and level gallery spread evenly down the sidebar')
-      assert.ok(geometry.statusLabelOffset < 1, 'score and next preview labels align')
+      assert.ok(geometry.statusStackGap >= 12 && geometry.statusStackGap <= 20, 'score and next preview form spaced vertical rows')
+      assert.ok(geometry.statusLabelOffset < 1 && geometry.statusValueOffset < 1, 'stacked status rows share left and right alignment')
       assert.ok(geometry.controlSizes.every(([width, height]) => width === geometry.controlSizes[0][0] && height === geometry.controlSizes[0][1]), 'toolbar icon buttons share one hit target size')
     }
     await fitGame(900)
