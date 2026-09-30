@@ -498,7 +498,20 @@ try {
   await touch.waitForURL(/games\/merge-qb\/?$/)
   const touchBoard = touch.getByRole('button', { name: /合成大QB游戏区域/ })
   await touchBoard.waitFor()
-  assert.ok(await touch.evaluate(() => document.querySelector('.merge-qb-next').getBoundingClientRect().top > document.querySelector('.merge-qb-score').getBoundingClientRect().bottom), 'mobile score and next preview stack vertically')
+  const fitsMobileGame = async (size) => {
+    const geometry = await touch.evaluate(() => {
+      const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
+      const toolbar = document.querySelector('.merge-qb-toolbar').getBoundingClientRect()
+      const main = document.querySelector('main')
+      return { arena: [arena.top, arena.bottom, arena.width, arena.height], toolbar: [toolbar.top, toolbar.bottom], viewport: [innerWidth, innerHeight], scroll: [document.documentElement.scrollWidth, document.documentElement.scrollHeight], overflow: getComputedStyle(main).overflowY }
+    })
+    assert.ok(geometry.toolbar[1] < geometry.arena[0] && geometry.arena[1] <= geometry.viewport[1] + 1 && geometry.scroll[1] <= geometry.viewport[1] + 1 && geometry.scroll[0] <= geometry.viewport[0] + 1 && geometry.overflow === 'hidden' && Math.abs(geometry.arena[2] / geometry.arena[3] - 360 / 560) < 0.01, `mobile game fits without scrolling at ${size}: ${JSON.stringify(geometry)}`)
+  }
+  await fitsMobileGame('390×844')
+  assert.equal(await touch.getByRole('button', { name: '重新开始' }).getByText('再来一局').isVisible(), true)
+  assert.equal(await touch.getByRole('button', { name: '全屏游玩' }).count(), 0, 'mobile game hides its fullscreen button')
+  assert.equal(await touch.getByRole('button', { name: '进入全屏' }).count(), 0, 'mobile game hides the shell fullscreen button')
+  assert.ok(await touch.evaluate(() => document.querySelector('.merge-qb-score').getBoundingClientRect().top > document.querySelector('.merge-qb-next').getBoundingClientRect().bottom), 'mobile next preview stays above the score')
   await touch.screenshot({ path: '/tmp/class-merge-qb-mobile.png', fullPage: true })
   assert.equal(await touch.getByRole('button', { name: '放下当前 QB' }).count(), 0)
   const beforeTouch = await touchBoard.locator('canvas').evaluate((canvas) => canvas.toDataURL())
@@ -507,31 +520,17 @@ try {
   assert.notEqual(await touchBoard.locator('canvas').evaluate((canvas) => canvas.toDataURL()), beforeTouch, 'touch releases one piece')
   await touch.setViewportSize({ width: 320, height: 844 })
   assert.equal(await touch.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'game fits a narrow phone')
+  await fitsMobileGame('320×844')
   await touch.getByRole('button', { name: '重新开始' }).tap()
   assert.equal(await touch.locator('.merge-qb-toolbar strong[aria-live="polite"]').innerText(), '0')
+  await touch.setViewportSize({ width: 320, height: 568 })
+  await touch.waitForTimeout(100)
+  await fitsMobileGame('320×568')
   await touch.setViewportSize({ width: 390, height: 568 })
-  let returnedFromFullscreen = false
-  if (await touch.evaluate(() => document.fullscreenEnabled)) {
-    await touch.getByRole('button', { name: '全屏游玩' }).tap()
-    await touch.waitForTimeout(100)
-    if (await touch.evaluate(() => document.fullscreenElement?.classList.contains('merge-qb-stage'))) {
-      await touch.waitForFunction(() => {
-        const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
-        const sequence = document.querySelector('.merge-qb-sequence').getBoundingClientRect()
-        const actions = document.querySelector('.merge-qb-actions').getBoundingClientRect()
-        return actions.bottom < arena.top && Math.max(arena.bottom, sequence.bottom) <= innerHeight + 1 && document.documentElement.scrollWidth <= innerWidth + 1
-      })
-      assert.equal(await touch.locator('.merge-qb-stage').getByRole('heading', { name: '合成大QB' }).isVisible(), true)
-      await touch.screenshot({ path: '/tmp/class-merge-qb-mobile-fullscreen.png' })
-      await touch.locator('.merge-qb-stage').getByRole('button', { name: '返回游戏库' }).tap()
-      await touch.waitForFunction(() => document.fullscreenElement === null)
-      await touch.waitForURL(/games\/?$/)
-      returnedFromFullscreen = true
-    } else {
-      assert.equal(await touchBoard.isVisible(), true, 'mobile game remains usable if fullscreen is unavailable')
-    }
-  }
-  if (!returnedFromFullscreen) await touch.getByRole('button', { name: '返回游戏库' }).tap()
+  await touch.waitForTimeout(100)
+  await fitsMobileGame('390×568')
+  await touch.screenshot({ path: '/tmp/class-merge-qb-mobile-short.png' })
+  await touch.getByRole('button', { name: '返回游戏库' }).tap()
   await touch.waitForURL(/games\/?$/)
   await mobile.close()
   {
@@ -570,8 +569,8 @@ try {
     await gamePage.waitForURL(/games\/merge-qb\/?$/)
     const board = gamePage.getByRole('button', { name: /合成大QB游戏区域/ })
     await board.waitFor()
-    await gamePage.waitForFunction(() => document.querySelector('.merge-qb-sequence li:first-child img'))
-    assert.equal(await gamePage.locator('.merge-qb-sequence li img').count(), 1, 'only level one is revealed at the start')
+    await gamePage.waitForFunction(() => document.querySelector('.merge-qb-level:first-child img'))
+    assert.equal(await gamePage.locator('.merge-qb-level img').count(), 1, 'only level one is revealed at the start')
     assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-locked').count(), 10)
     assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-locked').first().innerText(), '?')
     assert.match(await gamePage.locator('.merge-qb-next img').getAttribute('src'), /01\.png$/)
@@ -600,14 +599,14 @@ try {
         const sequence = document.querySelector('.merge-qb-sequence').getBoundingClientRect()
         const sidebar = document.querySelector('.merge-qb-toolbar').getBoundingClientRect()
         const actions = document.querySelector('.merge-qb-actions').getBoundingClientRect()
-        const status = document.querySelector('.merge-qb-status').getBoundingClientRect()
-        const main = document.querySelector('main').getBoundingClientRect()
-        const scoreBox = document.querySelector('.merge-qb-score').getBoundingClientRect()
         const nextBox = document.querySelector('.merge-qb-next').getBoundingClientRect()
+        const scoreBox = document.querySelector('.merge-qb-score').getBoundingClientRect()
+        const main = document.querySelector('main').getBoundingClientRect()
         const scoreLabel = document.querySelector('.merge-qb-score span').getBoundingClientRect()
         const nextLabel = document.querySelector('.merge-qb-next span').getBoundingClientRect()
         const scoreValue = document.querySelector('.merge-qb-score strong').getBoundingClientRect()
         const nextPreview = document.querySelector('.merge-qb-next img').getBoundingClientRect()
+        const levels = [...document.querySelectorAll('.merge-qb-level')].map((node) => node.getBoundingClientRect())
         const controls = ['返回游戏库', '重新开始', '全屏游玩'].map((name) => document.querySelector(`[aria-label="${name}"]`)?.getBoundingClientRect()).filter(Boolean)
         return {
           bottom: Math.max(arena.bottom, sequence.bottom),
@@ -618,11 +617,10 @@ try {
           gap: sidebar.left - arena.right,
           topOffset: Math.abs(sidebar.top - arena.top),
           bottomOffset: Math.abs(sidebar.bottom - arena.bottom),
-          sectionGapDifference: Math.abs((status.top - actions.bottom) - (sequence.top - status.bottom)),
-          sectionOrder: actions.bottom < status.top && status.bottom < sequence.top,
-          statusStackGap: nextBox.top - scoreBox.bottom,
-          statusLabelOffset: Math.abs(scoreLabel.left - nextLabel.left),
-          statusValueOffset: Math.abs(scoreValue.right - nextPreview.right),
+          sectionOrder: actions.bottom < nextBox.top && nextBox.bottom < scoreBox.top && scoreBox.bottom < sequence.top,
+          centerOffsets: [scoreLabel, nextLabel, scoreValue, nextPreview, sequence].map((rect) => Math.abs((rect.left + rect.right - sidebar.left - sidebar.right) / 2)),
+          nextSizeError: Math.abs(nextPreview.width - arena.width * 32 / 360),
+          nodeSizes: levels.map((rect) => [rect.width, rect.height]),
           controlSizes: controls.map((rect) => rect && [rect.width, rect.height]),
         }
       })
@@ -633,15 +631,38 @@ try {
       assert.ok(geometry.groupCenterOffset < 2, `the arena and sidebar center together: ${JSON.stringify(geometry)}`)
       assert.ok(geometry.gap >= 10 && geometry.gap <= 16, 'desktop arena and controls stay closely grouped')
       assert.ok(geometry.topOffset < 1 && geometry.bottomOffset < 1, `desktop controls fill the arena height: ${JSON.stringify(geometry)}`)
-      assert.ok(geometry.sectionOrder && geometry.sectionGapDifference < 2, 'controls, live status and level gallery spread evenly down the sidebar')
-      assert.ok(geometry.statusStackGap >= 12 && geometry.statusStackGap <= 20, 'score and next preview form spaced vertical rows')
-      assert.ok(geometry.statusLabelOffset < 1 && geometry.statusValueOffset < 1, 'stacked status rows share left and right alignment')
+      assert.ok(geometry.sectionOrder, 'controls, next preview, score and sequence appear in that order')
+      assert.ok(geometry.centerOffsets.every((offset) => offset < 2), 'the three information areas share the sidebar center')
+      assert.ok(geometry.nextSizeError < 1, 'next preview matches the level one game diameter')
+      assert.ok(geometry.nodeSizes.every(([width, height]) => width === geometry.nodeSizes[0][0] && height === geometry.nodeSizes[0][1]), 'all sequence nodes keep the same slot size')
       assert.ok(geometry.controlSizes.every(([width, height]) => width === geometry.controlSizes[0][0] && height === geometry.controlSizes[0][1]), 'toolbar icon buttons share one hit target size')
     }
     await fitGame(900)
     assert.equal(await gamePage.locator('.merge-qb-toolbar').evaluate((toolbar) => getComputedStyle(toolbar).borderTopStyle), 'dashed', 'the right game controls have a dashed separating border')
-    assert.ok(await gamePage.locator('.merge-qb-sequence li:last-child .merge-qb-level-icon').evaluate((icon) => icon.getBoundingClientRect().width >= 48), 'the level gallery icons are legible')
-    const levelTwoBefore = await gamePage.locator('.merge-qb-sequence li:nth-child(2)').boundingBox()
+    assert.ok(await gamePage.locator('.merge-qb-next, .merge-qb-score, .merge-qb-sequence').evaluateAll((sections) => sections.every((section) => getComputedStyle(section).borderTopStyle === 'dashed')), 'all four sidebar areas have dashed separators')
+    assert.equal(await gamePage.locator('.merge-qb-sequence').getByText('QB大小顺序').count(), 0, 'the gallery has no visible title')
+    assert.ok(await gamePage.locator('.merge-qb-level[data-level-id]').last().locator('.merge-qb-level-icon').evaluate((icon) => icon.getBoundingClientRect().width >= 36), 'the level gallery icons are legible')
+    assert.ok(await gamePage.locator('.merge-qb-sequence').evaluate((sequence) => {
+      const rows = [...sequence.querySelectorAll('.merge-qb-sequence-row')]
+      const turns = [...sequence.querySelectorAll('.merge-qb-sequence-turn')]
+      if (turns.length !== rows.length - 1) return false
+      const firstTwo = [...rows[0].querySelectorAll('.merge-qb-level[data-level-id]')].slice(0, 2).map((level) => level.getBoundingClientRect())
+      const columnGap = Math.abs((firstTwo[1].left + firstTwo[1].right - firstTwo[0].left - firstTwo[0].right) / 2)
+      return rows.every((row, index) => {
+        const levels = [...row.querySelectorAll('.merge-qb-level[data-level-id]')]
+        const arrows = [...row.querySelectorAll('.merge-qb-sequence-arrow')].filter((arrow) => arrow.querySelector('svg'))
+        const centers = levels.map((level) => { const rect = level.getBoundingClientRect(); return (rect.left + rect.right) / 2 })
+        const direction = index % 2 === 0 ? 1 : -1
+        if (!centers.slice(1).every((center, position) => (center - centers[position]) * direction > 0)) return false
+        if (!centers.slice(1).every((center, position) => Math.abs(Math.abs(center - centers[position]) - columnGap) < 1)) return false
+        if (arrows.length !== levels.length - 1 || !arrows.every((arrow) => arrow.querySelector(direction === 1 ? '.lucide-arrow-right' : '.lucide-arrow-left'))) return false
+        if (index === rows.length - 1) return true
+        const turn = turns[index].querySelector('svg').getBoundingClientRect()
+        const next = rows[index + 1].querySelector('.merge-qb-level[data-level-id]').getBoundingClientRect()
+        return Math.abs((turn.left + turn.right - 2 * centers.at(-1)) / 2) < 1 && Math.abs((next.left + next.right - 2 * centers.at(-1)) / 2) < 1
+      })
+    }), 'every row and turn arrow follows the continuous snake path')
+    const levelTwoBefore = await gamePage.locator('.merge-qb-level[data-level-id]').nth(1).boundingBox()
     await gamePage.setViewportSize({ width: 1366, height: 768 })
     await fitGame(768)
     await gamePage.setViewportSize({ width: 960, height: 900 })
@@ -657,7 +678,7 @@ try {
     if (!process.env.CLASS_RECORD_PREVIEW) {
       const configuredLevels = await vite.ssrLoadModule('/src/features/games/merge-qb/levels.ts')
       assert.deepEqual(
-        await gamePage.locator('.merge-qb-sequence li').evaluateAll((items) => items.map((item) => item.dataset.levelId)),
+        await gamePage.locator('.merge-qb-level[data-level-id]').evaluateAll((items) => items.map((item) => item.dataset.levelId)),
         configuredLevels.QB_LEVELS.map((level) => level.id),
         'size sequence follows the level configuration',
       )
@@ -679,9 +700,9 @@ try {
     await gamePage.waitForTimeout(600)
     await board.click()
     await gamePage.waitForFunction(() => document.querySelector('.merge-qb-toolbar strong')?.textContent === '3')
-    assert.equal(await gamePage.locator('.merge-qb-sequence li img').count(), 2, 'merging level one reveals level two')
+    assert.equal(await gamePage.locator('.merge-qb-level img').count(), 2, 'merging level one reveals level two')
     assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-locked').count(), 9)
-    const levelTwoAfter = await gamePage.locator('.merge-qb-sequence li:nth-child(2)').boundingBox()
+    const levelTwoAfter = await gamePage.locator('.merge-qb-level[data-level-id]').nth(1).boundingBox()
     assert.deepEqual(levelTwoAfter, levelTwoBefore, 'unlocking a level does not move its gallery slot')
     // Chromium rejects window-bound changes while its window is fullscreen.
     await gamePage.setViewportSize({ width: 1024, height: 768 })
@@ -703,9 +724,10 @@ try {
         const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
         const sidebar = document.querySelector('.merge-qb-toolbar').getBoundingClientRect()
         const actions = document.querySelector('.merge-qb-actions').getBoundingClientRect()
-        const status = document.querySelector('.merge-qb-status').getBoundingClientRect()
+        const next = document.querySelector('.merge-qb-next').getBoundingClientRect()
+        const score = document.querySelector('.merge-qb-score').getBoundingClientRect()
         const sequence = document.querySelector('.merge-qb-sequence').getBoundingClientRect()
-        return sidebar.left >= arena.right && Math.abs(sidebar.top - arena.top) < 1 && Math.abs(sidebar.bottom - arena.bottom) < 1 && actions.bottom < status.top && status.bottom < sequence.top
+        return sidebar.left >= arena.right && Math.abs(sidebar.top - arena.top) < 1 && Math.abs(sidebar.bottom - arena.bottom) < 1 && actions.bottom < next.top && next.bottom < score.top && score.bottom < sequence.top
       }), true, 'fullscreen keeps all game controls distributed beside the arena')
       const fullscreenCenter = await gamePage.evaluate(() => {
         const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
@@ -739,7 +761,7 @@ try {
     }
     await gamePage.getByRole('button', { name: '重新开始' }).click()
     assert.equal(await score.innerText(), '0')
-    assert.equal(await gamePage.locator('.merge-qb-sequence li img').count(), 1, 'restart resets this game’s discoveries')
+    assert.equal(await gamePage.locator('.merge-qb-level img').count(), 1, 'restart resets this game’s discoveries')
     assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-locked').count(), 10)
     assert.match(await gamePage.locator('.merge-qb-next img').getAttribute('src'), /01\.png$/)
     await gamePage.reload()
@@ -760,6 +782,43 @@ try {
         }
       }, origin)
       await gamePage.waitForFunction(() => window.__mergeQbTestGame)
+      const previewBefore = await gamePage.locator('.merge-qb-next').boundingBox()
+      const scoreBefore = await gamePage.locator('.merge-qb-score').boundingBox()
+      await gamePage.evaluate(async (origin) => {
+        const { QB_LEVELS } = await import(origin + 'src/features/games/merge-qb/levels.ts')
+        window.__mergeQbTestGame.next = QB_LEVELS[4]
+        window.__mergeQbTestGame.publish()
+      }, origin)
+      await gamePage.waitForFunction(() => document.querySelector('.merge-qb-next img')?.getAttribute('src')?.endsWith('05.png'))
+      await gamePage.waitForFunction(() => {
+        const canvas = document.querySelector('.merge-qb-arena canvas').getBoundingClientRect()
+        const preview = document.querySelector('.merge-qb-next img').getBoundingClientRect()
+        return Math.abs(preview.width - canvas.width * 71 / 360) < 1
+      })
+      const previewDimensions = await gamePage.evaluate(() => {
+        const canvas = document.querySelector('.merge-qb-arena canvas').getBoundingClientRect()
+        const preview = document.querySelector('.merge-qb-next img').getBoundingClientRect()
+        return { canvas: [canvas.width, canvas.height], preview: [preview.width, preview.height] }
+      })
+      assert.ok(Math.abs(previewDimensions.preview[0] - previewDimensions.canvas[0] * 71 / 360) < 1 && Math.abs(previewDimensions.preview[1] - previewDimensions.canvas[1] * 71 / 560) < 1, `level five next preview matches its rendered game diameter: ${JSON.stringify(previewDimensions)}`)
+      assert.deepEqual(await gamePage.locator('.merge-qb-next').boundingBox(), previewBefore, 'a larger preview does not move its area')
+      assert.deepEqual(await gamePage.locator('.merge-qb-score').boundingBox(), scoreBefore, 'a larger preview does not move the score')
+      await gamePage.evaluate(async (origin) => {
+        const { QB_LEVELS } = await import(origin + 'src/features/games/merge-qb/levels.ts')
+        window.__mergeQbTestGame.next = QB_LEVELS[0]
+        window.__mergeQbTestGame.publish()
+      }, origin)
+      await gamePage.waitForFunction(() => document.querySelector('.merge-qb-next img')?.getAttribute('src')?.endsWith('01.png'))
+      await gamePage.evaluate(() => {
+        window.__mergeQbTestGame.score = 12345
+        window.__mergeQbTestGame.publish()
+      })
+      await gamePage.waitForFunction(() => document.querySelector('.merge-qb-score strong')?.textContent === '12345')
+      assert.deepEqual(await gamePage.locator('.merge-qb-score').boundingBox(), scoreBefore, 'score growth does not resize its area')
+      await gamePage.evaluate(() => {
+        window.__mergeQbTestGame.score = 0
+        window.__mergeQbTestGame.publish()
+      })
       await gamePage.emulateMedia({ reducedMotion: 'no-preference' })
       assert.equal(await gamePage.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches), false)
       const triggerMaximumMerge = () => gamePage.evaluate(async (origin) => {
@@ -777,7 +836,7 @@ try {
       const celebration = gamePage.locator('.merge-qb-celebration')
       await triggerMaximumMerge()
       assert.equal(await gamePage.evaluate(() => window.__mergeQbTestGame.snapshot.maxMergeCount), 1)
-      await gamePage.waitForFunction(() => document.querySelector('.merge-qb-sequence li:last-child img'))
+      await gamePage.waitForFunction(() => [...document.querySelectorAll('.merge-qb-level[data-level-id]')].at(-1)?.querySelector('img'))
       await celebration.waitFor({ state: 'attached' })
       assert.equal(await celebration.locator('.merge-qb-confetti').count(), 2, 'both arena sides celebrate a maximum merge')
       await gamePage.waitForFunction(() =>

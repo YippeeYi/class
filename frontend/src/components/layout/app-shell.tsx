@@ -275,8 +275,10 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
 export function AppShell() {
   const { clearAccess } = useAuth()
   const location = useLocation()
-  const isViewportLocked = viewportLockedPaths.has(normalizeAppPathname(location.pathname))
-  const isWideContent = wideContentPaths.has(normalizeAppPathname(location.pathname))
+  const pathname = normalizeAppPathname(location.pathname)
+  const isViewportLocked = viewportLockedPaths.has(pathname)
+  const isWideContent = wideContentPaths.has(pathname)
+  const isMobileGamePage = pathname === '/games/merge-qb'
   const [fullscreen, setFullscreen] = useState(Boolean(document.fullscreenElement))
   const [fullscreenPending, setFullscreenPending] = useState(false)
   const [registeredTitle, setRegisteredTitle] = useState<{
@@ -394,6 +396,7 @@ export function AppShell() {
             className={cn(
               'app-main-surface min-w-0 max-w-full',
               isViewportLocked && 'h-svh min-h-0 overflow-hidden',
+              isMobileGamePage && 'max-md:h-dvh max-md:min-h-0 max-md:overflow-hidden',
             )}
           >
             <header className="app-topbar sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b border-border/70 px-3 sm:px-4">
@@ -445,7 +448,7 @@ export function AppShell() {
               />
               {document.fullscreenEnabled && (
                 <Button
-                  className="shrink-0"
+                  className={cn('shrink-0', isMobileGamePage && 'max-md:hidden')}
                   data-fullscreen-toggle
                   variant="ghost"
                   size="icon-sm"
@@ -469,6 +472,8 @@ export function AppShell() {
                   ? 'h-[calc(100dvh-4rem)] min-h-0 max-w-[96rem] overflow-hidden py-4 sm:py-5 lg:py-6'
                   : 'min-h-[calc(100svh-4rem)] py-6 pb-12 sm:py-7 sm:pb-16 lg:py-8',
                 !isViewportLocked && (isWideContent ? 'max-w-[90rem]' : 'max-w-6xl'),
+                isMobileGamePage &&
+                  'max-md:h-[calc(100dvh-4rem)] max-md:min-h-0 max-md:overflow-hidden max-md:py-4 max-md:pb-4',
               )}
             >
               <Suspense

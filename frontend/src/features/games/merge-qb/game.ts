@@ -12,7 +12,7 @@ export const DANGER_GRACE_MS = 500
 export const DANGER_COUNTDOWN_MS = 3000
 const STEP_MS = 1000 / 60
 const DROP_DELAY_MS = 480
-const MAX_DROP_LEVEL_COUNT = 5
+export const MAX_DROP_LEVEL_COUNT = 5
 
 export type DangerState = 'normal' | 'near' | 'pending' | 'countdown' | 'game-over'
 

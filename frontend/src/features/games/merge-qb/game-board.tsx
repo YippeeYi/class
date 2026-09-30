@@ -1,6 +1,14 @@
 import { AlertDialog as AlertDialogPrimitive } from '@base-ui/react/alert-dialog'
-import { ArrowLeft, Maximize2, Minimize2, RotateCcw } from 'lucide-react'
-import { type KeyboardEvent, type PointerEvent, useEffect, useRef, useState } from 'react'
+import { ArrowDown, ArrowLeft, ArrowRight, Maximize2, Minimize2, RotateCcw } from 'lucide-react'
+import {
+  Fragment,
+  type KeyboardEvent,
+  type PointerEvent,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import {
@@ -16,20 +24,29 @@ import {
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
-import { FAIL_LINE, GAME_HEIGHT, GAME_WIDTH, type GameSnapshot, MergeQbGame } from './game'
+import {
+  FAIL_LINE,
+  GAME_HEIGHT,
+  GAME_WIDTH,
+  type GameSnapshot,
+  MAX_DROP_LEVEL_COUNT,
+  MergeQbGame,
+} from './game'
 import { levelImageUrl, QB_LEVELS } from './levels'
 import { createImageMap, drawGame } from './render'
 import './game.css'
 
-const largestLevelSize = Math.max(
-  ...QB_LEVELS.map((level) => Math.max(level.visualSize.width, level.visualSize.height)),
+const largestDroppableSize = Math.max(
+  ...QB_LEVELS.slice(0, MAX_DROP_LEVEL_COUNT).map((level) => level.visualSize.height),
 )
 const confettiPieces = Array.from({ length: 8 }, (_, index) => index)
+const spareSequenceSlots = ['a', 'b', 'c', 'd', 'e']
 
 export function MergeQbBoard() {
   const navigate = useNavigate()
   const stageRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const sequenceRef = useRef<HTMLOListElement>(null)
   const gameRef = useRef<MergeQbGame | null>(null)
   const touchPointer = useRef<number | null>(null)
   const observedMaxMergeCount = useRef(0)
@@ -38,6 +55,28 @@ export function MergeQbBoard() {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [fullscreenPending, setFullscreenPending] = useState(false)
   const [fullscreenSupported, setFullscreenSupported] = useState(false)
+  const [arenaScale, setArenaScale] = useState(1)
+  const [sequenceColumns, setSequenceColumns] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 6 : 3,
+  )
+
+  useLayoutEffect(() => {
+    const sequence = sequenceRef.current
+    if (!sequence) return
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return
+      const nodeSize =
+        sequence.querySelector('.merge-qb-level')?.getBoundingClientRect().width ?? 36
+      const capacity = Math.min(
+        6,
+        Math.max(2, Math.floor((entry.contentRect.width + 20) / (nodeSize + 20))),
+      )
+      const columns = capacity > 3 && QB_LEVELS.length % capacity === 1 ? capacity - 1 : capacity
+      setSequenceColumns((current) => (current === columns ? current : columns))
+    })
+    observer.observe(sequence)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     const count = snapshot?.maxMergeCount ?? 0
@@ -87,6 +126,8 @@ export function MergeQbBoard() {
     const resize = () => {
       const rect = canvas.getBoundingClientRect()
       if (!rect.width || !rect.height) return
+      const scale = rect.width / GAME_WIDTH
+      setArenaScale((current) => (Math.abs(current - scale) < 0.001 ? current : scale))
       const pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
       canvas.width = Math.round(rect.width * pixelRatio)
       canvas.height = Math.round(rect.height * pixelRatio)
@@ -253,7 +294,7 @@ export function MergeQbBoard() {
               >
                 <ArrowLeft aria-hidden="true" />
               </Button>
-              <h1 className="hidden truncate font-heading text-sm font-semibold sm:block merge-qb-title">
+              <h1 className="merge-qb-title whitespace-nowrap font-heading text-sm font-semibold">
                 合成大QB
               </h1>
             </div>
@@ -265,12 +306,14 @@ export function MergeQbBoard() {
                       type="button"
                       variant="ghost"
                       size="icon"
+                      className="max-md:w-auto max-md:gap-1.5 max-md:px-2"
                       aria-label="重新开始"
                       onClick={() => gameRef.current?.reset()}
                     />
                   }
                 >
                   <RotateCcw aria-hidden="true" />
+                  <span className="hidden max-md:inline">再来一局</span>
                 </TooltipTrigger>
                 <TooltipContent>重新开始</TooltipContent>
               </Tooltip>
@@ -283,6 +326,7 @@ export function MergeQbBoard() {
                         data-fullscreen-toggle
                         variant="ghost"
                         size="icon"
+                        className="max-md:hidden"
                         disabled={fullscreenPending}
                         aria-pressed={isFullscreen}
                         aria-label={isFullscreen ? '退出全屏' : '全屏游玩'}
@@ -301,62 +345,89 @@ export function MergeQbBoard() {
               )}
             </div>
           </div>
-          <div className="merge-qb-status">
-            <div className="merge-qb-score">
-              <span className="text-xs text-muted-foreground">得分</span>
-              <strong
-                className="font-heading text-3xl font-semibold tabular-nums"
-                aria-live="polite"
-              >
-                {snapshot?.score ?? 0}
-              </strong>
-            </div>
-            {snapshot && (
-              <div className="merge-qb-next">
-                <span className="text-xs text-muted-foreground">下一个</span>
+          <div className="merge-qb-next">
+            <span className="text-xs text-muted-foreground">下一个</span>
+            <div
+              className="merge-qb-next-preview"
+              style={{ height: largestDroppableSize * arenaScale }}
+            >
+              {snapshot && (
                 <img
                   src={levelImageUrl(snapshot.next)}
                   alt={snapshot.next.name}
-                  className="size-12 object-contain"
+                  className="object-contain"
+                  style={{
+                    width: snapshot.next.visualSize.width * arenaScale,
+                    height: snapshot.next.visualSize.height * arenaScale,
+                  }}
                 />
-              </div>
-            )}
+              )}
+            </div>
+          </div>
+          <div className="merge-qb-score">
+            <span className="text-xs text-muted-foreground">分数</span>
+            <strong className="font-heading text-4xl font-semibold tabular-nums" aria-live="polite">
+              {snapshot?.score ?? 0}
+            </strong>
           </div>
           <section className="merge-qb-sequence" aria-label="QB大小顺序">
-            <div className="mb-1.5 text-xs font-medium text-muted-foreground">QB大小顺序</div>
-            <ol>
-              {QB_LEVELS.map((level, index) => {
-                const maxDimension = Math.max(level.visualSize.width, level.visualSize.height)
-                const size = 22 + (27 * maxDimension) / largestLevelSize
-                const unlocked = index < (snapshot?.unlockedCount ?? 1)
+            <ol ref={sequenceRef} className="merge-qb-sequence-list">
+              {Array.from({ length: Math.ceil(QB_LEVELS.length / sequenceColumns) }, (_, row) => {
+                const rowLevels = QB_LEVELS.slice(
+                  row * sequenceColumns,
+                  (row + 1) * sequenceColumns,
+                )
+                const reversed = row % 2 === 1
                 return (
-                  <li
-                    key={level.id}
-                    data-level-id={level.id}
-                    aria-label={unlocked ? `${index + 1}：${level.name}` : `${index + 1}：未解锁`}
-                  >
-                    <span className="merge-qb-level-icon" style={{ width: `${size}px` }}>
-                      {unlocked ? (
-                        <img
-                          src={levelImageUrl(level)}
-                          alt=""
-                          style={{
-                            width: `${(size * level.visualSize.width) / maxDimension}px`,
-                            height: `${(size * level.visualSize.height) / maxDimension}px`,
-                          }}
-                        />
-                      ) : (
-                        <span className="merge-qb-locked size-full" aria-hidden="true">
-                          ?
-                        </span>
-                      )}
-                    </span>
-                    <span
-                      aria-hidden="true"
-                      className="text-[10px] leading-none text-muted-foreground/70"
-                    >
-                      {String(index + 1).padStart(2, '0')}
-                    </span>
+                  <li key={rowLevels[0]?.id}>
+                    <ol className="merge-qb-sequence-row" data-reversed={reversed}>
+                      {rowLevels.map((level, position) => {
+                        const index = row * sequenceColumns + position
+                        const unlocked = index < (snapshot?.unlockedCount ?? 1)
+                        return (
+                          <Fragment key={level.id}>
+                            {position > 0 && (
+                              <li className="merge-qb-sequence-arrow" aria-hidden="true">
+                                {reversed ? <ArrowLeft /> : <ArrowRight />}
+                              </li>
+                            )}
+                            <li
+                              className="merge-qb-level"
+                              data-level-id={level.id}
+                              aria-label={
+                                unlocked ? `${index + 1}：${level.name}` : `${index + 1}：未解锁`
+                              }
+                            >
+                              <span className="merge-qb-level-icon">
+                                {unlocked ? (
+                                  <img src={levelImageUrl(level)} alt="" />
+                                ) : (
+                                  <span className="merge-qb-locked" aria-hidden="true">
+                                    ?
+                                  </span>
+                                )}
+                              </span>
+                            </li>
+                          </Fragment>
+                        )
+                      })}
+                      {spareSequenceSlots
+                        .slice(0, sequenceColumns - rowLevels.length)
+                        .map((slot) => (
+                          <Fragment key={`empty-${slot}`}>
+                            <li className="merge-qb-sequence-arrow" aria-hidden="true" />
+                            <li className="merge-qb-level" aria-hidden="true" />
+                          </Fragment>
+                        ))}
+                    </ol>
+                    {(row + 1) * sequenceColumns < QB_LEVELS.length && (
+                      <div
+                        className="merge-qb-sequence-turn"
+                        data-side={reversed ? 'left' : 'right'}
+                      >
+                        <ArrowDown aria-hidden="true" />
+                      </div>
+                    )}
                   </li>
                 )
               })}
