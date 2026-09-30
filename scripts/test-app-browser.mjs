@@ -604,9 +604,22 @@ try {
     await gamePage.emulateMedia({ reducedMotion: 'reduce' })
     const score = gamePage.locator('.merge-qb-toolbar strong[aria-live="polite"]')
     const fitGame = async (height) => {
-      await gamePage.waitForTimeout(100)
+      await gamePage.waitForFunction(
+        (viewport) => innerWidth === viewport.width && innerHeight === viewport.height,
+        gamePage.viewportSize(),
+      )
+      await gamePage.waitForFunction(
+        (height) => document.querySelector('.merge-qb-arena')?.getBoundingClientRect().bottom <= height + 1,
+        height,
+      )
+      await gamePage.waitForFunction(() => {
+        const canvas = document.querySelector('.merge-qb-arena canvas')
+        const preview = document.querySelector('.merge-qb-next img')
+        return canvas && preview && Math.abs(preview.getBoundingClientRect().width - canvas.getBoundingClientRect().width * 32 / 360) < 1
+      })
       const geometry = await gamePage.evaluate(() => {
         const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
+        const canvas = document.querySelector('.merge-qb-arena canvas').getBoundingClientRect()
         const sequence = document.querySelector('.merge-qb-sequence').getBoundingClientRect()
         const sidebar = document.querySelector('.merge-qb-toolbar').getBoundingClientRect()
         const actions = document.querySelector('.merge-qb-actions').getBoundingClientRect()
@@ -630,7 +643,7 @@ try {
           bottomOffset: Math.abs(sidebar.bottom - arena.bottom),
           sectionOrder: actions.bottom < nextBox.top && nextBox.bottom < scoreBox.top && scoreBox.bottom < sequence.top,
           centerOffsets: [scoreLabel, nextLabel, scoreValue, nextPreview, sequence].map((rect) => Math.abs((rect.left + rect.right - sidebar.left - sidebar.right) / 2)),
-          nextSizeError: Math.abs(nextPreview.width - arena.width * 32 / 360),
+          nextSizeError: Math.abs(nextPreview.width - canvas.width * 32 / 360),
           nodeSizes: levels.map((rect) => [rect.width, rect.height]),
           controlSizes: controls.map((rect) => rect && [rect.width, rect.height]),
         }
@@ -644,7 +657,7 @@ try {
       assert.ok(geometry.topOffset < 1 && geometry.bottomOffset < 1, `desktop controls fill the arena height: ${JSON.stringify(geometry)}`)
       assert.ok(geometry.sectionOrder, 'controls, next preview, score and sequence appear in that order')
       assert.ok(geometry.centerOffsets.every((offset) => offset < 2), 'the three information areas share the sidebar center')
-      assert.ok(geometry.nextSizeError < 1, 'next preview matches the level one game diameter')
+      assert.ok(geometry.nextSizeError < 1, `next preview matches the level one game diameter: ${JSON.stringify(geometry)}`)
       assert.ok(geometry.nodeSizes.every(([width, height]) => width === geometry.nodeSizes[0][0] && height === geometry.nodeSizes[0][1]), 'all sequence nodes keep the same slot size')
       assert.ok(geometry.controlSizes.every(([width, height]) => width === geometry.controlSizes[0][0] && height === geometry.controlSizes[0][1]), 'toolbar icon buttons share one hit target size')
     }
