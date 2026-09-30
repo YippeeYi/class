@@ -298,6 +298,7 @@ try {
   }
   await page.goto(origin + 'search?q=正文')
   await page.locator('#search-record').locator('..').getByRole('link').first().click()
+  await page.waitForURL(/\/records(?:#|$)/)
   const externalJumpPanel = page.locator('[data-record-jump-actions]')
   await externalJumpPanel.waitFor()
   await externalJumpPanel.getByRole('button', { name: '返回' }).click()

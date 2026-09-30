@@ -122,6 +122,7 @@ export function SearchPage() {
     setQuery((current) => (current === next ? current : next))
   }, [params])
   useEffect(() => {
+    if (query === (params.get('q') || '')) return
     const timer = window.setTimeout(() => {
       setDebouncedQuery(query)
       setParams(
@@ -135,7 +136,7 @@ export function SearchPage() {
       )
     }, 120)
     return () => window.clearTimeout(timer)
-  }, [query, setParams])
+  }, [params, query, setParams])
 
   const index = useMemo<SearchResult[]>(() => {
     if (!resource.data) return []
