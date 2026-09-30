@@ -2214,24 +2214,27 @@ try {
       (id) => document.documentElement.dataset.themePreset === id,
       themeId,
     )
-    const recordMaterial = await recordsFixture.locator('#record-r3').evaluate(async (target) => {
-      target.removeAttribute('data-record-jump-highlight')
-      const normal = getComputedStyle(target)
-      const normalState = {
-        style: normal.borderStyle,
-        width: normal.borderWidth,
-        color: normal.borderColor,
+    const recordMaterial = await recordsFixture.locator('#record-r3').evaluate((target) => {
+      const transition = target.style.transition
+      const animation = target.style.animation
+      // Compare theme colors without sampling an in-flight card transition.
+      target.style.transition = 'none'
+      target.style.animation = 'none'
+      const borderState = () => {
+        const style = getComputedStyle(target)
+        return { style: style.borderStyle, width: style.borderWidth, color: style.borderColor }
       }
-      target.setAttribute('data-record-jump-highlight', 'true')
-      await new Promise((resolve) => window.setTimeout(resolve, 180))
-      const highlighted = getComputedStyle(target)
-      const highlightedState = {
-        style: highlighted.borderStyle,
-        width: highlighted.borderWidth,
-        color: highlighted.borderColor,
+      try {
+        target.removeAttribute('data-record-jump-highlight')
+        const normalState = borderState()
+        target.setAttribute('data-record-jump-highlight', 'true')
+        const highlightedState = borderState()
+        return { normalState, highlightedState }
+      } finally {
+        target.removeAttribute('data-record-jump-highlight')
+        target.style.transition = transition
+        target.style.animation = animation
       }
-      target.removeAttribute('data-record-jump-highlight')
-      return { normalState, highlightedState }
     })
     assert.equal(
       recordMaterial.normalState.style,
