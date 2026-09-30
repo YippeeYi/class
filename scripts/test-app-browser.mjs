@@ -508,7 +508,7 @@ try {
   assert.equal(await touch.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'game fits a narrow phone')
   await touch.getByRole('button', { name: '重新开始' }).tap()
   assert.equal(await touch.locator('.merge-qb-toolbar strong[aria-live="polite"]').innerText(), '0')
-  await touch.setViewportSize({ width: 390, height: 844 })
+  await touch.setViewportSize({ width: 390, height: 568 })
   let returnedFromFullscreen = false
   if (await touch.evaluate(() => document.fullscreenEnabled)) {
     await touch.getByRole('button', { name: '全屏游玩' }).tap()
@@ -589,16 +589,41 @@ try {
         const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
         const sequence = document.querySelector('.merge-qb-sequence').getBoundingClientRect()
         const sidebar = document.querySelector('.merge-qb-toolbar').getBoundingClientRect()
-        return { bottom: Math.max(arena.bottom, sequence.bottom), ratio: arena.width / arena.height, sidebarRightOfArena: sidebar.left >= arena.right, overflow: document.documentElement.scrollWidth > innerWidth + 1 }
+        const main = document.querySelector('main').getBoundingClientRect()
+        const scoreLabel = document.querySelector('.merge-qb-score span').getBoundingClientRect()
+        const nextLabel = document.querySelector('.merge-qb-next span').getBoundingClientRect()
+        const controls = ['返回游戏库', '重新开始', '全屏游玩'].map((name) => document.querySelector(`[aria-label="${name}"]`)?.getBoundingClientRect()).filter(Boolean)
+        return {
+          bottom: Math.max(arena.bottom, sequence.bottom),
+          ratio: arena.width / arena.height,
+          sidebarRightOfArena: sidebar.left >= arena.right,
+          overflow: document.documentElement.scrollWidth > innerWidth + 1,
+          groupCenterOffset: Math.abs((arena.left + sidebar.right - main.left - main.right) / 2),
+          gap: sidebar.left - arena.right,
+          statusLabelOffset: Math.abs(scoreLabel.top - nextLabel.top),
+          controlSizes: controls.map((rect) => rect && [rect.width, rect.height]),
+        }
       })
       assert.ok(geometry.bottom <= height + 1, `game is fully visible at ${height}px viewport height: ${JSON.stringify(geometry)}`)
       assert.ok(Math.abs(geometry.ratio - 360 / 560) < 0.01, 'render scale keeps the physics aspect ratio')
       assert.equal(geometry.sidebarRightOfArena, true, 'desktop status stays beside the game arena')
       assert.equal(geometry.overflow, false)
+      assert.ok(geometry.groupCenterOffset < 2, `the arena and sidebar center together: ${JSON.stringify(geometry)}`)
+      assert.ok(geometry.gap >= 10 && geometry.gap <= 16, 'desktop arena and controls stay closely grouped')
+      assert.ok(geometry.statusLabelOffset < 1, 'score and next preview labels align')
+      assert.ok(geometry.controlSizes.every(([width, height]) => width === geometry.controlSizes[0][0] && height === geometry.controlSizes[0][1]), 'toolbar icon buttons share one hit target size')
     }
     await fitGame(900)
+    assert.ok(await gamePage.locator('.merge-qb-sequence li:last-child .merge-qb-level-icon').evaluate((icon) => icon.getBoundingClientRect().width >= 41), 'the level gallery icons are legible')
+    const levelTwoBefore = await gamePage.locator('.merge-qb-sequence li:nth-child(2)').boundingBox()
     await gamePage.setViewportSize({ width: 1366, height: 768 })
     await fitGame(768)
+    await gamePage.setViewportSize({ width: 820, height: 900 })
+    assert.ok(await gamePage.evaluate(() => {
+      const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
+      const sidebar = document.querySelector('.merge-qb-toolbar').getBoundingClientRect()
+      return sidebar.top >= arena.bottom && document.documentElement.scrollWidth <= innerWidth + 1
+    }), 'narrow layouts stack without horizontal overflow')
     await gamePage.setViewportSize({ width: 1280, height: 900 })
     await fitGame(900)
     if (!process.env.CLASS_RECORD_PREVIEW) {
@@ -628,6 +653,8 @@ try {
     await gamePage.waitForFunction(() => document.querySelector('.merge-qb-toolbar strong')?.textContent === '3')
     assert.equal(await gamePage.locator('.merge-qb-sequence li img').count(), 2, 'merging level one reveals level two')
     assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-locked').count(), 9)
+    const levelTwoAfter = await gamePage.locator('.merge-qb-sequence li:nth-child(2)').boundingBox()
+    assert.deepEqual(levelTwoAfter, levelTwoBefore, 'unlocking a level does not move its gallery slot')
     // Chromium rejects window-bound changes while its window is fullscreen.
     await gamePage.setViewportSize({ width: 1024, height: 768 })
     await fitGame(768)
@@ -637,9 +664,20 @@ try {
       await gamePage.evaluate(() => { window.__mergeCanvas = document.querySelector('.merge-qb-arena canvas') })
       await gamePage.getByRole('button', { name: '全屏游玩' }).click()
       await gamePage.waitForFunction(() => document.fullscreenElement?.classList.contains('merge-qb-stage'))
+      await gamePage.waitForFunction(() => {
+        const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
+        const sidebar = document.querySelector('.merge-qb-sequence').getBoundingClientRect()
+        return Math.abs((arena.left + sidebar.right - innerWidth) / 2) < 2
+      })
       assert.equal(await gamePage.locator('.merge-qb-stage').getByRole('button', { name: '返回游戏库' }).isVisible(), true)
       assert.equal(await gamePage.locator('.merge-qb-stage').getByRole('heading', { name: '合成大QB' }).isVisible(), true)
       assert.equal(await gamePage.evaluate(() => document.querySelector('.merge-qb-actions').getBoundingClientRect().bottom < document.querySelector('.merge-qb-arena').getBoundingClientRect().top), true, 'fullscreen keeps the return and title above the arena')
+      const fullscreenCenter = await gamePage.evaluate(() => {
+        const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
+        const sidebar = document.querySelector('.merge-qb-sequence').getBoundingClientRect()
+        return { arenaLeft: arena.left, arenaRight: arena.right, sidebarLeft: sidebar.left, sidebarRight: sidebar.right, viewportWidth: innerWidth }
+      })
+      assert.ok(Math.abs((fullscreenCenter.arenaLeft + fullscreenCenter.sidebarRight - fullscreenCenter.viewportWidth) / 2) < 2, `fullscreen centers the arena and controls together: ${JSON.stringify(fullscreenCenter)}`)
       assert.equal(await score.innerText(), '3', 'entering fullscreen retains the score')
       assert.equal(await gamePage.locator('.merge-qb-next img').getAttribute('src'), nextBeforeFullscreen)
       assert.equal(await gamePage.evaluate(() => document.querySelector('.merge-qb-arena canvas') === window.__mergeCanvas), true, 'fullscreen keeps the same canvas')

@@ -237,7 +237,7 @@ export function MergeQbBoard() {
 
         <aside className="merge-qb-toolbar" aria-label="游戏状态与操作">
           <div className="merge-qb-actions">
-            <div className="flex min-w-0 items-center gap-1">
+            <div className="flex min-w-0 items-center gap-2">
               <Button
                 variant="ghost"
                 size="icon"
@@ -323,11 +323,11 @@ export function MergeQbBoard() {
             )}
           </div>
           <section className="merge-qb-sequence" aria-label="QB大小顺序">
-            <div className="mb-2 text-xs font-medium text-muted-foreground">QB大小顺序</div>
+            <div className="mb-1.5 text-xs font-medium text-muted-foreground">QB大小顺序</div>
             <ol>
               {QB_LEVELS.map((level, index) => {
                 const maxDimension = Math.max(level.visualSize.width, level.visualSize.height)
-                const size = 16 + (20 * maxDimension) / largestLevelSize
+                const size = 19 + (23 * maxDimension) / largestLevelSize
                 const unlocked = index < (snapshot?.unlockedCount ?? 1)
                 return (
                   <li
@@ -335,24 +335,25 @@ export function MergeQbBoard() {
                     data-level-id={level.id}
                     aria-label={unlocked ? `${index + 1}：${level.name}` : `${index + 1}：未解锁`}
                   >
-                    {unlocked ? (
-                      <img
-                        src={levelImageUrl(level)}
-                        alt=""
-                        style={{
-                          width: `${(size * level.visualSize.width) / maxDimension}px`,
-                          height: `${(size * level.visualSize.height) / maxDimension}px`,
-                        }}
-                      />
-                    ) : (
-                      <span
-                        className="merge-qb-locked"
-                        style={{ width: `${size}px`, height: `${size}px` }}
-                        aria-hidden="true"
-                      >
-                        ?
-                      </span>
-                    )}
+                    <span
+                      className="merge-qb-level-icon"
+                      style={{ width: `${size}px`, height: `${size}px` }}
+                    >
+                      {unlocked ? (
+                        <img
+                          src={levelImageUrl(level)}
+                          alt=""
+                          style={{
+                            width: `${(size * level.visualSize.width) / maxDimension}px`,
+                            height: `${(size * level.visualSize.height) / maxDimension}px`,
+                          }}
+                        />
+                      ) : (
+                        <span className="merge-qb-locked size-full" aria-hidden="true">
+                          ?
+                        </span>
+                      )}
+                    </span>
                     <span
                       aria-hidden="true"
                       className="text-[10px] leading-none text-muted-foreground/70"
