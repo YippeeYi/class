@@ -494,7 +494,7 @@ try {
     assert.equal(await touch.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `mobile ${route}`)
   }
   await touch.goto(origin + 'games')
-  await touch.getByRole('button', { name: '进入游戏' }).tap()
+  await touch.getByRole('link', { name: '合成大QB' }).tap()
   await touch.waitForURL(/games\/merge-qb\/?$/)
   const touchBoard = touch.getByRole('button', { name: /合成大QB游戏区域/ })
   await touchBoard.waitFor()
@@ -509,23 +509,28 @@ try {
   await touch.getByRole('button', { name: '重新开始' }).tap()
   assert.equal(await touch.locator('.merge-qb-toolbar strong[aria-live="polite"]').innerText(), '0')
   await touch.setViewportSize({ width: 390, height: 844 })
+  let returnedFromFullscreen = false
   if (await touch.evaluate(() => document.fullscreenEnabled)) {
     await touch.getByRole('button', { name: '全屏游玩' }).tap()
     await touch.waitForTimeout(100)
     if (await touch.evaluate(() => document.fullscreenElement?.classList.contains('merge-qb-stage'))) {
       await touch.waitForFunction(() => {
         const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
-        const sidebar = document.querySelector('.merge-qb-toolbar').getBoundingClientRect()
-        return Math.max(arena.bottom, sidebar.bottom) <= innerHeight + 1 && document.documentElement.scrollWidth <= innerWidth + 1
+        const sequence = document.querySelector('.merge-qb-sequence').getBoundingClientRect()
+        const actions = document.querySelector('.merge-qb-actions').getBoundingClientRect()
+        return actions.bottom < arena.top && Math.max(arena.bottom, sequence.bottom) <= innerHeight + 1 && document.documentElement.scrollWidth <= innerWidth + 1
       })
+      assert.equal(await touch.locator('.merge-qb-stage').getByRole('heading', { name: '合成大QB' }).isVisible(), true)
       await touch.screenshot({ path: '/tmp/class-merge-qb-mobile-fullscreen.png' })
-      await touch.locator('.merge-qb-stage').getByRole('button', { name: '退出全屏' }).tap()
+      await touch.locator('.merge-qb-stage').getByRole('button', { name: '返回游戏库' }).tap()
       await touch.waitForFunction(() => document.fullscreenElement === null)
+      await touch.waitForURL(/games\/?$/)
+      returnedFromFullscreen = true
     } else {
       assert.equal(await touchBoard.isVisible(), true, 'mobile game remains usable if fullscreen is unavailable')
     }
   }
-  await touch.getByRole('button', { name: '返回游戏库' }).tap()
+  if (!returnedFromFullscreen) await touch.getByRole('button', { name: '返回游戏库' }).tap()
   await touch.waitForURL(/games\/?$/)
   await mobile.close()
   {
@@ -536,10 +541,42 @@ try {
     await waitCards(gamePage, 4)
     await gamePage.locator('.app-sidebar-navigation a[href$="/games"]').click()
     await gamePage.waitForURL(/games\/?$/)
-    await gamePage.getByRole('button', { name: '进入游戏' }).click()
+    const gameCard = gamePage.getByRole('link', { name: '合成大QB', exact: true })
+    assert.equal(await gameCard.locator('[data-slot="card-title"]').innerText(), '合成大QB')
+    assert.equal(await gameCard.locator('[data-slot="card-description"], [data-slot="card-content"]').count(), 0)
+    assert.equal(await gamePage.getByText('选一个小游戏，随时开始。').count(), 0)
+    const idleCardColor = await gameCard.locator('[data-slot="card"]').evaluate((card) => getComputedStyle(card).backgroundColor)
+    await gameCard.hover()
+    if (await gamePage.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches))
+      await gamePage.waitForFunction((idle) => {
+        const card = document.querySelector('a.app-interactive-card [data-slot="card"]')
+        return card && getComputedStyle(card).backgroundColor !== idle
+      }, idleCardColor)
+    await gamePage.keyboard.press('Tab')
+    await gameCard.focus()
+    await gamePage.waitForFunction(() => {
+      const link = document.querySelector('a.app-interactive-card')
+      return link && getComputedStyle(link).boxShadow !== 'none'
+    })
+    await gamePage.screenshot({ path: '/tmp/class-merge-qb-game-list.png' })
+    await gamePage.keyboard.press('Enter')
     await gamePage.waitForURL(/games\/merge-qb\/?$/)
     const board = gamePage.getByRole('button', { name: /合成大QB游戏区域/ })
     await board.waitFor()
+    await gamePage.emulateMedia({ reducedMotion: 'no-preference' })
+    const warningLine = board.locator('.merge-qb-warning-line')
+    assert.equal(await warningLine.count(), 1, 'one warning line is always present')
+    const normalLineColor = await warningLine.evaluate((line) => getComputedStyle(line).borderTopColor)
+    await board.evaluate((arena) => { arena.dataset.danger = 'near' })
+    assert.notEqual(await warningLine.evaluate((line) => getComputedStyle(line).borderTopColor), normalLineColor, 'the original line turns red near danger')
+    assert.notEqual(await warningLine.evaluate((line) => getComputedStyle(line).animationName), 'none', 'near danger animates the line')
+    await board.evaluate((arena) => { arena.dataset.danger = 'countdown' })
+    assert.notEqual(await board.evaluate((arena) => getComputedStyle(arena).animationName), 'none', 'countdown animates the arena')
+    assert.equal(await warningLine.evaluate((line) => getComputedStyle(line).animationName), 'none', 'countdown does not add a second line animation')
+    await board.evaluate((arena) => { arena.dataset.danger = 'normal' })
+    assert.equal(await board.evaluate((arena) => getComputedStyle(arena).animationName), 'none', 'danger animation clears when safe')
+    assert.equal(await warningLine.evaluate((line) => getComputedStyle(line).borderTopColor), normalLineColor)
+    await gamePage.emulateMedia({ reducedMotion: 'reduce' })
     const score = gamePage.locator('.merge-qb-toolbar strong[aria-live="polite"]')
     const fitGame = async (height) => {
       await gamePage.waitForTimeout(100)
@@ -593,6 +630,9 @@ try {
       await gamePage.evaluate(() => { window.__mergeCanvas = document.querySelector('.merge-qb-arena canvas') })
       await gamePage.getByRole('button', { name: '全屏游玩' }).click()
       await gamePage.waitForFunction(() => document.fullscreenElement?.classList.contains('merge-qb-stage'))
+      assert.equal(await gamePage.locator('.merge-qb-stage').getByRole('button', { name: '返回游戏库' }).isVisible(), true)
+      assert.equal(await gamePage.locator('.merge-qb-stage').getByRole('heading', { name: '合成大QB' }).isVisible(), true)
+      assert.equal(await gamePage.evaluate(() => document.querySelector('.merge-qb-actions').getBoundingClientRect().bottom < document.querySelector('.merge-qb-arena').getBoundingClientRect().top), true, 'fullscreen keeps the return and title above the arena')
       assert.equal(await score.innerText(), '3', 'entering fullscreen retains the score')
       assert.equal(await gamePage.locator('.merge-qb-next img').getAttribute('src'), nextBeforeFullscreen)
       assert.equal(await gamePage.evaluate(() => document.querySelector('.merge-qb-arena canvas') === window.__mergeCanvas), true, 'fullscreen keeps the same canvas')
@@ -623,7 +663,7 @@ try {
     await board.waitFor()
     assert.equal(await gamePage.locator('.app-sidebar-navigation a[href$="/games"][data-active]').count(), 1)
     await gamePage.getByRole('button', { name: '返回游戏库' }).click()
-    await gamePage.getByRole('button', { name: '进入游戏' }).click()
+    await gamePage.getByRole('link', { name: '合成大QB', exact: true }).click()
     await board.waitFor()
     assert.equal(await score.innerText(), '0')
     await gameContext.close()

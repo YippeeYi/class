@@ -7,13 +7,6 @@ export function drawGame(context: CanvasRenderingContext2D, game: MergeQbGame, i
   context.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
 
   context.save()
-  context.setLineDash([6, 6])
-  context.strokeStyle = 'rgba(176, 89, 68, 0.55)'
-  context.lineWidth = 1.5
-  context.beginPath()
-  context.moveTo(0, FAIL_LINE)
-  context.lineTo(GAME_WIDTH, FAIL_LINE)
-  context.stroke()
   context.setLineDash([4, 7])
   context.strokeStyle = 'rgba(120, 106, 92, 0.38)'
   context.beginPath()

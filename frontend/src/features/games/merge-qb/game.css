@@ -53,9 +53,22 @@ body button.merge-qb-arena:active {
   z-index: 1;
   right: 0;
   left: 0;
-  border-top: 2px dashed var(--destructive);
+  border-top: 1.5px dashed rgba(176, 89, 68, 0.55);
   pointer-events: none;
+}
+
+.merge-qb-arena[data-danger="near"] .merge-qb-warning-line {
+  border-color: var(--destructive);
   animation: merge-qb-warning-pulse 900ms ease-in-out infinite;
+}
+
+.merge-qb-arena[data-danger="countdown"] .merge-qb-warning-line,
+.merge-qb-arena[data-danger="game-over"] .merge-qb-warning-line {
+  border-color: var(--destructive);
+}
+
+.merge-qb-arena[data-danger="countdown"] {
+  animation: merge-qb-arena-warning-pulse 900ms ease-in-out infinite;
 }
 
 .merge-qb-countdown {
@@ -81,8 +94,16 @@ body button.merge-qb-arena:active {
   }
 }
 
+@keyframes merge-qb-arena-warning-pulse {
+  50% {
+    border-color: var(--destructive);
+    background: color-mix(in oklch, var(--card) 88%, var(--destructive));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .merge-qb-warning-line {
+  .merge-qb-arena[data-danger="near"] .merge-qb-warning-line,
+  .merge-qb-arena[data-danger="countdown"] {
     animation: none;
   }
 }
@@ -196,16 +217,56 @@ body button.merge-qb-arena:active {
 }
 
 .merge-qb-stage:fullscreen .merge-qb-content {
-  width: min(100%, calc((100dvh - 3rem) * 9 / 14 + 15rem));
+  display: grid;
+  grid-template-areas: "actions" "arena" "status" "sequence";
+  justify-items: center;
+  width: min(100%, calc((100dvh - 6rem) * 9 / 14 + 15rem));
+}
+
+.merge-qb-stage:fullscreen .merge-qb-toolbar {
+  display: contents;
+}
+
+.merge-qb-stage:fullscreen .merge-qb-actions {
+  grid-area: actions;
+  width: 100%;
+}
+
+.merge-qb-stage:fullscreen .merge-qb-title {
+  display: block;
+}
+
+.merge-qb-stage:fullscreen .merge-qb-status {
+  grid-area: status;
+  width: min(100%, 28rem);
+}
+
+.merge-qb-stage:fullscreen .merge-qb-sequence {
+  grid-area: sequence;
+  width: min(100%, 28rem);
 }
 
 .merge-qb-stage:fullscreen .merge-qb-arena {
+  grid-area: arena;
   width: min(100%, max(8rem, calc((100dvh - 18rem) * 9 / 14)));
 }
 
 @media (min-width: 1024px) {
+  .merge-qb-stage:fullscreen .merge-qb-content {
+    grid-template-columns: minmax(0, 1fr) 13.5rem;
+    grid-template-areas: "actions actions" "arena status" "arena sequence";
+    grid-template-rows: auto max-content 1fr;
+    align-items: start;
+    justify-items: stretch;
+  }
+
   .merge-qb-stage:fullscreen .merge-qb-arena {
-    width: min(100%, calc((100dvh - 3rem) * 9 / 14));
+    width: min(100%, calc((100dvh - 6rem) * 9 / 14));
+  }
+
+  .merge-qb-stage:fullscreen .merge-qb-status,
+  .merge-qb-stage:fullscreen .merge-qb-sequence {
+    width: 100%;
   }
 }
 
@@ -222,15 +283,22 @@ body button.merge-qb-arena:active {
 
 @media (min-width: 600px) and (max-height: 600px) {
   .merge-qb-stage:fullscreen .merge-qb-content {
-    display: grid;
     grid-template-columns: minmax(0, 1fr) 12rem;
+    grid-template-areas: "actions actions" "arena status" "arena sequence";
+    grid-template-rows: auto max-content 1fr;
     align-items: start;
+    justify-items: stretch;
     gap: 1rem;
-    width: min(100%, calc((100dvh - 2rem) * 9 / 14 + 13rem));
+    width: min(100%, calc((100dvh - 5rem) * 9 / 14 + 13rem));
   }
 
   .merge-qb-stage:fullscreen .merge-qb-arena {
-    width: min(100%, calc((100dvh - 2rem) * 9 / 14));
+    width: min(100%, calc((100dvh - 5rem) * 9 / 14));
+  }
+
+  .merge-qb-stage:fullscreen .merge-qb-status,
+  .merge-qb-stage:fullscreen .merge-qb-sequence {
+    width: 100%;
   }
 
   .merge-qb-stage:fullscreen .merge-qb-sequence ol {

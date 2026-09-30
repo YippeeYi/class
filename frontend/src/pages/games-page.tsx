@@ -1,9 +1,9 @@
-import { ArrowRight, Gamepad2 } from 'lucide-react'
+import { Gamepad2 } from 'lucide-react'
 import { Link } from 'react-router'
 
+import { interactiveSurfaceVariants } from '@/components/archive/interaction'
 import { PageHeading } from '@/components/archive/page-heading'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 
 const games = [
   {
@@ -17,24 +17,23 @@ const games = [
 export function GamesPage() {
   return (
     <div>
-      <PageHeading title="小游戏" description="选一个小游戏，随时开始。" showTitleInContent />
+      <PageHeading title="小游戏" />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {games.map((game) => (
-          <Card key={game.id} className="min-w-0 gap-4 bg-card/80">
-            <CardHeader>
-              <div className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Gamepad2 className="size-5" aria-hidden="true" />
-              </div>
-              <CardTitle>{game.title}</CardTitle>
-              <CardDescription>{game.description}</CardDescription>
-            </CardHeader>
-            <CardContent className="mt-auto">
-              <Button nativeButton={false} render={<Link to={game.to} />}>
-                进入游戏
-                <ArrowRight aria-hidden="true" />
-              </Button>
-            </CardContent>
-          </Card>
+          <Link
+            key={game.id}
+            to={game.to}
+            className={`${interactiveSurfaceVariants({ kind: 'card' })} block min-w-0`}
+          >
+            <Card className="min-w-0 gap-4 bg-card/80 group-hover:bg-accent/50 group-focus-visible:bg-accent/50 group-active:bg-accent/70">
+              <CardHeader>
+                <div className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Gamepad2 className="size-5" aria-hidden="true" />
+                </div>
+                <CardTitle>{game.title}</CardTitle>
+              </CardHeader>
+            </Card>
+          </Link>
         ))}
       </div>
     </div>

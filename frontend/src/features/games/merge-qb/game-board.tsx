@@ -170,6 +170,7 @@ export function MergeQbBoard() {
         <button
           type="button"
           className="merge-qb-arena"
+          data-danger={snapshot?.danger ?? 'normal'}
           aria-label="合成大QB游戏区域，左右方向键移动，回车或空格放下QB"
           onKeyDown={onBoardKeyDown}
         >
@@ -184,13 +185,11 @@ export function MergeQbBoard() {
               touchPointer.current = null
             }}
           />
-          {snapshot && (snapshot.danger === 'near' || snapshot.danger === 'countdown') && (
-            <span
-              className="merge-qb-warning-line"
-              style={{ top: `${(FAIL_LINE / GAME_HEIGHT) * 100}%` }}
-              aria-hidden="true"
-            />
-          )}
+          <span
+            className="merge-qb-warning-line"
+            style={{ top: `${(FAIL_LINE / GAME_HEIGHT) * 100}%` }}
+            aria-hidden="true"
+          />
           {snapshot?.countdown && (
             <span
               className="merge-qb-countdown"
@@ -205,25 +204,22 @@ export function MergeQbBoard() {
         <aside className="merge-qb-toolbar" aria-label="游戏状态与操作">
           <div className="merge-qb-actions">
             <div className="flex min-w-0 items-center gap-1">
-              {!isFullscreen && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  nativeButton={false}
-                  render={<Link to="/games" />}
-                  aria-label="返回游戏库"
-                  title="返回游戏库"
-                >
-                  <ArrowLeft aria-hidden="true" />
-                </Button>
-              )}
-              <h1
-                className={
-                  isFullscreen
-                    ? 'sr-only'
-                    : 'hidden truncate font-heading text-sm font-semibold sm:block'
-                }
+              <Button
+                variant="ghost"
+                size="icon"
+                nativeButton={false}
+                render={<Link to="/games" />}
+                aria-label="返回游戏库"
+                title="返回游戏库"
+                onClick={(event) => {
+                  if (document.fullscreenElement !== stageRef.current) return
+                  event.preventDefault()
+                  void exitGame()
+                }}
               >
+                <ArrowLeft aria-hidden="true" />
+              </Button>
+              <h1 className="hidden truncate font-heading text-sm font-semibold sm:block merge-qb-title">
                 合成大QB
               </h1>
             </div>
