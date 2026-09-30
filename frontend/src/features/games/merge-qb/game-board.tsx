@@ -327,7 +327,7 @@ export function MergeQbBoard() {
             <ol>
               {QB_LEVELS.map((level, index) => {
                 const maxDimension = Math.max(level.visualSize.width, level.visualSize.height)
-                const size = 19 + (23 * maxDimension) / largestLevelSize
+                const size = 22 + (27 * maxDimension) / largestLevelSize
                 const unlocked = index < (snapshot?.unlockedCount ?? 1)
                 return (
                   <li
@@ -335,10 +335,7 @@ export function MergeQbBoard() {
                     data-level-id={level.id}
                     aria-label={unlocked ? `${index + 1}：${level.name}` : `${index + 1}：未解锁`}
                   >
-                    <span
-                      className="merge-qb-level-icon"
-                      style={{ width: `${size}px`, height: `${size}px` }}
-                    >
+                    <span className="merge-qb-level-icon" style={{ width: `${size}px` }}>
                       {unlocked ? (
                         <img
                           src={levelImageUrl(level)}

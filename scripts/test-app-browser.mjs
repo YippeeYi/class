@@ -589,6 +589,8 @@ try {
         const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
         const sequence = document.querySelector('.merge-qb-sequence').getBoundingClientRect()
         const sidebar = document.querySelector('.merge-qb-toolbar').getBoundingClientRect()
+        const actions = document.querySelector('.merge-qb-actions').getBoundingClientRect()
+        const status = document.querySelector('.merge-qb-status').getBoundingClientRect()
         const main = document.querySelector('main').getBoundingClientRect()
         const scoreLabel = document.querySelector('.merge-qb-score span').getBoundingClientRect()
         const nextLabel = document.querySelector('.merge-qb-next span').getBoundingClientRect()
@@ -600,6 +602,10 @@ try {
           overflow: document.documentElement.scrollWidth > innerWidth + 1,
           groupCenterOffset: Math.abs((arena.left + sidebar.right - main.left - main.right) / 2),
           gap: sidebar.left - arena.right,
+          topOffset: Math.abs(sidebar.top - arena.top),
+          bottomOffset: Math.abs(sidebar.bottom - arena.bottom),
+          sectionGapDifference: Math.abs((status.top - actions.bottom) - (sequence.top - status.bottom)),
+          sectionOrder: actions.bottom < status.top && status.bottom < sequence.top,
           statusLabelOffset: Math.abs(scoreLabel.top - nextLabel.top),
           controlSizes: controls.map((rect) => rect && [rect.width, rect.height]),
         }
@@ -610,14 +616,18 @@ try {
       assert.equal(geometry.overflow, false)
       assert.ok(geometry.groupCenterOffset < 2, `the arena and sidebar center together: ${JSON.stringify(geometry)}`)
       assert.ok(geometry.gap >= 10 && geometry.gap <= 16, 'desktop arena and controls stay closely grouped')
+      assert.ok(geometry.topOffset < 1 && geometry.bottomOffset < 1, `desktop controls fill the arena height: ${JSON.stringify(geometry)}`)
+      assert.ok(geometry.sectionOrder && geometry.sectionGapDifference < 2, 'controls, live status and level gallery spread evenly down the sidebar')
       assert.ok(geometry.statusLabelOffset < 1, 'score and next preview labels align')
       assert.ok(geometry.controlSizes.every(([width, height]) => width === geometry.controlSizes[0][0] && height === geometry.controlSizes[0][1]), 'toolbar icon buttons share one hit target size')
     }
     await fitGame(900)
-    assert.ok(await gamePage.locator('.merge-qb-sequence li:last-child .merge-qb-level-icon').evaluate((icon) => icon.getBoundingClientRect().width >= 41), 'the level gallery icons are legible')
+    assert.ok(await gamePage.locator('.merge-qb-sequence li:last-child .merge-qb-level-icon').evaluate((icon) => icon.getBoundingClientRect().width >= 48), 'the level gallery icons are legible')
     const levelTwoBefore = await gamePage.locator('.merge-qb-sequence li:nth-child(2)').boundingBox()
     await gamePage.setViewportSize({ width: 1366, height: 768 })
     await fitGame(768)
+    await gamePage.setViewportSize({ width: 960, height: 900 })
+    await fitGame(900)
     await gamePage.setViewportSize({ width: 820, height: 900 })
     assert.ok(await gamePage.evaluate(() => {
       const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
@@ -671,7 +681,14 @@ try {
       })
       assert.equal(await gamePage.locator('.merge-qb-stage').getByRole('button', { name: '返回游戏库' }).isVisible(), true)
       assert.equal(await gamePage.locator('.merge-qb-stage').getByRole('heading', { name: '合成大QB' }).isVisible(), true)
-      assert.equal(await gamePage.evaluate(() => document.querySelector('.merge-qb-actions').getBoundingClientRect().bottom < document.querySelector('.merge-qb-arena').getBoundingClientRect().top), true, 'fullscreen keeps the return and title above the arena')
+      assert.equal(await gamePage.evaluate(() => {
+        const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
+        const sidebar = document.querySelector('.merge-qb-toolbar').getBoundingClientRect()
+        const actions = document.querySelector('.merge-qb-actions').getBoundingClientRect()
+        const status = document.querySelector('.merge-qb-status').getBoundingClientRect()
+        const sequence = document.querySelector('.merge-qb-sequence').getBoundingClientRect()
+        return sidebar.left >= arena.right && Math.abs(sidebar.top - arena.top) < 1 && Math.abs(sidebar.bottom - arena.bottom) < 1 && actions.bottom < status.top && status.bottom < sequence.top
+      }), true, 'fullscreen keeps all game controls distributed beside the arena')
       const fullscreenCenter = await gamePage.evaluate(() => {
         const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
         const sidebar = document.querySelector('.merge-qb-sequence').getBoundingClientRect()
