@@ -2539,6 +2539,11 @@ body [data-slot="switch-thumb"] {
     animation-iteration-count: 1;
     transition-duration: 0.01ms;
   }
+
+  .record-annotation-popup {
+    animation: none;
+    transition: none;
+  }
 }
 
 /* Reserve the action's space; hover never changes the record's geometry. */

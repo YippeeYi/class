@@ -139,6 +139,14 @@ try {
   console.log('Annotation opened')
   const dialog = page.getByRole('dialog', { name: 'r1 · 注解', exact: false })
   await dialog.waitFor()
+  assert.deepEqual(
+    await dialog.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return [style.animationName, style.transitionProperty]
+    }),
+    ['none', 'none'],
+    'reduced-motion annotation popup has no animations that can delay closing',
+  )
   assert.equal(await page.locator('[data-slot="dialog-overlay"]').count(), 0, 'annotation must not mount a modal overlay')
   const annotationBounds = await dialog.boundingBox()
   assert.ok(annotationBounds.x >= 0 && annotationBounds.x + annotationBounds.width <= 1280)
@@ -219,10 +227,12 @@ try {
   await page.evaluate(() => { document.body.style.paddingTop = '800px' })
   await openJump()
   assert.ok(await page.evaluate(() => window.scrollY > 0), 'upward scroll scenario starts below the top')
+  await page.mouse.move(0, 0)
   await page.mouse.wheel(0, -240)
   await jumpPanel.waitFor({ state: 'detached' })
   await page.evaluate(() => { document.body.style.removeProperty('padding-top'); document.body.style.paddingBottom = '800px' })
   await openJump()
+  await page.mouse.move(0, 0)
   await page.mouse.wheel(0, 240)
   await jumpPanel.waitFor({ state: 'detached' })
   await page.evaluate(() => { document.body.style.removeProperty('padding-bottom') })
