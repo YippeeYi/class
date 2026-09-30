@@ -1,6 +1,6 @@
 import Matter, { type Body, type IEventCollision, type Engine as MatterEngine } from 'matter-js'
 
-const { Bodies, Body: MatterBody, Composite, Engine, Events, Vertices } = Matter
+const { Bodies, Body: MatterBody, Composite, Engine, Events, Sleeping, Vertices } = Matter
 
 import { type ColliderShape, type Point, QB_LEVEL_BY_ID, QB_LEVELS, type QbLevel } from './levels'
 
@@ -8,12 +8,13 @@ export const GAME_WIDTH = 360
 export const GAME_HEIGHT = 560
 export const FAIL_LINE = 92
 export const DANGER_DISTANCE = 38
+export const DANGER_GRACE_MS = 500
 export const DANGER_COUNTDOWN_MS = 3000
 const STEP_MS = 1000 / 60
 const DROP_DELAY_MS = 480
 const MAX_DROP_LEVEL_COUNT = 5
 
-export type DangerState = 'normal' | 'near' | 'countdown' | 'game-over'
+export type DangerState = 'normal' | 'near' | 'pending' | 'countdown' | 'game-over'
 
 export type GameSnapshot = {
   score: number
@@ -233,7 +234,13 @@ export class MergeQbGame {
       if (!next.nextId) this.maxMergeCount += 1
     }
     this.pendingPairs.clear()
-    if (involved.size) this.publish()
+    if (involved.size) {
+      // Removing merged supports does not wake sleeping bodies in Matter.
+      for (const piece of this.pieces.values()) {
+        if (piece.body.isSleeping) Sleeping.set(piece.body, false)
+      }
+      this.publish()
+    }
   }
 
   private hasOverLinePiece() {
@@ -260,7 +267,15 @@ export class MergeQbGame {
       return
     }
 
-    if (this.danger !== 'countdown') {
+    if (this.danger !== 'countdown' && this.danger !== 'pending') {
+      this.danger = 'pending'
+      this.dangerStartedAt = time
+      this.publish()
+      return
+    }
+
+    if (this.danger === 'pending') {
+      if (time - (this.dangerStartedAt ?? time) < DANGER_GRACE_MS) return
       this.danger = 'countdown'
       this.dangerStartedAt = time
       this.countdown = Math.ceil(DANGER_COUNTDOWN_MS / 1000)

@@ -23,11 +23,14 @@ export function GamesPage() {
           <Link
             key={game.id}
             to={game.to}
-            className={`${interactiveSurfaceVariants({ kind: 'card' })} block min-w-0`}
+            className={`${interactiveSurfaceVariants({ kind: 'card' })} block w-full max-w-44 min-w-0`}
           >
-            <Card className="min-w-0 gap-4 bg-card/80 group-hover:bg-accent/50 group-focus-visible:bg-accent/50 group-active:bg-accent/70">
-              <CardHeader>
-                <div className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Card
+              size="sm"
+              className="min-w-0 bg-card/80 group-hover:bg-accent/50 group-focus-visible:bg-accent/50 group-active:bg-accent/70"
+            >
+              <CardHeader className="flex items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <Gamepad2 className="size-5" aria-hidden="true" />
                 </div>
                 <CardTitle>{game.title}</CardTitle>

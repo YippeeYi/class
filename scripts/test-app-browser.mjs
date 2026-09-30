@@ -546,6 +546,12 @@ try {
     assert.equal(await gameCard.locator('[data-slot="card-title"]').innerText(), '合成大QB')
     assert.equal(await gameCard.locator('[data-slot="card-description"], [data-slot="card-content"]').count(), 0)
     assert.equal(await gamePage.getByText('选一个小游戏，随时开始。').count(), 0)
+    assert.ok(await gameCard.evaluate((link) => {
+      const icon = link.querySelector('[data-slot="card-header"] svg').getBoundingClientRect()
+      const title = link.querySelector('[data-slot="card-title"]').getBoundingClientRect()
+      const bounds = link.getBoundingClientRect()
+      return title.left > icon.right && title.right <= bounds.right && bounds.width >= 150 && bounds.width < 200
+    }), 'compact game entry places its name beside the icon')
     const idleCardColor = await gameCard.locator('[data-slot="card"]').evaluate((card) => getComputedStyle(card).backgroundColor)
     await gameCard.hover()
     if (await gamePage.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches))
@@ -576,6 +582,9 @@ try {
     await board.evaluate((arena) => { arena.dataset.danger = 'near' })
     assert.notEqual(await warningLine.evaluate((line) => getComputedStyle(line).borderTopColor), normalLineColor, 'the original line turns red near danger')
     assert.notEqual(await warningLine.evaluate((line) => getComputedStyle(line).animationName), 'none', 'near danger animates the line')
+    await board.evaluate((arena) => { arena.dataset.danger = 'pending' })
+    assert.notEqual(await warningLine.evaluate((line) => getComputedStyle(line).animationName), 'none', 'the pending period keeps warning on the original line')
+    assert.equal(await board.evaluate((arena) => getComputedStyle(arena).animationName), 'none', 'the arena does not flash before the countdown')
     await board.evaluate((arena) => { arena.dataset.danger = 'countdown' })
     assert.notEqual(await board.evaluate((arena) => getComputedStyle(arena).animationName), 'none', 'countdown animates the arena')
     assert.equal(await warningLine.evaluate((line) => getComputedStyle(line).animationName), 'none', 'countdown does not add a second line animation')
@@ -630,6 +639,7 @@ try {
       assert.ok(geometry.controlSizes.every(([width, height]) => width === geometry.controlSizes[0][0] && height === geometry.controlSizes[0][1]), 'toolbar icon buttons share one hit target size')
     }
     await fitGame(900)
+    assert.equal(await gamePage.locator('.merge-qb-toolbar').evaluate((toolbar) => getComputedStyle(toolbar).borderTopStyle), 'dashed', 'the right game controls have a dashed separating border')
     assert.ok(await gamePage.locator('.merge-qb-sequence li:last-child .merge-qb-level-icon').evaluate((icon) => icon.getBoundingClientRect().width >= 48), 'the level gallery icons are legible')
     const levelTwoBefore = await gamePage.locator('.merge-qb-sequence li:nth-child(2)').boundingBox()
     await gamePage.setViewportSize({ width: 1366, height: 768 })
@@ -684,7 +694,7 @@ try {
       await gamePage.waitForFunction(() => document.fullscreenElement?.classList.contains('merge-qb-stage'))
       await gamePage.waitForFunction(() => {
         const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
-        const sidebar = document.querySelector('.merge-qb-sequence').getBoundingClientRect()
+        const sidebar = document.querySelector('.merge-qb-toolbar').getBoundingClientRect()
         return Math.abs((arena.left + sidebar.right - innerWidth) / 2) < 2
       })
       assert.equal(await gamePage.locator('.merge-qb-stage').getByRole('button', { name: '返回游戏库' }).isVisible(), true)
@@ -699,7 +709,7 @@ try {
       }), true, 'fullscreen keeps all game controls distributed beside the arena')
       const fullscreenCenter = await gamePage.evaluate(() => {
         const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
-        const sidebar = document.querySelector('.merge-qb-sequence').getBoundingClientRect()
+        const sidebar = document.querySelector('.merge-qb-toolbar').getBoundingClientRect()
         return { arenaLeft: arena.left, arenaRight: arena.right, sidebarLeft: sidebar.left, sidebarRight: sidebar.right, viewportWidth: innerWidth }
       })
       assert.ok(Math.abs((fullscreenCenter.arenaLeft + fullscreenCenter.sidebarRight - fullscreenCenter.viewportWidth) / 2) < 2, `fullscreen centers the arena and controls together: ${JSON.stringify(fullscreenCenter)}`)

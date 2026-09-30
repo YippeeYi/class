@@ -15,7 +15,7 @@ const vite = await createServer({
 })
 
 try {
-  const { MergeQbGame, makePiece, FAIL_LINE, DANGER_DISTANCE } = await vite.ssrLoadModule('/src/features/games/merge-qb/game.ts')
+  const { MergeQbGame, makePiece, FAIL_LINE, DANGER_DISTANCE, DANGER_GRACE_MS } = await vite.ssrLoadModule('/src/features/games/merge-qb/game.ts')
   const { QB_LEVELS } = await vite.ssrLoadModule('/src/features/games/merge-qb/levels.ts')
   assert.equal(QB_LEVELS.length, 11)
   for (let index = 0; index < QB_LEVELS.length; index++) {
@@ -106,7 +106,18 @@ try {
   game.step()
   setTop(first, FAIL_LINE - 5)
   game.step()
-  assert.equal(game.snapshot.countdown, 3, 'crossing starts a full countdown')
+  assert.equal(game.snapshot.danger, 'pending', 'crossing starts a brief observation period')
+  assert.equal(game.snapshot.countdown, null, 'the observation period does not show a countdown')
+  for (let step = 0; step < Math.floor(DANGER_GRACE_MS / (1000 / 60)) - 2; step++) game.step()
+  assert.equal(game.snapshot.countdown, null)
+  setTop(first, FAIL_LINE + DANGER_DISTANCE + 10)
+  game.step()
+  assert.equal(game.snapshot.danger, 'normal', 'returning below the line during the observation period cancels it')
+  setTop(first, FAIL_LINE - 5)
+  game.step()
+  assert.equal(game.snapshot.danger, 'pending', 'a later crossing gets a fresh observation period')
+  for (let step = 0; step < Math.ceil(DANGER_GRACE_MS / (1000 / 60)) + 2 && game.snapshot.countdown === null; step++) game.step()
+  assert.equal(game.snapshot.countdown, 3, 'a sustained crossing starts a full countdown')
   for (let step = 0; step < 90; step++) game.step()
   assert.equal(game.snapshot.countdown, 2)
   setTop(second, FAIL_LINE - 5)
@@ -133,6 +144,8 @@ try {
   assert.equal(game.snapshot.countdown, null)
   setTop(second, FAIL_LINE - 5)
   game.step()
+  assert.equal(game.snapshot.danger, 'pending', 'a later crossing starts with the observation period again')
+  for (let step = 0; step < Math.ceil(DANGER_GRACE_MS / (1000 / 60)) + 2 && game.snapshot.countdown === null; step++) game.step()
   assert.equal(game.snapshot.countdown, 3, 'a later crossing restarts from three seconds')
   for (let step = 0; step < 181; step++) game.step()
   assert.equal(game.snapshot.gameOver, true)
@@ -189,6 +202,22 @@ try {
   assert.equal(selection.snapshot.next.id, QB_LEVELS[0].id)
   assert.equal(selection.snapshot.maxMergeCount, 0)
   selection.dispose()
+
+  const sleepingGame = new MergeQbGame(() => {}, () => 0)
+  const unsupported = makePiece(QB_LEVELS[2], 115, 272)
+  const merging = [makePiece(base, 140, 300), makePiece(base, 180, 300)]
+  for (const piece of [unsupported, ...merging]) {
+    sleepingGame.pieces.set(piece.body.id, piece)
+    Matter.Composite.add(sleepingGame.engine.world, piece.body)
+  }
+  Matter.Sleeping.set(unsupported.body, true)
+  sleepingGame.pendingPairs.set(`${merging[0].body.id}:${merging[1].body.id}`, [merging[0].body.id, merging[1].body.id])
+  sleepingGame.mergePending()
+  assert.equal(unsupported.body.isSleeping, false, 'merging wakes sleeping pieces whose support may have disappeared')
+  const initialHeight = unsupported.body.position.y
+  for (let step = 0; step < 20; step++) sleepingGame.step()
+  assert.ok(unsupported.body.position.y > initialHeight + 10, 'a formerly sleeping unsupported piece falls again')
+  sleepingGame.dispose()
   console.log('Merge QB physics, scoring, per-game unlocks, capped drops, maximum merge events, danger countdown and reset passed.')
 } finally {
   await vite.close()

@@ -57,7 +57,8 @@ body button.merge-qb-arena:active {
   pointer-events: none;
 }
 
-.merge-qb-arena[data-danger="near"] .merge-qb-warning-line {
+.merge-qb-arena[data-danger="near"] .merge-qb-warning-line,
+.merge-qb-arena[data-danger="pending"] .merge-qb-warning-line {
   border-color: var(--destructive);
   animation: merge-qb-warning-pulse 900ms ease-in-out infinite;
 }
@@ -218,6 +219,7 @@ body button.merge-qb-arena:active {
 
 @media (prefers-reduced-motion: reduce) {
   .merge-qb-arena[data-danger="near"] .merge-qb-warning-line,
+  .merge-qb-arena[data-danger="pending"] .merge-qb-warning-line,
   .merge-qb-arena[data-danger="countdown"] {
     animation: none;
   }
@@ -237,6 +239,9 @@ body button.merge-qb-arena:active {
   min-width: 0;
   flex-direction: column;
   gap: 0.625rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 0.75rem;
 }
 
 .merge-qb-actions {
@@ -344,7 +349,6 @@ body button.merge-qb-arena:active {
     max-width: none;
     align-self: stretch;
     justify-content: space-between;
-    padding-block: 0.25rem 0.5rem;
   }
 
   .merge-qb-sequence ol {
@@ -431,7 +435,6 @@ body button.merge-qb-arena:active {
     max-width: none;
     align-self: stretch;
     justify-content: space-between;
-    padding-block: 0.25rem 0.5rem;
   }
 
   .merge-qb-stage:fullscreen .merge-qb-arena {
@@ -468,7 +471,6 @@ body button.merge-qb-arena:active {
     max-width: none;
     align-self: stretch;
     justify-content: space-between;
-    padding-block: 0.25rem 0.5rem;
   }
 
   .merge-qb-stage:fullscreen .merge-qb-arena {
