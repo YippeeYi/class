@@ -250,7 +250,7 @@ body button.merge-qb-arena:active {
   width: 100%;
   max-width: 28rem;
   min-width: 0;
-  grid-template-rows: auto minmax(max-content, 1fr) minmax(max-content, 0.8fr) minmax(
+  grid-template-rows: auto minmax(max-content, 1.1fr) minmax(max-content, 0.7fr) minmax(
       max-content,
       2fr
     );
