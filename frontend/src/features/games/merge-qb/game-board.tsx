@@ -73,9 +73,9 @@ type ConfirmAction = 'exit' | 'restart' | 'replay'
 type ScorePop = {
   id: number
   delta: number
-  slot: number
   rise: number
-  offset: number
+  offsetX: number
+  offsetY: number
   duration: number
 }
 
@@ -186,23 +186,17 @@ export function MergeQbBoard() {
     }
     const game = new MergeQbGame(setSnapshot, Math.random, (event) => {
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      if (event.scoreDelta > 0)
-        setScorePops((active) => {
-          const occupied = new Set(active.map((pop) => pop.slot))
-          let slot = 0
-          while (occupied.has(slot)) slot++
-          return [
-            ...active,
-            {
-              id: ++nextScorePopId.current,
-              delta: event.scoreDelta,
-              slot,
-              rise: 16 + Math.random() * 9,
-              offset: (Math.random() - 0.5) * 5,
-              duration: reducedMotion ? 160 : 720 + Math.random() * 180,
-            },
-          ]
-        })
+      if (event.scoreDelta > 0) {
+        const pop: ScorePop = {
+          id: ++nextScorePopId.current,
+          delta: event.scoreDelta,
+          rise: 16 + Math.random() * 9,
+          offsetX: (Math.random() - 0.5) * 5,
+          offsetY: (Math.random() - 0.5) * 4,
+          duration: reducedMotion ? 160 : 720 + Math.random() * 180,
+        }
+        setScorePops((active) => [...active, pop])
+      }
       if (event.firstEleven)
         celebrations.push(createCelebration(event, 'confetti', performance.now(), reducedMotion))
       if (event.firstTwelve)
@@ -752,8 +746,8 @@ export function MergeQbBoard() {
                   style={
                     {
                       '--pop-rise': `${pop.rise}px`,
-                      '--pop-offset': `${pop.offset}px`,
-                      '--pop-stack': `${pop.slot * 1.5}rem`,
+                      '--pop-offset-x': `${pop.offsetX}px`,
+                      '--pop-offset-y': `${pop.offsetY}px`,
                       animationDuration: `${pop.duration}ms`,
                     } as CSSProperties
                   }

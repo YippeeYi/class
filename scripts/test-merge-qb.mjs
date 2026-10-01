@@ -4,6 +4,7 @@ import Matter from 'matter-js'
 import { createServer } from 'vite'
 
 import { frontend } from './test-react-helpers.mjs'
+import { gameAssetPaths } from './admin-runtime.mjs'
 
 const vite = await createServer({
   configFile: false,
@@ -16,7 +17,7 @@ const vite = await createServer({
 
 try {
   const { MergeQbGame, makePiece, FAIL_LINE, DANGER_DISTANCE, DANGER_GRACE_MS } = await vite.ssrLoadModule('/src/features/games/merge-qb/game.ts')
-  const { QB_LEVELS, levelOutlineBounds } = await vite.ssrLoadModule('/src/features/games/merge-qb/levels.ts')
+  const { QB_LEVELS, levelImagePath, levelOutlineBounds } = await vite.ssrLoadModule('/src/features/games/merge-qb/levels.ts')
   const { createCelebration } = await vite.ssrLoadModule('/src/features/games/merge-qb/render.ts')
   assert.equal(QB_LEVELS.length, 12)
   const visualEvent = { level: QB_LEVELS[10], scoreDelta: 66, x: 180, y: 300, firstEleven: true, firstTwelve: false }
@@ -30,6 +31,9 @@ try {
   assert.ok(createCelebration(visualEvent, 'confetti', 1000, true).particles.length < confetti.particles.length, 'reduced motion uses fewer particles')
   for (let index = 0; index < QB_LEVELS.length; index++) {
     const level = QB_LEVELS[index]
+    const file = `${String(index + 1).padStart(2, '0')}.png`
+    assert.equal(level.image, file)
+    assert.equal(levelImagePath(level), gameAssetPaths({ type: 'game', gameKey: 'merge-qb', file }).remotePath)
     assert.equal(level.nextId, QB_LEVELS[index + 1]?.id ?? null)
     const bounds = levelOutlineBounds(level)
     assert.ok(Object.values(bounds).every(Number.isFinite), `level ${level.id} derives finite outline bounds`)

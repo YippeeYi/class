@@ -957,10 +957,7 @@ const buildPublication = async () => {
     storageUploadManifest.clear();
     for (let level = 1; level <= 12; level += 1) {
         const file = `${String(level).padStart(2, '0')}.png`;
-        registerGameAsset(
-            { type: 'game', gameKey: 'merge-qb', file },
-            `frontend/src/features/games/merge-qb/${file}`
-        );
+        registerGameAsset({ type: 'game', gameKey: 'merge-qb', file });
     }
     await importGameAssets();
     collectingPublication = true;

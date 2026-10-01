@@ -5,6 +5,7 @@ import { chromium, webkit } from 'playwright'
 import { createServer, preview } from 'vite'
 import { frontend } from './test-react-helpers.mjs'
 import { findSystemChromium } from './layout/browser-runtime.mjs'
+import { gameAssetPaths } from './admin-runtime.mjs'
 import qbAsset from '../frontend/src/lib/qb-asset.json' with { type: 'json' }
 
 const qbContent = (page) => qbAsset.ready
@@ -83,7 +84,8 @@ async function contextFor({ admin = false, mobile = false, authenticated = true 
       if (request.method() === 'POST') return respond({ signedURL: url.pathname.replace('/storage/v1', '') + '?token=test' })
       if (url.pathname.includes('/images/games/merge-qb/')) {
         try {
-          const image = await readFile(path.join(frontend, 'src/features/games/merge-qb', path.basename(url.pathname)))
+          const { localPath } = gameAssetPaths({ type: 'game', gameKey: 'merge-qb', file: path.basename(url.pathname) })
+          const image = await readFile(path.join(frontend, '..', localPath))
           return route.fulfill({ status: 200, headers: { ...headers, 'content-type': 'image/png' }, body: image })
         } catch {
           // Public CI has no ignored private originals; use the SVG fixture below.
@@ -948,12 +950,44 @@ try {
       await triggerMerge(0)
       await gamePage.waitForFunction(() => document.querySelectorAll('.merge-qb-score-pop').length === 2)
       assert.ok(await gamePage.locator('.merge-qb-score-pop').evaluateAll((pops) => {
-        const first = pops[0].getBoundingClientRect()
-        const second = pops[1].getBoundingClientRect()
-        return second.top >= first.bottom
-      }), 'consecutive merge score hints have separate visual positions')
+        const score = document.querySelector('.merge-qb-score-value').getBoundingClientRect()
+        return pops.every((pop) => {
+          const style = getComputedStyle(pop)
+          const offsetX = parseFloat(pop.style.getPropertyValue('--pop-offset-x'))
+          const offsetY = parseFloat(pop.style.getPropertyValue('--pop-offset-y'))
+          const rise = parseFloat(pop.style.getPropertyValue('--pop-rise'))
+          const duration = parseFloat(pop.style.animationDuration)
+          return style.position === 'absolute' &&
+            Math.abs(offsetX) <= 2.5 && Math.abs(offsetY) <= 2 &&
+            rise >= 16 && rise <= 25 && duration >= 720 && duration <= 900 &&
+            pop.getBoundingClientRect().left >= score.right - 4 &&
+            pop.getBoundingClientRect().left <= score.right + 10
+        }) && Math.abs(parseFloat(getComputedStyle(pops[0]).top) - parseFloat(getComputedStyle(pops[1]).top)) <= 4
+      }), 'consecutive score hints share one anchor with bounded jitter and independent animation')
       await gamePage.screenshot({ path: '/tmp/class-merge-qb-celebration.png' })
       await gamePage.locator('.merge-qb-score-pop').last().waitFor({ state: 'detached', timeout: 5000 })
+      await gamePage.setViewportSize({ width: 390, height: 844 })
+      const mobileScoreBeforePop = await gamePage.locator('.merge-qb-score').boundingBox()
+      const mobileNextBeforePop = await gamePage.locator('.merge-qb-next').boundingBox()
+      await triggerMerge(1)
+      await gamePage.locator('.merge-qb-score-pop').last().waitFor()
+      assert.equal(await gamePage.locator('.merge-qb-score-pop').last().innerText(), '+6')
+      const mobileHintGeometry = await gamePage.locator('.merge-qb-score-pop').last().evaluate((pop) => {
+        const hint = pop.getBoundingClientRect()
+        const score = document.querySelector('.merge-qb-score-value').getBoundingClientRect()
+        const restart = document.querySelector('.merge-qb-mobile-restart').getBoundingClientRect()
+        return { hint: hint.toJSON(), score: score.toJSON(), restart: restart.toJSON(), viewportWidth: innerWidth }
+      })
+      assert.ok(mobileHintGeometry.hint.left >= mobileHintGeometry.score.right - 4 &&
+        mobileHintGeometry.hint.right <= mobileHintGeometry.viewportWidth &&
+        (mobileHintGeometry.hint.right <= mobileHintGeometry.restart.left ||
+          mobileHintGeometry.hint.left >= mobileHintGeometry.restart.right ||
+          mobileHintGeometry.hint.bottom <= mobileHintGeometry.restart.top ||
+          mobileHintGeometry.hint.top >= mobileHintGeometry.restart.bottom),
+      `mobile score hint stays beside the score, on screen and away from restart: ${JSON.stringify(mobileHintGeometry)}`)
+      assert.deepEqual(await gamePage.locator('.merge-qb-score').boundingBox(), mobileScoreBeforePop)
+      assert.deepEqual(await gamePage.locator('.merge-qb-next').boundingBox(), mobileNextBeforePop)
+      await gamePage.setViewportSize({ width: 1280, height: 900 })
       await triggerMerge(10)
       await gamePage.locator('.merge-qb-level[data-level-id="12"] img').waitFor()
       assert.equal(await gamePage.evaluate(() => window.__mergeQbTestGame.snapshot.highestMergedLevel.id), '12')

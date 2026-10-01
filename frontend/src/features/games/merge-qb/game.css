@@ -132,7 +132,7 @@ body button.merge-qb-arena:active {
 .merge-qb-score-pop {
   position: absolute;
   z-index: 3;
-  top: calc(42% + var(--pop-stack));
+  top: calc(55% + var(--pop-offset-y));
   left: calc(100% + 0.125rem);
   color: var(--primary);
   font-size: 0.75rem;
@@ -146,14 +146,14 @@ body button.merge-qb-arena:active {
 @keyframes merge-qb-score-pop {
   from {
     opacity: 0;
-    transform: translate(var(--pop-offset), 3px);
+    transform: translate(var(--pop-offset-x), 3px);
   }
   18% {
     opacity: 1;
   }
   to {
     opacity: 0;
-    transform: translate(var(--pop-offset), calc(-1 * var(--pop-rise)));
+    transform: translate(var(--pop-offset-x), calc(-1 * var(--pop-rise)));
   }
 }
 
@@ -513,7 +513,7 @@ body button.merge-qb-arena:active {
   }
 
   .merge-qb-score-pop {
-    top: calc(100% + 0.25rem + var(--pop-stack));
+    top: calc(60% + var(--pop-offset-y));
     font-size: 0.625rem;
   }
 
