@@ -509,5 +509,5 @@ export const QB_SHOCKWAVE = {
   forcePerSize: 0.000055,
   maxForce: 0.024,
   durationMs: 360,
-  lineWidthCssPx: 2
+  lineWidthCssPx: 2,
 } as const
