@@ -453,8 +453,8 @@ export const QB_LEVELS: readonly QbLevel[] = [
     name: '隐藏 QB',
     image: '12.png',
     sourceSize: { width: 483, height: 588 },
-    visualSize: { width: 180.71, height: 220 },
-    physicsSize: { width: 180.71, height: 220 },
+    visualSize: { width: 241.5, height: 294 },
+    physicsSize: { width: 241.5, height: 294 },
     collider: {
       shapes: [
         {
