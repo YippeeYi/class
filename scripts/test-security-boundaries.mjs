@@ -7,6 +7,7 @@ const auth = await readFrontend('src/features/auth/auth-context.tsx')
 const data = await readFrontend('src/services/data.ts')
 const config = await readFrontend('src/services/supabase.ts')
 const setupSql = await readFile(path.join(root, 'sql/setup.sql'), 'utf8')
+const levelTwelveMigration = await readFile(path.join(root, 'supabase/migrations/20261001120000_private_merge_qb_level_12.sql'), 'utf8')
 const vercel = JSON.parse(await readFile(path.join(root, 'vercel.json'), 'utf8'))
 const hiddenConsumers = await Promise.all(
   ['src/features/archive/archive-context.tsx', 'src/pages/search-page.tsx', 'src/pages/timeline-page.tsx', 'src/pages/quiz-page.tsx'].map(readFrontend),
@@ -40,6 +41,10 @@ assert.match(
   'hidden auxiliary records must require administrator access',
 )
 assert.doesNotMatch(config, /service_role|SERVICE_ROLE/, 'service role material must never enter the frontend')
+for (const sql of [setupSql, levelTwelveMigration]) {
+  assert.ok(sql.includes('images/games/merge-qb/(0[1-9]|1[0-2])'), 'private Storage must allow precisely levels 01–12')
+  assert.match(sql, /public\.has_class_record_access\(\)/, 'game art keeps invite-based access')
+}
 for (const prefix of ['/data/(.*)', '/images/quiz/(.*)', '/images/private/(.*)']) {
   assert.ok(vercel.rewrites.some((rule) => rule.source === prefix), `${prefix} deployment boundary is missing`)
 }

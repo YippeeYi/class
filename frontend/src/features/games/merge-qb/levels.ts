@@ -19,7 +19,7 @@ export type QbLevel = {
   points: number
 }
 
-// Geometry was measured from the alpha >= 64 silhouettes of the 11 local PNGs.
+// Geometry was measured from the alpha >= 64 silhouettes of the 12 local PNGs.
 // Collider vertices are simplified convex hulls in source-image coordinates.
 // mass is in Matter.js mass units (> 0): larger values resist motion more; setMass keeps it independent of size.
 export const QB_LEVELS: readonly QbLevel[] = [
@@ -445,8 +445,40 @@ export const QB_LEVELS: readonly QbLevel[] = [
       ],
     },
     mass: 16.66,
-    nextId: null,
+    nextId: '12',
     points: 66,
+  },
+  {
+    id: '12',
+    name: '隐藏 QB',
+    image: '12.png',
+    sourceSize: { width: 483, height: 588 },
+    visualSize: { width: 180.71, height: 220 },
+    physicsSize: { width: 180.71, height: 220 },
+    collider: {
+      shapes: [
+        {
+          type: 'polygon',
+          vertices: [
+            { x: 0.004, y: 0.798 },
+            { x: 0.091, y: 0.345 },
+            { x: 0.137, y: 0.209 },
+            { x: 0.296, y: 0.053 },
+            { x: 0.59, y: 0.017 },
+            { x: 0.745, y: 0.117 },
+            { x: 0.878, y: 0.335 },
+            { x: 0.95, y: 0.512 },
+            { x: 0.996, y: 0.73 },
+            { x: 0.741, y: 0.942 },
+            { x: 0.513, y: 0.998 },
+            { x: 0.203, y: 0.942 },
+          ],
+        },
+      ],
+    },
+    mass: 21.3,
+    nextId: null,
+    points: 78,
   },
 ]
 

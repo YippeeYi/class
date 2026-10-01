@@ -17,7 +17,17 @@ const vite = await createServer({
 try {
   const { MergeQbGame, makePiece, FAIL_LINE, DANGER_DISTANCE, DANGER_GRACE_MS } = await vite.ssrLoadModule('/src/features/games/merge-qb/game.ts')
   const { QB_LEVELS, levelOutlineBounds } = await vite.ssrLoadModule('/src/features/games/merge-qb/levels.ts')
-  assert.equal(QB_LEVELS.length, 11)
+  const { createCelebration } = await vite.ssrLoadModule('/src/features/games/merge-qb/render.ts')
+  assert.equal(QB_LEVELS.length, 12)
+  const visualEvent = { level: QB_LEVELS[10], scoreDelta: 66, x: 180, y: 300, firstEleven: true, firstTwelve: false }
+  const confetti = createCelebration(visualEvent, 'confetti', 1000, false)
+  const sparkle = createCelebration({ ...visualEvent, level: QB_LEVELS[11] }, 'sparkle', 1000, false)
+  assert.equal(confetti.kind, 'confetti')
+  assert.equal(sparkle.kind, 'sparkle')
+  assert.ok(confetti.particles.length > sparkle.particles.length && sparkle.particles.length > 0)
+  assert.ok(confetti.radius > 0 && sparkle.radius > 0)
+  assert.deepEqual([confetti.x, confetti.y, sparkle.x, sparkle.y], [180, 300, 180, 300])
+  assert.ok(createCelebration(visualEvent, 'confetti', 1000, true).particles.length < confetti.particles.length, 'reduced motion uses fewer particles')
   for (let index = 0; index < QB_LEVELS.length; index++) {
     const level = QB_LEVELS[index]
     assert.equal(level.nextId, QB_LEVELS[index + 1]?.id ?? null)
@@ -113,6 +123,7 @@ try {
 
   const snapshots = []
   const game = new MergeQbGame((snapshot) => snapshots.push(snapshot), () => 0)
+  assert.equal(game.snapshot.highestMergedLevel, null)
   assert.equal(game.snapshot.unlockedCount, 1)
   assert.equal(game.snapshot.current.id, QB_LEVELS[0].id)
   assert.equal(game.snapshot.next.id, QB_LEVELS[0].id)
@@ -235,7 +246,8 @@ try {
   }
   game.dispose()
 
-  const selection = new MergeQbGame(() => {}, () => 0.999)
+  const mergeEvents = []
+  const selection = new MergeQbGame(() => {}, () => 0.999, (event) => mergeEvents.push(event))
   assert.equal(selection.snapshot.unlockedCount, 1)
   assert.equal(selection.snapshot.current.id, QB_LEVELS[0].id, 'a new game starts with level one')
   assert.equal(selection.snapshot.next.id, QB_LEVELS[0].id)
@@ -249,6 +261,10 @@ try {
     }
     selection.pendingPairs.set(`${first.body.id}:${second.body.id}`, [first.body.id, second.body.id])
     selection.mergePending()
+    assert.equal(selection.snapshot.highestMergedLevel.id, QB_LEVELS[index + 1].id)
+    assert.equal(mergeEvents.at(-1).scoreDelta, QB_LEVELS[index + 1].points)
+    assert.equal(mergeEvents.at(-1).firstEleven, index === 9)
+    assert.equal(mergeEvents.at(-1).firstTwelve, index === 10)
     assert.equal(selection.snapshot.unlockedCount, index + 2, `merging ${level.id} unlocks only its successor`)
     assert.equal(selection.snapshot.maxMergeCount, index === QB_LEVELS.length - 2 ? 1 : 0)
     const highestDroppable = QB_LEVELS[Math.min(index + 1, 4)]
@@ -258,6 +274,7 @@ try {
     assert.equal(selection.snapshot.next.id, highestDroppable.id, 'the preview uses the same drop pool')
     assert.equal(selection.snapshot.unlockedCount, index + 2, 'dropping does not unlock a level')
   }
+  assert.equal(selection.snapshot.current.id === '12' || selection.snapshot.next.id === '12', false, 'the egg never enters the drop pool')
   const levelBeforeMaximum = QB_LEVELS.at(-2)
   const firstMaximumPair = makePiece(levelBeforeMaximum, 140, 300)
   const secondMaximumPair = makePiece(levelBeforeMaximum, 180, 300)
@@ -268,13 +285,35 @@ try {
   selection.pendingPairs.set(`${firstMaximumPair.body.id}:${secondMaximumPair.body.id}`, [firstMaximumPair.body.id, secondMaximumPair.body.id])
   selection.mergePending()
   assert.equal(selection.snapshot.maxMergeCount, 2, 'each new maximum merge publishes one celebration event')
+  assert.equal(mergeEvents.at(-1).firstTwelve, false, 'later level-12 merges do not replay the egg effect')
   selection.mergePending()
   assert.equal(selection.snapshot.maxMergeCount, 2, 'an already handled pair cannot repeat the celebration')
+  const topPair = [makePiece(QB_LEVELS.at(-1), 140, 300), makePiece(QB_LEVELS.at(-1), 180, 300)]
+  for (const piece of topPair) {
+    selection.pieces.set(piece.body.id, piece)
+    Matter.Composite.add(selection.engine.world, piece.body)
+  }
+  const scoreBeforeTopContact = selection.snapshot.score
+  selection.pendingPairs.set(`${topPair[0].body.id}:${topPair[1].body.id}`, [topPair[0].body.id, topPair[1].body.id])
+  selection.mergePending()
+  assert.equal(selection.snapshot.score, scoreBeforeTopContact, 'two final-level pieces cannot score again')
+  assert.ok(topPair.every((piece) => selection.pieces.has(piece.body.id)), 'two final-level pieces remain in the world')
   selection.reset()
   assert.equal(selection.snapshot.unlockedCount, 1)
   assert.equal(selection.snapshot.current.id, QB_LEVELS[0].id)
   assert.equal(selection.snapshot.next.id, QB_LEVELS[0].id)
   assert.equal(selection.snapshot.maxMergeCount, 0)
+  assert.equal(selection.snapshot.highestMergedLevel, null)
+  for (const level of [QB_LEVELS[9], QB_LEVELS[10]]) {
+    const pair = [makePiece(level, 140, 300), makePiece(level, 180, 300)]
+    for (const piece of pair) {
+      selection.pieces.set(piece.body.id, piece)
+      Matter.Composite.add(selection.engine.world, piece.body)
+    }
+    selection.pendingPairs.set(`${pair[0].body.id}:${pair[1].body.id}`, [pair[0].body.id, pair[1].body.id])
+    selection.mergePending()
+    assert.equal(mergeEvents.at(-1)[level.id === '10' ? 'firstEleven' : 'firstTwelve'], true, 'new games can celebrate both levels again')
+  }
   selection.dispose()
 
   const sleepingGame = new MergeQbGame(() => {}, () => 0)

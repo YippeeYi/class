@@ -48,7 +48,7 @@ try {
   for (const match of index.matchAll(/(?:src|href)="(\/class\/[^"?#]+)"/g)) {
     assert.equal((await fetch(origin + match[1])).status, 200, match[1])
   }
-  for (let level = 1; level <= 11; level++) {
+  for (let level = 1; level <= 12; level++) {
     const asset = `/class/games/merge-qb/${String(level).padStart(2, '0')}.png`
     assert.equal((await fetch(origin + asset)).status, 404, `private game image must not ship: ${asset}`)
   }

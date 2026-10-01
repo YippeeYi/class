@@ -557,6 +557,12 @@ try {
   await touchBoard.tap()
   await touch.waitForFunction(() => document.querySelector('.merge-qb-score strong')?.textContent === '3')
   await touch.getByRole('button', { name: '重新开始' }).tap()
+  await touch.getByRole('alertdialog').waitFor()
+  assert.equal(await touch.locator('.merge-qb-score strong').innerText(), '3', 'opening restart confirmation preserves the score')
+  await touch.getByRole('button', { name: '取消' }).tap()
+  assert.equal(await touch.locator('.merge-qb-score strong').innerText(), '3', 'canceling restart preserves the game')
+  await touch.getByRole('button', { name: '重新开始' }).tap()
+  await touch.getByRole('alertdialog').getByRole('button', { name: '重新开始' }).tap()
   assert.equal(await touch.locator('.merge-qb-score strong').innerText(), '0', 'mobile restart uses the existing reset path')
   await touch.setViewportSize({ width: 320, height: 844 })
   assert.equal(await touch.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'game fits a narrow phone')
@@ -571,11 +577,12 @@ try {
   }, origin)
   await touch.waitForFunction(() => window.__mobileMergeGame)
   await touch.evaluate(() => {
-    window.__mobileMergeGame.score = 12345
+    window.__mobileMergeGame.score = 123456
     window.__mobileMergeGame.publish()
   })
   await fitsMobileGame('320×844 with long score')
   await touch.getByRole('button', { name: '重新开始' }).tap()
+  await touch.getByRole('alertdialog').getByRole('button', { name: '重新开始' }).tap()
   assert.ok(Number(await touch.locator('.merge-qb-toolbar strong[aria-live="polite"]').innerText()) >= 0)
   await touch.setViewportSize({ width: 320, height: 568 })
   await touch.waitForTimeout(100)
@@ -592,10 +599,28 @@ try {
   await mobileGameOver.waitFor()
   assert.ok(await mobileGameOver.evaluate((label) => Number.parseFloat(getComputedStyle(label).fontSize) >= 18), 'mobile game over title uses the larger type scale')
   assert.equal(await touch.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'mobile game over title does not overflow')
+  assert.ok(await touch.evaluate(() => {
+    const title = document.querySelector('.merge-qb-game-over-label').getBoundingClientRect()
+    const share = document.querySelector('.merge-qb-share-mobile').getBoundingClientRect()
+    return share.left >= title.right && Math.abs((share.top + share.bottom - title.top - title.bottom) / 2) < 2
+  }), 'mobile share icon sits beside the game-over title')
   await touch.screenshot({ path: '/tmp/class-merge-qb-game-over-mobile.png' })
+  await touch.getByRole('button', { name: '分享游戏结果' }).tap()
+  await touch.getByRole('dialog', { name: '分享本局结果' }).waitFor()
+  await touch.locator('.merge-qb-share-preview').waitFor()
+  await touch.waitForFunction(() => document.querySelector('.merge-qb-share-preview')?.naturalWidth > 0)
+  assert.deepEqual(await touch.locator('.merge-qb-share-preview').evaluate((img) => [img.naturalWidth, img.naturalHeight]), [1080, 1900], 'share preview is a separate high-resolution game image')
+  await touch.getByRole('dialog', { name: '分享本局结果' }).getByRole('button', { name: '取消' }).tap()
   await mobileGameOver.tap()
+  await touch.getByRole('alertdialog').waitFor()
+  assert.equal(await touch.locator('.merge-qb-arena').isDisabled(), true, 'replay confirmation does not restart prematurely')
+  await touch.getByRole('alertdialog').getByRole('button', { name: '再来一局' }).tap()
   assert.equal(await touchBoard.isDisabled(), false, 'mobile game over restart restores play')
   await touch.getByRole('button', { name: '返回游戏库' }).tap()
+  await touch.getByRole('alertdialog').getByRole('button', { name: '取消' }).tap()
+  assert.match(touch.url(), /games\/merge-qb\/?$/, 'canceling exit stays in the game')
+  await touch.getByRole('button', { name: '返回游戏库' }).tap()
+  await touch.getByRole('alertdialog').getByRole('button', { name: '退出游戏' }).tap()
   await touch.waitForURL(/games\/?$/)
   await mobile.close()
   {
@@ -757,8 +782,8 @@ try {
     if (!process.env.CLASS_RECORD_PREVIEW) {
       assert.deepEqual(
         await gamePage.locator('.merge-qb-level[data-level-id]').evaluateAll((items) => items.map((item) => item.dataset.levelId)),
-        gameLevels.map((level) => level.id),
-        'size sequence follows the level configuration',
+        gameLevels.slice(0, -1).map((level) => level.id),
+        'the secret level has no initial sequence entry',
       )
     }
     await gamePage.screenshot({ path: '/tmp/class-merge-qb-desktop.png', fullPage: true })
@@ -774,6 +799,7 @@ try {
       assert.ok(Math.abs(pressedBox[dimension] - boardBox[dimension]) < 0.5, `pressing the board keeps ${dimension} stable`)
     await gamePage.mouse.up()
     await gamePage.getByRole('button', { name: '重新开始' }).click()
+    await gamePage.getByRole('alertdialog').getByRole('button', { name: '重新开始' }).click()
     await board.click()
     await gamePage.waitForTimeout(600)
     await board.click()
@@ -838,6 +864,7 @@ try {
       assert.equal(await gamePage.evaluate(() => document.querySelector('.merge-qb-arena canvas') === window.__mergeCanvas), true)
     }
     await gamePage.getByRole('button', { name: '重新开始' }).click()
+    await gamePage.getByRole('alertdialog').getByRole('button', { name: '重新开始' }).click()
     assert.equal(await score.innerText(), '0')
     assert.equal(await gamePage.locator('.merge-qb-level img').count(), 1, 'restart resets this game’s discoveries')
     assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-locked').count(), 10)
@@ -846,6 +873,7 @@ try {
     await board.waitFor()
     assert.equal(await gamePage.locator('.app-sidebar-navigation a[href$="/games"][data-active]').count(), 1)
     await gamePage.getByRole('button', { name: '返回游戏库' }).click()
+    await gamePage.getByRole('alertdialog').getByRole('button', { name: '退出游戏' }).click()
     await gamePage.getByRole('link', { name: '合成大QB', exact: true }).click()
     await board.waitFor()
     assert.equal(await score.innerText(), '0')
@@ -899,42 +927,42 @@ try {
       })
       await gamePage.emulateMedia({ reducedMotion: 'no-preference' })
       assert.equal(await gamePage.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches), false)
-      const triggerMaximumMerge = () => gamePage.evaluate(async (origin) => {
+      const triggerMerge = (levelIndex) => gamePage.evaluate(async ([origin, index]) => {
         const { makePiece } = await import(origin + 'src/features/games/merge-qb/game.ts')
         const { QB_LEVELS } = await import(origin + 'src/features/games/merge-qb/levels.ts')
         const game = window.__mergeQbTestGame
-        const level = QB_LEVELS.at(-2)
+        const level = QB_LEVELS[index]
         const first = makePiece(level, 140, 300)
         const second = makePiece(level, 180, 300)
         game.pieces.set(first.body.id, first)
         game.pieces.set(second.body.id, second)
         game.pendingPairs.set(`${first.body.id}:${second.body.id}`, [first.body.id, second.body.id])
         game.mergePending()
-      }, origin)
-      const celebration = gamePage.locator('.merge-qb-celebration')
-      await triggerMaximumMerge()
-      assert.equal(await gamePage.evaluate(() => window.__mergeQbTestGame.activeShockwaves.length), 1, 'one merge creates one short-lived visual wave')
-      await gamePage.screenshot({ path: '/tmp/class-merge-qb-shockwave.png' })
-      assert.equal(await gamePage.evaluate(() => window.__mergeQbTestGame.snapshot.maxMergeCount), 1)
-      await gamePage.waitForFunction(() => [...document.querySelectorAll('.merge-qb-level[data-level-id]')].at(-1)?.querySelector('img'))
-      await celebration.waitFor({ state: 'attached' })
-      assert.equal(await celebration.locator('.merge-qb-confetti').count(), 2, 'both arena sides celebrate a maximum merge')
-      await gamePage.waitForFunction(() =>
-        [...(document.querySelector('.merge-qb-celebration')?.getAnimations() ?? [])].some((animation) => animation.currentTime > 500),
-      )
-      assert.equal(await gamePage.evaluate(() => window.__mergeQbTestGame.activeShockwaves.length), 0, 'the canvas shockwave has expired after its brief animation')
+      }, [origin, levelIndex])
+      assert.equal(await gamePage.locator('.merge-qb-level[data-level-id="12"]').count(), 0, 'level 12 has no initial placeholder')
+      await triggerMerge(9)
+      await gamePage.waitForFunction(() => document.querySelector('.merge-qb-score strong')?.textContent === '66')
+      assert.equal(await gamePage.evaluate(() => window.__mergeQbTestGame.snapshot.highestMergedLevel.id), '11')
+      assert.equal(await gamePage.locator('.merge-qb-score-pop').last().innerText(), '+66', 'score hint uses the actual merge delta')
+      assert.equal(await gamePage.locator('.merge-qb-level[data-level-id="12"]').count(), 0, 'first level-11 merge does not reveal the egg')
+      await triggerMerge(0)
+      await gamePage.waitForFunction(() => document.querySelectorAll('.merge-qb-score-pop').length === 2)
+      assert.ok(await gamePage.locator('.merge-qb-score-pop').evaluateAll((pops) => {
+        const first = pops[0].getBoundingClientRect()
+        const second = pops[1].getBoundingClientRect()
+        return second.top >= first.bottom
+      }), 'consecutive merge score hints have separate visual positions')
       await gamePage.screenshot({ path: '/tmp/class-merge-qb-celebration.png' })
-      await celebration.waitFor({ state: 'hidden', timeout: 5000 })
+      await gamePage.locator('.merge-qb-score-pop').last().waitFor({ state: 'detached', timeout: 5000 })
+      await triggerMerge(10)
+      await gamePage.locator('.merge-qb-level[data-level-id="12"] img').waitFor()
+      assert.equal(await gamePage.evaluate(() => window.__mergeQbTestGame.snapshot.highestMergedLevel.id), '12')
+      assert.equal(await gamePage.evaluate(() => window.__mergeQbTestGame.snapshot.maxMergeCount), 1)
+      assert.equal(await gamePage.locator('.merge-qb-score-pop').last().innerText(), '+78')
+      assert.equal(await gamePage.locator('.merge-qb-next img').getAttribute('alt'), '一级 QB', 'the egg never enters Next')
+      await gamePage.screenshot({ path: '/tmp/class-merge-qb-easter-unlock.png' })
       await gamePage.getByRole('button', { name: '全屏游玩' }).click()
       await gamePage.waitForFunction(() => document.fullscreenElement?.classList.contains('merge-qb-stage'))
-      await triggerMaximumMerge()
-      await celebration.waitFor()
-      await gamePage.getByRole('button', { name: '重新开始' }).click()
-      await celebration.waitFor({ state: 'hidden' })
-      assert.equal(await gamePage.evaluate(() => window.__mergeQbTestGame.snapshot.maxMergeCount), 0, 'restart clears celebration state')
-      await triggerMaximumMerge()
-      await celebration.waitFor()
-      await celebration.waitFor({ state: 'hidden', timeout: 5000 })
       await gamePage.evaluate(() => {
         window.__mergeQbTestGame.danger = 'game-over'
         window.__mergeQbTestGame.publish()
@@ -942,14 +970,31 @@ try {
       const gameOverLabel = gamePage.locator('.merge-qb-game-over-label')
       await gameOverLabel.waitFor()
       assert.equal(await gamePage.locator('.merge-qb-next img').count(), 0)
-      assert.equal(await gamePage.locator('.merge-qb-game-over-dialog').count(), 0)
       assert.equal(await board.isDisabled(), true)
       await gamePage.screenshot({ path: '/tmp/class-merge-qb-game-over-fullscreen.png' })
+      await gamePage.getByRole('button', { name: '分享', exact: true }).click()
+      await gamePage.getByRole('dialog', { name: '分享本局结果' }).waitFor()
+      await gamePage.locator('.merge-qb-share-preview').waitFor()
+      assert.equal(await gamePage.evaluate(() => document.fullscreenElement), null, 'the share dialog remains visible after leaving fullscreen')
+      await gamePage.waitForFunction(() => document.querySelector('.merge-qb-share-preview')?.naturalWidth > 0)
+      assert.deepEqual(await gamePage.locator('.merge-qb-share-preview').evaluate((img) => [img.naturalWidth, img.naturalHeight]), [1080, 1900])
+      const download = gamePage.waitForEvent('download')
+      await gamePage.getByRole('dialog', { name: '分享本局结果' }).getByRole('button', { name: '保存图片' }).click()
+      const savedImage = await download
+      assert.match(savedImage.suggestedFilename(), /^merge-qb-\d+\.png$/)
+      await savedImage.saveAs('/tmp/class-merge-qb-share.png')
+      await gamePage.getByRole('dialog', { name: '分享本局结果' }).getByRole('button', { name: '取消' }).click()
+      assert.equal(await gamePage.locator('.merge-qb-arena').isDisabled(), true, 'closing share retains the final game')
       await gameOverLabel.click()
+      await gamePage.getByRole('alertdialog').waitFor()
+      await gamePage.getByRole('alertdialog').getByRole('button', { name: '取消' }).click()
+      assert.equal(await gamePage.locator('.merge-qb-arena').isDisabled(), true, 'canceling replay preserves the final game')
+      await gameOverLabel.click()
+      await gamePage.getByRole('alertdialog').getByRole('button', { name: '再来一局' }).click()
       await gameOverLabel.waitFor({ state: 'hidden' })
-      assert.equal(await gamePage.evaluate(() => window.__mergeQbTestGame.snapshot.unlockedCount), 1)
-      await gamePage.locator('.merge-qb-stage').getByRole('button', { name: '退出全屏' }).click()
-      await gamePage.waitForFunction(() => document.fullscreenElement === null)
+      assert.equal(await gamePage.locator('.merge-qb-level[data-level-id="12"]').count(), 0, 'a new game hides the egg again')
+      assert.equal(await gamePage.evaluate(() => window.__mergeQbTestGame.snapshot.highestMergedLevel), null)
+
     }
     await gameContext.close()
   }

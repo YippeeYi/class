@@ -70,7 +70,7 @@ const {
 const hiddenStoragePrefix = 'hidden/';
 const allowedStorageRoots = ['data/attachments/', 'images/record-pages/', 'images/quiz/'];
 const mealMapStoragePath = 'images/private/meal-map.png';
-const mergeQbImagePaths = Array.from({ length: 11 }, (_, index) => `images/games/merge-qb/${String(index + 1).padStart(2, '0')}.png`);
+const mergeQbImagePaths = Array.from({ length: 12 }, (_, index) => `images/games/merge-qb/${String(index + 1).padStart(2, '0')}.png`);
 const mediaManifestPaths = {
     public: 'data/attachments/record-media-dimensions.txt',
     hidden: 'hidden/data/attachments/record-media-dimensions.txt'
