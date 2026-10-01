@@ -612,7 +612,7 @@ export function MergeQbBoard() {
                 type="button"
                 size="sm"
                 variant="outline"
-                className="merge-qb-mobile-restart h-8 bg-muted/40 px-1 text-[0.6875rem] md:hidden"
+                className="merge-qb-mobile-restart h-8 bg-muted/40 px-0.5 text-[0.6875rem] md:hidden"
                 aria-label="重新开始"
                 onClick={() => openConfirm('restart')}
               >

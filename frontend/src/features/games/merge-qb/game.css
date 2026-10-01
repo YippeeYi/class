@@ -498,13 +498,13 @@ body button.merge-qb-arena:active {
   }
 
   .merge-qb-toolbar .merge-qb-next-preview {
-    width: 1.75rem;
-    height: 1.75rem;
+    width: clamp(1.25rem, 6.5vw, 1.75rem);
+    height: clamp(1.25rem, 6.5vw, 1.75rem);
   }
 
   .merge-qb-toolbar .merge-qb-next-preview img {
-    max-width: 1.75rem;
-    max-height: 1.75rem;
+    max-width: 100%;
+    max-height: 100%;
   }
 
   .merge-qb-game-over-actions {

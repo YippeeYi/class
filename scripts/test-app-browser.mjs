@@ -577,7 +577,7 @@ try {
   }, origin)
   await touch.waitForFunction(() => window.__mobileMergeGame)
   await touch.evaluate(() => {
-    window.__mobileMergeGame.score = 12345
+    window.__mobileMergeGame.score = 123456
     window.__mobileMergeGame.publish()
   })
   await fitsMobileGame('320×844 with long score')
