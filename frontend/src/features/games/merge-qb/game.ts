@@ -4,6 +4,7 @@ const { Bodies, Body: MatterBody, Composite, Engine, Events, Sleeping, Vertices 
 
 import {
   type ColliderShape,
+  levelOutlineBounds,
   type Point,
   QB_LEVEL_BY_ID,
   QB_LEVELS,
@@ -279,6 +280,7 @@ export class MergeQbGame {
 
   private createShockwave(level: QbLevel, x: number, y: number, mergedId: number) {
     const size = Math.max(level.physicsSize.width, level.physicsSize.height)
+    const bounds = levelOutlineBounds(level)
     const radius = Math.min(
       QB_SHOCKWAVE.maxRadius,
       QB_SHOCKWAVE.baseRadius + size * QB_SHOCKWAVE.radiusPerSize,
@@ -311,8 +313,8 @@ export class MergeQbGame {
       y,
       startRadius:
         Math.max(
-          (level.visibleBounds.right - level.visibleBounds.left) * level.visualSize.width,
-          (level.visibleBounds.bottom - level.visibleBounds.top) * level.visualSize.height,
+          (bounds.right - bounds.left) * level.visualSize.width,
+          (bounds.bottom - bounds.top) * level.visualSize.height,
         ) / 2,
       radius,
       startedAt: this.time,

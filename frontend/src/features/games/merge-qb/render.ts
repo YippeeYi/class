@@ -110,19 +110,6 @@ function drawPiece(
         level.visualSize.height,
       )
     }
-  } else {
-    context.fillStyle = level.color
-    context.beginPath()
-    context.ellipse(
-      offsetX,
-      offsetY,
-      level.visualSize.width / 2,
-      level.visualSize.height / 2,
-      0,
-      0,
-      Math.PI * 2,
-    )
-    context.fill()
   }
   context.restore()
 }

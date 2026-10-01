@@ -16,11 +16,16 @@ const vite = await createServer({
 
 try {
   const { MergeQbGame, makePiece, FAIL_LINE, DANGER_DISTANCE, DANGER_GRACE_MS } = await vite.ssrLoadModule('/src/features/games/merge-qb/game.ts')
-  const { QB_LEVELS } = await vite.ssrLoadModule('/src/features/games/merge-qb/levels.ts')
+  const { QB_LEVELS, levelOutlineBounds } = await vite.ssrLoadModule('/src/features/games/merge-qb/levels.ts')
   assert.equal(QB_LEVELS.length, 11)
   for (let index = 0; index < QB_LEVELS.length; index++) {
     const level = QB_LEVELS[index]
     assert.equal(level.nextId, QB_LEVELS[index + 1]?.id ?? null)
+    const bounds = levelOutlineBounds(level)
+    assert.ok(Object.values(bounds).every(Number.isFinite), `level ${level.id} derives finite outline bounds`)
+    for (const shape of level.collider.shapes)
+      if (shape.type === 'polygon')
+        assert.ok(shape.vertices.every((vertex) => vertex.x >= bounds.left && vertex.x <= bounds.right && vertex.y >= bounds.top && vertex.y <= bounds.bottom), `level ${level.id} outline contains its collider`)
     const engine = Matter.Engine.create({ enableSleeping: true })
     engine.gravity.y = 1.25
     const floor = Matter.Bodies.rectangle(180, 578, 432, 36, { isStatic: true })

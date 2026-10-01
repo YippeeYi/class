@@ -24,7 +24,7 @@ import {
   MAX_DROP_LEVEL_COUNT,
   MergeQbGame,
 } from './game'
-import { levelImagePath, QB_LEVELS } from './levels'
+import { levelImagePath, levelOutlineBounds, QB_LEVELS } from './levels'
 import {
   createImageMap,
   drawGame,
@@ -537,7 +537,7 @@ export function MergeQbBoard() {
                                     src={assets.urls[level.id]}
                                     alt=""
                                     style={(() => {
-                                      const { left, top, right, bottom } = level.visibleBounds
+                                      const { left, top, right, bottom } = levelOutlineBounds(level)
                                       const scale =
                                         32 /
                                         Math.max(

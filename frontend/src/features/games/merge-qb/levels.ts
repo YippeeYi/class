@@ -14,11 +14,9 @@ export type QbLevel = {
   visualSize: { width: number; height: number }
   physicsSize: { width: number; height: number }
   mass: number
-  visibleBounds: { left: number; top: number; right: number; bottom: number }
   collider: { shapes: ColliderShape[] }
   nextId: string | null
   points: number
-  color: string
 }
 
 // Geometry was measured from the alpha >= 64 silhouettes of the 11 local PNGs.
@@ -54,10 +52,8 @@ export const QB_LEVELS: readonly QbLevel[] = [
       ],
     },
     mass: 1.8,
-    visibleBounds: { left: 0.161, top: 0.185, right: 0.732, bottom: 0.981 },
     nextId: '02',
     points: 1,
-    color: '#f8bb86',
   },
   {
     id: '02',
@@ -88,10 +84,8 @@ export const QB_LEVELS: readonly QbLevel[] = [
       ],
     },
     mass: 2.2,
-    visibleBounds: { left: 0.026, top: 0.097, right: 0.98, bottom: 0.887 },
     nextId: '03',
     points: 3,
-    color: '#f2a0a8',
   },
   {
     id: '03',
@@ -122,10 +116,8 @@ export const QB_LEVELS: readonly QbLevel[] = [
       ],
     },
     mass: 2.69,
-    visibleBounds: { left: 0.146, top: 0.132, right: 0.806, bottom: 0.967 },
     nextId: '04',
     points: 6,
-    color: '#e6c273',
   },
   {
     id: '04',
@@ -156,10 +148,8 @@ export const QB_LEVELS: readonly QbLevel[] = [
       ],
     },
     mass: 3.3,
-    visibleBounds: { left: 0.105, top: 0.183, right: 0.803, bottom: 0.757 },
     nextId: '05',
     points: 10,
-    color: '#b7d582',
   },
   {
     id: '05',
@@ -190,10 +180,8 @@ export const QB_LEVELS: readonly QbLevel[] = [
       ],
     },
     mass: 4.1,
-    visibleBounds: { left: 0.044, top: 0.247, right: 0.896, bottom: 0.997 },
     nextId: '06',
     points: 15,
-    color: '#8fcfbd',
   },
   {
     id: '06',
@@ -224,10 +212,8 @@ export const QB_LEVELS: readonly QbLevel[] = [
       ],
     },
     mass: 5.13,
-    visibleBounds: { left: 0.0, top: 0.0, right: 0.997, bottom: 0.998 },
     nextId: '07',
     points: 21,
-    color: '#91c5e0',
   },
   {
     id: '07',
@@ -258,10 +244,8 @@ export const QB_LEVELS: readonly QbLevel[] = [
       ],
     },
     mass: 6.41,
-    visibleBounds: { left: 0.237, top: 0.052, right: 0.774, bottom: 0.593 },
     nextId: '08',
     points: 28,
-    color: '#b2ade5',
   },
   {
     id: '08',
@@ -317,10 +301,8 @@ export const QB_LEVELS: readonly QbLevel[] = [
       ],
     },
     mass: 8.15,
-    visibleBounds: { left: 0.039, top: 0.228, right: 0.989, bottom: 0.85 },
     nextId: '09',
     points: 36,
-    color: '#dda6d9',
   },
   {
     id: '09',
@@ -351,10 +333,8 @@ export const QB_LEVELS: readonly QbLevel[] = [
       ],
     },
     mass: 10.25,
-    visibleBounds: { left: 0.157, top: 0.139, right: 0.821, bottom: 0.993 },
     nextId: '10',
     points: 45,
-    color: '#e5a3aa',
   },
   {
     id: '10',
@@ -385,10 +365,8 @@ export const QB_LEVELS: readonly QbLevel[] = [
       ],
     },
     mass: 13.04,
-    visibleBounds: { left: 0.0, top: 0.142, right: 0.794, bottom: 0.997 },
     nextId: '11',
     points: 55,
-    color: '#e3ba76',
   },
   {
     id: '11',
@@ -419,14 +397,44 @@ export const QB_LEVELS: readonly QbLevel[] = [
       ],
     },
     mass: 16.66,
-    visibleBounds: { left: 0.176, top: 0.236, right: 0.791, bottom: 0.975 },
     nextId: null,
     points: 66,
-    color: '#d7ae74',
   },
 ]
 
 export const QB_LEVEL_BY_ID = new Map(QB_LEVELS.map((level) => [level.id, level]))
+
+export function levelOutlineBounds(level: QbLevel) {
+  let left = Infinity
+  let top = Infinity
+  let right = -Infinity
+  let bottom = -Infinity
+  const include = (x: number, y: number) => {
+    left = Math.min(left, x)
+    top = Math.min(top, y)
+    right = Math.max(right, x)
+    bottom = Math.max(bottom, y)
+  }
+  for (const shape of level.collider.shapes) {
+    if (shape.type === 'polygon') {
+      for (const vertex of shape.vertices) include(vertex.x, vertex.y)
+    } else if (shape.type === 'rectangle') {
+      include(shape.x - shape.width / 2, shape.y - shape.height / 2)
+      include(shape.x + shape.width / 2, shape.y + shape.height / 2)
+    } else {
+      const radius = shape.radius * Math.min(level.physicsSize.width, level.physicsSize.height)
+      include(
+        shape.x - radius / level.physicsSize.width,
+        shape.y - radius / level.physicsSize.height,
+      )
+      include(
+        shape.x + radius / level.physicsSize.width,
+        shape.y + radius / level.physicsSize.height,
+      )
+    }
+  }
+  return { left, top, right, bottom }
+}
 
 export function levelImagePath(level: QbLevel) {
   return `images/games/merge-qb/${level.image}`
