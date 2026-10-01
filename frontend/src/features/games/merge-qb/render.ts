@@ -1,5 +1,5 @@
 import { FAIL_LINE, GAME_HEIGHT, GAME_WIDTH, type MergeQbGame } from './game'
-import { QB_LEVELS, QB_OUTLINE, type QbLevel } from './levels'
+import { QB_LEVELS, QB_OUTLINE, QB_SHOCKWAVE, type QbLevel } from './levels'
 
 export type QbImages = Map<string, HTMLImageElement>
 export type QbSprites = Map<string, { canvas: HTMLCanvasElement; padding: number; factor: number }>
@@ -9,7 +9,10 @@ export function drawGame(
   game: MergeQbGame,
   images: QbImages,
   sprites: QbSprites,
+  scale: number,
 ) {
+  const snapshot = game.snapshot
+  const time = game.time
   context.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
 
   context.save()
@@ -35,10 +38,29 @@ export function drawGame(
     )
   }
 
-  if (!game.snapshot.gameOver) {
-    const level = game.snapshot.current
+  for (const wave of game.activeShockwaves) {
+    const progress = Math.min(1, (time - wave.startedAt) / QB_SHOCKWAVE.durationMs)
+    const eased = 1 - (1 - progress) ** 2
     context.save()
-    context.globalAlpha = game.snapshot.canDrop ? 0.82 : 0.42
+    context.globalAlpha = 0.34 * (1 - progress) ** 2
+    context.strokeStyle = 'rgb(120 106 92)'
+    context.lineWidth = QB_SHOCKWAVE.lineWidthCssPx / scale
+    context.beginPath()
+    context.arc(
+      wave.x,
+      wave.y,
+      wave.startRadius + (wave.radius - wave.startRadius) * eased,
+      0,
+      Math.PI * 2,
+    )
+    context.stroke()
+    context.restore()
+  }
+
+  if (!snapshot.gameOver) {
+    const level = snapshot.current
+    context.save()
+    context.globalAlpha = snapshot.canDrop ? 0.82 : 0.42
     drawPiece(
       context,
       level,

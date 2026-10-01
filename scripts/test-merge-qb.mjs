@@ -42,6 +42,43 @@ try {
   }
 
   const base = QB_LEVELS[0]
+  const mergeForce = (sourceLevel) => {
+    const pulseGame = new MergeQbGame(() => {}, () => 0)
+    const firstSource = makePiece(sourceLevel, 140, 300)
+    const secondSource = makePiece(sourceLevel, 180, 300)
+    const nearby = makePiece(base, 240, 300)
+    const distant = makePiece(base, 700, 300)
+    const centred = makePiece(QB_LEVELS[2], 180, 300)
+    Matter.Body.setPosition(centred.body, {
+      x: (firstSource.body.position.x + secondSource.body.position.x) / 2,
+      y: (firstSource.body.position.y + secondSource.body.position.y) / 2,
+    })
+    for (const piece of [firstSource, secondSource, nearby, distant, centred]) {
+      pulseGame.pieces.set(piece.body.id, piece)
+      Matter.Composite.add(pulseGame.engine.world, piece.body)
+    }
+    pulseGame.pendingPairs.set(`${firstSource.body.id}:${secondSource.body.id}`, [firstSource.body.id, secondSource.body.id])
+    pulseGame.mergePending()
+    assert.equal(pulseGame.activeShockwaves.length, 1, 'a genuine merge emits exactly one shockwave')
+    const merged = [...pulseGame.objects].find((piece) => piece.level.id === sourceLevel.nextId)
+    assert.ok(merged)
+    assert.equal(pulseGame.activeShockwaves[0].x, merged.body.position.x + merged.imageOffset.x, 'visual and physical waves use the new QB image centre')
+    assert.equal(pulseGame.pieces.has(firstSource.body.id), false)
+    assert.equal(pulseGame.pieces.has(secondSource.body.id), false)
+    assert.ok(nearby.body.force.x > 0, 'the nearby QB receives an outward force')
+    assert.equal(distant.body.force.x, 0, 'a distant QB receives no force')
+    assert.ok(Number.isFinite(centred.body.force.x) && Number.isFinite(centred.body.force.y), 'zero-distance contact remains finite')
+    const force = nearby.body.force.x
+    pulseGame.mergePending()
+    assert.equal(pulseGame.activeShockwaves.length, 1, 'a processed pair cannot emit twice')
+    for (let step = 0; step < 24; step++) pulseGame.step()
+    assert.equal(pulseGame.activeShockwaves.length, 0, 'the visual wave expires without retained objects')
+    pulseGame.reset()
+    assert.equal(pulseGame.activeShockwaves.length, 0, 'restart clears all visual waves')
+    pulseGame.dispose()
+    return force
+  }
+  assert.ok(mergeForce(QB_LEVELS[9]) > mergeForce(base), 'higher level merges produce a stronger bounded impulse')
   for (const shape of [
     { type: 'circle', x: 0.5, y: 0.5, radius: 0.4 },
     { type: 'rectangle', x: 0.5, y: 0.5, width: 0.7, height: 0.8 },
@@ -182,6 +219,15 @@ try {
   assert.equal(game.snapshot.gameOver, false)
   assert.equal(game.snapshot.danger, 'normal')
   assert.equal(game.snapshot.countdown, null)
+  for (let restart = 0; restart < 5; restart++) {
+    const previousEngine = game.engine
+    game.reset()
+    assert.equal(previousEngine.events.collisionStart?.length ?? 0, 0, 'restart removes the old collision listener')
+    assert.equal(previousEngine.events.collisionActive?.length ?? 0, 0, 'restart removes the old active-contact listener')
+    assert.equal(game.engine.events.collisionStart?.length, 1, 'restart installs one collision listener')
+    assert.equal(game.engine.events.collisionActive?.length, 1, 'restart installs one active-contact listener')
+    assert.equal(game.activeShockwaves.length, 0)
+  }
   game.dispose()
 
   const selection = new MergeQbGame(() => {}, () => 0.999)

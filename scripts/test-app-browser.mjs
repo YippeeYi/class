@@ -193,7 +193,7 @@ try {
   await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-record-jump-actions]')).opacity === '1')
   const targetBounds = await page.locator('#record-r2').boundingBox()
   const jumpBounds = await jumpPanel.boundingBox()
-  assert.ok(jumpBounds.y >= targetBounds.y + targetBounds.height - 1 && Math.abs(jumpBounds.x - targetBounds.x) < 2 && jumpBounds.width < targetBounds.width, 'jump actions sit directly below the record at a narrower width')
+  assert.ok(jumpBounds.y >= targetBounds.y + targetBounds.height - 1 && Math.abs((jumpBounds.x + jumpBounds.width / 2) - (targetBounds.x + targetBounds.width / 2)) < 2 && jumpBounds.width < targetBounds.width, 'jump actions sit centered directly below the target record')
   assert.ok(await jumpPanel.evaluate((panel) => [...panel.querySelectorAll('button')].every((button) => button.getBoundingClientRect().right <= panel.getBoundingClientRect().right && button.scrollWidth <= button.clientWidth)), 'jump action buttons fit inside the narrower panel')
   assert.ok(Math.abs(await page.locator('#record-r1').evaluate((element) => element.getBoundingClientRect().top + scrollY) - nextRecordY) < 1, 'jump actions do not move following records')
   assert.ok(await jumpPanel.evaluate((element) => Math.abs(element.parentElement.parentElement.getBoundingClientRect().bottom - element.parentElement.previousElementSibling.getBoundingClientRect().bottom) < 1), 'jump actions do not enlarge the record wrapper')
@@ -484,6 +484,8 @@ try {
   await mobileJumpPanel.waitFor()
   const mobileJumpBounds = await mobileJumpPanel.boundingBox()
   assert.ok(mobileJumpBounds.x >= 0 && mobileJumpBounds.x + mobileJumpBounds.width <= 390, 'jump actions fit the mobile viewport')
+  const mobileTargetBounds = await touch.locator('#record-r1').boundingBox()
+  assert.ok(Math.abs((mobileJumpBounds.x + mobileJumpBounds.width / 2) - (mobileTargetBounds.x + mobileTargetBounds.width / 2)) < 2, 'mobile jump actions center on their target record')
   assert.ok(await mobileJumpPanel.evaluate((panel) => [...panel.querySelectorAll('button')].every((button) => button.getBoundingClientRect().right <= panel.getBoundingClientRect().right && button.scrollWidth <= button.clientWidth)), 'mobile jump action buttons remain readable and inside the panel')
   assert.equal(await touch.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'mobile jump actions do not overflow')
   await touch.screenshot({ path: '/tmp/class-record-jump-mobile.png' })
@@ -527,16 +529,23 @@ try {
   const fitsMobileGame = async (size) => {
     const geometry = await touch.evaluate(() => {
       const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
-      const toolbar = document.querySelector('.merge-qb-toolbar').getBoundingClientRect()
+      const toolbarElement = document.querySelector('.merge-qb-toolbar')
+      const toolbar = toolbarElement.getBoundingClientRect()
       const main = document.querySelector('main')
-      return { arena: [arena.top, arena.bottom, arena.width, arena.height], toolbar: [toolbar.top, toolbar.bottom], viewport: [innerWidth, innerHeight], scroll: [document.documentElement.scrollWidth, document.documentElement.scrollHeight], overflow: getComputedStyle(main).overflowY }
+      const title = toolbarElement.querySelector('.merge-qb-title').getBoundingClientRect()
+      const restart = toolbarElement.querySelector('.merge-qb-actions button[aria-label="重新开始"]')?.getBoundingClientRect()
+      const score = toolbarElement.querySelector('.merge-qb-score').getBoundingClientRect()
+      const next = toolbarElement.querySelector('.merge-qb-next').getBoundingClientRect()
+      return { arena: [arena.top, arena.bottom, arena.width, arena.height, arena.left, arena.right], toolbar: [toolbar.top, toolbar.bottom], viewport: [innerWidth, innerHeight], scroll: [document.documentElement.scrollWidth, document.documentElement.scrollHeight], overflow: getComputedStyle(main).overflowY, controls: [title.right, restart?.left, restart?.right, score.left, score.right, next.left] }
     })
     assert.ok(geometry.toolbar[1] < geometry.arena[0] && geometry.arena[1] <= geometry.viewport[1] + 1 && geometry.scroll[1] <= geometry.viewport[1] + 1 && geometry.scroll[0] <= geometry.viewport[0] + 1 && geometry.overflow === 'hidden' && Math.abs(geometry.arena[2] / geometry.arena[3] - 360 / 560) < 0.01, `mobile game fits without scrolling at ${size}: ${JSON.stringify(geometry)}`)
+    assert.ok(geometry.arena[4] >= 8 && geometry.viewport[0] - geometry.arena[5] >= 8 && Math.abs(geometry.arena[4] - (geometry.viewport[0] - geometry.arena[5])) < 2, `mobile arena has symmetric side space at ${size}: ${JSON.stringify(geometry)}`)
+    assert.ok(geometry.controls[0] <= geometry.controls[1] && geometry.controls[2] <= geometry.controls[3] && geometry.controls[5] - geometry.controls[4] >= 8, `mobile title, restart, score and next remain separated at ${size}: ${JSON.stringify(geometry)}`)
   }
   await fitsMobileGame('390×844')
   assert.equal(await touch.locator('.app-topbar').isVisible(), false, 'mobile game uses only its own top bar')
   assert.ok(await touch.locator('.merge-qb-toolbar').evaluate((toolbar) => toolbar.getBoundingClientRect().top < 1), 'mobile game toolbar starts at the top of the viewport')
-  assert.equal(await touch.locator('[aria-label="重新开始"]').isVisible(), false)
+  assert.equal(await touch.getByRole('button', { name: '重新开始' }).isVisible(), true)
   assert.equal(await touch.getByRole('button', { name: '全屏游玩' }).count(), 0, 'mobile game hides its fullscreen button')
   assert.equal(await touch.getByRole('button', { name: '进入全屏' }).count(), 0, 'mobile game hides the shell fullscreen button')
   assert.ok(await touch.evaluate(() => document.querySelector('.merge-qb-score').getBoundingClientRect().right <= document.querySelector('.merge-qb-next').getBoundingClientRect().left), 'mobile score precedes the next preview in one row')
@@ -547,9 +556,26 @@ try {
   await touch.waitForTimeout(600)
   await touchBoard.tap()
   await touch.waitForFunction(() => document.querySelector('.merge-qb-score strong')?.textContent === '3')
+  await touch.getByRole('button', { name: '重新开始' }).tap()
+  assert.equal(await touch.locator('.merge-qb-score strong').innerText(), '0', 'mobile restart uses the existing reset path')
   await touch.setViewportSize({ width: 320, height: 844 })
   assert.equal(await touch.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'game fits a narrow phone')
   await fitsMobileGame('320×844')
+  await touch.evaluate(async (base) => {
+    const { MergeQbGame } = await import(base + 'src/features/games/merge-qb/game.ts')
+    const step = MergeQbGame.prototype.step
+    MergeQbGame.prototype.step = function () {
+      window.__mobileMergeGame = this
+      step.call(this)
+    }
+  }, origin)
+  await touch.waitForFunction(() => window.__mobileMergeGame)
+  await touch.evaluate(() => {
+    window.__mobileMergeGame.score = 12345
+    window.__mobileMergeGame.publish()
+  })
+  await fitsMobileGame('320×844 with long score')
+  await touch.getByRole('button', { name: '重新开始' }).tap()
   assert.ok(Number(await touch.locator('.merge-qb-toolbar strong[aria-live="polite"]').innerText()) >= 0)
   await touch.setViewportSize({ width: 320, height: 568 })
   await touch.waitForTimeout(100)
@@ -558,6 +584,17 @@ try {
   await touch.waitForTimeout(100)
   await fitsMobileGame('390×568')
   await touch.screenshot({ path: '/tmp/class-merge-qb-mobile-short.png' })
+  await touch.evaluate(() => {
+    window.__mobileMergeGame.danger = 'game-over'
+    window.__mobileMergeGame.publish()
+  })
+  const mobileGameOver = touch.locator('.merge-qb-game-over-label')
+  await mobileGameOver.waitFor()
+  assert.ok(await mobileGameOver.evaluate((label) => Number.parseFloat(getComputedStyle(label).fontSize) >= 18), 'mobile game over title uses the larger type scale')
+  assert.equal(await touch.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'mobile game over title does not overflow')
+  await touch.screenshot({ path: '/tmp/class-merge-qb-game-over-mobile.png' })
+  await mobileGameOver.tap()
+  assert.equal(await touchBoard.isDisabled(), false, 'mobile game over restart restores play')
   await touch.getByRole('button', { name: '返回游戏库' }).tap()
   await touch.waitForURL(/games\/?$/)
   await mobile.close()
@@ -649,7 +686,7 @@ try {
         const scoreValue = document.querySelector('.merge-qb-score strong').getBoundingClientRect()
         const nextPreview = document.querySelector('.merge-qb-next img').getBoundingClientRect()
         const levels = [...document.querySelectorAll('.merge-qb-level')].map((node) => node.getBoundingClientRect())
-        const controls = ['返回游戏库', '重新开始', '全屏游玩'].map((name) => document.querySelector(`[aria-label="${name}"]`)?.getBoundingClientRect()).filter(Boolean)
+        const controls = ['返回游戏库', '重新开始', '全屏游玩'].map((name) => [...document.querySelectorAll(`[aria-label="${name}"]`)].map((node) => node.getBoundingClientRect()).find((rect) => rect.width > 0)).filter(Boolean)
         return {
           bottom: Math.max(arena.bottom, sequence.bottom),
           ratio: arena.width / arena.height,
@@ -876,6 +913,8 @@ try {
       }, origin)
       const celebration = gamePage.locator('.merge-qb-celebration')
       await triggerMaximumMerge()
+      assert.equal(await gamePage.evaluate(() => window.__mergeQbTestGame.activeShockwaves.length), 1, 'one merge creates one short-lived visual wave')
+      await gamePage.screenshot({ path: '/tmp/class-merge-qb-shockwave.png' })
       assert.equal(await gamePage.evaluate(() => window.__mergeQbTestGame.snapshot.maxMergeCount), 1)
       await gamePage.waitForFunction(() => [...document.querySelectorAll('.merge-qb-level[data-level-id]')].at(-1)?.querySelector('img'))
       await celebration.waitFor({ state: 'attached' })
@@ -883,6 +922,7 @@ try {
       await gamePage.waitForFunction(() =>
         [...(document.querySelector('.merge-qb-celebration')?.getAnimations() ?? [])].some((animation) => animation.currentTime > 500),
       )
+      assert.equal(await gamePage.evaluate(() => window.__mergeQbTestGame.activeShockwaves.length), 0, 'the canvas shockwave has expired after its brief animation')
       await gamePage.screenshot({ path: '/tmp/class-merge-qb-celebration.png' })
       await celebration.waitFor({ state: 'hidden', timeout: 5000 })
       await gamePage.getByRole('button', { name: '全屏游玩' }).click()

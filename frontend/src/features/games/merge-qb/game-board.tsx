@@ -203,7 +203,7 @@ export function MergeQbBoard() {
         if (image?.complete && image.naturalWidth > 0)
           sprites.set(level.id, makeOutlinedSprite(level, image, scale, pixelRatio))
       }
-      drawGame(context, game, images, sprites)
+      drawGame(context, game, images, sprites, scale)
     }
     const observer = new ResizeObserver(resize)
     observer.observe(canvas)
@@ -221,7 +221,7 @@ export function MergeQbBoard() {
         accumulated -= 1000 / 60
         steps += 1
       }
-      drawGame(context, game, images, sprites)
+      drawGame(context, game, images, sprites, scale)
       frame = requestAnimationFrame(animate)
     }
     frame = requestAnimationFrame(animate)
@@ -300,6 +300,8 @@ export function MergeQbBoard() {
       gameRef.current?.drop()
     }
   }
+
+  const restartGame = () => gameRef.current?.reset()
 
   return (
     <div ref={stageRef} className="merge-qb-stage">
@@ -391,6 +393,16 @@ export function MergeQbBoard() {
               <h1 className="merge-qb-title whitespace-nowrap font-heading text-sm font-semibold">
                 合成大QB
               </h1>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="merge-qb-mobile-restart h-8 px-0.5 text-[0.6875rem] md:hidden"
+                aria-label="重新开始"
+                onClick={restartGame}
+              >
+                重新开始
+              </Button>
             </div>
             <div className="flex shrink-0 items-center gap-1">
               {assets.error && (
@@ -412,7 +424,7 @@ export function MergeQbBoard() {
                       size="icon"
                       className="max-md:hidden"
                       aria-label="重新开始"
-                      onClick={() => gameRef.current?.reset()}
+                      onClick={restartGame}
                     />
                   }
                 >
@@ -454,8 +466,8 @@ export function MergeQbBoard() {
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="merge-qb-game-over-label"
-                onClick={() => gameRef.current?.reset()}
+                className="merge-qb-game-over-label h-auto min-h-8 px-1 text-lg leading-6 md:text-xl md:leading-7"
+                onClick={restartGame}
                 aria-label="游戏结束，重新开始"
                 title="重新开始"
               >

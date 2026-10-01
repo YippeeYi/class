@@ -78,7 +78,7 @@ function RecordJumpActions({
       aria-label="记录跳转操作"
       aria-hidden={closing || undefined}
       inert={closing || undefined}
-      className="record-jump-actions min-w-0 max-w-md gap-2 border border-border/70 bg-popover p-3 shadow-md"
+      className="record-jump-actions mx-auto min-w-0 max-w-md gap-2 border border-border/70 bg-popover p-3 shadow-md"
       onKeyDown={(event) => {
         if (event.key === 'Escape') onStay()
       }}

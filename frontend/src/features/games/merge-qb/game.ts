@@ -8,6 +8,7 @@ import {
   QB_LEVEL_BY_ID,
   QB_LEVELS,
   QB_PHYSICS,
+  QB_SHOCKWAVE,
   type QbLevel,
 } from './levels'
 
@@ -40,6 +41,14 @@ export type GamePiece = {
   level: QbLevel
   imageOffset: Point
   inStack: boolean
+}
+
+export type Shockwave = {
+  x: number
+  y: number
+  startRadius: number
+  radius: number
+  startedAt: number
 }
 
 function relativePoint(point: Point, level: QbLevel): Point {
@@ -98,6 +107,7 @@ export class MergeQbGame {
   private floorId = 0
   private pieces = new Map<number, GamePiece>()
   private pendingPairs = new Map<string, [number, number]>()
+  private shockwaves: Shockwave[] = []
   private score = 0
   private unlockedCount = 1
   private maxMergeCount = 0
@@ -140,8 +150,8 @@ export class MergeQbGame {
         second.inStack = true
       }
       if (!first || !second || first.level.id !== second.level.id || !first.level.nextId) continue
-      const ids: [number, number] = a.id < b.id ? [a.id, b.id] : [b.id, a.id]
-      this.pendingPairs.set(`${ids[0]}:${ids[1]}`, ids)
+      if (!this.pendingPairs.has(pair.id))
+        this.pendingPairs.set(pair.id, a.id < b.id ? [a.id, b.id] : [b.id, a.id])
     }
   }
 
@@ -193,6 +203,14 @@ export class MergeQbGame {
     return this.pieces.values()
   }
 
+  get activeShockwaves(): readonly Shockwave[] {
+    return this.shockwaves
+  }
+
+  get time() {
+    return this.engine.timing.timestamp
+  }
+
   get targetX() {
     return this.aimX
   }
@@ -219,6 +237,7 @@ export class MergeQbGame {
   }
 
   private mergePending() {
+    if (!this.pendingPairs.size) return
     const involved = new Set<number>()
     for (const [aId, bId] of this.pendingPairs.values()) {
       if (involved.has(aId) || involved.has(bId)) continue
@@ -243,6 +262,7 @@ export class MergeQbGame {
       MatterBody.setVelocity(merged.body, velocity)
       Composite.add(this.engine.world, merged.body)
       this.pieces.set(merged.body.id, merged)
+      this.createShockwave(next, x, y, merged.body.id)
       this.score += next.points
       this.unlockedCount = Math.max(this.unlockedCount, QB_LEVELS.indexOf(next) + 1)
       if (!next.nextId) this.maxMergeCount += 1
@@ -255,6 +275,48 @@ export class MergeQbGame {
       }
       this.publish()
     }
+  }
+
+  private createShockwave(level: QbLevel, x: number, y: number, mergedId: number) {
+    const size = Math.max(level.physicsSize.width, level.physicsSize.height)
+    const radius = Math.min(
+      QB_SHOCKWAVE.maxRadius,
+      QB_SHOCKWAVE.baseRadius + size * QB_SHOCKWAVE.radiusPerSize,
+    )
+    const strength = Math.min(
+      QB_SHOCKWAVE.maxForce,
+      QB_SHOCKWAVE.baseForce + size * QB_SHOCKWAVE.forcePerSize,
+    )
+    const radiusSquared = radius * radius
+    for (const piece of this.pieces.values()) {
+      const body = piece.body
+      if (body.id === mergedId || body.isStatic) continue
+      const dx = body.position.x - x
+      const dy = body.position.y - y
+      const distanceSquared = dx * dx + dy * dy
+      if (!Number.isFinite(distanceSquared) || distanceSquared >= radiusSquared) continue
+      const distance = Math.sqrt(distanceSquared)
+      const falloff = (1 - distance / radius) ** 2
+      const directionX = distance > 0.001 ? dx / distance : body.id % 2 ? 1 : -1
+      const directionY = distance > 0.001 ? dy / distance : 0
+      const force = Math.min(QB_SHOCKWAVE.maxForce, strength * falloff * Math.sqrt(body.mass))
+      Sleeping.set(body, false)
+      MatterBody.applyForce(body, body.position, {
+        x: directionX * force,
+        y: directionY * force,
+      })
+    }
+    this.shockwaves.push({
+      x,
+      y,
+      startRadius:
+        Math.max(
+          (level.visibleBounds.right - level.visibleBounds.left) * level.visualSize.width,
+          (level.visibleBounds.bottom - level.visibleBounds.top) * level.visualSize.height,
+        ) / 2,
+      radius,
+      startedAt: this.time,
+    })
   }
 
   private hasOverLinePiece() {
@@ -304,6 +366,7 @@ export class MergeQbGame {
         this.dangerStartedAt = null
         this.countdown = 0
         this.pendingPairs.clear()
+        this.shockwaves.length = 0
         this.publish()
       } else {
         this.danger = 'normal'
@@ -327,6 +390,10 @@ export class MergeQbGame {
     if (this.danger === 'game-over') return
     Engine.update(this.engine, STEP_MS)
     const time = this.engine.timing.timestamp
+    for (let index = this.shockwaves.length - 1; index >= 0; index--) {
+      const wave = this.shockwaves[index]
+      if (wave && time - wave.startedAt >= QB_SHOCKWAVE.durationMs) this.shockwaves.splice(index, 1)
+    }
     this.mergePending()
     this.checkDanger(time)
     if (this.snapshot.gameOver) return
@@ -339,6 +406,7 @@ export class MergeQbGame {
     this.engine = Engine.create({ enableSleeping: true })
     this.pieces.clear()
     this.pendingPairs.clear()
+    this.shockwaves.length = 0
     this.score = 0
     this.unlockedCount = 1
     this.maxMergeCount = 0
@@ -364,5 +432,6 @@ export class MergeQbGame {
     this.disposeWorld()
     this.pieces.clear()
     this.pendingPairs.clear()
+    this.shockwaves.length = 0
   }
 }
