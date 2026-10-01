@@ -27,6 +27,9 @@ try {
   assert.equal(sparkle.kind, 'sparkle')
   assert.ok(confetti.particles.length > sparkle.particles.length && sparkle.particles.length > 0)
   assert.ok(confetti.radius > 0 && sparkle.radius > 0)
+  assert.ok([...confetti.particles, ...sparkle.particles].every((particle) =>
+    Math.abs(particle.directionX ** 2 + particle.directionY ** 2 - 1) < 1e-12),
+  'cached particle directions preserve unit-length trajectories')
   assert.deepEqual([confetti.x, confetti.y, sparkle.x, sparkle.y], [180, 300, 180, 300])
   assert.ok(createCelebration(visualEvent, 'confetti', 1000, true).particles.length < confetti.particles.length, 'reduced motion uses fewer particles')
   for (let index = 0; index < QB_LEVELS.length; index++) {
@@ -124,6 +127,29 @@ try {
     { x: 0.1, y: 0.1 }, { x: 0.9, y: 0.1 }, { x: 0.5, y: 0.5 },
     { x: 0.9, y: 0.9 }, { x: 0.1, y: 0.9 },
   ] }] } }, 180, 200), /must be convex/)
+
+  const idleSnapshots = []
+  const idleGame = new MergeQbGame((snapshot) => idleSnapshots.push(snapshot), () => 0)
+  const snapshotGetter = Object.getOwnPropertyDescriptor(MergeQbGame.prototype, 'snapshot').get
+  let snapshotReads = 0
+  Object.defineProperty(idleGame, 'snapshot', { get() {
+    snapshotReads++
+    return snapshotGetter.call(this)
+  } })
+  for (let step = 0; step < 360; step++) idleGame.step()
+  assert.equal(snapshotReads, 0, 'idle physics ticks do not allocate UI snapshots')
+  assert.equal(idleSnapshots.length, 1, 'idle ticks do not publish React updates')
+  assert.equal(idleGame.gameOver, false)
+  assert.equal(idleGame.canDrop, true)
+  assert.equal(idleGame.currentLevel, QB_LEVELS[0])
+  for (let restart = 0; restart < 20; restart++) {
+    idleGame.reset()
+    assert.equal(idleGame.engine.events.collisionStart.length, 1)
+    assert.equal(idleGame.engine.events.collisionActive.length, 1)
+  }
+  idleGame.dispose()
+  assert.equal(idleGame.engine.events.collisionStart.length, 0)
+  assert.equal(idleGame.engine.events.collisionActive.length, 0)
 
   const snapshots = []
   const game = new MergeQbGame((snapshot) => snapshots.push(snapshot), () => 0)

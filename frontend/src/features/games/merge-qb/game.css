@@ -377,6 +377,19 @@ body button.merge-qb-arena:active {
 }
 
 @media (max-width: 767px) {
+  .merge-qb-stage,
+  .merge-qb-confirm-dialog,
+  .merge-qb-share-dialog {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .merge-qb-stage img,
+  .merge-qb-share-dialog img {
+    -webkit-user-drag: none;
+  }
+
   .merge-qb-page {
     height: 100%;
     min-height: 0;
@@ -415,7 +428,7 @@ body button.merge-qb-arena:active {
     width: 100%;
     max-width: none;
     gap: clamp(0.5rem, 2.8vw, 0.75rem);
-    padding: 0.25rem;
+    padding: 0.75rem 0.25rem;
   }
 }
 
@@ -459,11 +472,11 @@ body button.merge-qb-arena:active {
     display: flex;
     align-items: center;
     gap: clamp(0.5rem, 2.8vw, 0.75rem);
-    padding: 0.25rem;
+    padding: 0.75rem 0.25rem;
   }
 
   .merge-qb-toolbar .merge-qb-actions {
-    flex: 1;
+    flex: none;
     min-width: 0;
   }
 
@@ -472,12 +485,12 @@ body button.merge-qb-arena:active {
   }
 
   .merge-qb-toolbar .merge-qb-title {
-    font-size: 0.6875rem;
+    font-size: clamp(0.8125rem, 3.4vw, 0.9375rem);
   }
 
   .merge-qb-toolbar .merge-qb-score,
   .merge-qb-toolbar .merge-qb-next {
-    flex-direction: row;
+    flex-direction: column;
     flex: none;
     gap: 0.125rem;
     border: 0;
@@ -486,15 +499,35 @@ body button.merge-qb-arena:active {
 
   .merge-qb-toolbar .merge-qb-score {
     order: 1;
+    flex: 1 1 0;
+    padding-right: clamp(1.75rem, 8vw, 2.25rem);
   }
 
   .merge-qb-toolbar .merge-qb-score strong {
-    font-size: 0.875rem;
+    font-size: clamp(1rem, 4.2vw, 1.125rem);
     line-height: 1;
   }
 
   .merge-qb-toolbar .merge-qb-next {
     order: 2;
+    width: clamp(2rem, 9vw, 2.75rem);
+  }
+
+  .merge-qb-toolbar:has(.merge-qb-game-over-actions, .merge-qb-retry) {
+    flex-wrap: wrap;
+  }
+
+  .merge-qb-toolbar:has(.merge-qb-game-over-actions, .merge-qb-retry) .merge-qb-actions {
+    flex-basis: 100%;
+  }
+
+  .merge-qb-toolbar .merge-qb-next:has(.merge-qb-game-over-actions) {
+    width: auto;
+  }
+
+  .merge-qb-toolbar .merge-qb-next > span,
+  .merge-qb-toolbar .merge-qb-score > span:first-child {
+    font-size: 0.8125rem;
   }
 
   .merge-qb-toolbar .merge-qb-next-preview {

@@ -5,7 +5,8 @@ export type QbImages = Map<string, HTMLImageElement>
 export type QbSprites = Map<string, { canvas: HTMLCanvasElement; padding: number; factor: number }>
 
 type CelebrationParticle = {
-  angle: number
+  directionX: number
+  directionY: number
   originRadius: number
   speed: number
   size: number
@@ -78,7 +79,8 @@ export function createCelebration(
             (Math.sin(angle) / Math.max(1, radiusY)) ** 2,
         )
       return {
-        angle,
+        directionX: Math.cos(angle),
+        directionY: Math.sin(angle),
         originRadius: edgeRadius(event.level, angle, ellipseRadius) + (Math.random() - 0.5) * 4,
         speed: 38 + Math.random() * (kind === 'confetti' ? 55 : 42),
         size: 2.5 + Math.random() * 2.5,
@@ -114,8 +116,8 @@ export function drawCelebrations(
     }
     for (const particle of effect.particles) {
       const distance = particle.originRadius + 2 + particle.speed * progress
-      const x = effect.x + Math.cos(particle.angle) * distance
-      const y = effect.y + Math.sin(particle.angle) * distance + progress * progress * 12
+      const x = effect.x + particle.directionX * distance
+      const y = effect.y + particle.directionY * distance + progress * progress * 12
       context.save()
       context.translate(x, y)
       context.rotate(particle.spin * progress)
@@ -146,7 +148,6 @@ export function drawGame(
   sprites: QbSprites,
   scale: number,
 ) {
-  const snapshot = game.snapshot
   const time = game.time
   context.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
 
@@ -192,10 +193,10 @@ export function drawGame(
     context.restore()
   }
 
-  if (!snapshot.gameOver) {
-    const level = snapshot.current
+  if (!game.gameOver) {
+    const level = game.currentLevel
     context.save()
-    context.globalAlpha = snapshot.canDrop ? 0.82 : 0.42
+    context.globalAlpha = game.canDrop ? 0.82 : 0.42
     drawPiece(
       context,
       level,

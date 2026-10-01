@@ -208,15 +208,25 @@ export class MergeQbGame {
       highestMergedLevel: this.highestMergedLevel,
       current: this.current,
       next: this.next,
-      gameOver: this.danger === 'game-over',
-      canDrop:
-        this.danger !== 'game-over' &&
-        this.engine.timing.timestamp - this.lastDropAt >= DROP_DELAY_MS,
+      gameOver: this.gameOver,
+      canDrop: this.canDrop,
       danger: this.danger,
       countdown: this.danger === 'countdown' ? this.countdown : null,
       unlockedCount: this.unlockedCount,
       maxMergeCount: this.maxMergeCount,
     }
+  }
+
+  get gameOver() {
+    return this.danger === 'game-over'
+  }
+
+  get canDrop() {
+    return !this.gameOver && this.time - this.lastDropAt >= DROP_DELAY_MS
+  }
+
+  get currentLevel() {
+    return this.current
   }
 
   get objects() {
@@ -242,7 +252,7 @@ export class MergeQbGame {
   }
 
   drop() {
-    if (!this.snapshot.canDrop) return false
+    if (!this.canDrop) return false
     const level = this.current
     const y = Math.max(38, level.physicsSize.height / 2 + 3)
     const piece = makePiece(level, this.aimX, y)
@@ -350,13 +360,6 @@ export class MergeQbGame {
     })
   }
 
-  private hasOverLinePiece() {
-    for (const piece of this.pieces.values()) {
-      if (piece.inStack && piece.body.bounds.min.y < FAIL_LINE) return true
-    }
-    return false
-  }
-
   private checkDanger(time: number) {
     let highest = Infinity
     for (const piece of this.pieces.values()) {
@@ -391,20 +394,12 @@ export class MergeQbGame {
     }
 
     if (time - (this.dangerStartedAt ?? time) >= DANGER_COUNTDOWN_MS) {
-      // Check current bodies again after this frame's collisions and merges.
-      if (this.hasOverLinePiece()) {
-        this.danger = 'game-over'
-        this.dangerStartedAt = null
-        this.countdown = 0
-        this.pendingPairs.clear()
-        this.shockwaves.length = 0
-        this.publish()
-      } else {
-        this.danger = 'normal'
-        this.dangerStartedAt = null
-        this.countdown = 0
-        this.publish()
-      }
+      this.danger = 'game-over'
+      this.dangerStartedAt = null
+      this.countdown = 0
+      this.pendingPairs.clear()
+      this.shockwaves.length = 0
+      this.publish()
       return
     }
 
@@ -427,7 +422,7 @@ export class MergeQbGame {
     }
     this.mergePending()
     this.checkDanger(time)
-    if (this.snapshot.gameOver) return
+    if (this.gameOver) return
     if (time - this.lastDropAt >= DROP_DELAY_MS && time - this.lastDropAt < DROP_DELAY_MS + STEP_MS)
       this.publish()
   }

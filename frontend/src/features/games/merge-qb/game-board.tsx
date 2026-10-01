@@ -15,6 +15,7 @@ import {
   type PointerEvent,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -105,6 +106,7 @@ export function MergeQbBoard() {
   const gameRef = useRef<MergeQbGame | null>(null)
   const loadAssetsRef = useRef<(force?: boolean) => Promise<void>>(async () => {})
   const touchPointer = useRef<number | null>(null)
+  const resumeAnimationRef = useRef<() => void>(() => {})
   const clearCelebrationsRef = useRef<() => void>(() => {})
   const frozenArenaRef = useRef<HTMLCanvasElement | null>(null)
   const finalSnapshotRef = useRef<GameSnapshot | null>(null)
@@ -135,6 +137,7 @@ export function MergeQbBoard() {
   const modalOpenRef = useRef(false)
   modalOpenRef.current = confirmAction !== null || shareOpen
   const visibleLevels = snapshot?.highestMergedLevel?.id === '12' ? QB_LEVELS : regularLevels
+  const unlockedCount = snapshot?.unlockedCount ?? 1
 
   useLayoutEffect(() => {
     const sequence = sequenceRef.current
@@ -271,14 +274,29 @@ export function MergeQbBoard() {
     }
     window.addEventListener('classrecordcacheclearing', clearAssets)
 
+    let canvasScale = 0
+    let canvasPixelRatio = 0
     const resize = () => {
       const rect = canvas.getBoundingClientRect()
       if (!rect.width || !rect.height) return
-      scale = rect.width / GAME_WIDTH
+      const nextScale = rect.width / GAME_WIDTH
+      const nextPixelRatio = Math.min(window.devicePixelRatio || 1, 2)
+      const width = Math.round(rect.width * nextPixelRatio)
+      const height = Math.round(rect.height * nextPixelRatio)
+      if (
+        canvas.width === width &&
+        canvas.height === height &&
+        canvasScale === nextScale &&
+        canvasPixelRatio === nextPixelRatio
+      )
+        return
+      scale = nextScale
+      canvasScale = scale
+      canvasPixelRatio = nextPixelRatio
       setArenaScale((current) => (Math.abs(current - scale) < 0.001 ? current : scale))
-      pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
-      canvas.width = Math.round(rect.width * pixelRatio)
-      canvas.height = Math.round(rect.height * pixelRatio)
+      pixelRatio = nextPixelRatio
+      if (canvas.width !== width) canvas.width = width
+      if (canvas.height !== height) canvas.height = height
       context.setTransform(canvas.width / GAME_WIDTH, 0, 0, canvas.height / GAME_HEIGHT, 0, 0)
       for (const level of QB_LEVELS) {
         const image = images.get(level.id)
@@ -296,6 +314,7 @@ export function MergeQbBoard() {
     let previous = performance.now()
     let accumulated = 0
     const animate = (now: number) => {
+      frame = 0
       accumulated += Math.min(now - previous, 50)
       previous = now
       let steps = 0
@@ -306,7 +325,7 @@ export function MergeQbBoard() {
       }
       drawGame(context, game, images, sprites, scale)
       drawCelebrations(context, celebrations, now, scale)
-      if (game.snapshot.gameOver && !frozenArenaRef.current) {
+      if (game.gameOver && !frozenArenaRef.current) {
         const frozen = document.createElement('canvas')
         frozen.width = canvas.width
         frozen.height = canvas.height
@@ -330,9 +349,17 @@ export function MergeQbBoard() {
           finalSnapshotRef.current = game.snapshot
         }
       }
+      // The finished board is static; let remaining celebrations finish before stopping.
+      if (!game.gameOver || celebrations.length) frame = requestAnimationFrame(animate)
+    }
+    const resumeAnimation = () => {
+      if (disposed || frame) return
+      previous = performance.now()
+      accumulated = 0
       frame = requestAnimationFrame(animate)
     }
-    frame = requestAnimationFrame(animate)
+    resumeAnimationRef.current = resumeAnimation
+    resumeAnimation()
 
     return () => {
       cancelAnimationFrame(frame)
@@ -342,6 +369,7 @@ export function MergeQbBoard() {
       observer.disconnect()
       game.dispose()
       gameRef.current = null
+      resumeAnimationRef.current = () => {}
       clearCelebrationsRef.current = () => {}
       frozenArenaRef.current = null
       finalSnapshotRef.current = null
@@ -398,13 +426,13 @@ export function MergeQbBoard() {
   }
 
   const aimAt = (event: PointerEvent<HTMLCanvasElement>) => {
-    if (gameRef.current?.snapshot.gameOver || assets.loading || assets.error) return
+    if (gameRef.current?.gameOver || assets.loading || assets.error) return
     const bounds = event.currentTarget.getBoundingClientRect()
     gameRef.current?.aim(((event.clientX - bounds.left) / bounds.width) * GAME_WIDTH)
   }
 
   const onPointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
-    if (gameRef.current?.snapshot.gameOver || assets.loading || assets.error) return
+    if (gameRef.current?.gameOver || assets.loading || assets.error) return
     aimAt(event)
     if (event.pointerType === 'touch') {
       touchPointer.current = event.pointerId
@@ -415,7 +443,7 @@ export function MergeQbBoard() {
   }
 
   const onPointerUp = (event: PointerEvent<HTMLCanvasElement>) => {
-    if (gameRef.current?.snapshot.gameOver || assets.loading || assets.error) {
+    if (gameRef.current?.gameOver || assets.loading || assets.error) {
       touchPointer.current = null
       return
     }
@@ -426,7 +454,7 @@ export function MergeQbBoard() {
   }
 
   const onBoardKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (gameRef.current?.snapshot.gameOver || assets.loading || assets.error) return
+    if (gameRef.current?.gameOver || assets.loading || assets.error) return
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       event.preventDefault()
       gameRef.current?.aim(gameRef.current.targetX + (event.key === 'ArrowLeft' ? -20 : 20))
@@ -456,6 +484,7 @@ export function MergeQbBoard() {
     setScorePops([])
     touchPointer.current = null
     gameRef.current?.reset()
+    resumeAnimationRef.current()
   }
 
   const generateShare = async () => {
@@ -532,6 +561,92 @@ export function MergeQbBoard() {
     }
   }
 
+  const sequence = useMemo(
+    () => (
+      <section className="merge-qb-sequence" aria-label="QB大小顺序">
+        <ol ref={sequenceRef} className="merge-qb-sequence-list">
+          {Array.from({ length: Math.ceil(visibleLevels.length / sequenceColumns) }, (_, row) => {
+            const rowLevels = visibleLevels.slice(
+              row * sequenceColumns,
+              (row + 1) * sequenceColumns,
+            )
+            const reversed = row % 2 === 1
+            return (
+              <li key={rowLevels[0]?.id}>
+                <ol className="merge-qb-sequence-row" data-reversed={reversed}>
+                  {rowLevels.map((level, position) => {
+                    const index = row * sequenceColumns + position
+                    const unlocked = index < unlockedCount
+                    return (
+                      <Fragment key={level.id}>
+                        {position > 0 && (
+                          <li className="merge-qb-sequence-arrow" aria-hidden="true">
+                            {reversed ? <ArrowLeft /> : <ArrowRight />}
+                          </li>
+                        )}
+                        <li
+                          className="merge-qb-level"
+                          data-level-id={level.id}
+                          data-egg-unlock={level.id === '12' || undefined}
+                          aria-label={
+                            unlocked ? `${index + 1}：${level.name}` : `${index + 1}：未解锁`
+                          }
+                        >
+                          <span className="merge-qb-level-icon">
+                            {unlocked ? (
+                              <img
+                                draggable={false}
+                                src={assets.urls[level.id]}
+                                alt=""
+                                style={(() => {
+                                  const { left, top, right, bottom } = levelOutlineBounds(level)
+                                  const scale =
+                                    32 /
+                                    Math.max(
+                                      (right - left) * level.sourceSize.width,
+                                      (bottom - top) * level.sourceSize.height,
+                                    )
+                                  const width = level.sourceSize.width * scale
+                                  const height = level.sourceSize.height * scale
+                                  return {
+                                    width,
+                                    height,
+                                    left: (36 - (right - left) * width) / 2 - left * width,
+                                    top: (36 - (bottom - top) * height) / 2 - top * height,
+                                  }
+                                })()}
+                              />
+                            ) : (
+                              <span className="merge-qb-locked" aria-hidden="true">
+                                ?
+                              </span>
+                            )}
+                          </span>
+                        </li>
+                      </Fragment>
+                    )
+                  })}
+                  {spareSequenceSlots.slice(0, sequenceColumns - rowLevels.length).map((slot) => (
+                    <Fragment key={`empty-${slot}`}>
+                      <li className="merge-qb-sequence-arrow" aria-hidden="true" />
+                      <li className="merge-qb-level" aria-hidden="true" />
+                    </Fragment>
+                  ))}
+                </ol>
+                {(row + 1) * sequenceColumns < visibleLevels.length && (
+                  <div className="merge-qb-sequence-turn" data-side={reversed ? 'left' : 'right'}>
+                    <ArrowDown aria-hidden="true" />
+                  </div>
+                )}
+              </li>
+            )
+          })}
+        </ol>
+      </section>
+    ),
+    [visibleLevels, sequenceColumns, unlockedCount, assets.urls],
+  )
+
   return (
     <div ref={stageRef} className="merge-qb-stage">
       <div className="merge-qb-content">
@@ -606,7 +721,7 @@ export function MergeQbBoard() {
                 type="button"
                 size="sm"
                 variant="outline"
-                className="merge-qb-mobile-restart h-8 bg-muted/40 px-0.5 text-[0.6875rem] md:hidden"
+                className="merge-qb-mobile-restart h-8 bg-muted/40 px-2.5 text-xs md:hidden"
                 aria-label="重新开始"
                 onClick={() => openConfirm('restart')}
               >
@@ -619,6 +734,7 @@ export function MergeQbBoard() {
                   type="button"
                   size="sm"
                   variant="outline"
+                  className="merge-qb-retry"
                   onClick={() => void loadAssetsRef.current(true)}
                 >
                   重试
@@ -718,6 +834,7 @@ export function MergeQbBoard() {
               >
                 {snapshot && assets.urls[snapshot.next.id] && (
                   <img
+                    draggable={false}
                     src={assets.urls[snapshot.next.id]}
                     alt={snapshot.next.name}
                     className="object-contain"
@@ -761,94 +878,7 @@ export function MergeQbBoard() {
               ))}
             </span>
           </div>
-          <section className="merge-qb-sequence" aria-label="QB大小顺序">
-            <ol ref={sequenceRef} className="merge-qb-sequence-list">
-              {Array.from(
-                { length: Math.ceil(visibleLevels.length / sequenceColumns) },
-                (_, row) => {
-                  const rowLevels = visibleLevels.slice(
-                    row * sequenceColumns,
-                    (row + 1) * sequenceColumns,
-                  )
-                  const reversed = row % 2 === 1
-                  return (
-                    <li key={rowLevels[0]?.id}>
-                      <ol className="merge-qb-sequence-row" data-reversed={reversed}>
-                        {rowLevels.map((level, position) => {
-                          const index = row * sequenceColumns + position
-                          const unlocked = index < (snapshot?.unlockedCount ?? 1)
-                          return (
-                            <Fragment key={level.id}>
-                              {position > 0 && (
-                                <li className="merge-qb-sequence-arrow" aria-hidden="true">
-                                  {reversed ? <ArrowLeft /> : <ArrowRight />}
-                                </li>
-                              )}
-                              <li
-                                className="merge-qb-level"
-                                data-level-id={level.id}
-                                data-egg-unlock={level.id === '12' || undefined}
-                                aria-label={
-                                  unlocked ? `${index + 1}：${level.name}` : `${index + 1}：未解锁`
-                                }
-                              >
-                                <span className="merge-qb-level-icon">
-                                  {unlocked ? (
-                                    <img
-                                      src={assets.urls[level.id]}
-                                      alt=""
-                                      style={(() => {
-                                        const { left, top, right, bottom } =
-                                          levelOutlineBounds(level)
-                                        const scale =
-                                          32 /
-                                          Math.max(
-                                            (right - left) * level.sourceSize.width,
-                                            (bottom - top) * level.sourceSize.height,
-                                          )
-                                        const width = level.sourceSize.width * scale
-                                        const height = level.sourceSize.height * scale
-                                        return {
-                                          width,
-                                          height,
-                                          left: (36 - (right - left) * width) / 2 - left * width,
-                                          top: (36 - (bottom - top) * height) / 2 - top * height,
-                                        }
-                                      })()}
-                                    />
-                                  ) : (
-                                    <span className="merge-qb-locked" aria-hidden="true">
-                                      ?
-                                    </span>
-                                  )}
-                                </span>
-                              </li>
-                            </Fragment>
-                          )
-                        })}
-                        {spareSequenceSlots
-                          .slice(0, sequenceColumns - rowLevels.length)
-                          .map((slot) => (
-                            <Fragment key={`empty-${slot}`}>
-                              <li className="merge-qb-sequence-arrow" aria-hidden="true" />
-                              <li className="merge-qb-level" aria-hidden="true" />
-                            </Fragment>
-                          ))}
-                      </ol>
-                      {(row + 1) * sequenceColumns < visibleLevels.length && (
-                        <div
-                          className="merge-qb-sequence-turn"
-                          data-side={reversed ? 'left' : 'right'}
-                        >
-                          <ArrowDown aria-hidden="true" />
-                        </div>
-                      )}
-                    </li>
-                  )
-                },
-              )}
-            </ol>
-          </section>
+          {sequence}
         </aside>
       </div>
       <AlertDialog
@@ -860,7 +890,7 @@ export function MergeQbBoard() {
           }
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="merge-qb-confirm-dialog">
           <AlertDialogHeader>
             <AlertDialogTitle>{confirmAction && confirmCopy[confirmAction].title}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -912,7 +942,12 @@ export function MergeQbBoard() {
             </div>
           )}
           {shareResult && (
-            <img className="merge-qb-share-preview" src={shareResult.url} alt="本局游戏结果预览" />
+            <img
+              draggable={false}
+              className="merge-qb-share-preview"
+              src={shareResult.url}
+              alt="本局游戏结果预览"
+            />
           )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={closeShare}>
