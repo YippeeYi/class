@@ -27,6 +27,7 @@ export type DangerState = 'normal' | 'near' | 'pending' | 'countdown' | 'game-ov
 
 export type GameSnapshot = {
   score: number
+  highestMergedLevel: QbLevel | null
   current: QbLevel
   next: QbLevel
   gameOver: boolean
@@ -35,6 +36,15 @@ export type GameSnapshot = {
   countdown: number | null
   unlockedCount: number
   maxMergeCount: number
+}
+
+export type MergeEvent = {
+  level: QbLevel
+  scoreDelta: number
+  x: number
+  y: number
+  firstEleven: boolean
+  firstTwelve: boolean
 }
 
 export type GamePiece = {
@@ -110,6 +120,8 @@ export class MergeQbGame {
   private pendingPairs = new Map<string, [number, number]>()
   private shockwaves: Shockwave[] = []
   private score = 0
+  private highestMergedLevel: QbLevel | null = null
+  private celebratedEleven = false
   private unlockedCount = 1
   private maxMergeCount = 0
   private current: QbLevel
@@ -120,10 +132,16 @@ export class MergeQbGame {
   private lastDropAt = -Infinity
   private aimX = GAME_WIDTH / 2
   private onChange: (snapshot: GameSnapshot) => void
+  private onMerge?: (event: MergeEvent) => void
   private readonly random: () => number
 
-  constructor(onChange: (snapshot: GameSnapshot) => void, random = Math.random) {
+  constructor(
+    onChange: (snapshot: GameSnapshot) => void,
+    random = Math.random,
+    onMerge?: (event: MergeEvent) => void,
+  ) {
     this.onChange = onChange
+    this.onMerge = onMerge
     this.random = random
     this.current = this.chooseStarter()
     this.next = this.chooseStarter()
@@ -187,6 +205,7 @@ export class MergeQbGame {
   get snapshot(): GameSnapshot {
     return {
       score: this.score,
+      highestMergedLevel: this.highestMergedLevel,
       current: this.current,
       next: this.next,
       gameOver: this.danger === 'game-over',
@@ -264,9 +283,19 @@ export class MergeQbGame {
       Composite.add(this.engine.world, merged.body)
       this.pieces.set(merged.body.id, merged)
       this.createShockwave(next, x, y, merged.body.id)
-      this.score += next.points
+      const firstEleven = next.id === '11' && !this.celebratedEleven
+      const firstTwelve = next.id === '12' && this.highestMergedLevel?.id !== '12'
+      if (firstEleven) this.celebratedEleven = true
+      if (
+        !this.highestMergedLevel ||
+        QB_LEVELS.indexOf(next) > QB_LEVELS.indexOf(this.highestMergedLevel)
+      )
+        this.highestMergedLevel = next
+      const scoreDelta = next.points
+      this.score += scoreDelta
       this.unlockedCount = Math.max(this.unlockedCount, QB_LEVELS.indexOf(next) + 1)
       if (!next.nextId) this.maxMergeCount += 1
+      this.onMerge?.({ level: next, scoreDelta, x, y, firstEleven, firstTwelve })
     }
     this.pendingPairs.clear()
     if (involved.size) {
@@ -410,6 +439,8 @@ export class MergeQbGame {
     this.pendingPairs.clear()
     this.shockwaves.length = 0
     this.score = 0
+    this.highestMergedLevel = null
+    this.celebratedEleven = false
     this.unlockedCount = 1
     this.maxMergeCount = 0
     this.current = this.chooseStarter()

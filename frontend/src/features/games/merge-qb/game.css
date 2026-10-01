@@ -102,121 +102,6 @@ body button.merge-qb-arena:active {
   pointer-events: none;
 }
 
-.merge-qb-celebration {
-  position: absolute;
-  z-index: 3;
-  inset: 0;
-  pointer-events: none;
-  animation: merge-qb-celebration-life 1.8s linear both;
-}
-
-.merge-qb-confetti {
-  position: absolute;
-  top: 62%;
-  left: 2%;
-}
-
-.merge-qb-confetti-right {
-  right: 2%;
-  left: auto;
-  transform: scaleX(-1);
-}
-
-.merge-qb-confetti i {
-  position: absolute;
-  width: 0.4rem;
-  height: 0.7rem;
-  border-radius: 1px;
-  background: hsl(18 85% 68%);
-  animation: merge-qb-confetti-flight 1.5s ease-out both;
-}
-
-.merge-qb-confetti i:nth-child(2n) {
-  background: hsl(46 88% 65%);
-}
-.merge-qb-confetti i:nth-child(3n) {
-  background: hsl(164 58% 62%);
-}
-.merge-qb-confetti i:nth-child(4n) {
-  background: hsl(270 58% 72%);
-}
-.merge-qb-confetti i:nth-child(1) {
-  --travel-x: 1rem;
-  --travel-y: -6rem;
-  --turn: 290deg;
-}
-.merge-qb-confetti i:nth-child(2) {
-  --travel-x: 3rem;
-  --travel-y: -9rem;
-  --turn: -340deg;
-  animation-delay: 50ms;
-}
-.merge-qb-confetti i:nth-child(3) {
-  --travel-x: 5rem;
-  --travel-y: -7rem;
-  --turn: 310deg;
-  animation-delay: 100ms;
-}
-.merge-qb-confetti i:nth-child(4) {
-  --travel-x: 7rem;
-  --travel-y: -10rem;
-  --turn: -400deg;
-  animation-delay: 30ms;
-}
-.merge-qb-confetti i:nth-child(5) {
-  --travel-x: 2rem;
-  --travel-y: -11rem;
-  --turn: 380deg;
-  animation-delay: 130ms;
-}
-.merge-qb-confetti i:nth-child(6) {
-  --travel-x: 6rem;
-  --travel-y: -5rem;
-  --turn: -300deg;
-  animation-delay: 80ms;
-}
-.merge-qb-confetti i:nth-child(7) {
-  --travel-x: 8rem;
-  --travel-y: -8rem;
-  --turn: 420deg;
-  animation-delay: 150ms;
-}
-.merge-qb-confetti i:nth-child(8) {
-  --travel-x: 4rem;
-  --travel-y: -12rem;
-  --turn: -360deg;
-  animation-delay: 60ms;
-}
-
-@keyframes merge-qb-confetti-flight {
-  0% {
-    opacity: 0;
-    translate: 0 0;
-    rotate: 0deg;
-    scale: 0.6;
-  }
-  12%,
-  70% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    translate: var(--travel-x) var(--travel-y);
-    rotate: var(--turn);
-    scale: 1;
-  }
-}
-
-@keyframes merge-qb-celebration-life {
-  0%,
-  82% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-
 @keyframes merge-qb-warning-pulse {
   50% {
     opacity: 0.3;
@@ -236,11 +121,80 @@ body button.merge-qb-arena:active {
   .merge-qb-arena[data-danger="countdown"] {
     animation: none;
   }
+}
 
-  .merge-qb-celebration {
-    animation-duration: 1ms;
+.merge-qb-score-value {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+}
+
+.merge-qb-score-pop {
+  position: absolute;
+  z-index: 3;
+  top: calc(42% + var(--pop-stack));
+  left: calc(100% + 0.125rem);
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: merge-qb-score-pop ease-out both;
+}
+
+@keyframes merge-qb-score-pop {
+  from {
+    opacity: 0;
+    transform: translate(var(--pop-offset), 3px);
   }
-  .merge-qb-confetti i {
+  18% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translate(var(--pop-offset), calc(-1 * var(--pop-rise)));
+  }
+}
+
+.merge-qb-game-over-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.merge-qb-share-dialog {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}
+
+.merge-qb-share-preview {
+  display: block;
+  width: 100%;
+  max-height: min(52dvh, 30rem);
+  object-fit: contain;
+}
+
+.merge-qb-level[data-egg-unlock="true"] {
+  animation: merge-qb-egg-unlock 600ms ease-out both;
+}
+
+@keyframes merge-qb-egg-unlock {
+  from {
+    opacity: 0;
+    transform: scale(0.75);
+    filter: drop-shadow(0 0 0.5rem #efca73);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .merge-qb-level[data-egg-unlock="true"] {
     animation: none;
   }
 }
@@ -551,6 +505,16 @@ body button.merge-qb-arena:active {
   .merge-qb-toolbar .merge-qb-next-preview img {
     max-width: 1.75rem;
     max-height: 1.75rem;
+  }
+
+  .merge-qb-game-over-actions {
+    flex-direction: row;
+    gap: 0.25rem;
+  }
+
+  .merge-qb-score-pop {
+    top: calc(100% + 0.25rem + var(--pop-stack));
+    font-size: 0.625rem;
   }
 
   .merge-qb-toolbar .merge-qb-sequence {

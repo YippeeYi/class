@@ -1,4 +1,13 @@
-import { ArrowDown, ArrowLeft, ArrowRight, Maximize2, Minimize2, RotateCcw } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  Download,
+  Maximize2,
+  Minimize2,
+  RotateCcw,
+  Share2,
+} from 'lucide-react'
 import {
   type CSSProperties,
   Fragment,
@@ -10,8 +19,25 @@ import {
   useState,
 } from 'react'
 import { Link, useNavigate } from 'react-router'
-
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { signAssetUrl } from '@/services/data'
@@ -26,19 +52,50 @@ import {
 } from './game'
 import { levelImagePath, levelOutlineBounds, QB_LEVELS } from './levels'
 import {
+  type CelebrationEffect,
+  createCelebration,
   createImageMap,
+  drawCelebrations,
   drawGame,
   makeOutlinedSprite,
   type QbImages,
   type QbSprites,
 } from './render'
+import { createShareImage } from './share'
 import './game.css'
 
 const largestDroppableSize = Math.max(
   ...QB_LEVELS.slice(0, MAX_DROP_LEVEL_COUNT).map((level) => level.visualSize.height),
 )
-const confettiPieces = Array.from({ length: 8 }, (_, index) => index)
+const regularLevels = QB_LEVELS.slice(0, -1)
 const spareSequenceSlots = ['a', 'b', 'c', 'd', 'e']
+type ConfirmAction = 'exit' | 'restart' | 'replay'
+type ScorePop = {
+  id: number
+  delta: number
+  slot: number
+  rise: number
+  offset: number
+  duration: number
+}
+
+const confirmCopy: Record<ConfirmAction, { title: string; description: string; action: string }> = {
+  exit: {
+    title: '退出游戏？',
+    description: '当前局将结束并离开游戏页面。',
+    action: '退出游戏',
+  },
+  restart: {
+    title: '重新开始？',
+    description: '当前进度和分数将清空，并开始新的一局。',
+    action: '重新开始',
+  },
+  replay: {
+    title: '再来一局？',
+    description: '当前结束结果将关闭，并开始新的一局。',
+    action: '再来一局',
+  },
+}
 
 export function MergeQbBoard() {
   const navigate = useNavigate()
@@ -48,9 +105,21 @@ export function MergeQbBoard() {
   const gameRef = useRef<MergeQbGame | null>(null)
   const loadAssetsRef = useRef<(force?: boolean) => Promise<void>>(async () => {})
   const touchPointer = useRef<number | null>(null)
-  const observedMaxMergeCount = useRef(0)
+  const clearCelebrationsRef = useRef<() => void>(() => {})
+  const frozenArenaRef = useRef<HTMLCanvasElement | null>(null)
+  const finalSnapshotRef = useRef<GameSnapshot | null>(null)
+  const nextScorePopId = useRef(0)
+  const shareRevision = useRef(0)
+  const shareGeneratingRef = useRef(false)
+  const shareUrlRef = useRef<string | null>(null)
+  const restoreFullscreenRef = useRef(false)
   const [snapshot, setSnapshot] = useState<GameSnapshot | null>(null)
-  const [activeCelebrations, setActiveCelebrations] = useState<number[]>([])
+  const [scorePops, setScorePops] = useState<ScorePop[]>([])
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [shareLoading, setShareLoading] = useState(false)
+  const [shareError, setShareError] = useState<string | null>(null)
+  const [shareResult, setShareResult] = useState<{ url: string; blob: Blob } | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [fullscreenPending, setFullscreenPending] = useState(false)
   const [fullscreenSupported, setFullscreenSupported] = useState(false)
@@ -63,6 +132,9 @@ export function MergeQbBoard() {
   const [sequenceColumns, setSequenceColumns] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 6 : 3,
   )
+  const modalOpenRef = useRef(false)
+  modalOpenRef.current = confirmAction !== null || shareOpen
+  const visibleLevels = snapshot?.highestMergedLevel?.id === '12' ? QB_LEVELS : regularLevels
 
   useLayoutEffect(() => {
     const sequence = sequenceRef.current
@@ -75,7 +147,8 @@ export function MergeQbBoard() {
         6,
         Math.max(2, Math.floor((entry.contentRect.width + 20) / (nodeSize + 20))),
       )
-      const columns = capacity > 3 && QB_LEVELS.length % capacity === 1 ? capacity - 1 : capacity
+      const columns =
+        capacity > 3 && regularLevels.length % capacity === 1 ? capacity - 1 : capacity
       setSequenceColumns((current) => (current === columns ? current : columns))
     })
     observer.observe(sequence)
@@ -83,24 +156,12 @@ export function MergeQbBoard() {
   }, [])
 
   useEffect(() => {
-    const count = snapshot?.maxMergeCount ?? 0
-    const previous = observedMaxMergeCount.current
-    if (count < previous) setActiveCelebrations([])
-    else if (count > previous)
-      setActiveCelebrations((active) => [
-        ...active,
-        ...Array.from({ length: count - previous }, (_, index) => previous + index + 1),
-      ])
-    observedMaxMergeCount.current = count
-  }, [snapshot?.maxMergeCount])
-
-  useEffect(() => {
     const stage = stageRef.current
     if (!stage) return
     setFullscreenSupported(Boolean(document.fullscreenEnabled && stage.requestFullscreen))
     const update = () => setIsFullscreen(document.fullscreenElement === stage)
     const exitOnEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape' && document.fullscreenElement === stage)
+      if (event.key === 'Escape' && document.fullscreenElement === stage && !modalOpenRef.current)
         void document.exitFullscreen().catch(() => undefined)
     }
     document.addEventListener('fullscreenchange', update)
@@ -119,7 +180,34 @@ export function MergeQbBoard() {
     if (!canvas) return
     const context = canvas.getContext('2d')
     if (!context) return
-    const game = new MergeQbGame(setSnapshot)
+    const celebrations: CelebrationEffect[] = []
+    clearCelebrationsRef.current = () => {
+      celebrations.length = 0
+    }
+    const game = new MergeQbGame(setSnapshot, Math.random, (event) => {
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (event.scoreDelta > 0)
+        setScorePops((active) => {
+          const occupied = new Set(active.map((pop) => pop.slot))
+          let slot = 0
+          while (occupied.has(slot)) slot++
+          return [
+            ...active,
+            {
+              id: ++nextScorePopId.current,
+              delta: event.scoreDelta,
+              slot,
+              rise: 16 + Math.random() * 9,
+              offset: (Math.random() - 0.5) * 5,
+              duration: reducedMotion ? 160 : 720 + Math.random() * 180,
+            },
+          ]
+        })
+      if (event.firstEleven)
+        celebrations.push(createCelebration(event, 'confetti', performance.now(), reducedMotion))
+      if (event.firstTwelve)
+        celebrations.push(createCelebration(event, 'sparkle', performance.now(), reducedMotion))
+    })
     gameRef.current = game
     const images: QbImages = createImageMap()
     const sprites: QbSprites = new Map()
@@ -204,6 +292,7 @@ export function MergeQbBoard() {
           sprites.set(level.id, makeOutlinedSprite(level, image, scale, pixelRatio))
       }
       drawGame(context, game, images, sprites, scale)
+      drawCelebrations(context, celebrations, performance.now(), scale)
     }
     const observer = new ResizeObserver(resize)
     observer.observe(canvas)
@@ -222,6 +311,31 @@ export function MergeQbBoard() {
         steps += 1
       }
       drawGame(context, game, images, sprites, scale)
+      drawCelebrations(context, celebrations, now, scale)
+      if (game.snapshot.gameOver && !frozenArenaRef.current) {
+        const frozen = document.createElement('canvas')
+        frozen.width = canvas.width
+        frozen.height = canvas.height
+        const frozenContext = frozen.getContext('2d')
+        if (frozenContext) {
+          frozenContext.fillStyle = getComputedStyle(
+            canvas.parentElement as HTMLElement,
+          ).backgroundColor
+          frozenContext.fillRect(0, 0, frozen.width, frozen.height)
+          frozenContext.drawImage(canvas, 0, 0)
+          frozenContext.strokeStyle = getComputedStyle(
+            canvas.parentElement?.querySelector('.merge-qb-warning-line') as HTMLElement,
+          ).borderTopColor
+          frozenContext.lineWidth = Math.max(1, (canvas.width / GAME_WIDTH) * 1.5)
+          frozenContext.setLineDash([6, 5])
+          frozenContext.beginPath()
+          frozenContext.moveTo(0, (FAIL_LINE / GAME_HEIGHT) * frozen.height)
+          frozenContext.lineTo(frozen.width, (FAIL_LINE / GAME_HEIGHT) * frozen.height)
+          frozenContext.stroke()
+          frozenArenaRef.current = frozen
+          finalSnapshotRef.current = game.snapshot
+        }
+      }
       frame = requestAnimationFrame(animate)
     }
     frame = requestAnimationFrame(animate)
@@ -234,6 +348,12 @@ export function MergeQbBoard() {
       observer.disconnect()
       game.dispose()
       gameRef.current = null
+      clearCelebrationsRef.current = () => {}
+      frozenArenaRef.current = null
+      finalSnapshotRef.current = null
+      shareRevision.current++
+      if (shareUrlRef.current) URL.revokeObjectURL(shareUrlRef.current)
+      shareUrlRef.current = null
     }
   }, [])
 
@@ -260,6 +380,27 @@ export function MergeQbBoard() {
       }
     }
     navigate('/games')
+  }
+
+  const restoreFullscreen = () => {
+    if (!restoreFullscreenRef.current) return
+    restoreFullscreenRef.current = false
+    void stageRef.current?.requestFullscreen().catch(() => undefined)
+  }
+
+  const openConfirm = (action: ConfirmAction) => {
+    if (document.fullscreenElement === stageRef.current) {
+      restoreFullscreenRef.current = true
+      void document
+        .exitFullscreen()
+        .then(() => setConfirmAction(action))
+        .catch(() => {
+          restoreFullscreenRef.current = false
+          setConfirmAction(action)
+        })
+    } else {
+      setConfirmAction(action)
+    }
   }
 
   const aimAt = (event: PointerEvent<HTMLCanvasElement>) => {
@@ -301,7 +442,101 @@ export function MergeQbBoard() {
     }
   }
 
-  const restartGame = () => gameRef.current?.reset()
+  const closeShare = () => {
+    shareRevision.current++
+    shareGeneratingRef.current = false
+    setShareOpen(false)
+    setShareLoading(false)
+    setShareError(null)
+    if (shareUrlRef.current) URL.revokeObjectURL(shareUrlRef.current)
+    shareUrlRef.current = null
+    setShareResult(null)
+    restoreFullscreen()
+  }
+
+  const restartGame = () => {
+    closeShare()
+    frozenArenaRef.current = null
+    finalSnapshotRef.current = null
+    clearCelebrationsRef.current()
+    setScorePops([])
+    touchPointer.current = null
+    gameRef.current?.reset()
+  }
+
+  const generateShare = async () => {
+    const frozen = frozenArenaRef.current
+    const result = finalSnapshotRef.current
+    if (!frozen || !result || shareGeneratingRef.current) {
+      if (!frozen || !result) setShareError('结束画面尚未准备好，请重试。')
+      return
+    }
+    const revision = ++shareRevision.current
+    shareGeneratingRef.current = true
+    setShareLoading(true)
+    setShareError(null)
+    try {
+      const blob = await createShareImage(frozen, result)
+      if (revision !== shareRevision.current) return
+      const url = URL.createObjectURL(blob)
+      if (shareUrlRef.current) URL.revokeObjectURL(shareUrlRef.current)
+      shareUrlRef.current = url
+      setShareResult({ url, blob })
+    } catch {
+      if (revision === shareRevision.current) setShareError('分享图片生成失败，请重试。')
+    } finally {
+      if (revision === shareRevision.current) {
+        shareGeneratingRef.current = false
+        setShareLoading(false)
+      }
+    }
+  }
+
+  const openShare = () => {
+    if (shareOpen || shareGeneratingRef.current) return
+    const showShare = () => {
+      setShareOpen(true)
+      void generateShare()
+    }
+    if (document.fullscreenElement === stageRef.current) {
+      restoreFullscreenRef.current = true
+      void document
+        .exitFullscreen()
+        .then(showShare)
+        .catch(() => {
+          restoreFullscreenRef.current = false
+          showShare()
+        })
+    } else {
+      showShare()
+    }
+  }
+
+  const shareFileName = `merge-qb-${finalSnapshotRef.current?.score ?? 0}.png`
+  const shareFile = shareResult
+    ? new File([shareResult.blob], shareFileName, { type: 'image/png' })
+    : null
+  const canSystemShare = (() => {
+    if (!shareFile || typeof navigator.share !== 'function' || !navigator.canShare) return false
+    try {
+      return navigator.canShare({ files: [shareFile] })
+    } catch {
+      return false
+    }
+  })()
+
+  const confirm = () => {
+    const action = confirmAction
+    setConfirmAction(null)
+    if (action === 'exit') {
+      restoreFullscreenRef.current = false
+      void exitGame()
+    }
+    if (action === 'restart' || action === 'replay') {
+      restartGame()
+      restoreFullscreen()
+    }
+  }
 
   return (
     <div ref={stageRef} className="merge-qb-stage">
@@ -351,25 +586,6 @@ export function MergeQbBoard() {
               {snapshot.countdown}
             </span>
           )}
-          {activeCelebrations.map((id) => (
-            <span
-              key={id}
-              className="merge-qb-celebration"
-              aria-hidden="true"
-              onAnimationEnd={(event) => {
-                if (event.target === event.currentTarget)
-                  setActiveCelebrations((active) => active.filter((item) => item !== id))
-              }}
-            >
-              {['left', 'right'].map((side) => (
-                <span key={side} className={`merge-qb-confetti merge-qb-confetti-${side}`}>
-                  {confettiPieces.map((index) => (
-                    <i key={index} />
-                  ))}
-                </span>
-              ))}
-            </span>
-          ))}
         </button>
 
         <aside className="merge-qb-toolbar" aria-label="游戏状态与操作">
@@ -383,9 +599,8 @@ export function MergeQbBoard() {
                 aria-label="返回游戏库"
                 title="返回游戏库"
                 onClick={(event) => {
-                  if (document.fullscreenElement !== stageRef.current) return
                   event.preventDefault()
-                  void exitGame()
+                  openConfirm('exit')
                 }}
               >
                 <ArrowLeft aria-hidden="true" />
@@ -396,10 +611,10 @@ export function MergeQbBoard() {
               <Button
                 type="button"
                 size="sm"
-                variant="ghost"
-                className="merge-qb-mobile-restart h-8 px-0.5 text-[0.6875rem] md:hidden"
+                variant="outline"
+                className="merge-qb-mobile-restart h-8 bg-muted/40 px-1 text-[0.6875rem] md:hidden"
                 aria-label="重新开始"
-                onClick={restartGame}
+                onClick={() => openConfirm('restart')}
               >
                 重新开始
               </Button>
@@ -424,7 +639,7 @@ export function MergeQbBoard() {
                       size="icon"
                       className="max-md:hidden"
                       aria-label="重新开始"
-                      onClick={restartGame}
+                      onClick={() => openConfirm('restart')}
                     />
                   }
                 >
@@ -462,17 +677,39 @@ export function MergeQbBoard() {
           </div>
           <div className="merge-qb-next">
             {snapshot?.gameOver ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="merge-qb-game-over-label h-auto min-h-8 px-1 text-lg leading-6 md:text-xl md:leading-7"
-                onClick={restartGame}
-                aria-label="游戏结束，重新开始"
-                title="重新开始"
-              >
-                游戏结束
-              </Button>
+              <div className="merge-qb-game-over-actions">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="merge-qb-game-over-label h-auto min-h-8 px-1 text-lg leading-6 md:text-xl md:leading-7"
+                  onClick={() => openConfirm('replay')}
+                  aria-label="再来一局"
+                  title="再来一局"
+                >
+                  游戏结束
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="merge-qb-share-mobile md:hidden"
+                  aria-label="分享游戏结果"
+                  onClick={openShare}
+                >
+                  <Share2 aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="merge-qb-share-desktop max-md:hidden"
+                  onClick={openShare}
+                >
+                  <Share2 aria-hidden="true" />
+                  分享
+                </Button>
+              </div>
             ) : (
               <span className="text-xs text-muted-foreground">下一个</span>
             )}
@@ -480,7 +717,9 @@ export function MergeQbBoard() {
               <div
                 className="merge-qb-next-preview"
                 style={
-                  { '--preview-height': `${largestDroppableSize * arenaScale}px` } as CSSProperties
+                  {
+                    '--preview-height': `${largestDroppableSize * arenaScale}px`,
+                  } as CSSProperties
                 }
               >
                 {snapshot && assets.urls[snapshot.next.id] && (
@@ -499,95 +738,228 @@ export function MergeQbBoard() {
           </div>
           <div className="merge-qb-score">
             <span className="text-xs text-muted-foreground">分数</span>
-            <strong className="font-heading text-4xl font-semibold tabular-nums" aria-live="polite">
-              {snapshot?.score ?? 0}
-            </strong>
+            <span className="merge-qb-score-value">
+              <strong
+                className="font-heading text-4xl font-semibold tabular-nums"
+                aria-live="polite"
+              >
+                {snapshot?.score ?? 0}
+              </strong>
+              {scorePops.map((pop) => (
+                <span
+                  key={pop.id}
+                  className="merge-qb-score-pop"
+                  style={
+                    {
+                      '--pop-rise': `${pop.rise}px`,
+                      '--pop-offset': `${pop.offset}px`,
+                      '--pop-stack': `${pop.slot * 1.5}rem`,
+                      animationDuration: `${pop.duration}ms`,
+                    } as CSSProperties
+                  }
+                  aria-hidden="true"
+                  onAnimationEnd={() =>
+                    setScorePops((active) => active.filter((item) => item.id !== pop.id))
+                  }
+                >
+                  +{pop.delta}
+                </span>
+              ))}
+            </span>
           </div>
           <section className="merge-qb-sequence" aria-label="QB大小顺序">
             <ol ref={sequenceRef} className="merge-qb-sequence-list">
-              {Array.from({ length: Math.ceil(QB_LEVELS.length / sequenceColumns) }, (_, row) => {
-                const rowLevels = QB_LEVELS.slice(
-                  row * sequenceColumns,
-                  (row + 1) * sequenceColumns,
-                )
-                const reversed = row % 2 === 1
-                return (
-                  <li key={rowLevels[0]?.id}>
-                    <ol className="merge-qb-sequence-row" data-reversed={reversed}>
-                      {rowLevels.map((level, position) => {
-                        const index = row * sequenceColumns + position
-                        const unlocked = index < (snapshot?.unlockedCount ?? 1)
-                        return (
-                          <Fragment key={level.id}>
-                            {position > 0 && (
-                              <li className="merge-qb-sequence-arrow" aria-hidden="true">
-                                {reversed ? <ArrowLeft /> : <ArrowRight />}
+              {Array.from(
+                { length: Math.ceil(visibleLevels.length / sequenceColumns) },
+                (_, row) => {
+                  const rowLevels = visibleLevels.slice(
+                    row * sequenceColumns,
+                    (row + 1) * sequenceColumns,
+                  )
+                  const reversed = row % 2 === 1
+                  return (
+                    <li key={rowLevels[0]?.id}>
+                      <ol className="merge-qb-sequence-row" data-reversed={reversed}>
+                        {rowLevels.map((level, position) => {
+                          const index = row * sequenceColumns + position
+                          const unlocked = index < (snapshot?.unlockedCount ?? 1)
+                          return (
+                            <Fragment key={level.id}>
+                              {position > 0 && (
+                                <li className="merge-qb-sequence-arrow" aria-hidden="true">
+                                  {reversed ? <ArrowLeft /> : <ArrowRight />}
+                                </li>
+                              )}
+                              <li
+                                className="merge-qb-level"
+                                data-level-id={level.id}
+                                data-egg-unlock={level.id === '12' || undefined}
+                                aria-label={
+                                  unlocked ? `${index + 1}：${level.name}` : `${index + 1}：未解锁`
+                                }
+                              >
+                                <span className="merge-qb-level-icon">
+                                  {unlocked ? (
+                                    <img
+                                      src={assets.urls[level.id]}
+                                      alt=""
+                                      style={(() => {
+                                        const { left, top, right, bottom } =
+                                          levelOutlineBounds(level)
+                                        const scale =
+                                          32 /
+                                          Math.max(
+                                            (right - left) * level.sourceSize.width,
+                                            (bottom - top) * level.sourceSize.height,
+                                          )
+                                        const width = level.sourceSize.width * scale
+                                        const height = level.sourceSize.height * scale
+                                        return {
+                                          width,
+                                          height,
+                                          left: (36 - (right - left) * width) / 2 - left * width,
+                                          top: (36 - (bottom - top) * height) / 2 - top * height,
+                                        }
+                                      })()}
+                                    />
+                                  ) : (
+                                    <span className="merge-qb-locked" aria-hidden="true">
+                                      ?
+                                    </span>
+                                  )}
+                                </span>
                               </li>
-                            )}
-                            <li
-                              className="merge-qb-level"
-                              data-level-id={level.id}
-                              aria-label={
-                                unlocked ? `${index + 1}：${level.name}` : `${index + 1}：未解锁`
-                              }
-                            >
-                              <span className="merge-qb-level-icon">
-                                {unlocked ? (
-                                  <img
-                                    src={assets.urls[level.id]}
-                                    alt=""
-                                    style={(() => {
-                                      const { left, top, right, bottom } = levelOutlineBounds(level)
-                                      const scale =
-                                        32 /
-                                        Math.max(
-                                          (right - left) * level.sourceSize.width,
-                                          (bottom - top) * level.sourceSize.height,
-                                        )
-                                      const width = level.sourceSize.width * scale
-                                      const height = level.sourceSize.height * scale
-                                      return {
-                                        width,
-                                        height,
-                                        left: (36 - (right - left) * width) / 2 - left * width,
-                                        top: (36 - (bottom - top) * height) / 2 - top * height,
-                                      }
-                                    })()}
-                                  />
-                                ) : (
-                                  <span className="merge-qb-locked" aria-hidden="true">
-                                    ?
-                                  </span>
-                                )}
-                              </span>
-                            </li>
-                          </Fragment>
-                        )
-                      })}
-                      {spareSequenceSlots
-                        .slice(0, sequenceColumns - rowLevels.length)
-                        .map((slot) => (
-                          <Fragment key={`empty-${slot}`}>
-                            <li className="merge-qb-sequence-arrow" aria-hidden="true" />
-                            <li className="merge-qb-level" aria-hidden="true" />
-                          </Fragment>
-                        ))}
-                    </ol>
-                    {(row + 1) * sequenceColumns < QB_LEVELS.length && (
-                      <div
-                        className="merge-qb-sequence-turn"
-                        data-side={reversed ? 'left' : 'right'}
-                      >
-                        <ArrowDown aria-hidden="true" />
-                      </div>
-                    )}
-                  </li>
-                )
-              })}
+                            </Fragment>
+                          )
+                        })}
+                        {spareSequenceSlots
+                          .slice(0, sequenceColumns - rowLevels.length)
+                          .map((slot) => (
+                            <Fragment key={`empty-${slot}`}>
+                              <li className="merge-qb-sequence-arrow" aria-hidden="true" />
+                              <li className="merge-qb-level" aria-hidden="true" />
+                            </Fragment>
+                          ))}
+                      </ol>
+                      {(row + 1) * sequenceColumns < visibleLevels.length && (
+                        <div
+                          className="merge-qb-sequence-turn"
+                          data-side={reversed ? 'left' : 'right'}
+                        >
+                          <ArrowDown aria-hidden="true" />
+                        </div>
+                      )}
+                    </li>
+                  )
+                },
+              )}
             </ol>
           </section>
         </aside>
       </div>
+      <AlertDialog
+        open={confirmAction !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmAction(null)
+            restoreFullscreen()
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmAction && confirmCopy[confirmAction].title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction && confirmCopy[confirmAction].description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setConfirmAction(null)
+                restoreFullscreen()
+              }}
+            >
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirm}>
+              {confirmAction && confirmCopy[confirmAction].action}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <Dialog
+        open={shareOpen}
+        onOpenChange={(open) => {
+          if (!open) closeShare()
+        }}
+      >
+        <DialogContent className="merge-qb-share-dialog sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>分享本局结果</DialogTitle>
+            <DialogDescription>预览结束时的游戏画面，选择保存或分享图片。</DialogDescription>
+          </DialogHeader>
+          {shareLoading && (
+            <div className="flex items-center justify-center gap-2 py-8" role="status">
+              <Spinner /> 正在生成图片…
+            </div>
+          )}
+          {shareError && (
+            <div className="space-y-2 text-sm" role="alert">
+              <p>{shareError}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void generateShare()}
+              >
+                重试
+              </Button>
+            </div>
+          )}
+          {shareResult && (
+            <img className="merge-qb-share-preview" src={shareResult.url} alt="本局游戏结果预览" />
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closeShare}>
+              取消
+            </Button>
+            {shareResult && (
+              <>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    const link = document.createElement('a')
+                    link.href = shareResult.url
+                    link.download = shareFileName
+                    link.click()
+                  }}
+                >
+                  <Download aria-hidden="true" />
+                  保存图片
+                </Button>
+                {canSystemShare && shareFile && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        await navigator.share({ files: [shareFile], title: '合成大QB' })
+                      } catch (error) {
+                        if (!(error instanceof DOMException && error.name === 'AbortError'))
+                          setShareError('系统分享失败，你仍可以保存图片。')
+                      }
+                    }}
+                  >
+                    <Share2 aria-hidden="true" />
+                    系统分享
+                  </Button>
+                )}
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
