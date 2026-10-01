@@ -534,12 +534,12 @@ export const QB_OUTLINE = { widthCssPx: 1.5, color: '#332b27' } as const
 
 // Force is applied once per merge in Matter.js world units; caps keep large merges contained.
 export const QB_SHOCKWAVE = {
-  baseRadius: 125,
-  radiusPerSize: 1,
-  maxRadius: 330,
-  baseForce: 0.0055,
-  forcePerSize: 0.000055,
-  maxForce: 0.024,
+  baseRadius: 250,
+  radiusPerSize: 2,
+  maxRadius: 660,
+  baseForce: 0.011,
+  forcePerSize: 0.00011,
+  maxForce: 0.048,
   durationMs: 360,
-  lineWidthCssPx: 2,
+  lineWidthCssPx: 4,
 } as const
