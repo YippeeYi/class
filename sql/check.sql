@@ -171,6 +171,7 @@ storage_policy as (
               and pg_get_expr(p.polqual, p.polrelid) ilike '%data/attachments/%'
               and pg_get_expr(p.polqual, p.polrelid) ilike '%images/record-pages/%'
               and pg_get_expr(p.polqual, p.polrelid) ilike '%images/quiz/%'
+              and pg_get_expr(p.polqual, p.polrelid) like '%images/games/[a-z0-9]+%'
               and pg_get_expr(p.polqual, p.polrelid) ilike '%images/private/meal-map.png%'
               and pg_get_expr(p.polqual, p.polrelid) not ilike '%H[0-9]%'
         ) as storage_only_allowed_policy_ok,

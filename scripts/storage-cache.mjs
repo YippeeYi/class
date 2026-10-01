@@ -5,7 +5,7 @@ import path from 'node:path';
 
 export function privateAssetCacheControl(asset) {
     const sensitive = asset === 'images/private/meal-map.png'
-        || /^(hidden\/|images\/(record-pages|quiz|games\/merge-qb)\/)/u.test(asset);
+        || /^(hidden\/|images\/(record-pages|quiz|games)\/)/u.test(asset);
     return `private, max-age=${sensitive ? 180 : 600}`;
 }
 

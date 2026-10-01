@@ -5,7 +5,24 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-import { createAdminRequest, parseAdminArguments } from './admin-runtime.mjs';
+import { createAdminRequest, gameAssetPaths, parseAdminArguments } from './admin-runtime.mjs';
+
+assert.deepEqual(gameAssetPaths({ type: 'game', gameKey: 'merge-qb', file: 'impact.ogg' }), {
+    localPath: 'private-assets/games/merge-qb/impact.ogg',
+    remotePath: 'images/games/merge-qb/impact.ogg'
+});
+for (const asset of [
+    { type: 'quiz', gameKey: 'merge-qb', file: 'impact.ogg' },
+    { type: 'game', gameKey: '../quiz', file: 'impact.ogg' },
+    { type: 'game', gameKey: '/merge-qb', file: 'impact.ogg' },
+    { type: 'game', gameKey: 'merge/qb', file: 'impact.ogg' },
+    { type: 'game', gameKey: 'merge-qb', file: '../impact.ogg' },
+    { type: 'game', gameKey: 'merge-qb', file: '/impact.ogg' },
+    { type: 'game', gameKey: 'merge-qb', file: 'sub/impact.ogg' },
+    { type: 'game', gameKey: 'merge-qb', file: 'impact.exe' }
+]) {
+    assert.throws(() => gameAssetPaths(asset), /Game asset/);
+}
 
 const audit = parseAdminArguments(['audit', '--json']);
 assert.equal(audit.command, 'audit');

@@ -10,11 +10,9 @@
  *   - private-assets/content/page-supplements/*.json
  *   - private-assets/content/materials/*.json
  *
- * Storage uploads are reference-driven. Only binary assets referenced by the
- * imported database rows are uploaded; source JSON is never copied to Storage.
- * Every local source lives below the ignored private-assets/ directory. Source
- * JSON is database-only; binary files are uploaded only when a database row
- * explicitly references them.
+ * Storage uploads are reference-driven. Binary assets come from imported row
+ * references or the explicit game-asset manifest; source JSON is not uploaded.
+ * Private source files stay in ignored directories.
  *
  * Cross-platform commands (configuration is loaded from the ignored .env file):
  *   npm run admin -- audit
@@ -44,7 +42,9 @@ import { privateAssetCacheControl, repairStorageCache } from './storage-cache.mj
 import { buildMediaDimensionManifests } from './media-manifest.mjs';
 import { createAccessAdmin } from './admin-access.mjs';
 import {
+    allowedStorageExtensions,
     createAdminRequest,
+    gameAssetPaths,
     loadAdminDotEnv,
     parseAdminArguments,
     printAdminUsage
@@ -70,7 +70,6 @@ const {
 const hiddenStoragePrefix = 'hidden/';
 const allowedStorageRoots = ['data/attachments/', 'images/record-pages/', 'images/quiz/'];
 const mealMapStoragePath = 'images/private/meal-map.png';
-const mergeQbImagePaths = Array.from({ length: 12 }, (_, index) => `images/games/merge-qb/${String(index + 1).padStart(2, '0')}.png`);
 const mediaManifestPaths = {
     public: 'data/attachments/record-media-dimensions.txt',
     hidden: 'hidden/data/attachments/record-media-dimensions.txt'
@@ -89,10 +88,6 @@ const publicationTableKeys = new Map([
     ['class_credits_page', 'id']
 ]);
 let collectingPublication = false;
-const allowedStorageExtensions = new Set([
-    '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg',
-    '.pdf', '.txt', '.zip', '.mp3', '.wav', '.ogg', '.mp4', '.webm'
-]);
 const storageUploadManifest = new Map();
 const requiredDatabaseColumns = {
     class_quiz_questions: [
@@ -264,6 +259,11 @@ const registerStorageAsset = (value, { hidden = false, fallbackRoot = '', localP
     }
     const remotePath = hidden ? `${hiddenStoragePrefix}${storagePath}` : storagePath;
     const sourcePath = normalizeSlash(localPath || getDefaultLocalAssetPath(storagePath));
+    registerUpload(remotePath, sourcePath);
+    return remotePath;
+};
+
+const registerUpload = (remotePath, sourcePath) => {
     const existing = storageUploadManifest.get(remotePath);
     if (existing && existing.localPath !== sourcePath) {
         throw new Error(
@@ -271,7 +271,19 @@ const registerStorageAsset = (value, { hidden = false, fallbackRoot = '', localP
         );
     }
     storageUploadManifest.set(remotePath, { localPath: sourcePath, remotePath });
-    return remotePath;
+};
+
+const registerGameAsset = (asset, localPath) => {
+    const paths = gameAssetPaths(asset);
+    registerUpload(paths.remotePath, localPath || paths.localPath);
+};
+
+const importGameAssets = async () => {
+    const manifestPath = 'private-assets/games/manifest.json';
+    if (!(await exists(manifestPath))) return;
+    const assets = await readJson(manifestPath);
+    if (!Array.isArray(assets)) throw new Error(`${manifestPath} must be an array of game assets.`);
+    for (const asset of assets) registerGameAsset(asset);
 };
 
 const rewriteMarkupAssets = (value, { hidden = false } = {}) => {
@@ -943,12 +955,14 @@ const buildPublication = async () => {
     publicationTables.clear();
     publicationPruneKeys.clear();
     storageUploadManifest.clear();
-    for (const remotePath of mergeQbImagePaths) {
-        storageUploadManifest.set(remotePath, {
-            localPath: `frontend/src/features/games/merge-qb/${path.basename(remotePath)}`,
-            remotePath
-        });
+    for (let level = 1; level <= 12; level += 1) {
+        const file = `${String(level).padStart(2, '0')}.png`;
+        registerGameAsset(
+            { type: 'game', gameKey: 'merge-qb', file },
+            `frontend/src/features/games/merge-qb/${file}`
+        );
     }
+    await importGameAssets();
     collectingPublication = true;
     try {
         await importRecords();

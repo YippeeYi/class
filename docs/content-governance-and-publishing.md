@@ -17,6 +17,15 @@ npm run content:publish
 
 根目录 `.env` 中配置 `SUPABASE_URL` 和 `SUPABASE_SERVICE_ROLE_KEY`；普通内容上传不需要 `INVITE_CODE_PEPPER`。本地内容必须是完整的 `private-assets/`，目录结构见根 README。不要把 `.env` 或私密源文件提交到 Git。
 
+小游戏素材在被 Git 忽略的 `private-assets/games/manifest.json` 中逐项声明，例如
+`[{"type":"game","gameKey":"merge-qb","file":"impact.ogg"}]`，本地文件放在
+`private-assets/games/merge-qb/impact.ogg`，发布到同一私有 bucket 的
+`images/games/merge-qb/impact.ogg`。`gameKey` 仅允许小写字母、数字和中间连字符；
+`file` 仅允许安全文件名及现有上传器支持的扩展名。现有 12 张 QB 图片由发布器继续
+纳入清单，无需重复声明。先应用 `20261001130000_private_game_assets.sql`，然后使用
+上述完整发布流程；资源签名仍要求现有邀请码会话，上传仍使用本地管理员凭据。
+后续完整发布也必须保留所有仍需使用的小游戏清单项，否则现有清理流程会将其列为待删除对象。
+
 `npm warn Unknown cli config "--confirm-publish"` 来自 npm 参数解析，不是 Supabase 上传错误。
 `npm run admin publish --confirm-publish` 缺少参数分隔符，确认参数可能被 npm 消耗，脚本只显示发布计划。
 推荐直接使用上面的固定命令。手动调用的正确等价写法为：

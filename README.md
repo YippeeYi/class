@@ -314,6 +314,8 @@ private-assets/
 │  └─ attachments/                  # 正文/附件引用的二进制文件
 ├─ record-pages/                    # 书面页原图
 ├─ quiz/                            # 隐藏题图本地源
+├─ games/manifest.json              # 小游戏私有资源发布清单
+├─ games/<game-key>/<file>           # 清单引用的图片、音频等素材
 └─ meal-map/map.png                 # 地图原图；也兼容单独的 map.PNG
 ```
 

@@ -2,6 +2,28 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
 const MAX_REQUEST_ATTEMPTS = 3;
+export const allowedStorageExtensions = new Set([
+    '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg',
+    '.pdf', '.txt', '.zip', '.mp3', '.wav', '.ogg', '.mp4', '.webm'
+]);
+
+export function gameAssetPaths(asset) {
+    if (!asset || typeof asset !== 'object' || Array.isArray(asset) || asset.type !== 'game') {
+        throw new Error('Game asset type must be game.');
+    }
+    const { gameKey, file } = asset;
+    if (typeof gameKey !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(gameKey)) {
+        throw new Error('Game asset gameKey must use lowercase letters, digits and internal hyphens.');
+    }
+    if (typeof file !== 'string' || !/^[a-z0-9]+(?:[._-][a-z0-9]+)*\.[a-z0-9]+$/.test(file)
+        || !allowedStorageExtensions.has(path.extname(file))) {
+        throw new Error('Game asset file must be a safe basename with an allowed private media extension.');
+    }
+    return {
+        localPath: `private-assets/games/${gameKey}/${file}`,
+        remotePath: `images/games/${gameKey}/${file}`
+    };
+}
 
 export async function loadAdminDotEnv(root) {
     try {
@@ -60,6 +82,10 @@ Direct script usage:
   node scripts/admin.mjs sessions revoke --id UUID --confirm-revoke
   node scripts/admin.mjs sessions revoke-all --confirm-revoke-all
   node scripts/admin.mjs attempts cleanup --confirm-cleanup
+
+Game assets use private-assets/games/manifest.json entries with
+type=game, gameKey and file. Use content:audit, content:plan and the existing
+snapshot-backed content:publish command to upload them.
 
 The local audit command does not need credentials. Other commands use
 SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. Invite generation and single-code

@@ -466,7 +466,7 @@ export function normalizePrivatePath(value: unknown, requiredPrefix = '') {
 function isSensitivePath(path: string) {
   return (
     path === 'images/private/meal-map.png' ||
-    path.startsWith('images/games/merge-qb/') ||
+    path.startsWith('images/games/') ||
     path.startsWith('hidden/') ||
     path.startsWith('images/record-pages/') ||
     path.startsWith('images/quiz/')
