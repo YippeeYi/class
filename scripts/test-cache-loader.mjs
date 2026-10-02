@@ -45,14 +45,30 @@ setScope('first')
 const stored = new Map()
 let deferOpen = null
 let failTransaction = false
+const readFailures = new Map()
+let abortAfterRead = false
+let finishWrite = null
+let deferWrite = false
 const database = {
   close() {},
   objectStoreNames: { contains: () => true },
   transaction() {
     if (failTransaction) throw new Error('storage unavailable')
     const tx = { objectStore: () => ({
-      get(key) { const request = {}; setImmediate(() => { request.result = stored.get(key); request.onsuccess?.() }); return request },
-      put(entry) { stored.set(entry.key, entry); setImmediate(() => tx.oncomplete?.()); return {} },
+      get(key) { const request = {}; setImmediate(() => {
+        const failures = readFailures.get(key) || 0
+        if (failures) {
+          readFailures.set(key, failures - 1)
+          request.onerror?.()
+          tx.onabort?.()
+          return
+        }
+        request.result = stored.get(key)
+        request.onsuccess?.()
+        if (abortAfterRead) tx.onabort?.()
+        else tx.oncomplete?.()
+      }); return request },
+      put(entry) { const commit = () => { stored.set(entry.key, entry); tx.oncomplete?.() }; setImmediate(() => { if (deferWrite) finishWrite = commit; else commit() }); return {} },
     }) }
     return tx
   },
@@ -113,6 +129,60 @@ try {
   } finally {
     indexedDB.open = regularOpen
   }
+  for (const key of ['page-supplements', 'record-page-positions:false']) {
+    clearRuntimeCache()
+    sessionStorage.clear()
+    const scoped = `v6:access-second:${key}`
+    const original = { time: Date.now(), version: '1', data: ['existing'] }
+    stored.set(scoped, original)
+    readFailures.set(scoped, 1)
+    assert.deepEqual(await loadCached({ key, loader: () => assert.fail('one read error must recover the existing entry') }), original.data)
+    assert.deepEqual(stored.get(scoped), original, 'a failed read must preserve the existing entry')
+    clearRuntimeCache()
+    sessionStorage.clear()
+    readFailures.set(scoped, 2)
+    deferWrite = true
+    let completed = false
+    let fallbackRequests = 0
+    const fallback = loadCached({ key, loader: async () => { fallbackRequests++; return ['updated'] } }).then((data) => { completed = true; return data })
+    while (!finishWrite) await new Promise(setImmediate)
+    assert.equal(completed, false, 'network fallback must finish persistence before the page can close')
+    assert.deepEqual(stored.get(scoped), original, 'read failures never delete valid cached data')
+    const concurrent = loadCached({ key, force: true, loader: () => assert.fail('a pending persistence write must still deduplicate readers') })
+    finishWrite()
+    finishWrite = null
+    deferWrite = false
+    assert.deepEqual(await fallback, ['updated'])
+    assert.deepEqual(await concurrent, ['updated'])
+    assert.equal(fallbackRequests, 1)
+    clearRuntimeCache()
+    sessionStorage.clear()
+    assert.deepEqual(await loadCached({ key, loader: () => assert.fail('reopening must use the recovered IndexedDB entry') }), ['updated'])
+  }
+  clearRuntimeCache()
+  sessionStorage.clear()
+  stored.set('v6:access-second:aborted-read', { time: Date.now(), version: '1', data: ['uncommitted'] })
+  abortAfterRead = true
+  try {
+    assert.deepEqual(await loadCached({ key: 'aborted-read', loader: async () => ['fallback after abort'] }), ['fallback after abort'], 'an aborted read transaction must not count as a cache hit')
+  } finally { abortAfterRead = false }
+  clearRuntimeCache()
+  sessionStorage.clear()
+  let failedLoads = 0
+  await assert.rejects(loadCached({ key: 'failed-loader', loader: async () => { failedLoads++; throw new Error('offline') } }), /offline/)
+  assert.deepEqual(await loadCached({ key: 'failed-loader', loader: async () => { failedLoads++; return ['recovered'] } }), ['recovered'])
+  assert.equal(failedLoads, 2, 'a rejected request promise must not poison subsequent reads')
+  deferWrite = true
+  const writing = loadCached({ key: 'write-teardown', loader: async () => ['private pending write'] })
+  const writingRejected = assert.rejects(writing, /访问范围已改变/)
+  while (!finishWrite) await new Promise(setImmediate)
+  clearRuntimeCache()
+  finishWrite()
+  finishWrite = null
+  deferWrite = false
+  await writingRejected
+  assert.equal([...sessionStorage.entries.values()].some((value) => value.includes('private pending write')), false, 'teardown during persistence must not publish an old result')
+  console.log('Transient read errors, aborted transactions, committed fallback writes, reopening and rejected-promise recovery passed.')
   clearRuntimeCache()
   const timestamp = Date.now() - 2000
   stored.set('v6:access-second:stale', { time: timestamp, version: '1', data: ['offline'] })

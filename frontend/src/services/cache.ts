@@ -110,7 +110,11 @@ async function readPersistent<T>(
       const result = await new Promise<CacheEntry<T> | null>((resolve, reject) => {
         const transaction = database.transaction(STORE_NAME, 'readonly')
         const request = transaction.objectStore(STORE_NAME).get(scoped)
-        request.onsuccess = () => resolve((request.result as CacheEntry<T> | undefined) || null)
+        let entry: CacheEntry<T> | null = null
+        request.onsuccess = () => {
+          entry = (request.result as CacheEntry<T> | undefined) || null
+        }
+        transaction.oncomplete = () => resolve(entry)
         request.onerror = transaction.onabort = () => reject(new Error('IndexedDB read failed'))
       })
       if (
@@ -235,9 +239,11 @@ export async function loadCached<T>({
         const data = await loader()
         assertCurrent()
         const entry = { time: Date.now(), data, version }
+        // A completed load must survive closing the page immediately after a network fallback.
+        if (persistent) await writePersistent(scoped, entry, requestGeneration, business)
+        assertCurrent()
         memory.set(scoped, entry)
         if (sessionTtl > 0) writeSession(scoped, entry)
-        if (persistent) void writePersistent(scoped, entry, requestGeneration, business)
         return data
       } catch (error) {
         assertCurrent()

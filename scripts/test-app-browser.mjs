@@ -2324,6 +2324,48 @@ try {
       const retryBusiness = await reopenWithoutSession()
       assert.equal(retryBusiness.length, 0, `reopened site must reuse IndexedDB after a transient read failure: ${JSON.stringify({ reopenedBusiness, retryBusiness })}`)
     }
+    for (const failures of [1, 2]) {
+      const faultPage = await cacheContext.newPage()
+      await faultPage.addInitScript((failures) => {
+        const remaining = new Map(['page-supplements', 'record-page-positions:false'].map((key) => [key, failures]))
+        window.__cacheReadFailures = 0
+        const get = IDBObjectStore.prototype.get
+        IDBObjectStore.prototype.get = function (key) {
+          const request = get.call(this, key)
+          const resource = typeof key === 'string' && [...remaining.keys()].find((resource) => key.endsWith(`:${resource}`))
+          if (resource && remaining.get(resource) > 0) {
+            remaining.set(resource, remaining.get(resource) - 1)
+            window.__cacheReadFailures++
+            this.transaction.abort()
+          }
+          return request
+        }
+      }, failures)
+      const faultStart = networkEvents.length
+      await faultPage.goto(origin + 'records')
+      await waitCards(faultPage, 4)
+      assert.equal(await faultPage.evaluate(() => window.__cacheReadFailures), failures * 2, 'the fixture aborts the actual supplement and order reads')
+      const fallbackBusiness = business(networkEvents.slice(faultStart))
+      assert.deepEqual(fallbackBusiness.map((event) => event.path).sort(), failures === 1 ? [] : ['/rest/v1/class_page_supplements', '/rest/v1/rpc/get_class_record_order'], 'a single read failure retries cached data; exhausted reads fetch each affected resource once')
+      if (failures === 2) {
+        assert.equal(await faultPage.evaluate(async () => {
+          const request = indexedDB.open('classRecord-data-cache-v2', 1)
+          const database = await new Promise((resolve) => { request.onsuccess = () => resolve(request.result) })
+          try {
+            const read = database.transaction('entries', 'readonly').objectStore('entries').getAll()
+            const entries = await new Promise((resolve) => { read.onsuccess = () => resolve(read.result) })
+            const prefix = 'classRecord:dataCache:v6:'
+            return ['page-supplements', 'record-page-positions:false'].every((resource) => {
+              const entry = entries.find((entry) => entry.key.endsWith(`:${resource}`))
+              const session = entry && JSON.parse(sessionStorage.getItem(prefix + entry.key) || 'null')
+              return session && session.time === entry.time && JSON.stringify(session.data) === JSON.stringify(entry.data)
+            })
+          } finally { database.close() }
+        }), true, 'successful network fallbacks commit the recovered entries before the loaded page closes')
+      }
+      await faultPage.close()
+      assert.deepEqual(await reopenWithoutSession(), [], 'reopening after a transient read failure reuses persisted business data')
+    }
     businessVersion = '2'
     records[0].content += ' 再次进入前已更新'
     const updatedStart = networkEvents.length
