@@ -117,6 +117,113 @@ async function contextFor({ admin = false, mobile = false, authenticated = true 
   })
   return context
 }
+async function checkQbColliders(page) {
+  const originals = await Promise.all(Array.from({ length: 12 }, async (_, index) => {
+    const file = `${String(index + 1).padStart(2, '0')}.png`
+    try {
+      const { localPath } = gameAssetPaths({ type: 'game', gameKey: 'merge-qb', file })
+      return (await readFile(path.join(frontend, '..', localPath))).toString('base64')
+    } catch (error) {
+      if (error.code === 'ENOENT') return null
+      throw error
+    }
+  }))
+  if (originals.every((image) => !image)) return // Private originals are absent in public CI.
+  assert.ok(originals.every(Boolean), 'alpha verification requires the complete private image set')
+  const measurements = await page.evaluate(async (originals) => {
+    const { QB_LEVELS } = await import('/src/features/games/merge-qb/levels.ts')
+    function distanceField(mask, width, height) {
+      const distances = new Float32Array(mask.length).fill(1e6)
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        const i = y * width + x
+        if (mask[i]) distances[i] = 0
+        else {
+          if (x) distances[i] = Math.min(distances[i], distances[i - 1] + 1)
+          if (y) distances[i] = Math.min(distances[i], distances[i - width] + 1)
+          if (x && y) distances[i] = Math.min(distances[i], distances[i - width - 1] + Math.SQRT2)
+          if (x < width - 1 && y) distances[i] = Math.min(distances[i], distances[i - width + 1] + Math.SQRT2)
+        }
+      }
+      for (let y = height - 1; y >= 0; y--) for (let x = width - 1; x >= 0; x--) {
+        const i = y * width + x
+        if (x < width - 1) distances[i] = Math.min(distances[i], distances[i + 1] + 1)
+        if (y < height - 1) distances[i] = Math.min(distances[i], distances[i + width] + 1)
+        if (x < width - 1 && y < height - 1) distances[i] = Math.min(distances[i], distances[i + width + 1] + Math.SQRT2)
+        if (x && y < height - 1) distances[i] = Math.min(distances[i], distances[i + width - 1] + Math.SQRT2)
+      }
+      return distances
+    }
+    const results = []
+    for (const [index, level] of QB_LEVELS.entries()) {
+      const image = new Image()
+      image.src = `data:image/png;base64,${originals[index]}`
+      await image.decode()
+      const width = Math.ceil(level.visualSize.width * 3)
+      const height = Math.ceil(level.visualSize.height * 3)
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const context = canvas.getContext('2d', { willReadFrequently: true })
+      context.drawImage(image, 0, 0, width, height)
+      const pixels = context.getImageData(0, 0, width, height).data
+      const alpha = new Uint8Array(width * height)
+      for (let i = 0; i < alpha.length; i++) alpha[i] = pixels[i * 4 + 3] >= 64 ? 1 : 0
+      // Only exterior transparency represents a contact gap; glasses/clothing holes are not cavities.
+      const outside = new Uint8Array(alpha.length)
+      const queue = []
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        const i = y * width + x
+        if ((x === 0 || y === 0 || x === width - 1 || y === height - 1) && !alpha[i]) {
+          outside[i] = 1
+          queue.push(i)
+        }
+      }
+      for (let i = 0; i < queue.length; i++) {
+        const at = queue[i], x = at % width, y = Math.floor(at / width)
+        for (const next of [x ? at - 1 : -1, x < width - 1 ? at + 1 : -1, y ? at - width : -1, y < height - 1 ? at + width : -1]) {
+          if (next >= 0 && !alpha[next] && !outside[next]) {
+            outside[next] = 1
+            queue.push(next)
+          }
+        }
+      }
+      context.clearRect(0, 0, width, height)
+      context.scale(width, height)
+      context.fillStyle = '#000'
+      for (const shape of level.collider.shapes) {
+        context.beginPath()
+        if (shape.type === 'polygon') {
+          shape.vertices.forEach((point, i) => i ? context.lineTo(point.x, point.y) : context.moveTo(point.x, point.y))
+          context.closePath()
+        } else if (shape.type === 'rectangle') context.rect(shape.x - shape.width / 2, shape.y - shape.height / 2, shape.width, shape.height)
+        else {
+          const radius = shape.radius * Math.min(level.physicsSize.width, level.physicsSize.height)
+          context.ellipse(shape.x, shape.y, radius / level.physicsSize.width, radius / level.physicsSize.height, 0, 0, Math.PI * 2)
+        }
+        context.fill()
+      }
+      const colliderPixels = context.getImageData(0, 0, width, height).data
+      const collider = new Uint8Array(alpha.length)
+      for (let i = 0; i < alpha.length; i++) collider[i] = colliderPixels[i * 4 + 3] >= 128 ? 1 : 0
+      const toSilhouette = distanceField(outside.map((value) => 1 - value), width, height)
+      const toCollider = distanceField(collider, width, height)
+      let extra = 0, missing = 0
+      for (let i = 0; i < alpha.length; i++) {
+        if (collider[i] && outside[i]) extra = Math.max(extra, toSilhouette[i] / 3)
+        if (alpha[i] && !collider[i]) missing = Math.max(missing, toCollider[i] / 3)
+      }
+      results.push({ id: level.id, extra, missing, size: [image.naturalWidth, image.naturalHeight], configuredSize: [level.sourceSize.width, level.sourceSize.height] })
+    }
+    return results
+  }, originals)
+  for (const measurement of measurements) {
+    assert.deepEqual(measurement.size, measurement.configuredSize, `level ${measurement.id} matches its private original`)
+    assert.ok(measurement.extra <= (measurement.id === '11' ? 3.75 : 3), `level ${measurement.id} avoids premature contact in exterior transparency: ${measurement.extra}`)
+    assert.ok(measurement.missing <= 1.6, `level ${measurement.id} covers the visible silhouette: ${measurement.missing}`)
+  }
+  console.log('All 12 QB alpha silhouettes match their calibrated colliders.')
+}
+
 const waitCards = async (page, count) => {
   try {
     await page.waitForFunction((count) => document.querySelectorAll('main .record-surface').length === count, count)
@@ -530,6 +637,8 @@ try {
   await touchBoard.waitFor()
   await touch.locator('.merge-qb-next img').waitFor()
   const fitsMobileGame = async (size) => {
+    // Viewport emulation updates container/viewport units across resize frames.
+    await touch.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
     const geometry = await touch.evaluate(() => {
       const arena = document.querySelector('.merge-qb-arena').getBoundingClientRect()
       const toolbarElement = document.querySelector('.merge-qb-toolbar')
@@ -553,22 +662,23 @@ try {
       await fitsMobileGame(`${width}×${height}`)
       assert.ok(await touch.locator('.merge-qb-toolbar').evaluate((toolbar) => {
         const style = getComputedStyle(toolbar)
-        const title = getComputedStyle(toolbar.querySelector('.merge-qb-title'))
-        const score = getComputedStyle(toolbar.querySelector('.merge-qb-score strong'))
-        const next = getComputedStyle(toolbar.querySelector('.merge-qb-next > span'))
-        return toolbar.getBoundingClientRect().height >= 60 &&
-          parseFloat(title.fontSize) >= 13 &&
-          parseFloat(score.fontSize) >= 16 && parseFloat(next.fontSize) >= 13 &&
-          parseFloat(style.paddingTop) === 12 && parseFloat(style.paddingBottom) === 12
-      }), 'mobile information bar has balanced padding and larger core text')
+        const elements = [...toolbar.querySelectorAll('a, button, h1, .merge-qb-score > span, .merge-qb-next > span, .merge-qb-next-preview')]
+          .filter((element) => element.getBoundingClientRect().width > 0)
+        const centre = (rect) => (rect.top + rect.bottom) / 2
+        const bar = toolbar.getBoundingClientRect()
+        return style.flexWrap === 'nowrap' && elements.every((element) => {
+          const rect = element.getBoundingClientRect()
+          return Math.abs(centre(rect) - centre(bar)) < 2 && getComputedStyle(element).whiteSpace === 'nowrap' && rect.left >= bar.left && rect.right <= bar.right
+        }) && parseFloat(style.paddingTop) === 12 && parseFloat(style.paddingBottom) === 12
+      }), 'mobile toolbar controls and both label/value pairs remain centred on one line')
       assert.equal(await touch.locator('.merge-qb-title').evaluate((node) => {
         const style = getComputedStyle(node)
         return style.userSelect || style.getPropertyValue('-webkit-user-select')
       }), 'none')
       assert.ok(await touch.locator('.merge-qb-stage img').evaluateAll((images) => images.every((image) => !image.draggable)))
       assert.ok(await touch.locator('.merge-qb-mobile-restart').evaluate((button) =>
-        parseFloat(getComputedStyle(button).paddingLeft) >= 8 && button.getBoundingClientRect().height === 32),
-      'restart gains horizontal space without increasing its height')
+        button.getBoundingClientRect().width >= 40 && button.getBoundingClientRect().height === 32),
+      'responsive restart preserves a usable button area and its existing height')
     }
   }
   await touch.setViewportSize({ width: 390, height: 844 })
@@ -606,6 +716,46 @@ try {
     }
   }, origin)
   await touch.waitForFunction(() => window.__mobileMergeGame)
+  for (const width of [280, 320, 375, 390, 430]) {
+    await touch.setViewportSize({ width, height: 844 })
+    await touch.waitForTimeout(100)
+    let stableLayout
+    for (const score of [0, 9, 99, 99999]) {
+      await touch.evaluate((score) => { window.__mobileMergeGame.score = score; window.__mobileMergeGame.publish() }, score)
+      await touch.waitForFunction((score) => document.querySelector('.merge-qb-score strong')?.textContent === String(score), score)
+      await fitsMobileGame(`${width}×844 score ${score}`)
+      const layout = await touch.evaluate(() => ['.merge-qb-actions', '.merge-qb-score', '.merge-qb-next', '.merge-qb-arena'].map((selector) => {
+        const rect = document.querySelector(selector).getBoundingClientRect()
+        return [rect.left, rect.top, rect.width, rect.height]
+      }))
+      if (stableLayout) assert.deepEqual(layout, stableLayout, 'one to five digits do not move the controls or resize the arena')
+      stableLayout = layout
+    }
+    assert.ok(await touch.locator('.merge-qb-score-value').evaluate((value) =>
+      value.getBoundingClientRect().width >= value.querySelector('strong').getBoundingClientRect().width && getComputedStyle(value).fontVariantNumeric.includes('tabular-nums')),
+    'the number slot reserves at least five complete tabular digits')
+    for (let index = 0; index < 5; index++) {
+      await touch.evaluate(async (index) => {
+        const { QB_LEVELS } = await import('/src/features/games/merge-qb/levels.ts')
+        window.__mobileMergeGame.next = QB_LEVELS[index]
+        window.__mobileMergeGame.publish()
+      }, index)
+      await touch.waitForFunction((index) => {
+        const image = document.querySelector('.merge-qb-next img')
+        return image?.alt === ['一级 QB', '二级 QB', '三级 QB', '四级 QB', '五级 QB'][index] && image.complete && image.naturalWidth > 0
+      }, index)
+      assert.ok(await touch.locator('.merge-qb-next img').evaluate((image) => {
+        const rect = image.getBoundingClientRect()
+        return Math.abs(rect.width / rect.height - image.naturalWidth / image.naturalHeight) < 0.01
+      }), 'each mobile Next image preserves the source aspect ratio')
+      await fitsMobileGame(`${width}×844 next level ${index + 1}`)
+    }
+    await touch.evaluate(() => { window.__mobileMergeGame.danger = 'game-over'; window.__mobileMergeGame.publish() })
+    await touch.locator('.merge-qb-game-over-label').waitFor()
+    await fitsMobileGame(`${width}×844 game over with five digits`)
+    await touch.evaluate(() => { window.__mobileMergeGame.danger = 'normal'; window.__mobileMergeGame.publish() })
+  }
+  await touch.setViewportSize({ width: 320, height: 844 })
   await touch.evaluate(() => {
     window.__mobileMergeGame.score = 123456
     window.__mobileMergeGame.publish()
@@ -627,7 +777,7 @@ try {
   })
   const mobileGameOver = touch.locator('.merge-qb-game-over-label')
   await mobileGameOver.waitFor()
-  assert.ok(await mobileGameOver.evaluate((label) => Number.parseFloat(getComputedStyle(label).fontSize) >= 18), 'mobile game over title uses the larger type scale')
+  await fitsMobileGame('390×568 game over')
   assert.equal(await touch.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'mobile game over title does not overflow')
   assert.ok(await touch.evaluate(() => {
     const title = document.querySelector('.merge-qb-game-over-label').getBoundingClientRect()
@@ -695,6 +845,7 @@ try {
     assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-locked').count(), 10)
     assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-locked').first().innerText(), '?')
     assert.match(await gamePage.locator('.merge-qb-next img').getAttribute('src'), /^blob:/)
+    if (!process.env.CLASS_RECORD_PREVIEW) await checkQbColliders(gamePage)
     await gamePage.emulateMedia({ reducedMotion: 'no-preference' })
     const warningLine = board.locator('.merge-qb-warning-line')
     assert.equal(await warningLine.count(), 1, 'one warning line is always present')
@@ -925,6 +1076,55 @@ try {
         }
       }, origin)
       await gamePage.waitForFunction(() => window.__mergeQbTestGame)
+      const shareChecks = await gamePage.evaluate(async () => {
+        const { createShareImage, SHARE_CAPTION_POOLS } = await import('/src/features/games/merge-qb/share.ts')
+        const { QB_LEVELS } = await import('/src/features/games/merge-qb/levels.ts')
+        const frozen = document.querySelector('.merge-qb-arena canvas')
+        const fillText = CanvasRenderingContext2D.prototype.fillText
+        const drawImage = CanvasRenderingContext2D.prototype.drawImage
+        const random = Math.random
+        let texts = [], draws = []
+        CanvasRenderingContext2D.prototype.fillText = function (...args) {
+          if (this.canvas.width === 1080 && this.canvas.height === 1900) texts.push(args)
+          return fillText.apply(this, args)
+        }
+        CanvasRenderingContext2D.prototype.drawImage = function (source, ...args) {
+          if (this.canvas.width === 1080 && this.canvas.height === 1900) draws.push([source === frozen, ...args])
+          return drawImage.call(this, source, ...args)
+        }
+        const checks = []
+        try {
+          for (const [category, level] of [null, QB_LEVELS[2], QB_LEVELS[5], QB_LEVELS[8], QB_LEVELS[10], QB_LEVELS[11]].entries()) {
+            const snapshot = { ...window.__mergeQbTestGame.snapshot, score: 12345, highestMergedLevel: level }
+            const variants = []
+            for (const choice of [0, 0.999999]) {
+              Math.random = () => choice
+              texts = []; draws = []
+              const blob = await createShareImage(frozen, snapshot)
+              const image = await createImageBitmap(blob)
+              variants.push({ texts, draws, size: [image.width, image.height] })
+              image.close()
+            }
+            checks.push({ category, variants, captions: [...SHARE_CAPTION_POOLS[category].captions], highest: level?.name ?? '尚未合成' })
+          }
+        } finally {
+          Math.random = random
+          CanvasRenderingContext2D.prototype.fillText = fillText
+          CanvasRenderingContext2D.prototype.drawImage = drawImage
+        }
+        return checks
+      })
+      for (const check of shareChecks) {
+        assert.deepEqual(check.variants[0].texts.slice(0, 3), check.variants[1].texts.slice(0, 3), 'caption randomness preserves score, highest level and layout')
+        assert.deepEqual(check.variants[0].texts.slice(0, 3).map(([text]) => text), ['合成大QB', '12345 分', `最高合成：${check.highest}`])
+        assert.notEqual(check.variants[0].texts[3][0], check.variants[1].texts[3][0], 'repeated shares can draw different captions')
+        for (const variant of check.variants) {
+          assert.deepEqual(variant.size, [1080, 1900])
+          assert.ok(check.captions.includes(variant.texts[3][0]), 'share image caption belongs to the achieved-level category')
+          assert.deepEqual(variant.draws, [[true, 60, 60, 960, 960 * 14 / 9]], 'share preserves the frozen arena and its placement')
+        }
+      }
+
       const previewBefore = await gamePage.locator('.merge-qb-next').boundingBox()
       const scoreBefore = await gamePage.locator('.merge-qb-score').boundingBox()
       await gamePage.evaluate(async (origin) => {

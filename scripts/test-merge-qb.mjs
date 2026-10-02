@@ -17,9 +17,21 @@ const vite = await createServer({
 
 try {
   const { MergeQbGame, makePiece, FAIL_LINE, DANGER_DISTANCE, DANGER_GRACE_MS } = await vite.ssrLoadModule('/src/features/games/merge-qb/game.ts')
-  const { QB_LEVELS, levelImagePath, levelOutlineBounds } = await vite.ssrLoadModule('/src/features/games/merge-qb/levels.ts')
+  const { QB_LEVELS, QB_PHYSICS, levelImagePath, levelOutlineBounds } = await vite.ssrLoadModule('/src/features/games/merge-qb/levels.ts')
   const { createCelebration } = await vite.ssrLoadModule('/src/features/games/merge-qb/render.ts')
+  const { SHARE_CAPTION_POOLS, selectShareCaption } = await vite.ssrLoadModule('/src/features/games/merge-qb/share.ts')
   assert.equal(QB_LEVELS.length, 12)
+  const captionCategories = [0, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5]
+  assert.equal(SHARE_CAPTION_POOLS.at(-1).maxLevel, 12)
+  assert.ok(SHARE_CAPTION_POOLS.every((pool) => pool.captions.length >= 3 && new Set(pool.captions).size === pool.captions.length))
+  assert.equal(new Set(SHARE_CAPTION_POOLS.flatMap((pool) => pool.captions)).size, SHARE_CAPTION_POOLS.flatMap((pool) => pool.captions).length, 'categories have distinct captions')
+  for (const [index, level] of QB_LEVELS.entries()) {
+    const captions = SHARE_CAPTION_POOLS[captionCategories[index]].captions
+    const chosen = captions.map((_, choice) => selectShareCaption(level, () => (choice + 0.5) / captions.length))
+    assert.deepEqual(chosen, captions, `level ${level.id} randomly selects only its own category`)
+  }
+  assert.equal(selectShareCaption(null, () => 0), SHARE_CAPTION_POOLS[0].captions[0])
+  assert.ok(SHARE_CAPTION_POOLS.at(-1).captions.includes(selectShareCaption(QB_LEVELS[11], () => 0.999999)))
   const visualEvent = { level: QB_LEVELS[10], scoreDelta: 66, x: 180, y: 300, firstEleven: true, firstTwelve: false }
   const confetti = createCelebration(visualEvent, 'confetti', 1000, false)
   const sparkle = createCelebration({ ...visualEvent, level: QB_LEVELS[11] }, 'sparkle', 1000, false)
@@ -48,6 +60,35 @@ try {
     const floor = Matter.Bodies.rectangle(180, 578, 432, 36, { isStatic: true })
     const left = Matter.Bodies.rectangle(-18, 280, 36, 1120, { isStatic: true })
     const right = Matter.Bodies.rectangle(378, 280, 36, 1120, { isStatic: true })
+    assert.ok(level.collider.shapes.length <= 12, `level ${level.id} has bounded collision complexity`)
+    const aligned = makePiece(level, 180, 240)
+    const material = ['09', '11'].includes(level.id) ? Matter.Body.create({}) : QB_PHYSICS.qb
+    for (const property of ['friction', 'frictionStatic', 'frictionAir', 'restitution'])
+      assert.equal(aligned.body[property], material[property], `level ${level.id} preserves its existing effective ${property}`)
+    const originalParts = aligned.body.parts.length > 1 ? aligned.body.parts.slice(1) : [aligned.body]
+    for (const angle of [0, 0.7, Math.PI / 2, -1.1]) {
+      Matter.Body.setAngle(aligned.body, angle)
+      const cos = Math.cos(angle), sin = Math.sin(angle)
+      for (const [partIndex, shape] of level.collider.shapes.entries()) {
+        if (shape.type !== 'polygon') continue
+        for (const point of shape.vertices) {
+          const dx = (point.x - 0.5) * level.physicsSize.width + aligned.imageOffset.x
+          const dy = (point.y - 0.5) * level.physicsSize.height + aligned.imageOffset.y
+          const expected = { x: aligned.body.position.x + dx * cos - dy * sin, y: aligned.body.position.y + dx * sin + dy * cos }
+          assert.ok(originalParts[partIndex].vertices.some((vertex) => Math.hypot(vertex.x - expected.x, vertex.y - expected.y) < 0.05), `level ${level.id} collider stays aligned with the rotated image`)
+        }
+      }
+    }
+    const collisionGame = new MergeQbGame(() => {}, () => 0)
+    const colliding = Array.from({ length: 3 }, (_, i) => makePiece(level, 180 + (i - 1) * level.physicsSize.width / 8, 260))
+    for (const piece of colliding) {
+      collisionGame.pieces.set(piece.body.id, piece)
+      Matter.Composite.add(collisionGame.engine.world, piece.body)
+    }
+    collisionGame.step()
+    assert.equal(collisionGame.snapshot.score, level.nextId ? QB_LEVELS[index + 1].points : 0, `level ${level.id} scores one merge even when multiple compound parts collide`)
+    assert.equal([...collisionGame.objects].length, level.nextId ? 2 : 3)
+    collisionGame.dispose()
     const first = makePiece(level, 180, 150)
     assert.ok(Math.abs(first.body.mass - level.mass) < 0.0001, `level ${level.id} uses its configured mass`)
     Matter.Composite.add(engine.world, [floor, left, right, first.body])
@@ -59,6 +100,15 @@ try {
     for (let step = 0; step < 480; step++) Matter.Engine.update(engine, 1000 / 60)
     assert.ok(second.body.bounds.min.y < first.body.bounds.max.y, `level ${level.id} stacks without falling through`)
     assert.ok(second.body.bounds.max.y <= 563, `level ${level.id} does not penetrate the floor`)
+    Matter.Sleeping.set(first.body, false)
+    Matter.Sleeping.set(second.body, false)
+    Matter.Body.applyForce(first.body, { x: first.body.position.x + 10, y: first.body.position.y }, { x: 0.03, y: -0.04 })
+    for (let step = 0; step < 480; step++) Matter.Engine.update(engine, 1000 / 60)
+    for (const piece of [first, second]) {
+      assert.ok([piece.body.position.x, piece.body.position.y, piece.body.angle, piece.body.speed].every(Number.isFinite), `level ${level.id} remains finite after an off-centre impulse`)
+      assert.ok(piece.body.bounds.min.x >= -2 && piece.body.bounds.max.x <= 362 && piece.body.bounds.max.y <= 563, `level ${level.id} rolls and remains inside the walls and floor`)
+      assert.ok(piece.body.speed < 0.5, `level ${level.id} settles without sustained jitter after an impulse`)
+    }
     Matter.Composite.clear(engine.world, false)
     Matter.Engine.clear(engine)
   }
@@ -344,6 +394,22 @@ try {
     selection.mergePending()
     assert.equal(mergeEvents.at(-1)[level.id === '10' ? 'firstEleven' : 'firstTwelve'], true, 'new games can celebrate both levels again')
   }
+  const reachedHighest = selection.snapshot.highestMergedLevel
+  for (const piece of [...selection.objects]) {
+    Matter.Composite.remove(selection.engine.world, piece.body)
+    selection.pieces.delete(piece.body.id)
+  }
+  const smallPair = [makePiece(base, 150, 260), makePiece(base, 180, 260)]
+  for (const piece of smallPair) {
+    selection.pieces.set(piece.body.id, piece)
+    Matter.Composite.add(selection.engine.world, piece.body)
+  }
+  selection.pendingPairs.set('history-check', smallPair.map((piece) => piece.body.id))
+  selection.mergePending()
+  assert.equal(selection.snapshot.highestMergedLevel, reachedHighest, 'highest merged level survives body removal and later lower merges')
+  assert.ok(SHARE_CAPTION_POOLS.at(-1).captions.includes(selectShareCaption(selection.snapshot.highestMergedLevel, () => 0.5)))
+  selection.reset()
+  assert.equal(selection.snapshot.highestMergedLevel, null, 'a new run resets highest-level history')
   selection.dispose()
 
   const sleepingGame = new MergeQbGame(() => {}, () => 0)

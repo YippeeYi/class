@@ -103,7 +103,9 @@ export function makePiece(level: QbLevel, x: number, y: number): GamePiece {
   const parts = shapes.map((shape) => shapeBody(shape, level, x, y))
   const first = parts[0]
   if (!first) throw new Error(`Missing collider for level ${level.id}`)
-  const body = parts.length === 1 ? first : MatterBody.create({ parts })
+  // Levels 09/11 already had compound parents; retain their effective Matter material.
+  const material = level.id === '09' || level.id === '11' ? {} : QB_PHYSICS.qb
+  const body = parts.length === 1 ? first : MatterBody.create({ ...material, parts })
   MatterBody.setMass(body, level.mass)
   return {
     body,

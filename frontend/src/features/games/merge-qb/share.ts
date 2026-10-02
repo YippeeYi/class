@@ -1,4 +1,72 @@
 import type { GameSnapshot } from './game'
+import { QB_LEVELS, type QbLevel } from './levels'
+
+export const SHARE_CAPTION_POOLS = [
+  {
+    maxLevel: 1,
+    captions: [
+      'QB 已就位，下一局争取让他们碰个头。',
+      '这局先认个脸，合成的事下局再说。',
+      '还没凑成一对，QB 先来热个场。',
+    ],
+  },
+  {
+    maxLevel: 3,
+    captions: [
+      '小 QB 碰个头，合成之路开张了。',
+      '先合几只小 QB，大的还在后面。',
+      '有进展了，下一局再往大了合。',
+    ],
+  },
+  {
+    maxLevel: 6,
+    captions: [
+      'QB 越合越大，空位越来越少。',
+      '这一局，QB 已经有点分量了。',
+      '从小 QB 一路合上来，逐渐找到感觉。',
+    ],
+  },
+  {
+    maxLevel: 9,
+    captions: [
+      '大 QB 到场，留给下一只的位置不多了。',
+      '合到这里，手稳和运气都出了点力。',
+      'QB 的排面有了，场地开始紧张了。',
+    ],
+  },
+  {
+    maxLevel: 11,
+    captions: [
+      '离终极大 QB 又近了一步。',
+      '这一局的 QB，已经快撑满场面了。',
+      '合成到这一级，可以在班里晒一晒了。',
+    ],
+  },
+  {
+    maxLevel: 12,
+    captions: [
+      '终极大 QB 合成！这张图得留个纪念。',
+      '十二级大 QB 到场，这局圆满了。',
+      '从小 QB 合到终点，终极大 QB 已解锁。',
+    ],
+  },
+] as const
+
+export function selectShareCaption(
+  highestMergedLevel: QbLevel | null,
+  random = Math.random,
+): string {
+  const highest = highestMergedLevel
+    ? QB_LEVELS.findIndex((level) => level.id === highestMergedLevel.id) + 1
+    : 0
+  const pool =
+    SHARE_CAPTION_POOLS.find((category) => highest <= category.maxLevel) ?? SHARE_CAPTION_POOLS[0]
+  return (
+    pool.captions[
+      Math.min(pool.captions.length - 1, Math.max(0, Math.floor(random() * pool.captions.length)))
+    ] ?? pool.captions[0]
+  )
+}
 
 const SHARE_WIDTH = 1080
 const SHARE_HEIGHT = 1900
@@ -45,9 +113,7 @@ export async function createShareImage(
   context.fillText(`最高合成：${highestName}`, ARENA_MARGIN, infoTop + 140)
   context.fillStyle = muted
   context.font = `28px ${fontFamily}`
-  const caption = snapshot.highestMergedLevel
-    ? `本局获得 ${snapshot.score} 分，最高合成 ${highestName}。`
-    : `本局获得 ${snapshot.score} 分，还没有合成新 QB。`
+  const caption = selectShareCaption(snapshot.highestMergedLevel)
   context.fillText(caption, ARENA_MARGIN, infoTop + 195, ARENA_WIDTH)
 
   return await new Promise<Blob>((resolve, reject) => {

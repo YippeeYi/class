@@ -838,10 +838,12 @@ export function MergeQbBoard() {
                     src={assets.urls[snapshot.next.id]}
                     alt={snapshot.next.name}
                     className="object-contain"
-                    style={{
-                      width: snapshot.next.visualSize.width * arenaScale,
-                      height: snapshot.next.visualSize.height * arenaScale,
-                    }}
+                    style={
+                      {
+                        '--preview-width': `${snapshot.next.visualSize.width * arenaScale}px`,
+                        '--preview-image-height': `${snapshot.next.visualSize.height * arenaScale}px`,
+                      } as CSSProperties
+                    }
                   />
                 )}
               </div>
