@@ -106,30 +106,32 @@ const QbScore = memo(function QbScore({
     <div className="merge-qb-score">
       <span className="text-xs text-muted-foreground">分数</span>
       <span className="merge-qb-score-value">
-        <strong className="font-heading text-4xl font-semibold tabular-nums" aria-live="polite">
-          {score}
-        </strong>
-        {scorePops.map((pop) => (
-          <span
-            key={pop.id}
-            className="merge-qb-score-pop"
-            style={
-              {
-                '--pop-color': `var(--qb-pop-${pop.color})`,
-                '--pop-rise': `${pop.rise}px`,
-                '--pop-offset-x': `${pop.offsetX}px`,
-                '--pop-offset-y': `${pop.offsetY}px`,
-                animationDuration: `${pop.duration}ms`,
-              } as CSSProperties
-            }
-            aria-hidden="true"
-            onAnimationEnd={() =>
-              setScorePops((active) => active.filter((item) => item.id !== pop.id))
-            }
-          >
-            +{pop.delta}
-          </span>
-        ))}
+        <span className="merge-qb-score-anchor">
+          <strong className="font-heading text-4xl font-semibold tabular-nums" aria-live="polite">
+            {score}
+          </strong>
+          {scorePops.map((pop) => (
+            <span
+              key={pop.id}
+              className="merge-qb-score-pop"
+              style={
+                {
+                  '--pop-color': `var(--qb-pop-${pop.color})`,
+                  '--pop-rise': `${pop.rise}px`,
+                  '--pop-offset-x': `${pop.offsetX}px`,
+                  '--pop-offset-y': `${pop.offsetY}px`,
+                  animationDuration: `${pop.duration}ms`,
+                } as CSSProperties
+              }
+              aria-hidden="true"
+              onAnimationEnd={() =>
+                setScorePops((active) => active.filter((item) => item.id !== pop.id))
+              }
+            >
+              +{pop.delta}
+            </span>
+          ))}
+        </span>
       </span>
     </div>
   )

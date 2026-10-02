@@ -1,0 +1,74 @@
+.written-record-frame {
+  --written-sticky-background: var(--card);
+}
+
+[data-background]:not([data-background="default"]) .written-record-frame {
+  --written-sticky-background: color-mix(in oklch, var(--card) 88%, transparent);
+}
+
+.written-record-content {
+  /* Leave reading space below the sticky image in the single-column layout. */
+  --written-image-space: calc((100svh - 5rem - var(--written-controls-height, 5rem)) * 0.75);
+  display: grid;
+  align-items: start;
+  row-gap: 1.25rem;
+}
+
+.written-record-sticky {
+  position: sticky;
+  top: 4rem;
+  z-index: 10;
+  display: grid;
+  margin-inline: calc(-1 * var(--card-spacing));
+  padding-inline: var(--card-spacing);
+  pointer-events: none;
+}
+
+.written-record-controls {
+  position: relative;
+  padding-top: var(--card-spacing);
+  padding-bottom: 1.25rem;
+  pointer-events: auto;
+}
+
+.written-record-controls::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0 calc(-1 * var(--card-spacing));
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background-color: var(--written-sticky-background);
+  box-shadow: 0 -1px color-mix(in oklch, var(--foreground) 10%, transparent);
+  content: "";
+}
+
+.written-record-image {
+  pointer-events: auto;
+  background-color: var(--written-sticky-background);
+}
+
+@media (min-width: 1024px) {
+  .written-record-content,
+  .written-record-sticky {
+    grid-template-columns: minmax(20rem, 42%) minmax(0, 1fr);
+    column-gap: 1.25rem;
+  }
+
+  .written-record-content {
+    --written-image-space: calc(100svh - 5rem - var(--written-controls-height, 5rem));
+    grid-template-rows: var(--written-controls-height) auto;
+    row-gap: 0;
+  }
+
+  .written-record-sticky {
+    grid-area: 1 / 1 / 3 / -1;
+    align-self: start;
+  }
+
+  .written-record-controls {
+    grid-column: 1 / -1;
+  }
+
+  .written-record-text {
+    grid-area: 2 / 2;
+  }
+}

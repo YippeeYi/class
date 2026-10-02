@@ -1,4 +1,6 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
+
+import './written-record-pages.css'
 
 import { EmptyState } from '@/components/archive/async-state'
 import { ImageViewer } from '@/components/archive/image-viewer'
@@ -50,6 +52,25 @@ export function WrittenRecordPages({
   })
   const safeIndex = Math.max(0, Math.min(pageIndex, Math.max(0, visiblePages.length - 1)))
   const page = visiblePages[safeIndex]
+  const hasPage = Boolean(page)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const controlsRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const content = contentRef.current
+    const controls = controlsRef.current
+    if (!hasPage || !content || !controls) return
+    // Share the responsive controls height with the text row and the image's viewport budget.
+    const measure = () => {
+      content.style.setProperty(
+        '--written-controls-height',
+        `${controls.getBoundingClientRect().height}px`,
+      )
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(controls)
+    return () => observer.disconnect()
+  }, [hasPage])
   if (!page) return <EmptyState title="当前条件下没有手写页" />
 
   const pageRecords = (
@@ -59,74 +80,80 @@ export function WrittenRecordPages({
   const nextPath = visiblePages[safeIndex + 1]?.imagePath || ''
 
   return (
-    <Card className="overflow-visible">
-      <CardContent>
+    <Card className="written-record-frame overflow-visible pt-0">
+      <CardContent ref={contentRef} className="written-record-content">
         <PageImagePreloader previousPath={previousPath} nextPath={nextPath} />
-        <div className="mb-5 grid grid-cols-2 items-center gap-2 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-3">
-          <Button
-            variant="outline"
-            className="order-2 w-full sm:order-1 sm:w-auto"
-            disabled={safeIndex <= 0}
-            onClick={() => onPageChange(safeIndex - 1)}
+        <div className="written-record-sticky">
+          <div
+            ref={controlsRef}
+            className="written-record-controls grid grid-cols-2 items-center gap-2 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-3"
           >
-            上一页
-          </Button>
-          <div className="order-1 col-span-2 flex min-w-0 flex-wrap items-center justify-center gap-2 sm:order-2 sm:col-span-1">
-            <strong className="text-center text-sm leading-5">
-              {page.page ? `第 ${page.page} 页` : '未编页记录'} · {safeIndex + 1}/
-              {visiblePages.length}
-            </strong>
-            <Select
-              value={page.page}
-              onValueChange={(value) => {
-                const nextIndex = visiblePages.findIndex((item) => item.page === value)
-                if (nextIndex >= 0) onPageChange(nextIndex)
-              }}
+            <Button
+              variant="outline"
+              className="order-2 w-full sm:order-1 sm:w-auto"
+              disabled={safeIndex <= 0}
+              onClick={() => onPageChange(safeIndex - 1)}
             >
-              <SelectTrigger size="sm" aria-label="跳转书面页" className="w-28 bg-background/85">
-                <SelectValue>{(value) => (value ? `第 ${value} 页` : '未编页记录')}</SelectValue>
-              </SelectTrigger>
-              <SelectContent align="start">
-                {visiblePages.map((item) => (
-                  <SelectItem key={item.page} value={item.page}>
-                    {item.page ? `第 ${item.page} 页` : '未编页记录'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              上一页
+            </Button>
+            <div className="order-1 col-span-2 flex min-w-0 flex-wrap items-center justify-center gap-2 sm:order-2 sm:col-span-1">
+              <strong className="text-center text-sm leading-5">
+                {page.page ? `第 ${page.page} 页` : '未编页记录'} · {safeIndex + 1}/
+                {visiblePages.length}
+              </strong>
+              <Select
+                value={page.page}
+                onValueChange={(value) => {
+                  const nextIndex = visiblePages.findIndex((item) => item.page === value)
+                  if (nextIndex >= 0) onPageChange(nextIndex)
+                }}
+              >
+                <SelectTrigger size="sm" aria-label="跳转书面页" className="w-28 bg-background/85">
+                  <SelectValue>{(value) => (value ? `第 ${value} 页` : '未编页记录')}</SelectValue>
+                </SelectTrigger>
+                <SelectContent align="start">
+                  {visiblePages.map((item) => (
+                    <SelectItem key={item.page} value={item.page}>
+                      {item.page ? `第 ${item.page} 页` : '未编页记录'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              variant="outline"
+              className="order-3 w-full sm:w-auto"
+              disabled={safeIndex >= visiblePages.length - 1}
+              onClick={() => onPageChange(safeIndex + 1)}
+            >
+              下一页
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            className="order-3 w-full sm:w-auto"
-            disabled={safeIndex >= visiblePages.length - 1}
-            onClick={() => onPageChange(safeIndex + 1)}
+          <div
+            key={page.imagePath}
+            className="written-record-image min-h-0 self-start motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow)"
           >
-            下一页
-          </Button>
-        </div>
-        <div
-          key={page.imagePath}
-          className="grid items-start gap-5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow) lg:grid-cols-[minmax(20rem,42%)_minmax(0,1fr)]"
-        >
-          <div className="min-h-0 self-start lg:sticky lg:top-20">
             {page.imagePath ? (
               <SignedPageImage key={page.imagePath} path={page.imagePath} page={page.page} />
             ) : (
               <EmptyState title="暂无对应扫描页" />
             )}
           </div>
-          <div className="grid content-start gap-4">
-            {pageRecords.map((record) => (
-              <RecordCard
-                key={recordStableKey(record)}
-                record={record}
-                onRecordReference={onRecordReference}
-                showSourceAction={false}
-                jumpActions={jumpActionTarget === recordAnchor(record) ? jumpActions : undefined}
-              />
-            ))}
-            {!pageRecords.length && <EmptyState title="这张书面页没有对应的文字记录" />}
-          </div>
+        </div>
+        <div
+          key={page.imagePath}
+          className="written-record-text grid content-start gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-(--interaction-duration-slow)"
+        >
+          {pageRecords.map((record) => (
+            <RecordCard
+              key={recordStableKey(record)}
+              record={record}
+              onRecordReference={onRecordReference}
+              showSourceAction={false}
+              jumpActions={jumpActionTarget === recordAnchor(record) ? jumpActions : undefined}
+            />
+          ))}
+          {!pageRecords.length && <EmptyState title="这张书面页没有对应的文字记录" />}
         </div>
       </CardContent>
     </Card>
@@ -144,7 +171,7 @@ function SignedPageImage({ path, page }: { path: string; page: string }) {
       className="relative mx-auto grid max-w-full place-items-center overflow-hidden rounded-md bg-transparent"
       style={{
         aspectRatio: `${dimensions.width} / ${dimensions.height}`,
-        width: `min(100%, calc((100svh - 6rem) * ${ratio}))`,
+        width: `min(100%, calc(var(--written-image-space) * ${ratio}))`,
       }}
       aria-busy={!ready && !image.error && !imageFailure.failed}
     >

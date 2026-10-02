@@ -366,7 +366,7 @@ assert.match(
 )
 assert.match(records, /clampWindowScrollTop\(pending\.scrollY\)/, 'record return restoration must respect the current document height')
 assert.doesNotMatch(records, /target\.scrollIntoView/, 'record location must not delegate near-bottom positioning to browser centering')
-assert.match(writtenRecordPages, /lg:sticky lg:top-20/, 'written record images must keep the baseline sticky behavior')
+assert.match(writtenRecordPages, /className="written-record-sticky"[\s\S]*written-record-controls[\s\S]*written-record-image/, 'written page controls and the scan must share one sticky boundary')
 assert.match(recordCard, /gap-0 py-0/, 'record cards must use the compact reading density')
 assert.match(recordCard, /record-surface/, 'record cards must expose one business-level material boundary contract')
 assert.match(recordJumpHighlight, /target\.dataset\.recordJumpHighlight = 'true'/, 'record highlights must publish their semantic state')

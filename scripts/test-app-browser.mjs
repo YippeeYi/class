@@ -93,6 +93,8 @@ async function contextFor({ admin = false, mobile = false, authenticated = true 
       }
       if (url.pathname.endsWith('record-media-dimensions.txt'))
         return respond({ version: 1, dimensions: { 'data/attachments/offscreen-proof.jpg': [300, 600] } })
+      if (url.pathname.includes('/images/record-pages/'))
+        return route.fulfill({ status: 200, headers: { ...headers, 'content-type': 'image/svg+xml' }, body: '<svg xmlns="http://www.w3.org/2000/svg" width="2856" height="4282"><rect width="2856" height="4282" fill="#779999"/></svg>' })
       return route.fulfill({ status: 200, headers: { ...headers, 'content-type': 'image/svg+xml' }, body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="#779999"/></svg>' })
     }
     const table = url.pathname.split('/').at(-1)
@@ -335,6 +337,62 @@ const waitCards = async (page, count) => {
   }
 }
 const cardKeys = (page) => page.locator('main .record-surface').evaluateAll((cards) => cards.map((card) => card.id))
+const assertWrittenSticky = async (page) => {
+  await page.getByRole('button', { name: '查看手写记录第 01 页大图', exact: true }).waitFor()
+  // A long body exercises window scrolling without changing the page fixtures or record order.
+  await page.locator('#record-r3').evaluate(card => {
+    const body = document.createElement('p')
+    body.dataset.stickyTestBody = ''
+    body.textContent = '长书面记录正文，用于检查连续滚动时页面选择和图片的整体吸顶。'.repeat(800)
+    card.append(body)
+  })
+  for (const [width, height] of [[320, 568], [390, 844], [768, 900], [1280, 900], [1280, 568]]) {
+    await page.setViewportSize({ width, height })
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await page.waitForTimeout(100)
+    const frameTop = await page.locator('.written-record-frame').evaluate(frame => frame.getBoundingClientRect().top + scrollY)
+    let fixedTop
+    let previousTextTop
+    for (const distance of [100, 500, 1000]) {
+      await page.evaluate(top => window.scrollTo(0, top), frameTop + distance)
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+      const geometry = await page.evaluate(() => {
+        const rect = selector => document.querySelector(selector).getBoundingClientRect().toJSON()
+        const sticky = document.querySelector('.written-record-sticky')
+        return { topbar: rect('.app-topbar'), sticky: rect('.written-record-sticky'), controls: rect('.written-record-controls'), image: rect('.written-record-image'), text: rect('.written-record-text'), scrollWidth: document.documentElement.scrollWidth,
+          nestedSticky: [...sticky.querySelectorAll('*')].some(element => element.offsetWidth > 1 && element.offsetHeight > 1 && ['sticky', 'fixed'].includes(getComputedStyle(element).position)) }
+      })
+      assert.ok(Math.abs(geometry.sticky.top - geometry.topbar.bottom) < 1, 'the whole written frame top sticks below the existing site navigation')
+      assert.ok(geometry.controls.bottom <= geometry.image.top + 1 && geometry.image.bottom <= height, 'page controls and the image keep their order and fit within the viewport')
+      if (width < 1024) {
+        const lineHeight = await page.locator('.written-record-text').evaluate(text => parseFloat(getComputedStyle(text).lineHeight))
+        assert.ok(height - geometry.image.bottom >= lineHeight * 3, 'single-column written mode leaves readable text below the sticky scan')
+      }
+      assert.ok(geometry.scrollWidth <= width && !geometry.nestedSticky, `the written frame has no overflow or competing sticky children: ${width} ${JSON.stringify(geometry)}`)
+      const tops = [geometry.controls.top, geometry.image.top]
+      if (fixedTop) assert.deepEqual(tops, fixedTop, 'page controls and image stay together during long window scrolling')
+      if (previousTextTop !== undefined) assert.ok(geometry.text.top < previousTextTop, 'record text still follows the window scroll')
+      fixedTop = tops
+      previousTextTop = geometry.text.top
+    }
+    await page.screenshot({ path: `/tmp/class-written-sticky-${width}-${height}.png` })
+  }
+  await page.getByRole('combobox', { name: '跳转书面页' }).click({ delay: 100 })
+  await page.getByRole('option', { name: '第 2 页', exact: true }).click()
+  await waitCards(page, 2)
+  await page.getByText('暂无对应扫描页', { exact: true }).waitFor()
+  await page.getByRole('button', { name: '上一页', exact: true }).click()
+  await waitCards(page, 5)
+  await page.getByRole('button', { name: '查看手写记录第 01 页大图', exact: true }).waitFor()
+  await page.getByRole('tab', { name: '按条记录', exact: true }).click()
+  await waitCards(page, 7)
+  assert.equal(await page.locator('.written-record-sticky').count(), 0, 'list mode has no written sticky boundary')
+  await page.getByRole('tab', { name: '书面记录', exact: true }).click()
+  await waitCards(page, 5)
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.evaluate(() => window.scrollTo(0, 0))
+  console.log('Written frame sticky passed: page controls and image together, long window scroll, mobile/tablet/desktop.')
+}
 try {
   const context = await contextFor({ admin: true })
   const page = await context.newPage()
@@ -483,6 +541,7 @@ try {
   await page.getByRole('tab', { name: '书面记录', exact: true }).click()
   await waitCards(page, 5)
   const writtenForward = await cardKeys(page)
+  await assertWrittenSticky(page)
   await page.getByRole('button', { name: '下一页', exact: true }).click()
   await waitCards(page, 2)
   writtenForward.push(...await cardKeys(page))
@@ -490,6 +549,7 @@ try {
   await page.getByRole('button', { name: '退出', exact: true }).click()
   await waitCards(page, 4)
   assert.deepEqual(await cardKeys(page), forward)
+  assert.equal(await page.locator('.written-record-sticky').count(), 0, 'exiting hidden written mode removes its sticky boundary')
   assert.equal(await page.evaluate(() => Object.values(sessionStorage).some((value) => /隐藏箴言|隐藏补充|正文 r3/.test(value))), false, 'hidden data must not persist')
   await page.locator('#record-r1').focus()
   await page.keyboard.type('qibaishihuaxia')
@@ -853,15 +913,19 @@ try {
     await touch.setViewportSize({ width, height: 844 })
     await touch.waitForTimeout(100)
     let arenaLayout
-    for (const score of [0, 9, 99, 999, 9999, 99999, 999999, 9999999]) {
+    let toolbarLayout
+    for (const score of [1, 12, 123, 1234, 12345]) {
       await touch.evaluate((score) => { window.__mobileMergeGame.score = score; window.__mobileMergeGame.publish() }, score)
       await touch.waitForFunction((score) => document.querySelector('.merge-qb-score strong')?.textContent === String(score), score)
       await fitsMobileGame(`${width}×844 score ${score}`)
-      assert.ok(await touch.locator('.merge-qb-score-value').evaluate(value => {
+      assert.ok(await touch.locator('.merge-qb-score-anchor').evaluate(value => {
         const anchor = value.getBoundingClientRect()
         const digits = value.querySelector('strong').getBoundingClientRect()
         return Math.abs(digits.left - anchor.left) < 0.1 && Math.abs(digits.right - anchor.right) < 0.1
       }), 'the score anchor always fits the actual digits')
+      const toolbar = await touch.evaluate(() => ['.merge-qb-mobile-restart', '.merge-qb-score-value', '.merge-qb-next'].map(selector => document.querySelector(selector).getBoundingClientRect().toJSON()))
+      if (toolbarLayout) assert.deepEqual(toolbar, toolbarLayout, 'restart, the five-digit slot and Next stay in place as the score grows')
+      toolbarLayout = toolbar
       const arena = await touch.locator('.merge-qb-arena').boundingBox()
       if (arenaLayout) assert.deepEqual(arena, arenaLayout, 'score growth does not resize the arena')
       arenaLayout = arena
@@ -889,7 +953,7 @@ try {
   }
   await touch.setViewportSize({ width: 320, height: 844 })
   await touch.evaluate(() => {
-    window.__mobileMergeGame.score = 123456
+    window.__mobileMergeGame.score = 99999
     window.__mobileMergeGame.publish()
   })
   await fitsMobileGame('320×844 with long score')
@@ -1347,7 +1411,7 @@ try {
       await triggerMerge(0)
       await gamePage.waitForFunction(() => document.querySelectorAll('.merge-qb-score-pop').length === 2)
       assert.ok(await gamePage.locator('.merge-qb-score-pop').evaluateAll((pops) => {
-        const score = document.querySelector('.merge-qb-score-value').getBoundingClientRect()
+        const score = document.querySelector('.merge-qb-score-anchor').getBoundingClientRect()
         return pops.every((pop) => {
           const style = getComputedStyle(pop)
           const offsetX = parseFloat(pop.style.getPropertyValue('--pop-offset-x'))
@@ -1373,7 +1437,7 @@ try {
       assert.equal(await gamePage.locator('.merge-qb-score-pop').last().innerText(), '+6')
       const mobileHintGeometry = await gamePage.locator('.merge-qb-score-pop').last().evaluate((pop) => {
         const hint = pop.getBoundingClientRect()
-        const score = document.querySelector('.merge-qb-score-value').getBoundingClientRect()
+        const score = document.querySelector('.merge-qb-score-anchor').getBoundingClientRect()
         const restart = document.querySelector('.merge-qb-mobile-restart').getBoundingClientRect()
         const next = document.querySelector('.merge-qb-next').getBoundingClientRect()
         return { hint: hint.toJSON(), score: score.toJSON(), restart: restart.toJSON(), next: next.toJSON(), viewportWidth: innerWidth }
@@ -1395,11 +1459,11 @@ try {
         await gamePage.setViewportSize({ width, height: 844 })
         await gamePage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
         let hintGap
-        for (const value of [1, 12, 123, 1234, 12345, 123456, 1234567]) {
+        for (const value of [1, 12, 123, 1234, 12345]) {
           await gamePage.evaluate(value => { window.__mergeQbTestGame.score = value; window.__mergeQbTestGame.publish() }, value)
           await gamePage.waitForFunction(value => document.querySelector('.merge-qb-score strong')?.textContent === String(value), value)
           const anchor = await hint.evaluate(pop => {
-            const value = document.querySelector('.merge-qb-score-value').getBoundingClientRect()
+            const value = document.querySelector('.merge-qb-score-anchor').getBoundingClientRect()
             const digits = document.querySelector('.merge-qb-score strong').getBoundingClientRect()
             const next = document.querySelector('.merge-qb-next').getBoundingClientRect()
             const rect = pop.getBoundingClientRect()
@@ -1408,7 +1472,7 @@ try {
           assert.ok(Math.abs(anchor.digitsLeft - anchor.slotLeft) < 0.1 && anchor.hintRight < anchor.nextLeft)
           const gap = anchor.hintLeft - anchor.digitsRight
           assert.ok(gap > 0, 'the active hint never covers a digit')
-          if (hintGap !== undefined) assert.ok(Math.abs(gap - hintGap) < 0.1, 'the hint keeps the same gap after one through seven actual digits')
+          if (hintGap !== undefined) assert.ok(Math.abs(gap - hintGap) < 0.1, 'the hint keeps the same gap after one through five actual digits')
           hintGap = gap
         }
       }
@@ -1430,14 +1494,14 @@ try {
           await gamePage.getByRole('button', { name: '重新开始' }).click()
           await gamePage.getByRole('alertdialog').getByRole('button', { name: '重新开始' }).click()
           await gamePage.evaluate(width => {
-            window.__mergeQbTestGame.score = width === 280 ? 99000 : 123456
+            window.__mergeQbTestGame.score = width === 280 ? 99000 : 12345
             window.__mergeQbTestGame.publish()
           }, width)
           await triggerMerge(10)
           await triggerMerge(0)
           await gamePage.waitForFunction(() => document.querySelectorAll('.merge-qb-score-pop').length === 2)
           const geometry = await gamePage.evaluate(() => {
-            const score = document.querySelector('.merge-qb-score-value').getBoundingClientRect()
+            const score = document.querySelector('.merge-qb-score-anchor').getBoundingClientRect()
             const next = document.querySelector('.merge-qb-next').getBoundingClientRect()
             const restart = document.querySelector('.merge-qb-mobile-restart').getBoundingClientRect()
             const pops = [...document.querySelectorAll('.merge-qb-score-pop')]

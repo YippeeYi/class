@@ -146,6 +146,11 @@ body button.merge-qb-arena:active {
 }
 
 .merge-qb-score-value {
+  display: inline-flex;
+  align-items: baseline;
+}
+
+.merge-qb-score-anchor {
   position: relative;
   display: inline-flex;
   align-items: baseline;
@@ -532,12 +537,8 @@ body button.merge-qb-arena:active {
   }
 
   .merge-qb-toolbar .merge-qb-actions > div:first-child {
-    flex: 1;
+    flex: none;
     gap: clamp(0.125rem, 0.8cqw, 0.375rem);
-  }
-
-  .merge-qb-toolbar .merge-qb-mobile-restart {
-    margin-left: auto;
   }
 
   .merge-qb-toolbar .merge-qb-actions a {
@@ -578,7 +579,7 @@ body button.merge-qb-arena:active {
   }
 
   .merge-qb-toolbar .merge-qb-score-value {
-    width: max-content;
+    width: 5ch;
     flex: none;
     justify-content: flex-start;
     font-size: var(--toolbar-score-size);
