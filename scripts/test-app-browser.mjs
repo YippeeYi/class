@@ -224,6 +224,108 @@ async function checkQbColliders(page) {
   console.log('All 12 QB alpha silhouettes match their calibrated colliders.')
 }
 
+async function checkQbPresentation(page) {
+  const checks = await page.evaluate(async (base) => {
+    const { makeOutlinedSprite, QB_OUTLINE_OFFSETS } = await import(base + 'src/features/games/merge-qb/render.ts')
+    const { QB_LEVELS, QB_OUTLINE } = await import(base + 'src/features/games/merge-qb/levels.ts')
+    const { themePresets } = await import(base + 'src/components/layout/background-root.tsx')
+    const root = document.documentElement
+    const originalPreset = root.dataset.themePreset
+    const originalClass = root.className
+    const source = document.createElement('canvas')
+    source.width = source.height = 10
+    const sourceContext = source.getContext('2d')
+    sourceContext.fillStyle = '#ffffff'
+    sourceContext.fillRect(2, 2, 6, 6)
+    const image = new Image()
+    image.src = source.toDataURL()
+    await image.decode()
+    const swatch = document.createElement('canvas')
+    swatch.width = swatch.height = 1
+    const swatchContext = swatch.getContext('2d', { willReadFrequently: true })
+    const rgb = color => {
+      swatchContext.clearRect(0, 0, 1, 1)
+      swatchContext.fillStyle = color
+      swatchContext.fillRect(0, 0, 1, 1)
+      return [...swatchContext.getImageData(0, 0, 1, 1).data].slice(0, 3)
+    }
+    const luminance = color => color.map(channel => {
+      const value = channel / 255
+      return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+    }).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0)
+    const contrast = (first, second) => (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05)
+    const results = []
+    try {
+      for (const preset of themePresets) {
+        root.dataset.themePreset = preset.id
+        root.classList.toggle('dark', preset.mode === 'dark')
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        const stage = document.querySelector('.merge-qb-stage')
+        await new Promise((resolve, reject) => {
+          const deadline = performance.now() + 1000
+          const ready = () => {
+            const expected = rgb(getComputedStyle(stage).getPropertyValue('--qb-outline-color'))
+            const actual = rgb(getComputedStyle(document.querySelector('#merge-qb-image-outline feFlood')).floodColor)
+            if (actual.every((channel, index) => channel === expected[index])) return resolve()
+            if (performance.now() >= deadline) return reject(new Error(`QB outline did not follow theme ${preset.id}`))
+            requestAnimationFrame(ready)
+          }
+          ready()
+        })
+        const styles = getComputedStyle(stage)
+        const outline = rgb(styles.getPropertyValue('--qb-outline-color'))
+        const palette = ['rust', 'ochre', 'teal', 'blue', 'purple'].map(color => rgb(styles.getPropertyValue(`--qb-pop-${color}`)))
+        const surface = luminance(rgb(getComputedStyle(document.querySelector('.merge-qb-toolbar')).backgroundColor === 'rgba(0, 0, 0, 0)'
+          ? getComputedStyle(root).getPropertyValue('--background') : getComputedStyle(document.querySelector('.merge-qb-toolbar')).backgroundColor))
+        const sprites = [1, 2].map(dpr => {
+          const sprite = makeOutlinedSprite({ ...QB_LEVELS[0], visualSize: { width: 10, height: 10 } }, image, 1, dpr, styles.getPropertyValue('--qb-outline-color'))
+          const context = sprite.canvas.getContext('2d')
+          const pixels = context.getImageData(0, 0, sprite.canvas.width, sprite.canvas.height).data
+          const edge = ((sprite.padding + 5 * dpr) * sprite.canvas.width + sprite.padding + dpr) * 4
+          return { edge: [...pixels.slice(edge, edge + 4)], outer: [...pixels.slice(0, 4)] }
+        })
+        const images = [...document.querySelectorAll('.merge-qb-next img, .merge-qb-level-icon[data-ready="true"] img')]
+        results.push({
+          preset: preset.id, dark: preset.mode === 'dark', outline, palette, sprites,
+          outlineCss: styles.getPropertyValue('--qb-outline-color'), floodCss: getComputedStyle(document.querySelector('#merge-qb-image-outline feFlood')).floodColor,
+          contrast: palette.map(color => contrast(luminance(color), surface)),
+          flood: rgb(getComputedStyle(document.querySelector('#merge-qb-image-outline feFlood')).floodColor),
+          filters: images.map(image => getComputedStyle(image).filter),
+          dimensions: images.map(image => { const rect = image.getBoundingClientRect(); return [rect.width, rect.height] }),
+          offsets: [...document.querySelectorAll('#merge-qb-image-outline feOffset')].map(node => [Number(node.getAttribute('dx')), Number(node.getAttribute('dy'))]),
+          expectedOffsets: QB_OUTLINE_OFFSETS.map(offset => [offset.x, offset.y]),
+          width: QB_OUTLINE.widthCssPx,
+          arena: document.querySelector('.merge-qb-arena canvas').toDataURL(),
+        })
+      }
+    } finally {
+      if (originalPreset === undefined) delete root.dataset.themePreset
+      else root.dataset.themePreset = originalPreset
+      root.className = originalClass
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    }
+    return results
+  }, origin)
+  for (const check of checks) {
+    assert.equal(new Set(check.palette.map(color => color.join(','))).size, 5, `${check.preset} uses five distinct designed hint colors`)
+    assert.ok(check.contrast.every(value => value >= 4.5), `${check.preset} score hints remain readable: ${JSON.stringify(check.contrast)}`)
+    assert.deepEqual(check.flood, check.outline, `DOM images and canvas sprites resolve the same theme outline color at ${check.preset}: ${check.outlineCss} / ${check.floodCss}`)
+    assert.ok(check.filters.length >= 2 && check.filters.every(filter => filter === check.filters[0] && filter.includes('#merge-qb-image-outline')), 'Next and all visible sequence images share the same alpha outline filter')
+    assert.deepEqual(check.offsets, check.expectedOffsets, 'DOM and canvas use the same edge offsets')
+    assert.ok(check.offsets.every(([x, y]) => Math.abs(Math.hypot(x, y) - check.width) < 1e-6))
+    assert.deepEqual(check.dimensions, checks[0].dimensions, 'theme outlines never change the image layout boxes')
+    for (const sprite of check.sprites) {
+      assert.ok(sprite.edge[3] > 128 && sprite.edge.slice(0, 3).every((channel, index) => Math.abs(channel - check.outline[index]) <= 3), 'both DPRs render the actual themed outline pixels')
+      assert.equal(sprite.outer[3], 0, 'crisp outlines do not add a blurred outer halo')
+    }
+  }
+  const light = checks.find(check => check.preset === 'paper')
+  const dark = checks.find(check => check.preset === 'ink')
+  assert.notDeepEqual(light.outline, dark.outline)
+  assert.notEqual(light.arena, dark.arena, 'switching themes rebuilds the live arena outline, not only the DOM previews')
+  console.log('QB themed outlines and five-color hint contrast passed across all presets and both DPRs.')
+}
+
 const waitCards = async (page, count) => {
   try {
     await page.waitForFunction((count) => document.querySelectorAll('main .record-surface').length === count, count)
@@ -721,10 +823,13 @@ try {
     await touch.setViewportSize({ width, height: 844 })
     await touch.waitForTimeout(100)
     let stableLayout
-    for (const score of [0, 9, 99, 99999]) {
+    for (const score of [0, 9, 99, 999, 9999, 99999]) {
       await touch.evaluate((score) => { window.__mobileMergeGame.score = score; window.__mobileMergeGame.publish() }, score)
       await touch.waitForFunction((score) => document.querySelector('.merge-qb-score strong')?.textContent === String(score), score)
       await fitsMobileGame(`${width}×844 score ${score}`)
+      assert.ok(await touch.locator('.merge-qb-score-value').evaluate(value =>
+        Math.abs(value.querySelector('strong').getBoundingClientRect().left - value.getBoundingClientRect().left) < 0.1),
+        'one to five digits stay left aligned within the reserved number slot')
       const layout = await touch.evaluate(() => ['.merge-qb-actions', '.merge-qb-score', '.merge-qb-next', '.merge-qb-arena'].map((selector) => {
         const rect = document.querySelector(selector).getBoundingClientRect()
         return [rect.left, rect.top, rect.width, rect.height]
@@ -845,17 +950,45 @@ try {
       return link && getComputedStyle(link).boxShadow !== 'none'
     })
     await gamePage.screenshot({ path: '/tmp/class-merge-qb-game-list.png' })
+    const firstImageRoute = '**/storage/v1/object/sign/**/images/games/merge-qb/01.png*'
+    let releaseFirstImage
+    const firstImageGate = new Promise(resolve => { releaseFirstImage = resolve })
+    await gameContext.route(firstImageRoute, async route => {
+      if (route.request().method() !== 'GET') return route.fallback()
+      await firstImageGate
+      return route.fallback()
+    })
     await gamePage.keyboard.press('Enter')
     await gamePage.waitForURL(/games\/merge-qb\/?$/)
     const gameLevels = (await vite.ssrLoadModule('/src/features/games/merge-qb/levels.ts')).QB_LEVELS
     const board = gamePage.getByRole('button', { name: /合成大QB游戏区域/ })
     await board.waitFor()
-    await gamePage.waitForFunction(() => document.querySelector('.merge-qb-level:first-child img'))
+    const firstIcon = gamePage.locator('.merge-qb-level[data-level-id="01"] .merge-qb-level-icon')
+    await firstIcon.waitFor()
+    await gamePage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    assert.ok(await firstIcon.locator('.merge-qb-locked').evaluate(placeholder => {
+      const style = getComputedStyle(placeholder)
+      const bounds = placeholder.getBoundingClientRect()
+      return placeholder.textContent.trim() === '?' && style.borderTopStyle === 'dashed' &&
+        style.borderRadius === '50%' && bounds.width === 36 && bounds.height === 36 &&
+        style.visibility === 'visible' && style.opacity === '1'
+    }), 'even the known first QB keeps the dashed question mark until its image loads')
+    assert.equal(await firstIcon.locator('img').count(), 0, 'pending private images never render a blank or broken img')
+    assert.match(await gamePage.locator('.merge-qb-level[data-level-id="01"]').getAttribute('aria-label'), /一级 QB/)
+    const firstIconBeforeLoad = await firstIcon.boundingBox()
+    releaseFirstImage()
+    await gamePage.waitForFunction(() => document.querySelector('.merge-qb-level:first-child .merge-qb-level-icon')?.dataset.ready === 'true')
+    await firstIcon.locator('.merge-qb-locked').waitFor({ state: 'hidden' })
+    assert.deepEqual(await firstIcon.boundingBox(), firstIconBeforeLoad, 'loading the first QB preserves its complete slot geometry')
+    await gameContext.unroute(firstImageRoute)
     assert.equal(await gamePage.locator('.merge-qb-level img').count(), 1, 'only level one is revealed at the start')
-    assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-locked').count(), 10)
-    assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-locked').first().innerText(), '?')
+    assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-level-icon:not([data-ready="true"]) .merge-qb-locked').count(), 10)
+    assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-level-icon:not([data-ready="true"]) .merge-qb-locked').first().innerText(), '?')
     assert.match(await gamePage.locator('.merge-qb-next img').getAttribute('src'), /^blob:/)
-    if (!process.env.CLASS_RECORD_PREVIEW) await checkQbColliders(gamePage)
+    if (!process.env.CLASS_RECORD_PREVIEW) {
+      await checkQbColliders(gamePage)
+      await checkQbPresentation(gamePage)
+    }
     await gamePage.emulateMedia({ reducedMotion: 'no-preference' })
     const warningLine = board.locator('.merge-qb-warning-line')
     assert.equal(await warningLine.count(), 1, 'one warning line is always present')
@@ -996,8 +1129,9 @@ try {
     await gamePage.waitForTimeout(600)
     await board.click()
     await gamePage.waitForFunction(() => document.querySelector('.merge-qb-toolbar strong')?.textContent === '3')
+    await gamePage.waitForFunction(() => document.querySelector('.merge-qb-level[data-level-id="02"] .merge-qb-level-icon')?.dataset.ready === 'true')
     assert.equal(await gamePage.locator('.merge-qb-level img').count(), 2, 'merging level one reveals level two')
-    assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-locked').count(), 9)
+    assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-level-icon:not([data-ready="true"]) .merge-qb-locked').count(), 9)
     const levelTwoAfter = await gamePage.locator('.merge-qb-level[data-level-id]').nth(1).boundingBox()
     assert.deepEqual(levelTwoAfter, levelTwoBefore, 'unlocking a level does not move its gallery slot')
     // Chromium rejects window-bound changes while its window is fullscreen.
@@ -1059,7 +1193,7 @@ try {
     await gamePage.getByRole('alertdialog').getByRole('button', { name: '重新开始' }).click()
     assert.equal(await score.innerText(), '0')
     assert.equal(await gamePage.locator('.merge-qb-level img').count(), 1, 'restart resets this game’s discoveries')
-    assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-locked').count(), 10)
+    assert.equal(await gamePage.locator('.merge-qb-sequence .merge-qb-level-icon:not([data-ready="true"]) .merge-qb-locked').count(), 10)
     assert.equal(await gamePage.locator('.merge-qb-next img').getAttribute('alt'), '一级 QB')
     await gamePage.reload()
     await board.waitFor()
@@ -1210,6 +1344,8 @@ try {
             pop.getBoundingClientRect().left <= score.right + 10
         }) && Math.abs(parseFloat(getComputedStyle(pops[0]).top) - parseFloat(getComputedStyle(pops[1]).top)) <= 4
       }), 'consecutive score hints share one anchor with bounded jitter and independent animation')
+      const hintColors = await gamePage.locator('.merge-qb-score-pop').evaluateAll(pops => pops.map(pop => getComputedStyle(pop).color))
+      assert.notEqual(hintColors[0], hintColors[1], 'consecutive hints draw distinct colors from the designed pool')
       await gamePage.screenshot({ path: '/tmp/class-merge-qb-celebration.png' })
       await gamePage.locator('.merge-qb-score-pop').last().waitFor({ state: 'detached', timeout: 5000 })
       await gamePage.setViewportSize({ width: 390, height: 844 })
@@ -1235,6 +1371,26 @@ try {
         `mobile score hint stays beside the score, on screen and away from restart: ${JSON.stringify(mobileHintGeometry)}`)
       assert.deepEqual(await gamePage.locator('.merge-qb-score').boundingBox(), mobileScoreBeforePop)
       assert.deepEqual(await gamePage.locator('.merge-qb-next').boundingBox(), mobileNextBeforePop)
+      const anchorScore = await gamePage.evaluate(() => window.__mergeQbTestGame.score)
+      const hint = gamePage.locator('.merge-qb-score-pop').last()
+      await hint.evaluate(pop => pop.getAnimations().forEach(animation => { animation.pause(); animation.currentTime = 300 }))
+      let fixedAnchor
+      for (const value of [1, 12, 123, 1234, 12345]) {
+        await gamePage.evaluate(value => { window.__mergeQbTestGame.score = value; window.__mergeQbTestGame.publish() }, value)
+        await gamePage.waitForFunction(value => document.querySelector('.merge-qb-score strong')?.textContent === String(value), value)
+        const anchor = await hint.evaluate(pop => {
+          const value = document.querySelector('.merge-qb-score-value').getBoundingClientRect()
+          const digits = document.querySelector('.merge-qb-score strong').getBoundingClientRect()
+          const next = document.querySelector('.merge-qb-next').getBoundingClientRect()
+          const rect = pop.getBoundingClientRect()
+          return { slotLeft: value.left, slotWidth: value.width, digitsLeft: digits.left, hintLeft: rect.left, hintRight: rect.right, nextLeft: next.left }
+        })
+        assert.ok(Math.abs(anchor.digitsLeft - anchor.slotLeft) < 0.1 && anchor.hintRight < anchor.nextLeft)
+        if (fixedAnchor) assert.deepEqual(anchor, fixedAnchor, 'score length never moves the digits anchor or the active hint')
+        fixedAnchor = anchor
+      }
+      await gamePage.evaluate(value => { window.__mergeQbTestGame.score = value; window.__mergeQbTestGame.publish() }, anchorScore)
+      await hint.evaluate(pop => pop.getAnimations().forEach(animation => animation.play()))
       await gamePage.setViewportSize({ width: 1280, height: 900 })
       await triggerMerge(10)
       await gamePage.locator('.merge-qb-level[data-level-id="12"] img').waitFor()
@@ -1244,16 +1400,16 @@ try {
       assert.equal(await gamePage.locator('.merge-qb-next img').getAttribute('alt'), '一级 QB', 'the egg never enters Next')
       await gamePage.screenshot({ path: '/tmp/class-merge-qb-easter-unlock.png' })
       await gamePage.evaluate(() => { Math.random = () => 1 - Number.EPSILON })
-      for (const width of [320, 375, 390, 430]) {
+      for (const width of [280, 320, 375, 390, 430]) {
         for (const height of [568, 844]) {
           await gamePage.setViewportSize({ width, height })
           await gamePage.waitForTimeout(100)
           await gamePage.getByRole('button', { name: '重新开始' }).click()
           await gamePage.getByRole('alertdialog').getByRole('button', { name: '重新开始' }).click()
-          await gamePage.evaluate(() => {
-            window.__mergeQbTestGame.score = 123456
+          await gamePage.evaluate(width => {
+            window.__mergeQbTestGame.score = width === 280 ? 99000 : 123456
             window.__mergeQbTestGame.publish()
-          })
+          }, width)
           await triggerMerge(10)
           await triggerMerge(0)
           await gamePage.waitForFunction(() => document.querySelectorAll('.merge-qb-score-pop').length === 2)
@@ -1351,14 +1507,30 @@ try {
     await retryPage.goto(origin + 'games/merge-qb/')
     await retryPage.getByRole('button', { name: '重试', exact: true }).waitFor()
     assert.equal(await retryPage.locator('.merge-qb-arena').isDisabled(), true, 'image failure keeps the arena disabled')
+    const failedIcon = retryPage.locator('.merge-qb-level[data-level-id="01"] .merge-qb-level-icon')
+    assert.equal(await failedIcon.locator('img').count(), 0, 'failed decoding does not expose a broken first QB image')
+    assert.equal((await failedIcon.locator('.merge-qb-locked').textContent()).trim(), '?')
     assert.ok(await retryPage.locator('.merge-qb-toolbar').evaluate((toolbar) =>
       [...toolbar.querySelectorAll('button, h1, .merge-qb-score, .merge-qb-next')]
         .filter((node) => node.getBoundingClientRect().width)
         .every((node) => node.getBoundingClientRect().right <= toolbar.getBoundingClientRect().right)),
       'mobile retry fits alongside the existing controls')
+    await retryPage.setViewportSize({ width: 1280, height: 900 })
+    await retryPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    await failedIcon.locator('.merge-qb-locked').waitFor()
+    assert.ok(await failedIcon.locator('.merge-qb-locked').evaluate(node => getComputedStyle(node).borderTopStyle === 'dashed'))
+    // Retry removes existing error controls; verify image geometry within its gallery slot.
+    const slotGeometry = node => {
+      const icon = node.getBoundingClientRect()
+      const slot = node.closest('.merge-qb-level').getBoundingClientRect()
+      return { left: icon.left - slot.left, top: icon.top - slot.top, width: icon.width, height: icon.height }
+    }
+    const failedSlot = await failedIcon.evaluate(slotGeometry)
     await retryPage.getByRole('button', { name: '重试', exact: true }).click()
     await retryPage.locator('.merge-qb-next img').waitFor()
     await retryPage.waitForFunction(() => !document.querySelector('.merge-qb-arena').disabled)
+    await retryPage.waitForFunction(() => document.querySelector('.merge-qb-level[data-level-id="01"] .merge-qb-level-icon')?.dataset.ready === 'true')
+    assert.deepEqual(await failedIcon.evaluate(slotGeometry), failedSlot, 'retry replaces the placeholder without resizing or moving it within its slot')
     await retryContext.close()
   }
   const anonymous = await contextFor({ authenticated: false })

@@ -51,7 +51,7 @@ import {
   MAX_DROP_LEVEL_COUNT,
   MergeQbGame,
 } from './game'
-import { levelImagePath, levelOutlineBounds, QB_LEVELS } from './levels'
+import { levelImagePath, levelOutlineBounds, QB_LEVELS, type QbLevel } from './levels'
 import {
   type CelebrationEffect,
   createCelebration,
@@ -59,6 +59,7 @@ import {
   drawCelebrations,
   drawGame,
   makeOutlinedSprite,
+  QB_OUTLINE_OFFSETS,
   type QbImages,
   type QbSprites,
 } from './render'
@@ -70,6 +71,7 @@ const largestDroppableSize = Math.max(
 )
 const regularLevels = QB_LEVELS.slice(0, -1)
 const spareSequenceSlots = ['a', 'b', 'c', 'd', 'e']
+const scorePopColors = ['rust', 'ochre', 'teal', 'blue', 'purple'] as const
 type ConfirmAction = 'exit' | 'restart' | 'replay'
 type ScorePop = {
   id: number
@@ -78,6 +80,50 @@ type ScorePop = {
   offsetX: number
   offsetY: number
   duration: number
+  color: (typeof scorePopColors)[number]
+}
+
+function QbLevelIcon({
+  level,
+  unlocked,
+  src,
+}: {
+  level: QbLevel
+  unlocked: boolean
+  src?: string
+}) {
+  const [loadedUrl, setLoadedUrl] = useState<string>()
+  const ready = Boolean(unlocked && src && loadedUrl === src)
+  const { left, top, right, bottom } = levelOutlineBounds(level)
+  const scale =
+    32 / Math.max((right - left) * level.sourceSize.width, (bottom - top) * level.sourceSize.height)
+  const width = level.sourceSize.width * scale
+  const height = level.sourceSize.height * scale
+  return (
+    <span className="merge-qb-level-icon" data-ready={ready}>
+      <span className="merge-qb-locked" aria-hidden="true">
+        ?
+      </span>
+      {unlocked && src && (
+        <img
+          className="merge-qb-image"
+          draggable={false}
+          src={src}
+          alt=""
+          onLoad={(event) => {
+            if (event.currentTarget.naturalWidth > 0) setLoadedUrl(src)
+          }}
+          onError={() => setLoadedUrl(undefined)}
+          style={{
+            width,
+            height,
+            left: (36 - (right - left) * width) / 2 - left * width,
+            top: (36 - (bottom - top) * height) / 2 - top * height,
+          }}
+        />
+      )}
+    </span>
+  )
 }
 
 const confirmCopy: Record<ConfirmAction, { title: string; description: string; action: string }> = {
@@ -126,6 +172,7 @@ export function MergeQbBoard() {
   const [fullscreenPending, setFullscreenPending] = useState(false)
   const [fullscreenSupported, setFullscreenSupported] = useState(false)
   const [arenaScale, setArenaScale] = useState(1)
+  const [outlineFilterColor, setOutlineFilterColor] = useState<string>()
   const [assets, setAssets] = useState<{
     urls: Record<string, string>
     loading: boolean
@@ -184,12 +231,14 @@ export function MergeQbBoard() {
     const context = canvas.getContext('2d')
     if (!context) return
     const celebrations: CelebrationEffect[] = []
+    let previousPopColor: ScorePop['color'] | undefined
     clearCelebrationsRef.current = () => {
       celebrations.length = 0
     }
     const game = new MergeQbGame(setSnapshot, Math.random, (event) => {
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       if (event.scoreDelta > 0) {
+        const colors = scorePopColors.filter((color) => color !== previousPopColor)
         const pop: ScorePop = {
           id: ++nextScorePopId.current,
           delta: event.scoreDelta,
@@ -197,7 +246,9 @@ export function MergeQbBoard() {
           offsetX: (Math.random() - 0.5) * 5,
           offsetY: (Math.random() - 0.5) * 4,
           duration: reducedMotion ? 160 : 720 + Math.random() * 180,
+          color: colors[Math.floor(Math.random() * colors.length)] ?? colors[0] ?? 'rust',
         }
+        previousPopColor = pop.color
         setScorePops((active) => [...active, pop])
       }
       if (event.firstEleven)
@@ -213,6 +264,12 @@ export function MergeQbBoard() {
     let loadRevision = 0
     let scale = 1
     let pixelRatio = 1
+    const readOutlineColor = () =>
+      getComputedStyle(stageRef.current as HTMLElement)
+        .getPropertyValue('--qb-outline-color')
+        .trim()
+    let outlineColor = readOutlineColor()
+    setOutlineFilterColor(outlineColor)
     const loadAssets = async (force = false) => {
       const revision = ++loadRevision
       setAssets((current) => ({ ...current, loading: true, error: false }))
@@ -245,7 +302,7 @@ export function MergeQbBoard() {
             return [level.id, ''] as const
           }
           if (!disposed && revision === loadRevision)
-            sprites.set(level.id, makeOutlinedSprite(level, image, scale, pixelRatio))
+            sprites.set(level.id, makeOutlinedSprite(level, image, scale, pixelRatio, outlineColor))
           const previousUrl = objectUrls.get(level.id)
           if (previousUrl) URL.revokeObjectURL(previousUrl)
           objectUrls.set(level.id, url)
@@ -301,7 +358,7 @@ export function MergeQbBoard() {
       for (const level of QB_LEVELS) {
         const image = images.get(level.id)
         if (image?.complete && image.naturalWidth > 0)
-          sprites.set(level.id, makeOutlinedSprite(level, image, scale, pixelRatio))
+          sprites.set(level.id, makeOutlinedSprite(level, image, scale, pixelRatio, outlineColor))
       }
       drawGame(context, game, images, sprites, scale)
       drawCelebrations(context, celebrations, performance.now(), scale)
@@ -309,6 +366,32 @@ export function MergeQbBoard() {
     const observer = new ResizeObserver(resize)
     observer.observe(canvas)
     resize()
+
+    let themeFrame = 0
+    const updateOutline = () => {
+      themeFrame = 0
+      const color = readOutlineColor()
+      if (color === outlineColor) return
+      outlineColor = color
+      // Explicitly update cached SVG filters together with the canvas sprite cache.
+      setOutlineFilterColor(color)
+      for (const level of QB_LEVELS) {
+        const image = images.get(level.id)
+        if (image?.complete && image.naturalWidth > 0)
+          sprites.set(level.id, makeOutlinedSprite(level, image, scale, pixelRatio, outlineColor))
+      }
+      drawGame(context, game, images, sprites, scale)
+      drawCelebrations(context, celebrations, performance.now(), scale)
+    }
+    const themeObserver = new MutationObserver(() => {
+      // Theme tokens can settle after the mutation callback, especially in WebKit.
+      cancelAnimationFrame(themeFrame)
+      themeFrame = requestAnimationFrame(updateOutline)
+    })
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'data-theme-preset', 'style'],
+    })
 
     let frame = 0
     let previous = performance.now()
@@ -367,6 +450,8 @@ export function MergeQbBoard() {
       window.removeEventListener('classrecordcacheclearing', clearAssets)
       for (const url of objectUrls.values()) URL.revokeObjectURL(url)
       observer.disconnect()
+      themeObserver.disconnect()
+      cancelAnimationFrame(themeFrame)
       game.dispose()
       gameRef.current = null
       resumeAnimationRef.current = () => {}
@@ -592,36 +677,11 @@ export function MergeQbBoard() {
                             unlocked ? `${index + 1}：${level.name}` : `${index + 1}：未解锁`
                           }
                         >
-                          <span className="merge-qb-level-icon">
-                            {unlocked ? (
-                              <img
-                                draggable={false}
-                                src={assets.urls[level.id]}
-                                alt=""
-                                style={(() => {
-                                  const { left, top, right, bottom } = levelOutlineBounds(level)
-                                  const scale =
-                                    32 /
-                                    Math.max(
-                                      (right - left) * level.sourceSize.width,
-                                      (bottom - top) * level.sourceSize.height,
-                                    )
-                                  const width = level.sourceSize.width * scale
-                                  const height = level.sourceSize.height * scale
-                                  return {
-                                    width,
-                                    height,
-                                    left: (36 - (right - left) * width) / 2 - left * width,
-                                    top: (36 - (bottom - top) * height) / 2 - top * height,
-                                  }
-                                })()}
-                              />
-                            ) : (
-                              <span className="merge-qb-locked" aria-hidden="true">
-                                ?
-                              </span>
-                            )}
-                          </span>
+                          <QbLevelIcon
+                            level={level}
+                            unlocked={unlocked}
+                            src={assets.urls[level.id]}
+                          />
                         </li>
                       </Fragment>
                     )
@@ -649,6 +709,39 @@ export function MergeQbBoard() {
 
   return (
     <div ref={stageRef} className="merge-qb-stage">
+      <svg className="merge-qb-outline-defs" aria-hidden="true">
+        <defs>
+          <filter
+            id="merge-qb-image-outline"
+            x="-50%"
+            y="-50%"
+            width="200%"
+            height="200%"
+            colorInterpolationFilters="sRGB"
+          >
+            {QB_OUTLINE_OFFSETS.map((offset, index) => (
+              <feOffset
+                key={`${offset.x}:${offset.y}`}
+                in="SourceAlpha"
+                dx={offset.x}
+                dy={offset.y}
+                result={`edge-${index}`}
+              />
+            ))}
+            <feMerge result="edge-mask">
+              {QB_OUTLINE_OFFSETS.map((offset, index) => (
+                <feMergeNode key={`${offset.x}:${offset.y}`} in={`edge-${index}`} />
+              ))}
+            </feMerge>
+            <feFlood floodColor={outlineFilterColor} result="edge-color" />
+            <feComposite in="edge-color" in2="edge-mask" operator="in" result="outline" />
+            <feMerge>
+              <feMergeNode in="outline" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+      </svg>
       <div className="merge-qb-content">
         <button
           type="button"
@@ -837,7 +930,7 @@ export function MergeQbBoard() {
                     draggable={false}
                     src={assets.urls[snapshot.next.id]}
                     alt={snapshot.next.name}
-                    className="object-contain"
+                    className="merge-qb-image object-contain"
                     style={
                       {
                         '--preview-width': `${snapshot.next.visualSize.width * arenaScale}px`,
@@ -864,6 +957,7 @@ export function MergeQbBoard() {
                   className="merge-qb-score-pop"
                   style={
                     {
+                      '--pop-color': `var(--qb-pop-${pop.color})`,
                       '--pop-rise': `${pop.rise}px`,
                       '--pop-offset-x': `${pop.offsetX}px`,
                       '--pop-offset-y': `${pop.offsetY}px`,

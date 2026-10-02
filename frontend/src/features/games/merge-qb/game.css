@@ -1,8 +1,30 @@
 .merge-qb-stage {
+  --qb-outline-color: color-mix(in oklch, var(--muted-foreground) 75%, var(--foreground));
+  --qb-pop-lightness: 0.46;
+  --qb-pop-rust: oklch(var(--qb-pop-lightness) 0.13 35);
+  --qb-pop-ochre: oklch(var(--qb-pop-lightness) 0.09 75);
+  --qb-pop-teal: oklch(var(--qb-pop-lightness) 0.09 175);
+  --qb-pop-blue: oklch(var(--qb-pop-lightness) 0.12 250);
+  --qb-pop-purple: oklch(var(--qb-pop-lightness) 0.11 305);
   box-sizing: border-box;
   width: min(100%, calc((100dvh - 8rem) * 9 / 14 + 15rem), 54rem);
   min-width: 0;
   margin-inline: auto;
+}
+
+.dark .merge-qb-stage {
+  --qb-pop-lightness: 0.78;
+}
+
+.merge-qb-outline-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.merge-qb-image {
+  filter: url("#merge-qb-image-outline");
 }
 
 .merge-qb-content {
@@ -134,7 +156,7 @@ body button.merge-qb-arena:active {
   z-index: 3;
   top: calc(55% + var(--pop-offset-y));
   left: calc(100% + 0.125rem);
-  color: var(--primary);
+  color: var(--pop-color);
   font-size: 0.75rem;
   font-weight: 700;
   line-height: 1;
@@ -304,6 +326,12 @@ body button.merge-qb-arena:active {
   position: absolute;
   max-width: none;
   object-fit: contain;
+  opacity: 0;
+  transition: opacity var(--interaction-duration-standard) var(--interaction-ease-standard);
+}
+
+.merge-qb-level-icon[data-ready="true"] img {
+  opacity: 1;
 }
 
 .merge-qb-locked {
@@ -316,6 +344,14 @@ body button.merge-qb-arena:active {
   color: var(--muted-foreground);
   font-size: 1rem;
   line-height: 1;
+  transition:
+    opacity var(--interaction-duration-standard) var(--interaction-ease-standard),
+    visibility var(--interaction-duration-standard);
+}
+
+.merge-qb-level-icon[data-ready="true"] .merge-qb-locked {
+  opacity: 0;
+  visibility: hidden;
 }
 
 .merge-qb-sequence-arrow {
@@ -539,7 +575,7 @@ body button.merge-qb-arena:active {
   .merge-qb-toolbar .merge-qb-score-value {
     width: 6ch;
     flex: none;
-    justify-content: flex-end;
+    justify-content: flex-start;
     font-size: var(--toolbar-score-size);
     font-weight: 600;
     font-variant-numeric: tabular-nums;

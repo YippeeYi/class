@@ -946,7 +946,7 @@ export const QB_PHYSICS = {
 } as const
 
 // Pixel stroke is rendered at final canvas scale, independent of level size and DPR.
-export const QB_OUTLINE = { widthCssPx: 1.5, color: '#332b27' } as const
+export const QB_OUTLINE = { widthCssPx: 1.5 } as const
 
 // Force is applied once per merge in Matter.js world units; caps keep large merges contained.
 export const QB_SHOCKWAVE = {

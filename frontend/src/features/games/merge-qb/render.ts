@@ -4,6 +4,11 @@ import { levelOutlineBounds, QB_LEVELS, QB_OUTLINE, QB_SHOCKWAVE, type QbLevel }
 export type QbImages = Map<string, HTMLImageElement>
 export type QbSprites = Map<string, { canvas: HTMLCanvasElement; padding: number; factor: number }>
 
+export const QB_OUTLINE_OFFSETS = Array.from({ length: 16 }, (_, index) => {
+  const angle = (index * Math.PI) / 8
+  return { x: Math.cos(angle) * QB_OUTLINE.widthCssPx, y: Math.sin(angle) * QB_OUTLINE.widthCssPx }
+})
+
 type CelebrationParticle = {
   directionX: number
   directionY: number
@@ -261,6 +266,7 @@ export function makeOutlinedSprite(
   image: HTMLImageElement,
   scale: number,
   dpr: number,
+  color: string,
 ) {
   const factor = scale * dpr
   const padding = Math.ceil(QB_OUTLINE.widthCssPx * dpr) + 1
@@ -273,7 +279,7 @@ export function makeOutlinedSprite(
   if (!maskContext) throw new Error('Canvas 2D is unavailable')
   maskContext.drawImage(image, 0, 0, width, height)
   maskContext.globalCompositeOperation = 'source-in'
-  maskContext.fillStyle = QB_OUTLINE.color
+  maskContext.fillStyle = color
   maskContext.fillRect(0, 0, width, height)
 
   const canvas = document.createElement('canvas')
@@ -281,10 +287,8 @@ export function makeOutlinedSprite(
   canvas.height = height + padding * 2
   const context = canvas.getContext('2d')
   if (!context) throw new Error('Canvas 2D is unavailable')
-  const radius = QB_OUTLINE.widthCssPx * dpr
-  for (let index = 0; index < 16; index++) {
-    const angle = (index * Math.PI) / 8
-    context.drawImage(mask, padding + Math.cos(angle) * radius, padding + Math.sin(angle) * radius)
+  for (const offset of QB_OUTLINE_OFFSETS) {
+    context.drawImage(mask, padding + offset.x * dpr, padding + offset.y * dpr)
   }
   context.drawImage(image, padding, padding, width, height)
   return { canvas, padding, factor }
