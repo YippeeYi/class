@@ -3,7 +3,7 @@ import { QB_LEVELS, type QbLevel } from './levels'
 
 export const SHARE_CAPTION_POOLS = [
   {
-    maxLevel: 6,
+    maxLevel: 1,
     captions: [
       'QB 已就位，下一局争取让他们碰个头。',
       '这局先认个脸，合成的事下局再说。',
@@ -11,7 +11,7 @@ export const SHARE_CAPTION_POOLS = [
     ],
   },
   {
-    maxLevel: 7,
+    maxLevel: 6,
     captions: [
       '小 QB 碰个头，合成之路开张了。',
       '先合几只小 QB，大的还在后面。',
@@ -27,7 +27,7 @@ export const SHARE_CAPTION_POOLS = [
     ],
   },
   {
-    maxLevel: 9,
+    maxLevel: 10,
     captions: [
       '大 QB 到场，留给下一只的位置不多了。',
       '合到这里，手稳和运气都出了点力。',
