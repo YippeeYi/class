@@ -20,7 +20,7 @@ import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { recordAnchor } from '@/lib/markup'
 import { recordStableKey } from '@/lib/record-identity'
 import { type RecordStreamPage, recordPageKey } from '@/lib/record-stream'
-import { clampWindowScrollTop } from '@/lib/viewport-scroll'
+import { clampScrollTop, clampWindowScrollTop } from '@/lib/viewport-scroll'
 import { rememberImageDimensions, useImageDimensions } from '@/services/image-metadata'
 import type { RecordItem, RecordPage } from '@/types/domain'
 
@@ -53,12 +53,14 @@ export function WrittenRecordPages({
   })
   const safeIndex = Math.max(0, Math.min(pageIndex, Math.max(0, visiblePages.length - 1)))
   const page = visiblePages[safeIndex]
+  const pageIdentity = page?.page
   const hasPage = Boolean(page)
   const contentRef = useRef<HTMLDivElement>(null)
   const controlsRef = useRef<HTMLDivElement>(null)
   const stickyRef = useRef<HTMLDivElement>(null)
   const pendingPageReset = useRef<string | null>(null)
   const cancelPageReset = useRef<(() => void) | null>(null)
+  const schedulePageReset = useRef<(() => void) | null>(null)
   useLayoutEffect(() => {
     const content = contentRef.current
     const controls = controlsRef.current
@@ -76,39 +78,76 @@ export function WrittenRecordPages({
     return () => observer.disconnect()
   }, [hasPage])
   useLayoutEffect(() => {
-    if (!page || pendingPageReset.current !== page.page) return
+    if (pageIdentity === undefined || pendingPageReset.current !== pageIdentity) return
     pendingPageReset.current = null
     const content = contentRef.current
     const sticky = stickyRef.current
     if (!content || !sticky) return
     const previousAnchor = content.style.overflowAnchor
     content.style.overflowAnchor = 'none'
-    const reset = () => {
-      const top = Number.parseFloat(getComputedStyle(sticky).top)
-      window.scrollTo({
-        top: clampWindowScrollTop(window.scrollY + content.getBoundingClientRect().top - top),
-        left: 0,
-        behavior: 'instant',
-      })
-    }
+    let active = true
     let frame = 0
+    const reset = () => {
+      frame = 0
+      if (!active) return
+      const top = Number.parseFloat(getComputedStyle(sticky).top)
+      const body = document.body
+      // Select can temporarily move document scrolling into a height-constrained body.
+      const bodyScroll =
+        getComputedStyle(body).overflowY === 'hidden' && body.scrollHeight > body.clientHeight
+      const scrollTop = bodyScroll ? body.scrollTop : window.scrollY
+      const target = scrollTop + content.getBoundingClientRect().top - top
+      const destination = bodyScroll
+        ? clampScrollTop(target, {
+            documentHeight: body.scrollHeight,
+            viewportHeight: body.clientHeight,
+          })
+        : clampWindowScrollTop(target)
+      if (Math.abs(scrollTop - destination) > 0.5)
+        (bodyScroll ? body : window).scrollTo({ top: destination, left: 0, behavior: 'instant' })
+    }
+    const schedule = () => {
+      if (active && !frame) frame = requestAnimationFrame(reset)
+    }
+    const observer = new ResizeObserver(schedule)
+    const userScroll = (event: Event) => {
+      if (event instanceof WheelEvent && event.deltaY === 0) return
+      if (
+        event instanceof KeyboardEvent &&
+        !['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Tab'].includes(
+          event.key,
+        )
+      )
+        return
+      cancel()
+    }
     const cancel = () => {
+      if (!active) return
+      active = false
       cancelAnimationFrame(frame)
+      observer.disconnect()
+      window.removeEventListener('scroll', schedule, true)
+      for (const type of ['wheel', 'touchmove', 'keydown', 'pointerdown'])
+        window.removeEventListener(type, userScroll, true)
       content.style.overflowAnchor = previousAnchor
       cancelPageReset.current = null
+      schedulePageReset.current = null
     }
     cancelPageReset.current = cancel
+    schedulePageReset.current = schedule
+    observer.observe(content)
+    observer.observe(sticky)
+    const main = content.closest('main')
+    if (main) observer.observe(main)
+    window.addEventListener('scroll', schedule, { capture: true, passive: true })
+    for (const type of ['wheel', 'touchmove', 'keydown', 'pointerdown'])
+      window.addEventListener(type, userScroll, { capture: true, passive: true })
+    // Keep the page start aligned through late image/layout updates and scroll-lock restoration,
+    // but hand scrolling back immediately when the reader interacts.
     reset()
-    // Select's scroll-lock teardown can restore the old position after the commit.
-    frame = requestAnimationFrame(() => {
-      reset()
-      frame = requestAnimationFrame(() => {
-        reset()
-        cancel()
-      })
-    })
+    schedule()
     return cancel
-  }, [page])
+  }, [pageIdentity])
   const handleRecordReference = useCallback(
     (recordId: string, source: HTMLElement) => {
       cancelPageReset.current?.()
@@ -170,6 +209,11 @@ export function WrittenRecordPages({
               </strong>
               <Select
                 value={page.page}
+                onOpenChangeComplete={(open) => {
+                  if (!open) {
+                    schedulePageReset.current?.()
+                  }
+                }}
                 onValueChange={(value) => {
                   const nextIndex = visiblePages.findIndex((item) => item.page === value)
                   if (nextIndex >= 0) changePage(nextIndex)

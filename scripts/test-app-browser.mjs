@@ -353,7 +353,12 @@ const assertWrittenPageStart = async (page) => {
   assert.ok(Math.abs(geometry.first.top - geometry.text.top) < 1, 'the new page starts at its first record')
   const headerBottom = page.viewportSize().width >= 1024 ? geometry.controls.bottom : geometry.image.bottom
   assert.ok(geometry.text.top >= headerBottom, 'the first record starts beneath the sticky header in the existing responsive layout')
+  assert.ok(geometry.first.top < page.viewportSize().height, 'the new page visibly starts with its first record beneath the sticky region')
   return geometry.scrollY
+}
+const beginWrittenScroll = async (page) => {
+  await page.mouse.wheel(0, 1)
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
 }
 const assertWrittenSticky = async (page) => {
   await page.getByRole('button', { name: '查看手写记录第 01 页大图', exact: true }).waitFor()
@@ -365,6 +370,7 @@ const assertWrittenSticky = async (page) => {
     card.append(body)
   })
   for (const [width, height] of [[320, 568], [390, 844], [768, 900], [1280, 900], [1280, 568]]) {
+    await beginWrittenScroll(page)
     await page.setViewportSize({ width, height })
     await page.evaluate(() => window.scrollTo(0, 0))
     await page.waitForTimeout(100)
@@ -397,9 +403,69 @@ const assertWrittenSticky = async (page) => {
     await page.getByRole('button', { name: '下一页', exact: true }).click()
     await waitCards(page, 2)
     await assertWrittenPageStart(page)
+    await page.evaluate(() => {
+      const spacer = document.createElement('div')
+      spacer.dataset.writtenAsyncLayout = ''
+      document.querySelector('.written-record-frame').before(spacer)
+      setTimeout(() => { spacer.style.height = '160px' }, 100)
+    })
+    await page.waitForFunction(() => document.querySelector('[data-written-async-layout]').offsetHeight > 0)
+    await assertWrittenPageStart(page)
+    await page.locator('[data-written-async-layout]').evaluate(element => element.remove())
+    await assertWrittenPageStart(page)
+    await page.locator('.written-record-text .record-surface').first().evaluate(card => {
+      const body = document.createElement('p')
+      body.textContent = '新页的长记录正文，必须从第一条开始显示。'.repeat(800)
+      card.append(body)
+    })
+    await page.locator('.written-record-image').evaluate(image => {
+      const media = document.createElement('img')
+      media.dataset.writtenAsyncMedia = ''
+      media.width = 240
+      image.append(media)
+      setTimeout(() => { media.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="240" height="120"/>' }, 100)
+    })
+    await page.waitForFunction(() => document.querySelector('[data-written-async-media]')?.naturalHeight > 0)
+    const pageStart = await assertWrittenPageStart(page)
+    await page.evaluate(start => {
+      window.__writtenLateRestore = false
+      setTimeout(() => {
+        window.scrollTo(0, start + 400)
+        window.__writtenLateRestore = true
+      }, 100)
+    }, pageStart)
+    await page.waitForFunction(() => window.__writtenLateRestore)
+    await assertWrittenPageStart(page)
+    await beginWrittenScroll(page)
+    await page.evaluate(() => window.scrollBy(0, 400))
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    assert.ok(await page.evaluate(start => scrollY > start + 100, pageStart), 'real reader input ends the page-start correction and allows normal reading')
+    const lockSnapshot = width === 1280 && height === 900 ? await page.evaluate(() => {
+      const snapshot = { body: document.body.style.cssText, html: document.documentElement.style.cssText, scrollY }
+      Object.assign(document.body.style, { position: 'relative', height: '100dvh', overflow: 'hidden' })
+      document.documentElement.style.overflowY = 'scroll'
+      document.body.scrollTop = snapshot.scrollY
+      return snapshot
+    }) : null
     await page.getByRole('button', { name: '上一页', exact: true }).click()
     await waitCards(page, 5)
-    await assertWrittenPageStart(page)
+    if (lockSnapshot) {
+      await page.waitForFunction(() => {
+        const top = document.querySelector('.app-topbar').getBoundingClientRect().bottom
+        return document.body.scrollTop > 0 && Math.abs(document.querySelector('.written-record-content').getBoundingClientRect().top - top) < 1
+      })
+      assert.ok(await page.locator('.written-record-text .record-surface').first().evaluate(first => first.getBoundingClientRect().top >= document.querySelector('.written-record-controls').getBoundingClientRect().bottom), 'temporary body scrolling also starts the new page beneath the sticky controls')
+      await page.evaluate(snapshot => {
+        document.body.style.cssText = snapshot.body
+        document.documentElement.style.cssText = snapshot.html
+        window.scrollTo(0, snapshot.scrollY)
+      }, lockSnapshot)
+    }
+    const previousPageStart = await assertWrittenPageStart(page)
+    await page.keyboard.press('Tab')
+    await page.evaluate(start => window.scrollTo(0, start + 100), previousPageStart)
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    assert.ok(await page.evaluate(start => scrollY > start, previousPageStart), 'keyboard focus navigation releases the correction without pulling the reader back')
     await page.locator('#record-r3').evaluate(card => {
       const body = document.createElement('p')
       body.dataset.stickyTestBody = ''
@@ -407,12 +473,17 @@ const assertWrittenSticky = async (page) => {
       card.append(body)
     })
   }
+  await beginWrittenScroll(page)
   await page.evaluate(() => window.scrollBy(0, 700))
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.getByRole('combobox', { name: '跳转书面页' }).click({ delay: 100 })
   await page.getByRole('option', { name: '第 2 页', exact: true }).click()
   await waitCards(page, 2)
   await page.getByText('暂无对应扫描页', { exact: true }).waitFor()
   await assertWrittenPageStart(page)
+  await page.getByRole('listbox').waitFor({ state: 'detached' })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await beginWrittenScroll(page)
   await page.evaluate(() => window.scrollTo(0, 0))
   await page.getByRole('button', { name: '上一页', exact: true }).click()
   await waitCards(page, 5)
@@ -424,6 +495,7 @@ const assertWrittenSticky = async (page) => {
       body.textContent = '长记录含媒体正文。'.repeat(800)
       card.append(body)
     })
+    await beginWrittenScroll(page)
     await page.evaluate(distance => {
       const content = document.querySelector('.written-record-content')
       const sticky = document.querySelector('.written-record-sticky')
@@ -450,6 +522,7 @@ const assertWrittenSticky = async (page) => {
   await page.getByRole('button', { name: '下一页', exact: true }).click()
   await waitCards(page, 2)
   await assertWrittenPageStart(page)
+  await beginWrittenScroll(page)
   const beforeSticky = await page.evaluate(() => {
     const content = document.querySelector('.written-record-content')
     const sticky = document.querySelector('.written-record-sticky')
