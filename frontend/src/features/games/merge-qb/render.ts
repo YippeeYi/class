@@ -2,7 +2,7 @@ import { FAIL_LINE, GAME_HEIGHT, GAME_WIDTH, type MergeEvent, type MergeQbGame }
 import { levelOutlineBounds, QB_LEVELS, QB_OUTLINE, QB_SHOCKWAVE, type QbLevel } from './levels'
 
 export type QbImages = Map<string, HTMLImageElement>
-export type QbSprites = Map<string, { canvas: HTMLCanvasElement; padding: number; factor: number }>
+export type QbSprites = Map<string, ReturnType<typeof makeOutlinedSprite>>
 
 export const QB_OUTLINE_OFFSETS = Array.from({ length: 16 }, (_, index) => {
   const angle = (index * Math.PI) / 8
@@ -179,13 +179,16 @@ export function drawGame(
     )
   }
 
-  for (const wave of game.activeShockwaves) {
-    const progress = Math.min(1, (time - wave.startedAt) / QB_SHOCKWAVE.durationMs)
-    const eased = 1 - (1 - progress) ** 2
+  const waves = game.activeShockwaves
+  if (waves.length) {
     context.save()
-    context.globalAlpha = 0.34 * (1 - progress) ** 2
     context.strokeStyle = 'rgb(120 106 92)'
     context.lineWidth = QB_SHOCKWAVE.lineWidthCssPx / scale
+  }
+  for (const wave of waves) {
+    const progress = Math.min(1, (time - wave.startedAt) / QB_SHOCKWAVE.durationMs)
+    const eased = 1 - (1 - progress) ** 2
+    context.globalAlpha = 0.34 * (1 - progress) ** 2
     context.beginPath()
     context.arc(
       wave.x,
@@ -195,8 +198,8 @@ export function drawGame(
       Math.PI * 2,
     )
     context.stroke()
-    context.restore()
   }
+  if (waves.length) context.restore()
 
   if (!game.gameOver) {
     const level = game.currentLevel
@@ -228,29 +231,28 @@ function drawPiece(
   images: QbImages,
   sprites: QbSprites,
 ) {
+  const sprite = sprites.get(level.id)
+  const image = sprite ? undefined : images.get(level.id)
+  if (!sprite && (!image?.complete || !image.naturalWidth)) return
   context.save()
   context.translate(x, y)
   context.rotate(angle)
-  const image = images.get(level.id)
-  if (image?.complete && image.naturalWidth > 0) {
-    const sprite = sprites.get(level.id)
-    if (sprite) {
-      context.drawImage(
-        sprite.canvas,
-        offsetX - level.visualSize.width / 2 - sprite.padding / sprite.factor,
-        offsetY - level.visualSize.height / 2 - sprite.padding / sprite.factor,
-        sprite.canvas.width / sprite.factor,
-        sprite.canvas.height / sprite.factor,
-      )
-    } else {
-      context.drawImage(
-        image,
-        offsetX - level.visualSize.width / 2,
-        offsetY - level.visualSize.height / 2,
-        level.visualSize.width,
-        level.visualSize.height,
-      )
-    }
+  if (sprite) {
+    context.drawImage(
+      sprite.canvas,
+      offsetX + sprite.left,
+      offsetY + sprite.top,
+      sprite.width,
+      sprite.height,
+    )
+  } else if (image) {
+    context.drawImage(
+      image,
+      offsetX - level.visualSize.width / 2,
+      offsetY - level.visualSize.height / 2,
+      level.visualSize.width,
+      level.visualSize.height,
+    )
   }
   context.restore()
 }
@@ -291,5 +293,13 @@ export function makeOutlinedSprite(
     context.drawImage(mask, padding + offset.x * dpr, padding + offset.y * dpr)
   }
   context.drawImage(image, padding, padding, width, height)
-  return { canvas, padding, factor }
+  return {
+    canvas,
+    padding,
+    factor,
+    left: -level.visualSize.width / 2 - padding / factor,
+    top: -level.visualSize.height / 2 - padding / factor,
+    width: canvas.width / factor,
+    height: canvas.height / factor,
+  }
 }

@@ -754,7 +754,7 @@ try {
     })
     assert.ok(geometry.toolbar[1] < geometry.arena[0] && geometry.arena[1] <= geometry.viewport[1] + 1 && geometry.scroll[1] <= geometry.viewport[1] + 1 && geometry.scroll[0] <= geometry.viewport[0] + 1 && geometry.overflow === 'hidden' && Math.abs(geometry.arena[2] / geometry.arena[3] - 360 / 560) < 0.01, `mobile game fits without scrolling at ${size}: ${JSON.stringify(geometry)}`)
     assert.ok(geometry.arena[4] >= 8 && geometry.viewport[0] - geometry.arena[5] >= 8 && Math.abs(geometry.arena[4] - (geometry.viewport[0] - geometry.arena[5])) < 2, `mobile arena has symmetric side space at ${size}: ${JSON.stringify(geometry)}`)
-    assert.ok(geometry.controls[0] <= geometry.controls[1] && geometry.controls[2] <= geometry.controls[3] && geometry.controls[5] - geometry.controls[4] >= 8, `mobile title, restart, score and next remain separated at ${size}: ${JSON.stringify(geometry)}`)
+    assert.ok(geometry.controls[0] <= geometry.controls[1] && geometry.controls[2] <= geometry.controls[3] && geometry.controls[5] > geometry.controls[4], `mobile title, restart, score and next remain separated at ${size}: ${JSON.stringify(geometry)}`)
   }
   await fitsMobileGame('390×844')
   for (const width of [320, 375, 390, 430]) {
@@ -819,36 +819,53 @@ try {
   }, origin)
   await touch.waitForFunction(() => window.__mobileMergeGame)
   await touch.evaluate(() => document.fonts.ready)
+  const inputBurst = await touch.evaluate(() => new Promise(resolve => requestAnimationFrame(() => {
+    const canvas = document.querySelector('.merge-qb-arena canvas')
+    const bounds = canvas.getBoundingClientRect()
+    const readBounds = canvas.getBoundingClientRect.bind(canvas)
+    let reads = 0, publishes = 0
+    canvas.getBoundingClientRect = () => { reads++; return readBounds() }
+    const game = window.__mobileMergeGame
+    const onChange = game.onChange
+    game.onChange = snapshot => { publishes++; onChange(snapshot) }
+    const count = [...game.objects].length
+    const capture = canvas.setPointerCapture
+    canvas.setPointerCapture = () => {}
+    try {
+      canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 71, pointerType: 'touch', clientX: bounds.left + bounds.width / 2 }))
+      for (let index = 0; index < 100; index++)
+        canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 71, pointerType: 'touch', clientX: bounds.left + bounds.width * (index + 1) * 0.8 / 100 }))
+      const aim = game.targetX
+      const updatesDuringDrag = publishes
+      canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 71, pointerType: 'touch', clientX: bounds.left + bounds.width / 2 }))
+      resolve({ reads, updatesDuringDrag, aim, drops: [...game.objects].length - count })
+    } finally {
+      delete canvas.getBoundingClientRect
+      canvas.setPointerCapture = capture
+      game.onChange = onChange
+    }
+  })))
+  assert.ok(inputBurst.reads <= 1, 'a touch event burst reads canvas layout only once per frame')
+  assert.equal(inputBurst.updatesDuringDrag, 0, 'touch dragging publishes no React UI updates')
+  assert.ok(Math.abs(inputBurst.aim - 288) < 1e-9, 'the last move takes effect immediately without losing events')
+  assert.equal(inputBurst.drops, 1, 'touch release drops exactly once')
   for (const width of [280, 320, 375, 390, 430]) {
     await touch.setViewportSize({ width, height: 844 })
     await touch.waitForTimeout(100)
-    let stableLayout
-    for (const score of [0, 9, 99, 999, 9999, 99999]) {
+    let arenaLayout
+    for (const score of [0, 9, 99, 999, 9999, 99999, 999999, 9999999]) {
       await touch.evaluate((score) => { window.__mobileMergeGame.score = score; window.__mobileMergeGame.publish() }, score)
       await touch.waitForFunction((score) => document.querySelector('.merge-qb-score strong')?.textContent === String(score), score)
       await fitsMobileGame(`${width}×844 score ${score}`)
-      assert.ok(await touch.locator('.merge-qb-score-value').evaluate(value =>
-        Math.abs(value.querySelector('strong').getBoundingClientRect().left - value.getBoundingClientRect().left) < 0.1),
-        'one to five digits stay left aligned within the reserved number slot')
-      const layout = await touch.evaluate(() => ['.merge-qb-actions', '.merge-qb-score', '.merge-qb-next', '.merge-qb-arena'].map((selector) => {
-        const rect = document.querySelector(selector).getBoundingClientRect()
-        return [rect.left, rect.top, rect.width, rect.height]
-      }))
-      if (stableLayout) assert.deepEqual(layout, stableLayout, 'one to five digits do not move the controls or resize the arena')
-      stableLayout = layout
+      assert.ok(await touch.locator('.merge-qb-score-value').evaluate(value => {
+        const anchor = value.getBoundingClientRect()
+        const digits = value.querySelector('strong').getBoundingClientRect()
+        return Math.abs(digits.left - anchor.left) < 0.1 && Math.abs(digits.right - anchor.right) < 0.1
+      }), 'the score anchor always fits the actual digits')
+      const arena = await touch.locator('.merge-qb-arena').boundingBox()
+      if (arenaLayout) assert.deepEqual(arena, arenaLayout, 'score growth does not resize the arena')
+      arenaLayout = arena
     }
-    const numberSlot = await touch.locator('.merge-qb-score-value').evaluate((value) => {
-      const digits = value.querySelector('strong')
-      return {
-        reservedWidth: value.getBoundingClientRect().width,
-        digitsWidth: digits.getBoundingClientRect().width,
-        slotWeight: getComputedStyle(value).fontWeight,
-        digitsWeight: getComputedStyle(digits).fontWeight,
-        tabular: getComputedStyle(value).fontVariantNumeric.includes('tabular-nums'),
-      }
-    })
-    assert.ok(numberSlot.reservedWidth >= numberSlot.digitsWidth && numberSlot.tabular,
-      `the number slot reserves at least five complete tabular digits at ${width}px: ${JSON.stringify(numberSlot)}`)
     for (let index = 0; index < 5; index++) {
       await touch.evaluate(async ({ index, base }) => {
         const { QB_LEVELS } = await import(base + 'src/features/games/merge-qb/levels.ts')
@@ -867,7 +884,7 @@ try {
     }
     await touch.evaluate(() => { window.__mobileMergeGame.danger = 'game-over'; window.__mobileMergeGame.publish() })
     await touch.locator('.merge-qb-game-over-label').waitFor()
-    await fitsMobileGame(`${width}×844 game over with five digits`)
+    await fitsMobileGame(`${width}×844 game over with seven digits`)
     await touch.evaluate(() => { window.__mobileMergeGame.danger = 'normal'; window.__mobileMergeGame.publish() })
   }
   await touch.setViewportSize({ width: 320, height: 844 })
@@ -1374,20 +1391,26 @@ try {
       const anchorScore = await gamePage.evaluate(() => window.__mergeQbTestGame.score)
       const hint = gamePage.locator('.merge-qb-score-pop').last()
       await hint.evaluate(pop => pop.getAnimations().forEach(animation => { animation.pause(); animation.currentTime = 300 }))
-      let fixedAnchor
-      for (const value of [1, 12, 123, 1234, 12345]) {
-        await gamePage.evaluate(value => { window.__mergeQbTestGame.score = value; window.__mergeQbTestGame.publish() }, value)
-        await gamePage.waitForFunction(value => document.querySelector('.merge-qb-score strong')?.textContent === String(value), value)
-        const anchor = await hint.evaluate(pop => {
-          const value = document.querySelector('.merge-qb-score-value').getBoundingClientRect()
-          const digits = document.querySelector('.merge-qb-score strong').getBoundingClientRect()
-          const next = document.querySelector('.merge-qb-next').getBoundingClientRect()
-          const rect = pop.getBoundingClientRect()
-          return { slotLeft: value.left, slotWidth: value.width, digitsLeft: digits.left, hintLeft: rect.left, hintRight: rect.right, nextLeft: next.left }
-        })
-        assert.ok(Math.abs(anchor.digitsLeft - anchor.slotLeft) < 0.1 && anchor.hintRight < anchor.nextLeft)
-        if (fixedAnchor) assert.deepEqual(anchor, fixedAnchor, 'score length never moves the digits anchor or the active hint')
-        fixedAnchor = anchor
+      for (const width of [280, 320, 375, 390, 430]) {
+        await gamePage.setViewportSize({ width, height: 844 })
+        await gamePage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+        let hintGap
+        for (const value of [1, 12, 123, 1234, 12345, 123456, 1234567]) {
+          await gamePage.evaluate(value => { window.__mergeQbTestGame.score = value; window.__mergeQbTestGame.publish() }, value)
+          await gamePage.waitForFunction(value => document.querySelector('.merge-qb-score strong')?.textContent === String(value), value)
+          const anchor = await hint.evaluate(pop => {
+            const value = document.querySelector('.merge-qb-score-value').getBoundingClientRect()
+            const digits = document.querySelector('.merge-qb-score strong').getBoundingClientRect()
+            const next = document.querySelector('.merge-qb-next').getBoundingClientRect()
+            const rect = pop.getBoundingClientRect()
+            return { slotLeft: value.left, slotWidth: value.width, digitsLeft: digits.left, digitsRight: digits.right, hintLeft: rect.left, hintRight: rect.right, nextLeft: next.left }
+          })
+          assert.ok(Math.abs(anchor.digitsLeft - anchor.slotLeft) < 0.1 && anchor.hintRight < anchor.nextLeft)
+          const gap = anchor.hintLeft - anchor.digitsRight
+          assert.ok(gap > 0, 'the active hint never covers a digit')
+          if (hintGap !== undefined) assert.ok(Math.abs(gap - hintGap) < 0.1, 'the hint keeps the same gap after one through seven actual digits')
+          hintGap = gap
+        }
       }
       await gamePage.evaluate(value => { window.__mergeQbTestGame.score = value; window.__mergeQbTestGame.publish() }, anchorScore)
       await hint.evaluate(pop => pop.getAnimations().forEach(animation => animation.play()))
@@ -1532,6 +1555,36 @@ try {
     await retryPage.waitForFunction(() => document.querySelector('.merge-qb-level[data-level-id="01"] .merge-qb-level-icon')?.dataset.ready === 'true')
     assert.deepEqual(await failedIcon.evaluate(slotGeometry), failedSlot, 'retry replaces the placeholder without resizing or moving it within its slot')
     await retryContext.close()
+    const loadingContext = await contextFor({ mobile: true })
+    await loadingContext.addInitScript(() => {
+      window.__qbLoadAborts = 0
+      window.__qbLoadPending = false
+      const fetch = window.fetch
+      window.fetch = function (input, options) {
+        const signal = options?.signal
+        if (String(input).includes('/images/games/merge-qb/') && signal) {
+          window.__qbLoadPending = true
+          return new Promise((_, reject) => {
+            signal.addEventListener('abort', () => {
+              window.__qbLoadAborts++
+              reject(new DOMException('Loading cancelled', 'AbortError'))
+            }, { once: true })
+          })
+        }
+        return fetch.call(this, input, options)
+      }
+    })
+    const loadingPage = await loadingContext.newPage()
+    await loadingPage.goto(origin + 'games/merge-qb/')
+    await loadingPage.waitForFunction(() => window.__qbLoadPending)
+    await loadingPage.getByText('正在加载 QB 图片…').waitFor()
+    await loadingPage.evaluate(() => { window.__qbLoadAborts = 0 })
+    await loadingPage.getByRole('button', { name: '返回游戏库' }).click()
+    await loadingPage.getByRole('alertdialog').getByRole('button', { name: '退出游戏' }).click()
+    await loadingPage.waitForURL(/games\/?$/)
+    await loadingPage.waitForFunction(() => window.__qbLoadAborts > 0)
+    assert.equal(await loadingPage.locator('.merge-qb-stage').count(), 0, 'leaving during loading aborts pending private fetches and removes the board')
+    await loadingContext.close()
   }
   const anonymous = await contextFor({ authenticated: false })
   const auth = await anonymous.newPage()

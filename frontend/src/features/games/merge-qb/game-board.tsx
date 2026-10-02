@@ -10,9 +10,13 @@ import {
 } from 'lucide-react'
 import {
   type CSSProperties,
+  type Dispatch,
   Fragment,
   type KeyboardEvent,
+  memo,
   type PointerEvent,
+  type RefObject,
+  type SetStateAction,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -83,6 +87,54 @@ type ScorePop = {
   color: (typeof scorePopColors)[number]
 }
 
+const QbScore = memo(function QbScore({
+  score,
+  popsRef,
+}: {
+  score: number
+  popsRef: RefObject<Dispatch<SetStateAction<ScorePop[]>>>
+}) {
+  const [scorePops, setScorePops] = useState<ScorePop[]>([])
+  useLayoutEffect(() => {
+    popsRef.current = setScorePops
+    return () => {
+      popsRef.current = () => {}
+    }
+  }, [popsRef])
+
+  return (
+    <div className="merge-qb-score">
+      <span className="text-xs text-muted-foreground">分数</span>
+      <span className="merge-qb-score-value">
+        <strong className="font-heading text-4xl font-semibold tabular-nums" aria-live="polite">
+          {score}
+        </strong>
+        {scorePops.map((pop) => (
+          <span
+            key={pop.id}
+            className="merge-qb-score-pop"
+            style={
+              {
+                '--pop-color': `var(--qb-pop-${pop.color})`,
+                '--pop-rise': `${pop.rise}px`,
+                '--pop-offset-x': `${pop.offsetX}px`,
+                '--pop-offset-y': `${pop.offsetY}px`,
+                animationDuration: `${pop.duration}ms`,
+              } as CSSProperties
+            }
+            aria-hidden="true"
+            onAnimationEnd={() =>
+              setScorePops((active) => active.filter((item) => item.id !== pop.id))
+            }
+          >
+            +{pop.delta}
+          </span>
+        ))}
+      </span>
+    </div>
+  )
+})
+
 function QbLevelIcon({
   level,
   unlocked,
@@ -152,6 +204,7 @@ export function MergeQbBoard() {
   const gameRef = useRef<MergeQbGame | null>(null)
   const loadAssetsRef = useRef<(force?: boolean) => Promise<void>>(async () => {})
   const touchPointer = useRef<number | null>(null)
+  const inputBoundsRef = useRef<DOMRect | null>(null)
   const resumeAnimationRef = useRef<() => void>(() => {})
   const clearCelebrationsRef = useRef<() => void>(() => {})
   const frozenArenaRef = useRef<HTMLCanvasElement | null>(null)
@@ -162,7 +215,7 @@ export function MergeQbBoard() {
   const shareUrlRef = useRef<string | null>(null)
   const restoreFullscreenRef = useRef(false)
   const [snapshot, setSnapshot] = useState<GameSnapshot | null>(null)
-  const [scorePops, setScorePops] = useState<ScorePop[]>([])
+  const scorePopsRef = useRef<Dispatch<SetStateAction<ScorePop[]>>>(() => {})
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
   const [shareLoading, setShareLoading] = useState(false)
@@ -231,12 +284,13 @@ export function MergeQbBoard() {
     const context = canvas.getContext('2d')
     if (!context) return
     const celebrations: CelebrationEffect[] = []
+    const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)')
     let previousPopColor: ScorePop['color'] | undefined
     clearCelebrationsRef.current = () => {
       celebrations.length = 0
     }
     const game = new MergeQbGame(setSnapshot, Math.random, (event) => {
-      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      const reducedMotion = motionPreference.matches
       if (event.scoreDelta > 0) {
         const colors = scorePopColors.filter((color) => color !== previousPopColor)
         const pop: ScorePop = {
@@ -249,7 +303,7 @@ export function MergeQbBoard() {
           color: colors[Math.floor(Math.random() * colors.length)] ?? colors[0] ?? 'rust',
         }
         previousPopColor = pop.color
-        setScorePops((active) => [...active, pop])
+        scorePopsRef.current((active) => [...active, pop])
       }
       if (event.firstEleven)
         celebrations.push(createCelebration(event, 'confetti', performance.now(), reducedMotion))
@@ -262,6 +316,7 @@ export function MergeQbBoard() {
     const objectUrls = new Map<string, string>()
     let disposed = false
     let loadRevision = 0
+    let loadController: AbortController | null = null
     let scale = 1
     let pixelRatio = 1
     const readOutlineColor = () =>
@@ -271,13 +326,16 @@ export function MergeQbBoard() {
     let outlineColor = readOutlineColor()
     setOutlineFilterColor(outlineColor)
     const loadAssets = async (force = false) => {
+      loadController?.abort()
+      const controller = new AbortController()
+      loadController = controller
       const revision = ++loadRevision
       setAssets((current) => ({ ...current, loading: true, error: false }))
       const results = await Promise.allSettled(
         QB_LEVELS.map(async (level) => {
           const signedUrl = await signAssetUrl(levelImagePath(level), { forceRefresh: force })
           if (disposed || revision !== loadRevision) return [level.id, ''] as const
-          const response = await fetch(signedUrl)
+          const response = await fetch(signedUrl, { signal: controller.signal })
           if (!response.ok) throw new Error(`QB image ${level.id} failed to load`)
           const url = URL.createObjectURL(await response.blob())
           if (disposed || revision !== loadRevision) {
@@ -288,10 +346,22 @@ export function MergeQbBoard() {
           if (!image) throw new Error(`Missing QB image slot ${level.id}`)
           try {
             await new Promise<void>((resolve, reject) => {
-              image.onload = () => resolve()
-              image.onerror = () => reject(new Error(`QB image ${level.id} failed to load`))
+              const finish = (error?: Error) => {
+                image.onload = null
+                image.onerror = null
+                controller.signal.removeEventListener('abort', abort)
+                if (error) reject(error)
+                else resolve()
+              }
+              const abort = () => {
+                image.removeAttribute('src')
+                finish(new Error('QB image loading cancelled'))
+              }
+              image.onload = () => finish()
+              image.onerror = () => finish(new Error(`QB image ${level.id} failed to load`))
+              controller.signal.addEventListener('abort', abort, { once: true })
               image.src = url
-              if (image.complete && image.naturalWidth > 0) resolve()
+              if (image.complete && image.naturalWidth > 0) finish()
             })
           } catch (error) {
             URL.revokeObjectURL(url)
@@ -322,6 +392,7 @@ export function MergeQbBoard() {
     loadAssetsRef.current = loadAssets
     void loadAssets()
     const clearAssets = () => {
+      loadController?.abort()
       loadRevision++
       sprites.clear()
       for (const image of images.values()) image.removeAttribute('src')
@@ -333,7 +404,13 @@ export function MergeQbBoard() {
 
     let canvasScale = 0
     let canvasPixelRatio = 0
+    const invalidateInputBounds = () => {
+      inputBoundsRef.current = null
+    }
+    window.addEventListener('scroll', invalidateInputBounds, true)
+    window.addEventListener('resize', invalidateInputBounds)
     const resize = () => {
+      invalidateInputBounds()
       const rect = canvas.getBoundingClientRect()
       if (!rect.width || !rect.height) return
       const nextScale = rect.width / GAME_WIDTH
@@ -398,6 +475,7 @@ export function MergeQbBoard() {
     let accumulated = 0
     const animate = (now: number) => {
       frame = 0
+      invalidateInputBounds()
       accumulated += Math.min(now - previous, 50)
       previous = now
       let steps = 0
@@ -447,6 +525,12 @@ export function MergeQbBoard() {
     return () => {
       cancelAnimationFrame(frame)
       disposed = true
+      loadController?.abort()
+      window.removeEventListener('scroll', invalidateInputBounds, true)
+      window.removeEventListener('resize', invalidateInputBounds)
+      invalidateInputBounds()
+      touchPointer.current = null
+      loadAssetsRef.current = async () => {}
       window.removeEventListener('classrecordcacheclearing', clearAssets)
       for (const url of objectUrls.values()) URL.revokeObjectURL(url)
       observer.disconnect()
@@ -512,7 +596,10 @@ export function MergeQbBoard() {
 
   const aimAt = (event: PointerEvent<HTMLCanvasElement>) => {
     if (gameRef.current?.gameOver || assets.loading || assets.error) return
-    const bounds = event.currentTarget.getBoundingClientRect()
+    // All inputs still apply immediately; only share the layout read until the next frame.
+    const bounds = inputBoundsRef.current ?? event.currentTarget.getBoundingClientRect()
+    inputBoundsRef.current = bounds
+    if (!bounds.width) return
     gameRef.current?.aim(((event.clientX - bounds.left) / bounds.width) * GAME_WIDTH)
   }
 
@@ -566,7 +653,7 @@ export function MergeQbBoard() {
     frozenArenaRef.current = null
     finalSnapshotRef.current = null
     clearCelebrationsRef.current()
-    setScorePops([])
+    scorePopsRef.current([])
     touchPointer.current = null
     gameRef.current?.reset()
     resumeAnimationRef.current()
@@ -942,38 +1029,7 @@ export function MergeQbBoard() {
               </div>
             )}
           </div>
-          <div className="merge-qb-score">
-            <span className="text-xs text-muted-foreground">分数</span>
-            <span className="merge-qb-score-value">
-              <strong
-                className="font-heading text-4xl font-semibold tabular-nums"
-                aria-live="polite"
-              >
-                {snapshot?.score ?? 0}
-              </strong>
-              {scorePops.map((pop) => (
-                <span
-                  key={pop.id}
-                  className="merge-qb-score-pop"
-                  style={
-                    {
-                      '--pop-color': `var(--qb-pop-${pop.color})`,
-                      '--pop-rise': `${pop.rise}px`,
-                      '--pop-offset-x': `${pop.offsetX}px`,
-                      '--pop-offset-y': `${pop.offsetY}px`,
-                      animationDuration: `${pop.duration}ms`,
-                    } as CSSProperties
-                  }
-                  aria-hidden="true"
-                  onAnimationEnd={() =>
-                    setScorePops((active) => active.filter((item) => item.id !== pop.id))
-                  }
-                >
-                  +{pop.delta}
-                </span>
-              ))}
-            </span>
-          </div>
+          <QbScore score={snapshot?.score ?? 0} popsRef={scorePopsRef} />
           {sequence}
         </aside>
       </div>

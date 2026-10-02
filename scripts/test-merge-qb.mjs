@@ -17,8 +17,8 @@ const vite = await createServer({
 
 try {
   const { MergeQbGame, makePiece, FAIL_LINE, DANGER_DISTANCE, DANGER_GRACE_MS } = await vite.ssrLoadModule('/src/features/games/merge-qb/game.ts')
-  const { QB_LEVELS, QB_PHYSICS, levelImagePath, levelOutlineBounds } = await vite.ssrLoadModule('/src/features/games/merge-qb/levels.ts')
-  const { createCelebration } = await vite.ssrLoadModule('/src/features/games/merge-qb/render.ts')
+  const { QB_LEVELS, QB_PHYSICS, QB_SHOCKWAVE, levelImagePath, levelOutlineBounds } = await vite.ssrLoadModule('/src/features/games/merge-qb/levels.ts')
+  const { createCelebration, drawGame, makeOutlinedSprite } = await vite.ssrLoadModule('/src/features/games/merge-qb/render.ts')
   const { SHARE_CAPTION_POOLS, selectShareCaption } = await vite.ssrLoadModule('/src/features/games/merge-qb/share.ts')
   assert.equal(QB_LEVELS.length, 12)
   const captionCategories = [0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5]
@@ -193,6 +193,74 @@ try {
       }]
     }
   }, 180, 200), /must be convex/)
+
+  const canvasCalls = []
+  const context = new Proxy({}, {
+    get: (_, key) => (...args) => canvasCalls.push([key, ...args]),
+    set: (_, key, value) => { canvasCalls.push([key, value]); return true },
+  })
+  const originalDocument = globalThis.document
+  globalThis.document = { createElement: () => ({ width: 0, height: 0, getContext: () => context }) }
+  try {
+    for (const level of QB_LEVELS) {
+      const image = { complete: true, naturalWidth: level.sourceSize.width }
+      const sprite = makeOutlinedSprite(level, image, 0.83, 2, '#786a5c')
+      const body = makePiece(level, 180, 300)
+      Matter.Body.setAngle(body.body, 0.7)
+      canvasCalls.length = 0
+      const renderGame = {
+        time: 180, targetX: 180, gameOver: true,
+        objects: [body], activeShockwaves: [],
+      }
+      drawGame(context, renderGame, new Map([[level.id, image]]), new Map([[level.id, sprite]]), 0.83)
+      const imageCall = canvasCalls.find(([operation]) => operation === 'drawImage')
+      const expected = [
+        body.imageOffset.x - level.visualSize.width / 2 - sprite.padding / sprite.factor,
+        body.imageOffset.y - level.visualSize.height / 2 - sprite.padding / sprite.factor,
+        sprite.canvas.width / sprite.factor, sprite.canvas.height / sprite.factor,
+      ]
+      assert.equal(imageCall[1], sprite.canvas)
+      imageCall.slice(2).forEach((value, index) => assert.ok(Math.abs(value - expected[index]) < 1e-12,
+        `level ${level.id} cached drawing preserves image position and dimensions`))
+      canvasCalls.length = 0
+      drawGame(context, renderGame, new Map(), new Map(), 0.83)
+      assert.equal(canvasCalls.some(([operation]) => operation === 'drawImage'), false, 'unloaded images remain hidden')
+    }
+    const waves = Array.from({ length: 24 }, (_, index) => ({ x: 100 + index, y: 300, startRadius: 20, radius: 150, startedAt: index }))
+    canvasCalls.length = 0
+    drawGame(context, { time: 180, targetX: 180, gameOver: true, objects: [], activeShockwaves: waves }, new Map(), new Map(), 1)
+    assert.equal(canvasCalls.filter(([operation]) => operation === 'arc').length, waves.length, 'every simultaneous shockwave is drawn')
+    assert.equal(canvasCalls.filter(([operation]) => operation === 'save').length,
+      canvasCalls.filter(([operation]) => operation === 'restore').length, 'drawing leaves canvas state balanced')
+    const alphas = canvasCalls.filter(([operation]) => operation === 'globalAlpha').map(([, value]) => value)
+    assert.deepEqual(alphas, waves.map(wave => 0.34 * (1 - (180 - wave.startedAt) / QB_SHOCKWAVE.durationMs) ** 2), 'batched waves retain their individual opacity')
+  } finally {
+    if (originalDocument === undefined) delete globalThis.document
+    else globalThis.document = originalDocument
+  }
+
+  const burstEvents = []
+  const burstGame = new MergeQbGame(() => {}, () => 0, event => burstEvents.push(event))
+  for (let pair = 0; pair < 24; pair++) {
+    const first = makePiece(base, 40 + pair % 8 * 40, 230 + Math.floor(pair / 8) * 60)
+    const second = makePiece(base, first.body.position.x + 10, first.body.position.y)
+    for (const piece of [first, second]) {
+      burstGame.pieces.set(piece.body.id, piece)
+      Matter.Composite.add(burstGame.engine.world, piece.body)
+    }
+    burstGame.pendingPairs.set(`burst-${pair}`, [first.body.id, second.body.id])
+  }
+  burstGame.mergePending()
+  assert.equal(burstEvents.length, 24, 'rapid independent merges emit every score effect exactly once')
+  assert.equal(burstGame.snapshot.score, 24 * QB_LEVELS[1].points)
+  assert.equal(burstGame.activeShockwaves.length, 24, 'simultaneous merges retain all shockwaves')
+  for (let step = 0; step < 180; step++) burstGame.step()
+  assert.ok([...burstGame.objects].every(piece => [piece.body.position.x, piece.body.position.y, piece.body.angle].every(Number.isFinite)), 'dense collisions and overlapping shockwaves remain finite')
+  burstGame.reset()
+  assert.equal([...burstGame.objects].length, 0)
+  assert.equal(burstGame.activeShockwaves.length, 0)
+  assert.equal(burstGame.snapshot.score, 0)
+  burstGame.dispose()
 
   const idleSnapshots = []
   const idleGame = new MergeQbGame((snapshot) => idleSnapshots.push(snapshot), () => 0)
