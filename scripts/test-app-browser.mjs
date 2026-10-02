@@ -678,7 +678,7 @@ try {
       assert.ok(await touch.locator('.merge-qb-stage img').evaluateAll((images) => images.every((image) => !image.draggable)))
       assert.ok(await touch.locator('.merge-qb-mobile-restart').evaluate((button) =>
         button.getBoundingClientRect().width >= 40 && button.getBoundingClientRect().height === 32),
-      'responsive restart preserves a usable button area and its existing height')
+        'responsive restart preserves a usable button area and its existing height')
     }
   }
   await touch.setViewportSize({ width: 390, height: 844 })
@@ -1105,7 +1105,7 @@ try {
         }
         const checks = []
         try {
-          for (const [category, level] of [null, QB_LEVELS[2], QB_LEVELS[5], QB_LEVELS[8], QB_LEVELS[10], QB_LEVELS[11]].entries()) {
+          for (const [category, level] of [null, QB_LEVELS[7], QB_LEVELS[8], QB_LEVELS[9], QB_LEVELS[10], QB_LEVELS[11]].entries()) {
             const snapshot = { ...window.__mergeQbTestGame.snapshot, score: 12345, highestMergedLevel: level }
             const variants = []
             for (const choice of [0, 0.999999]) {
@@ -1232,7 +1232,7 @@ try {
           mobileHintGeometry.hint.left >= mobileHintGeometry.restart.right ||
           mobileHintGeometry.hint.bottom <= mobileHintGeometry.restart.top ||
           mobileHintGeometry.hint.top >= mobileHintGeometry.restart.bottom),
-      `mobile score hint stays beside the score, on screen and away from restart: ${JSON.stringify(mobileHintGeometry)}`)
+        `mobile score hint stays beside the score, on screen and away from restart: ${JSON.stringify(mobileHintGeometry)}`)
       assert.deepEqual(await gamePage.locator('.merge-qb-score').boundingBox(), mobileScoreBeforePop)
       assert.deepEqual(await gamePage.locator('.merge-qb-next').boundingBox(), mobileNextBeforePop)
       await gamePage.setViewportSize({ width: 1280, height: 900 })
@@ -1270,7 +1270,7 @@ try {
           })
           assert.ok(geometry.scrollWidth <= width && geometry.hints.every(({ rect }) =>
             rect.right < geometry.next.left && rect.left >= geometry.score.right - 4),
-          `score hints leave Next a safe gap with a long score at ${width}×${height}: ${JSON.stringify(geometry)}`)
+            `score hints leave Next a safe gap with a long score at ${width}×${height}: ${JSON.stringify(geometry)}`)
           assert.ok(Math.abs(geometry.hints[0].top - geometry.hints[1].top) <= 4, 'rapid hints never stack into lower slots')
           await gamePage.getByRole('alertdialog').waitFor({ state: 'detached' })
           await gamePage.screenshot({ path: `/tmp/class-merge-qb-mobile-${width}-${height}.png` })
@@ -1355,7 +1355,7 @@ try {
       [...toolbar.querySelectorAll('button, h1, .merge-qb-score, .merge-qb-next')]
         .filter((node) => node.getBoundingClientRect().width)
         .every((node) => node.getBoundingClientRect().right <= toolbar.getBoundingClientRect().right)),
-    'mobile retry fits alongside the existing controls')
+      'mobile retry fits alongside the existing controls')
     await retryPage.getByRole('button', { name: '重试', exact: true }).click()
     await retryPage.locator('.merge-qb-next img').waitFor()
     await retryPage.waitForFunction(() => !document.querySelector('.merge-qb-arena').disabled)
@@ -1457,9 +1457,9 @@ try {
         if (sample.requested) return
         const stage = document.querySelector('.guide-body') ? 'guide'
           : document.querySelector('.guide-cover') ? 'logo'
-          : document.body?.innerText.includes('正在打开档案') ? 'route-loading'
-          : document.body?.innerText.includes('正在验证访问权限') ? 'verification'
-          : ''
+            : document.body?.innerText.includes('正在打开档案') ? 'route-loading'
+              : document.body?.innerText.includes('正在验证访问权限') ? 'verification'
+                : ''
         if (stage && sample.states.at(-1) !== stage) sample.states.push(stage)
       }
       new MutationObserver(observe).observe(document, { childList: true, subtree: true })
