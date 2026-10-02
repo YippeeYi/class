@@ -3,7 +3,7 @@ import { QB_LEVELS, type QbLevel } from './levels'
 
 export const SHARE_CAPTION_POOLS = [
   {
-    maxLevel: 1,
+    maxLevel: 6,
     captions: [
       'QB 已就位，下一局争取让他们碰个头。',
       '这局先认个脸，合成的事下局再说。',
@@ -11,7 +11,7 @@ export const SHARE_CAPTION_POOLS = [
     ],
   },
   {
-    maxLevel: 3,
+    maxLevel: 7,
     captions: [
       '小 QB 碰个头，合成之路开张了。',
       '先合几只小 QB，大的还在后面。',
@@ -19,7 +19,7 @@ export const SHARE_CAPTION_POOLS = [
     ],
   },
   {
-    maxLevel: 6,
+    maxLevel: 8,
     captions: [
       'QB 越合越大，空位越来越少。',
       '这一局，QB 已经有点分量了。',
@@ -63,7 +63,7 @@ export function selectShareCaption(
     SHARE_CAPTION_POOLS.find((category) => highest <= category.maxLevel) ?? SHARE_CAPTION_POOLS[0]
   return (
     pool.captions[
-      Math.min(pool.captions.length - 1, Math.max(0, Math.floor(random() * pool.captions.length)))
+    Math.min(pool.captions.length - 1, Math.max(0, Math.floor(random() * pool.captions.length)))
     ] ?? pool.captions[0]
   )
 }
