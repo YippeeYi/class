@@ -541,6 +541,7 @@ body button.merge-qb-arena:active {
     flex: none;
     justify-content: flex-end;
     font-size: var(--toolbar-score-size);
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
   }
 
@@ -614,6 +615,10 @@ body button.merge-qb-arena:active {
 }
 
 @media (max-width: 319px) {
+  .merge-qb-toolbar .merge-qb-actions > div:first-child {
+    gap: 0.0625rem;
+  }
+
   .merge-qb-toolbar,
   .merge-qb-toolbar:has(.merge-qb-retry) {
     --toolbar-label-size: 0.5rem;
@@ -632,7 +637,7 @@ body button.merge-qb-arena:active {
   }
 
   .merge-qb-toolbar .merge-qb-score-value {
-    width: 5ch;
+    width: calc(5ch + 1px);
   }
 
   .merge-qb-toolbar .merge-qb-score {

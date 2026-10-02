@@ -130,8 +130,8 @@ async function checkQbColliders(page) {
   }))
   if (originals.every((image) => !image)) return // Private originals are absent in public CI.
   assert.ok(originals.every(Boolean), 'alpha verification requires the complete private image set')
-  const measurements = await page.evaluate(async (originals) => {
-    const { QB_LEVELS } = await import('/src/features/games/merge-qb/levels.ts')
+  const measurements = await page.evaluate(async ({ originals, base }) => {
+    const { QB_LEVELS } = await import(base + 'src/features/games/merge-qb/levels.ts')
     function distanceField(mask, width, height) {
       const distances = new Float32Array(mask.length).fill(1e6)
       for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
@@ -215,7 +215,7 @@ async function checkQbColliders(page) {
       results.push({ id: level.id, extra, missing, size: [image.naturalWidth, image.naturalHeight], configuredSize: [level.sourceSize.width, level.sourceSize.height] })
     }
     return results
-  }, originals)
+  }, { originals, base: origin })
   for (const measurement of measurements) {
     assert.deepEqual(measurement.size, measurement.configuredSize, `level ${measurement.id} matches its private original`)
     assert.ok(measurement.extra <= (measurement.id === '11' ? 3.75 : 3), `level ${measurement.id} avoids premature contact in exterior transparency: ${measurement.extra}`)
@@ -716,6 +716,7 @@ try {
     }
   }, origin)
   await touch.waitForFunction(() => window.__mobileMergeGame)
+  await touch.evaluate(() => document.fonts.ready)
   for (const width of [280, 320, 375, 390, 430]) {
     await touch.setViewportSize({ width, height: 844 })
     await touch.waitForTimeout(100)
@@ -731,15 +732,24 @@ try {
       if (stableLayout) assert.deepEqual(layout, stableLayout, 'one to five digits do not move the controls or resize the arena')
       stableLayout = layout
     }
-    assert.ok(await touch.locator('.merge-qb-score-value').evaluate((value) =>
-      value.getBoundingClientRect().width >= value.querySelector('strong').getBoundingClientRect().width && getComputedStyle(value).fontVariantNumeric.includes('tabular-nums')),
-    'the number slot reserves at least five complete tabular digits')
+    const numberSlot = await touch.locator('.merge-qb-score-value').evaluate((value) => {
+      const digits = value.querySelector('strong')
+      return {
+        reservedWidth: value.getBoundingClientRect().width,
+        digitsWidth: digits.getBoundingClientRect().width,
+        slotWeight: getComputedStyle(value).fontWeight,
+        digitsWeight: getComputedStyle(digits).fontWeight,
+        tabular: getComputedStyle(value).fontVariantNumeric.includes('tabular-nums'),
+      }
+    })
+    assert.ok(numberSlot.reservedWidth >= numberSlot.digitsWidth && numberSlot.tabular,
+      `the number slot reserves at least five complete tabular digits at ${width}px: ${JSON.stringify(numberSlot)}`)
     for (let index = 0; index < 5; index++) {
-      await touch.evaluate(async (index) => {
-        const { QB_LEVELS } = await import('/src/features/games/merge-qb/levels.ts')
+      await touch.evaluate(async ({ index, base }) => {
+        const { QB_LEVELS } = await import(base + 'src/features/games/merge-qb/levels.ts')
         window.__mobileMergeGame.next = QB_LEVELS[index]
         window.__mobileMergeGame.publish()
-      }, index)
+      }, { index, base: origin })
       await touch.waitForFunction((index) => {
         const image = document.querySelector('.merge-qb-next img')
         return image?.alt === ['一级 QB', '二级 QB', '三级 QB', '四级 QB', '五级 QB'][index] && image.complete && image.naturalWidth > 0
@@ -869,6 +879,7 @@ try {
         (viewport) => innerWidth === viewport.width && innerHeight === viewport.height,
         gamePage.viewportSize(),
       )
+      await gamePage.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
       await gamePage.waitForFunction(
         (height) => document.querySelector('.merge-qb-arena')?.getBoundingClientRect().bottom <= height + 1,
         height,
@@ -1076,9 +1087,9 @@ try {
         }
       }, origin)
       await gamePage.waitForFunction(() => window.__mergeQbTestGame)
-      const shareChecks = await gamePage.evaluate(async () => {
-        const { createShareImage, SHARE_CAPTION_POOLS } = await import('/src/features/games/merge-qb/share.ts')
-        const { QB_LEVELS } = await import('/src/features/games/merge-qb/levels.ts')
+      const shareChecks = await gamePage.evaluate(async (base) => {
+        const { createShareImage, SHARE_CAPTION_POOLS } = await import(base + 'src/features/games/merge-qb/share.ts')
+        const { QB_LEVELS } = await import(base + 'src/features/games/merge-qb/levels.ts')
         const frozen = document.querySelector('.merge-qb-arena canvas')
         const fillText = CanvasRenderingContext2D.prototype.fillText
         const drawImage = CanvasRenderingContext2D.prototype.drawImage
@@ -1113,7 +1124,7 @@ try {
           CanvasRenderingContext2D.prototype.drawImage = drawImage
         }
         return checks
-      })
+      }, origin)
       for (const check of shareChecks) {
         assert.deepEqual(check.variants[0].texts.slice(0, 3), check.variants[1].texts.slice(0, 3), 'caption randomness preserves score, highest level and layout')
         assert.deepEqual(check.variants[0].texts.slice(0, 3).map(([text]) => text), ['合成大QB', '12345 分', `最高合成：${check.highest}`])
