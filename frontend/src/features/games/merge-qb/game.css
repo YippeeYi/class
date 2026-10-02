@@ -522,6 +522,7 @@ body button.merge-qb-arena:active {
   }
 
   .merge-qb-toolbar {
+    --toolbar-control-shift: clamp(0.125rem, 1cqw, 0.375rem);
     --toolbar-label-size: clamp(0.5625rem, 3cqw, 0.75rem);
     --toolbar-score-size: clamp(0.8125rem, 4.05cqw, 1.0625rem);
     grid-template-columns: minmax(max-content, 1fr) max-content minmax(max-content, 0.6fr);
@@ -539,6 +540,11 @@ body button.merge-qb-arena:active {
   .merge-qb-toolbar .merge-qb-actions > div:first-child {
     flex: none;
     gap: clamp(0.125rem, 0.8cqw, 0.375rem);
+  }
+
+  .merge-qb-toolbar .merge-qb-mobile-restart,
+  .merge-qb-toolbar .merge-qb-score {
+    margin-inline: var(--toolbar-control-shift) calc(-1 * var(--toolbar-control-shift));
   }
 
   .merge-qb-toolbar .merge-qb-actions a {
@@ -575,6 +581,7 @@ body button.merge-qb-arena:active {
 
   .merge-qb-toolbar .merge-qb-score {
     order: 1;
+    justify-self: start;
     padding-right: calc(3 * 0.625rem + 0.25rem);
   }
 

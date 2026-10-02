@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import './written-record-pages.css'
 
@@ -20,6 +20,7 @@ import { useSignedAsset } from '@/hooks/use-signed-asset'
 import { recordAnchor } from '@/lib/markup'
 import { recordStableKey } from '@/lib/record-identity'
 import { type RecordStreamPage, recordPageKey } from '@/lib/record-stream'
+import { clampWindowScrollTop } from '@/lib/viewport-scroll'
 import { rememberImageDimensions, useImageDimensions } from '@/services/image-metadata'
 import type { RecordItem, RecordPage } from '@/types/domain'
 
@@ -55,6 +56,9 @@ export function WrittenRecordPages({
   const hasPage = Boolean(page)
   const contentRef = useRef<HTMLDivElement>(null)
   const controlsRef = useRef<HTMLDivElement>(null)
+  const stickyRef = useRef<HTMLDivElement>(null)
+  const pendingPageReset = useRef<string | null>(null)
+  const cancelPageReset = useRef<(() => void) | null>(null)
   useLayoutEffect(() => {
     const content = contentRef.current
     const controls = controlsRef.current
@@ -71,7 +75,70 @@ export function WrittenRecordPages({
     observer.observe(controls)
     return () => observer.disconnect()
   }, [hasPage])
+  useLayoutEffect(() => {
+    if (!page || pendingPageReset.current !== page.page) return
+    pendingPageReset.current = null
+    const content = contentRef.current
+    const sticky = stickyRef.current
+    if (!content || !sticky) return
+    const previousAnchor = content.style.overflowAnchor
+    content.style.overflowAnchor = 'none'
+    const reset = () => {
+      const top = Number.parseFloat(getComputedStyle(sticky).top)
+      window.scrollTo({
+        top: clampWindowScrollTop(window.scrollY + content.getBoundingClientRect().top - top),
+        left: 0,
+        behavior: 'instant',
+      })
+    }
+    let frame = 0
+    const cancel = () => {
+      cancelAnimationFrame(frame)
+      content.style.overflowAnchor = previousAnchor
+      cancelPageReset.current = null
+    }
+    cancelPageReset.current = cancel
+    reset()
+    // Select's scroll-lock teardown can restore the old position after the commit.
+    frame = requestAnimationFrame(() => {
+      reset()
+      frame = requestAnimationFrame(() => {
+        reset()
+        cancel()
+      })
+    })
+    return cancel
+  }, [page])
+  const handleRecordReference = useCallback(
+    (recordId: string, source: HTMLElement) => {
+      cancelPageReset.current?.()
+      pendingPageReset.current = null
+      onRecordReference(recordId, source)
+    },
+    [onRecordReference],
+  )
   if (!page) return <EmptyState title="当前条件下没有手写页" />
+
+  const changePage = (next: number) => {
+    if (next === safeIndex || !visiblePages[next]) return
+    cancelPageReset.current?.()
+    const content = contentRef.current
+    const sticky = stickyRef.current
+    if (content && sticky) {
+      const top = Number.parseFloat(getComputedStyle(sticky).top)
+      const stuck =
+        content.getBoundingClientRect().top <= top &&
+        Math.abs(sticky.getBoundingClientRect().top - top) < 1
+      pendingPageReset.current = stuck ? visiblePages[next].page : null
+      if (stuck) {
+        content.dataset.stickyPage = ''
+        content.style.setProperty('--written-sticky-top', `${top}px`)
+      } else {
+        delete content.dataset.stickyPage
+      }
+    }
+    onPageChange(next)
+  }
 
   const pageRecords = (
     stream.find((group) => group.page === recordPageKey(page.page))?.records || []
@@ -83,7 +150,7 @@ export function WrittenRecordPages({
     <Card className="written-record-frame overflow-visible pt-0">
       <CardContent ref={contentRef} className="written-record-content">
         <PageImagePreloader previousPath={previousPath} nextPath={nextPath} />
-        <div className="written-record-sticky">
+        <div ref={stickyRef} className="written-record-sticky">
           <div
             ref={controlsRef}
             className="written-record-controls grid grid-cols-2 items-center gap-2 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-3"
@@ -92,7 +159,7 @@ export function WrittenRecordPages({
               variant="outline"
               className="order-2 w-full sm:order-1 sm:w-auto"
               disabled={safeIndex <= 0}
-              onClick={() => onPageChange(safeIndex - 1)}
+              onClick={() => changePage(safeIndex - 1)}
             >
               上一页
             </Button>
@@ -105,7 +172,7 @@ export function WrittenRecordPages({
                 value={page.page}
                 onValueChange={(value) => {
                   const nextIndex = visiblePages.findIndex((item) => item.page === value)
-                  if (nextIndex >= 0) onPageChange(nextIndex)
+                  if (nextIndex >= 0) changePage(nextIndex)
                 }}
               >
                 <SelectTrigger size="sm" aria-label="跳转书面页" className="w-28 bg-background/85">
@@ -124,7 +191,7 @@ export function WrittenRecordPages({
               variant="outline"
               className="order-3 w-full sm:w-auto"
               disabled={safeIndex >= visiblePages.length - 1}
-              onClick={() => onPageChange(safeIndex + 1)}
+              onClick={() => changePage(safeIndex + 1)}
             >
               下一页
             </Button>
@@ -148,7 +215,7 @@ export function WrittenRecordPages({
             <RecordCard
               key={recordStableKey(record)}
               record={record}
-              onRecordReference={onRecordReference}
+              onRecordReference={handleRecordReference}
               showSourceAction={false}
               jumpActions={jumpActionTarget === recordAnchor(record) ? jumpActions : undefined}
             />

@@ -337,6 +337,24 @@ const waitCards = async (page, count) => {
   }
 }
 const cardKeys = (page) => page.locator('main .record-surface').evaluateAll((cards) => cards.map((card) => card.id))
+const assertWrittenPageStart = async (page) => {
+  await page.waitForFunction(() => {
+    const content = document.querySelector('.written-record-content')
+    const sticky = document.querySelector('.written-record-sticky')
+    const top = document.querySelector('.app-topbar').getBoundingClientRect().bottom
+    return Math.abs(content.getBoundingClientRect().top - top) < 1 && Math.abs(sticky.getBoundingClientRect().top - top) < 1
+  })
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+  const geometry = await page.evaluate(() => {
+    const rect = selector => document.querySelector(selector).getBoundingClientRect().toJSON()
+    return { content: rect('.written-record-content'), sticky: rect('.written-record-sticky'), controls: rect('.written-record-controls'), image: rect('.written-record-image'), text: rect('.written-record-text'), first: rect('.written-record-text .record-surface'), topbar: rect('.app-topbar'), scrollY }
+  })
+  assert.ok(geometry.scrollY > 0 && Math.abs(geometry.content.top - geometry.topbar.bottom) < 1, 'pagination resets to the real sticky threshold, not the document top or the old depth')
+  assert.ok(Math.abs(geometry.first.top - geometry.text.top) < 1, 'the new page starts at its first record')
+  const headerBottom = page.viewportSize().width >= 1024 ? geometry.controls.bottom : geometry.image.bottom
+  assert.ok(geometry.text.top >= headerBottom, 'the first record starts beneath the sticky header in the existing responsive layout')
+  return geometry.scrollY
+}
 const assertWrittenSticky = async (page) => {
   await page.getByRole('button', { name: '查看手写记录第 01 页大图', exact: true }).waitFor()
   // A long body exercises window scrolling without changing the page fixtures or record order.
@@ -376,14 +394,71 @@ const assertWrittenSticky = async (page) => {
       previousTextTop = geometry.text.top
     }
     await page.screenshot({ path: `/tmp/class-written-sticky-${width}-${height}.png` })
+    await page.getByRole('button', { name: '下一页', exact: true }).click()
+    await waitCards(page, 2)
+    await assertWrittenPageStart(page)
+    await page.getByRole('button', { name: '上一页', exact: true }).click()
+    await waitCards(page, 5)
+    await assertWrittenPageStart(page)
+    await page.locator('#record-r3').evaluate(card => {
+      const body = document.createElement('p')
+      body.dataset.stickyTestBody = ''
+      body.textContent = '长书面记录正文，用于检查连续滚动时分页后的起始位置。'.repeat(800)
+      card.append(body)
+    })
   }
+  await page.evaluate(() => window.scrollBy(0, 700))
   await page.getByRole('combobox', { name: '跳转书面页' }).click({ delay: 100 })
   await page.getByRole('option', { name: '第 2 页', exact: true }).click()
   await waitCards(page, 2)
   await page.getByText('暂无对应扫描页', { exact: true }).waitFor()
+  await assertWrittenPageStart(page)
+  await page.evaluate(() => window.scrollTo(0, 0))
   await page.getByRole('button', { name: '上一页', exact: true }).click()
   await waitCards(page, 5)
   await page.getByRole('button', { name: '查看手写记录第 01 页大图', exact: true }).waitFor()
+  assert.equal(await page.evaluate(() => scrollY), 0, 'pagination before sticky starts preserves normal window scroll')
+  for (const distance of [0, 1, 400, 1200]) {
+    await page.locator('#record-r3').evaluate(card => {
+      const body = document.createElement('p')
+      body.textContent = '长记录含媒体正文。'.repeat(800)
+      card.append(body)
+    })
+    await page.evaluate(distance => {
+      const content = document.querySelector('.written-record-content')
+      const sticky = document.querySelector('.written-record-sticky')
+      window.scrollTo(0, scrollY + content.getBoundingClientRect().top - parseFloat(getComputedStyle(sticky).top) + distance)
+    }, distance)
+    await page.evaluate(async () => {
+      document.querySelector('.written-record-controls > button:last-child').click()
+      await new Promise(queueMicrotask)
+      document.querySelector('.written-record-controls > button:first-child').click()
+    })
+    await waitCards(page, 5)
+    const start = await assertWrittenPageStart(page)
+    await page.locator('#record-r3').evaluate(card => {
+      const media = document.createElement('img')
+      media.width = 300
+      media.height = 600
+      media.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="600"/>'
+      card.append(media)
+      return media.decode()
+    })
+    await page.waitForTimeout(150)
+    assert.equal(await page.evaluate(() => scrollY), start, 'rapid paging and late media loading cannot restore the previous scroll depth')
+  }
+  await page.getByRole('button', { name: '下一页', exact: true }).click()
+  await waitCards(page, 2)
+  await assertWrittenPageStart(page)
+  const beforeSticky = await page.evaluate(() => {
+    const content = document.querySelector('.written-record-content')
+    const sticky = document.querySelector('.written-record-sticky')
+    window.scrollTo(0, scrollY + content.getBoundingClientRect().top - parseFloat(getComputedStyle(sticky).top) - 2)
+    return scrollY
+  })
+  await page.getByRole('button', { name: '上一页', exact: true }).click()
+  await waitCards(page, 5)
+  assert.equal(await page.evaluate(() => scrollY), beforeSticky, 'pagination just before the sticky threshold does not snap to it')
   await page.getByRole('tab', { name: '按条记录', exact: true }).click()
   await waitCards(page, 7)
   assert.equal(await page.locator('.written-record-sticky').count(), 0, 'list mode has no written sticky boundary')
@@ -914,7 +989,7 @@ try {
     await touch.waitForTimeout(100)
     let arenaLayout
     let toolbarLayout
-    for (const score of [1, 12, 123, 1234, 12345]) {
+    for (const score of [0, 1, 12, 123, 1234, 12345]) {
       await touch.evaluate((score) => { window.__mobileMergeGame.score = score; window.__mobileMergeGame.publish() }, score)
       await touch.waitForFunction((score) => document.querySelector('.merge-qb-score strong')?.textContent === String(score), score)
       await fitsMobileGame(`${width}×844 score ${score}`)
@@ -930,6 +1005,20 @@ try {
       if (arenaLayout) assert.deepEqual(arena, arenaLayout, 'score growth does not resize the arena')
       arenaLayout = arena
     }
+    const mobileShift = await touch.evaluate(async () => {
+      const toolbar = document.querySelector('.merge-qb-toolbar')
+      const bounds = () => ['.merge-qb-mobile-restart', '.merge-qb-score', '.merge-qb-next', '.merge-qb-arena'].map(selector => document.querySelector(selector).getBoundingClientRect().toJSON())
+      const shifted = bounds()
+      toolbar.style.setProperty('--toolbar-control-shift', '0px')
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      const unshifted = bounds()
+      toolbar.style.removeProperty('--toolbar-control-shift')
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      return { shifted, unshifted }
+    })
+    assert.ok(mobileShift.shifted[0].left > mobileShift.unshifted[0].left && mobileShift.shifted[1].left > mobileShift.unshifted[1].left, `restart and the whole score area move right together at ${width}: ${JSON.stringify(mobileShift)}`)
+    assert.ok(Math.abs(mobileShift.shifted[2].left - mobileShift.unshifted[2].left) < 0.1 && Math.abs(mobileShift.shifted[2].width - mobileShift.unshifted[2].width) < 0.1, 'the spacing change keeps Next in place')
+    assert.deepEqual(mobileShift.shifted[3], mobileShift.unshifted[3], 'the spacing change preserves the arena size')
     for (let index = 0; index < 5; index++) {
       await touch.evaluate(async ({ index, base }) => {
         const { QB_LEVELS } = await import(base + 'src/features/games/merge-qb/levels.ts')
