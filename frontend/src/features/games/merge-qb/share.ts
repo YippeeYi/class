@@ -63,7 +63,7 @@ export function selectShareCaption(
     SHARE_CAPTION_POOLS.find((category) => highest <= category.maxLevel) ?? SHARE_CAPTION_POOLS[0]
   return (
     pool.captions[
-    Math.min(pool.captions.length - 1, Math.max(0, Math.floor(random() * pool.captions.length)))
+      Math.min(pool.captions.length - 1, Math.max(0, Math.floor(random() * pool.captions.length)))
     ] ?? pool.captions[0]
   )
 }
