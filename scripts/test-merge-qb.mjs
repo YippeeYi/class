@@ -21,7 +21,7 @@ try {
   const { createCelebration } = await vite.ssrLoadModule('/src/features/games/merge-qb/render.ts')
   const { SHARE_CAPTION_POOLS, selectShareCaption } = await vite.ssrLoadModule('/src/features/games/merge-qb/share.ts')
   assert.equal(QB_LEVELS.length, 12)
-  const captionCategories = [0, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5]
+  const captionCategories = [0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5]
   assert.equal(SHARE_CAPTION_POOLS.at(-1).maxLevel, 12)
   assert.ok(SHARE_CAPTION_POOLS.every((pool) => pool.captions.length >= 3 && new Set(pool.captions).size === pool.captions.length))
   assert.equal(new Set(SHARE_CAPTION_POOLS.flatMap((pool) => pool.captions)).size, SHARE_CAPTION_POOLS.flatMap((pool) => pool.captions).length, 'categories have distinct captions')
@@ -41,7 +41,7 @@ try {
   assert.ok(confetti.radius > 0 && sparkle.radius > 0)
   assert.ok([...confetti.particles, ...sparkle.particles].every((particle) =>
     Math.abs(particle.directionX ** 2 + particle.directionY ** 2 - 1) < 1e-12),
-  'cached particle directions preserve unit-length trajectories')
+    'cached particle directions preserve unit-length trajectories')
   assert.deepEqual([confetti.x, confetti.y, sparkle.x, sparkle.y], [180, 300, 180, 300])
   assert.ok(createCelebration(visualEvent, 'confetti', 1000, true).particles.length < confetti.particles.length, 'reduced motion uses fewer particles')
   for (let index = 0; index < QB_LEVELS.length; index++) {
@@ -79,7 +79,7 @@ try {
         }
       }
     }
-    const collisionGame = new MergeQbGame(() => {}, () => 0)
+    const collisionGame = new MergeQbGame(() => { }, () => 0)
     const colliding = Array.from({ length: 3 }, (_, i) => makePiece(level, 180 + (i - 1) * level.physicsSize.width / 8, 260))
     for (const piece of colliding) {
       collisionGame.pieces.set(piece.body.id, piece)
@@ -115,7 +115,7 @@ try {
 
   const base = QB_LEVELS[0]
   const mergeForce = (sourceLevel) => {
-    const pulseGame = new MergeQbGame(() => {}, () => 0)
+    const pulseGame = new MergeQbGame(() => { }, () => 0)
     const firstSource = makePiece(sourceLevel, 140, 300)
     const secondSource = makePiece(sourceLevel, 180, 300)
     const nearby = makePiece(base, 240, 300)
@@ -154,38 +154,56 @@ try {
   for (const shape of [
     { type: 'circle', x: 0.5, y: 0.5, radius: 0.4 },
     { type: 'rectangle', x: 0.5, y: 0.5, width: 0.7, height: 0.8 },
-    { type: 'polygon', vertices: [
-      { x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.8, y: 0.8 }, { x: 0.2, y: 0.8 },
-    ] },
+    {
+      type: 'polygon', vertices: [
+        { x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.8, y: 0.8 }, { x: 0.2, y: 0.8 },
+      ]
+    },
   ]) {
     const piece = makePiece({ ...base, collider: { shapes: [shape] } }, 180, 200)
     assert.ok(piece.body.bounds.min.x < 180 && piece.body.bounds.max.x > 180)
     assert.ok(piece.body.bounds.min.y < 200 && piece.body.bounds.max.y > 200)
   }
-  const compound = makePiece({ ...base, collider: { shapes: [
-    { type: 'circle', x: 0.35, y: 0.5, radius: 0.22 },
-    { type: 'circle', x: 0.65, y: 0.5, radius: 0.22 },
-  ] } }, 180, 200)
+  const compound = makePiece({
+    ...base, collider: {
+      shapes: [
+        { type: 'circle', x: 0.35, y: 0.5, radius: 0.22 },
+        { type: 'circle', x: 0.65, y: 0.5, radius: 0.22 },
+      ]
+    }
+  }, 180, 200)
   assert.ok(compound.body.parts.length > 1)
   assert.equal(compound.body.position.x + compound.imageOffset.x, 180)
-  const offsetCollider = makePiece({ ...base, collider: { shapes: [
-    { type: 'rectangle', x: 0.7, y: 0.5, width: 0.3, height: 0.6 },
-  ] } }, 180, 200)
+  const offsetCollider = makePiece({
+    ...base, collider: {
+      shapes: [
+        { type: 'rectangle', x: 0.7, y: 0.5, width: 0.3, height: 0.6 },
+      ]
+    }
+  }, 180, 200)
   assert.ok(offsetCollider.body.position.x > 180, 'off-centre collision art keeps its own anchor')
   assert.equal(offsetCollider.body.position.x + offsetCollider.imageOffset.x, 180)
-  assert.throws(() => makePiece({ ...base, collider: { shapes: [{ type: 'polygon', vertices: [
-    { x: 0.1, y: 0.1 }, { x: 0.9, y: 0.1 }, { x: 0.5, y: 0.5 },
-    { x: 0.9, y: 0.9 }, { x: 0.1, y: 0.9 },
-  ] }] } }, 180, 200), /must be convex/)
+  assert.throws(() => makePiece({
+    ...base, collider: {
+      shapes: [{
+        type: 'polygon', vertices: [
+          { x: 0.1, y: 0.1 }, { x: 0.9, y: 0.1 }, { x: 0.5, y: 0.5 },
+          { x: 0.9, y: 0.9 }, { x: 0.1, y: 0.9 },
+        ]
+      }]
+    }
+  }, 180, 200), /must be convex/)
 
   const idleSnapshots = []
   const idleGame = new MergeQbGame((snapshot) => idleSnapshots.push(snapshot), () => 0)
   const snapshotGetter = Object.getOwnPropertyDescriptor(MergeQbGame.prototype, 'snapshot').get
   let snapshotReads = 0
-  Object.defineProperty(idleGame, 'snapshot', { get() {
-    snapshotReads++
-    return snapshotGetter.call(this)
-  } })
+  Object.defineProperty(idleGame, 'snapshot', {
+    get() {
+      snapshotReads++
+      return snapshotGetter.call(this)
+    }
+  })
   for (let step = 0; step < 360; step++) idleGame.step()
   assert.equal(snapshotReads, 0, 'idle physics ticks do not allocate UI snapshots')
   assert.equal(idleSnapshots.length, 1, 'idle ticks do not publish React updates')
@@ -327,7 +345,7 @@ try {
   game.dispose()
 
   const mergeEvents = []
-  const selection = new MergeQbGame(() => {}, () => 0.999, (event) => mergeEvents.push(event))
+  const selection = new MergeQbGame(() => { }, () => 0.999, (event) => mergeEvents.push(event))
   assert.equal(selection.snapshot.unlockedCount, 1)
   assert.equal(selection.snapshot.current.id, QB_LEVELS[0].id, 'a new game starts with level one')
   assert.equal(selection.snapshot.next.id, QB_LEVELS[0].id)
@@ -412,7 +430,7 @@ try {
   assert.equal(selection.snapshot.highestMergedLevel, null, 'a new run resets highest-level history')
   selection.dispose()
 
-  const sleepingGame = new MergeQbGame(() => {}, () => 0)
+  const sleepingGame = new MergeQbGame(() => { }, () => 0)
   const unsupported = makePiece(QB_LEVELS[2], 115, 272)
   const merging = [makePiece(base, 140, 300), makePiece(base, 180, 300)]
   for (const piece of [unsupported, ...merging]) {
