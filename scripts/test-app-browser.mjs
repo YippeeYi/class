@@ -383,8 +383,10 @@ const assertWrittenSticky = async (page) => {
       const geometry = await page.evaluate(() => {
         const rect = selector => document.querySelector(selector).getBoundingClientRect().toJSON()
         const sticky = document.querySelector('.written-record-sticky')
-        return { topbar: rect('.app-topbar'), sticky: rect('.written-record-sticky'), controls: rect('.written-record-controls'), image: rect('.written-record-image'), text: rect('.written-record-text'), scrollWidth: document.documentElement.scrollWidth,
-          nestedSticky: [...sticky.querySelectorAll('*')].some(element => element.offsetWidth > 1 && element.offsetHeight > 1 && ['sticky', 'fixed'].includes(getComputedStyle(element).position)) }
+        return {
+          topbar: rect('.app-topbar'), sticky: rect('.written-record-sticky'), controls: rect('.written-record-controls'), image: rect('.written-record-image'), text: rect('.written-record-text'), scrollWidth: document.documentElement.scrollWidth,
+          nestedSticky: [...sticky.querySelectorAll('*')].some(element => element.offsetWidth > 1 && element.offsetHeight > 1 && ['sticky', 'fixed'].includes(getComputedStyle(element).position))
+        }
       })
       assert.ok(Math.abs(geometry.sticky.top - geometry.topbar.bottom) < 1, 'the whole written frame top sticks below the existing site navigation')
       assert.ok(geometry.controls.bottom <= geometry.image.top + 1 && geometry.image.bottom <= height, 'page controls and the image keep their order and fit within the viewport')
@@ -1038,7 +1040,7 @@ try {
     game.onChange = snapshot => { publishes++; onChange(snapshot) }
     const count = [...game.objects].length
     const capture = canvas.setPointerCapture
-    canvas.setPointerCapture = () => {}
+    canvas.setPointerCapture = () => { }
     try {
       canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 71, pointerType: 'touch', clientX: bounds.left + bounds.width / 2 }))
       for (let index = 0; index < 100; index++)
@@ -1167,7 +1169,12 @@ try {
     const gamePage = await gameContext.newPage()
     await gamePage.goto(origin + 'records')
     await waitCards(gamePage, 4)
-    await gamePage.locator('.app-sidebar-navigation a[href$="/games"]').click()
+    assert.equal(
+      await gamePage.locator('.app-sidebar-navigation a[href$="/games"]').count(),
+      0,
+      'games must stay hidden from sidebar navigation',
+    )
+    await gamePage.goto(origin + 'games')
     await gamePage.waitForURL(/games\/?$/)
     const gameCard = gamePage.getByRole('link', { name: '合成大QB', exact: true })
     assert.equal(await gameCard.locator('[data-slot="card-title"]').innerText(), '合成大QB')
@@ -1440,7 +1447,11 @@ try {
     assert.equal(await gamePage.locator('.merge-qb-next img').getAttribute('alt'), '一级 QB')
     await gamePage.reload()
     await board.waitFor()
-    assert.equal(await gamePage.locator('.app-sidebar-navigation a[href$="/games"][data-active]').count(), 1)
+    assert.equal(
+      await gamePage.locator('.app-sidebar-navigation a[href$="/games"]').count(),
+      0,
+      'games must stay hidden from sidebar navigation',
+    )
     await gamePage.getByRole('button', { name: '返回游戏库' }).click()
     await gamePage.getByRole('alertdialog').getByRole('button', { name: '退出游戏' }).click()
     await gamePage.getByRole('link', { name: '合成大QB', exact: true }).click()
