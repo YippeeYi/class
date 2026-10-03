@@ -79,6 +79,8 @@ const navigation = [
   { to: '/credits', label: NAVIGATION_PAGE_NAMES['/credits'], icon: Sparkles },
 ]
 
+const sidebarNavigation = navigation.filter(({ to }) => to !== '/games')
+
 const FULLSCREEN_STORAGE_KEY = 'classRecord:keepFullscreen'
 const viewportLockedPaths = new Set(['/materials', '/quiz', '/map', '/qb'])
 const wideContentPaths = new Set(['/timeline'])
@@ -149,10 +151,15 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
   const location = useLocation()
   const activePath = navigationPath(location.pathname)
   const [clearing, setClearing] = useState(false)
-  const activeIndex = navigation.findIndex(({ to }) => isNavigationActive(activePath, to))
-  const navigationMotion = useSelectionMotion<HTMLUListElement>(activeIndex, navigation.length, {
-    targetSelector: ':scope > [data-slot="sidebar-menu-item"] > [data-slot="sidebar-menu-button"]',
-  })
+  const activeIndex = sidebarNavigation.findIndex(({ to }) => isNavigationActive(activePath, to),)
+  const navigationMotion = useSelectionMotion<HTMLUListElement>(
+    activeIndex,
+    sidebarNavigation.length,
+    {
+      targetSelector:
+        ':scope > [data-slot="sidebar-menu-item"] > [data-slot="sidebar-menu-button"]',
+    },
+  )
 
   const clearAccess = async () => {
     if (clearing) return
@@ -198,15 +205,15 @@ function AppSidebar({ onClearAccess }: { onClearAccess: () => Promise<void> }) {
               data-no-active={activeIndex < 0 ? 'true' : undefined}
             >
               <SelectionMotionLayer listItem />
-              {navigation.map(({ to, label, icon: Icon }) => {
+              {sidebarNavigation.map(({ to, label, icon: Icon }) => {
                 const isActive = isNavigationActive(activePath, to)
                 const destination =
                   normalizeAppPathname(location.pathname) === to
                     ? {
-                        pathname: location.pathname,
-                        search: location.search,
-                        hash: location.hash,
-                      }
+                      pathname: location.pathname,
+                      search: location.search,
+                      hash: location.hash,
+                    }
                     : to
 
                 return (
@@ -478,7 +485,7 @@ export function AppShell() {
                   : 'min-h-[calc(100svh-4rem)] py-6 pb-12 sm:py-7 sm:pb-16 lg:py-8',
                 !isViewportLocked && (isWideContent ? 'max-w-[90rem]' : 'max-w-6xl'),
                 isMobileGamePage &&
-                  'max-md:h-dvh max-md:min-h-0 max-md:overflow-hidden max-md:px-0 max-md:py-0',
+                'max-md:h-dvh max-md:min-h-0 max-md:overflow-hidden max-md:px-0 max-md:py-0',
               )}
             >
               <Suspense
